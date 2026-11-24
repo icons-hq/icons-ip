@@ -1,6 +1,7 @@
 'use server';
 import { unstable_rethrow } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { revalidateGoodDetailSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { parseGoodsGroupIdentity } from '@/lib/admin/goods-groups';
@@ -25,7 +26,7 @@ export async function saveGoodsProductionAction(goodId: unknown, values: unknown
   if (result.error || !parseGoodsProductionPolicy(result.data)) return { error: productionError(result.error?.code, result.error?.message), uncertain: uncertain(result.error?.code) };
   const current = await client.rpc('admin_get_goods_production', { p_good: goodId }), policy = current.error ? null : parseGoodsProductionPolicy(current.data);
   if (!policy || policy.goodId !== goodId) return { error: productionError(), uncertain: true };
-  revalidatePath(goodsPath); revalidatePath(`/shop/${goodId}`); revalidatePath('/cart'); return { policy };
+  revalidatePath(goodsPath); revalidateGoodDetailSurfaces(); revalidatePath('/cart'); return { policy };
  } catch (error) { unstable_rethrow(error); return { error: productionError(), uncertain: true }; }
 }
 export async function readOrderProductionAction(orderId: unknown) {

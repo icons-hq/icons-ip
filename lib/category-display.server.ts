@@ -94,7 +94,7 @@ export function parseCategoryDisplayPage(value: unknown, query: ShopListQuery): 
     if (recommendationRows.some(row => !record(row) || typeof row.ip_name !== 'string') || recommended.some(good => !good) || new Set(recommended.map(good => good?.id)).size !== recommended.length) return null;
     page.recommendations = { id: `category-${page.category.id}`, title: r.title, layout: 'list', imageShape: 'square', goods: (recommended as Good[]).map((good, index) => {
       const soldOut = good.stock === 'soldout', unavailableLabel = productCardUnavailableLabel(good, soldOut);
-      return { id: good.id, name: good.name, href: goodDetailHref(good.id), imageBg: good.img, price: good.price, priceMax: good.priceMax,
+      return { id: good.id, name: good.name, href: goodDetailHref(good), imageBg: good.img, price: good.price, priceMax: good.priceMax,
         soldOut, ...(unavailableLabel ? { unavailableLabel } : {}), salePeriod: good.salePeriod, badge: good.badge ?? null, badges: goodBadgeList(good),
         brand: (recommendationRows[index] as { ip_name: string }).ip_name };
     }) };

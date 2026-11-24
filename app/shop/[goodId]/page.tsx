@@ -4,7 +4,7 @@ import { loadPublicGoodsSizeChart } from '@/lib/goods-size-chart.server';
 import { loadPublicGoodsBenefits } from '@/lib/goods-benefits.server';
 import { GoodsBenefitContent } from '@/components/wc/GoodsBenefitContent';
 import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { cache } from 'react';
 import { GoodDetail } from '@/components/screens/GoodDetail';
 import { GoodQna } from '@/components/shop/GoodQna';
@@ -37,6 +37,7 @@ import { GoodOtherCompositions } from '@/components/shop/GoodOtherCompositions';
 import { loadGoodOtherCompositions } from '@/lib/good-other-compositions.server';
 import { goodOtherCompositionsNextChange } from '@/lib/good-other-compositions';
 import { goodDetailHref } from '@/lib/goods-display';
+import { resolvePublicGoodAddress } from '@/lib/goods-address.server';
 import { pdpShelfGoodIds } from '@/lib/listing-review-summaries';
 import { loadListingReviewSummaries } from '@/lib/listing-review-summaries.server';
 import { loadListingWishlist } from '@/lib/wishlist-ids.server';
@@ -50,6 +51,25 @@ type PageProps = {
 /* generateMetadata 와 Page 가 같은 요청에서 카탈로그를 두 번 읽지 않도록 묶는다. */
 const loadGoodDetail = cache((goodId: string, adultGoods: AdultGoodsAccess) => getCatalogGoodDetail(goodId, { adultGoods }));
 const loadAdultGoodGate = cache(isPublishedAdultGood);
+const loadGoodAddress = cache(resolvePublicGoodAddress);
+
+/*
+ * 공개 상품 주소(ADR-0050). 주소 끝 값은 상품 자동코드의 소문자형이 정식이다(`/shop/hsq-0059`).
+ * 옛 주소(내부 id `/shop/<goods.id>`)·대문자 코드로 들어오면 쿼리를 그대로 둔 채 정식 주소로 영구 이동시킨다.
+ * 내부 id 는 바뀌지 않으므로 리뷰·Q&A·찜·장바구니·주문은 계속 내부 id 로 읽고 쓴다.
+ * 동적 라우트의 이동은 응답 상태가 아니라 본문(meta refresh·RSC digest)으로 나갈 수 있다 — 루트 loading 이 먼저 흐른다.
+ */
+function canonicalGoodRedirectHref(segment: string, query: Record<string, string | string[] | undefined>) {
+  const search = new URLSearchParams();
+  for (const [key, value] of Object.entries(query)) {
+    for (const item of Array.isArray(value) ? value : value === undefined ? [] : [value]) search.append(key, item);
+  }
+  const suffix = search.toString();
+  /* 서버는 원래 주소의 해시(#reviews·#qna)를 볼 수 없고, 스트리밍 응답의 이동(meta refresh·RSC)은 해시를 잇지 않는다. 앱이 만드는
+     리뷰·Q&A 페이지 링크는 언제나 reviewPage↔#reviews, qnaPage↔#qna 짝이라 쿼리에서 되살린다(탭 선택 규칙과 같게 리뷰가 먼저). */
+  const hash = query.reviewPage !== undefined ? '#reviews' : query.qnaPage !== undefined ? '#qna' : '';
+  return `${goodDetailHref(segment)}${suffix ? `?${suffix}` : ''}${hash}`;
+}
 
 /* 19금 굿즈(ADR-0024): 인증 성인(full)은 일반 상세를, 인증 전 방문자(masked)는 상품 정보 없는
    인증 안내를 본다. 성인 인증이 닫혀 있으면(hidden) 지금처럼 없는 상품이다. */
@@ -63,16 +83,20 @@ async function resolveGoodDetail(goodId: string) {
 /* 굿즈마다 다른 제목을 낸다 — 탭·북마크·검색결과·스크린리더가 상세를 구별할 수 있어야 한다(WCAG 2.4.2).
    공유 미리보기용 Open Graph 제목·이미지·주소도 여기서 낸다(PD-17). og:type=product 와 가격(og:price:*)은
    Next metadata 로 property 속성을 낼 수 없어 페이지가 직접 낸다(productOpenGraphTags) — 그래서 여기에는 type 이 없다. */
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { goodId } = await params;
-  const { detail, adultGate } = await resolveGoodDetail(goodId);
-  /* 인증 전 19금 굿즈는 상품 이름 없이 안내 제목만 내고 색인하지 않는다. */
-  if (!detail && adultGate) {
-    return { title: `${ADULT_GOOD_LABEL} — ICONS`, robots: { index: false, follow: false } };
-  }
+export async function generateMetadata({ params, searchParams }: PageProps): Promise<Metadata> {
+  const { goodId: segment } = await params;
+  const address = await loadGoodAddress(segment);
   /* 없는 굿즈는 여기서 바로 404로 보낸다. 폴백 제목을 돌려주면 그 제목이
      브라우저에 절대 도달하지 않으면서 테스트만 통과하는 죽은 분기가 된다. */
-  if (!detail) notFound();
+  if (!address) notFound();
+  const { detail, adultGate } = await resolveGoodDetail(address.goodId);
+  if (!detail && !adultGate) notFound();
+  /* 제목 생성이 본문보다 먼저 끝나는 요청(수집기 등)에서는 이 이동이 응답 상태(308)로 나갈 수 있다. */
+  if (address.segment !== segment) permanentRedirect(canonicalGoodRedirectHref(address.segment, await searchParams));
+  /* 인증 전 19금 굿즈는 상품 이름 없이 안내 제목만 내고 색인하지 않는다. */
+  if (!detail) {
+    return { title: `${ADULT_GOOD_LABEL} — ICONS`, robots: { index: false, follow: false } };
+  }
 
   const origin = siteOrigin();
   const description = goodMetaDescription(detail.good.name);
@@ -87,7 +111,7 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
       locale: 'ko_KR',
       title: detail.good.name,
       description,
-      url: `${origin}${goodDetailHref(detail.good.id)}`,
+      url: `${origin}${goodDetailHref(address.segment)}`,
       ...(image ? { images: [{ url: image, alt: detail.good.name }] } : {}),
     },
   };
@@ -109,13 +133,24 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  * 한 번의 묶음으로 읽는다 — 다른 로더와 나란히 돌아 카드 수만큼 부르지 않는다. 둘 다 던지지 않는다.
  */
 export default async function Page({ params, searchParams }: PageProps) {
-  const { goodId } = await params;
+  const { goodId: segment } = await params;
   const resolvedSearchParams = await searchParams;
   const reviewOptions = normalizeGoodReviewOptions(resolvedSearchParams);
   const questionOptions = normalizeGoodQuestionOptions(resolvedSearchParams);
 
+  /* 주소 끝 값(상품 자동코드·옛 내부 id)을 내부 id 로 푼다(ADR-0050). 아래 로더는 모두 내부 id 로 읽는다. */
+  const address = await loadGoodAddress(segment);
+  if (!address) notFound();
+  const goodId = address.goodId;
+
   /* 19금 굿즈 판정(ADR-0024)을 함께 돌려주는 상세 요청이다 — 선반 별점 묶음도 이 결과의 상세를 기다린다. */
   const resolvedRequest = resolveGoodDetail(goodId);
+  /* 옛 주소·대문자 코드는 볼 수 있는 상품일 때만 정식 주소로 옮긴다 — 열리지 않을 상품을 다른 주소의 404 로 보내지 않는다. */
+  if (address.segment !== segment) {
+    const { detail, adultGate } = await resolvedRequest;
+    if (!detail && !adultGate) notFound();
+    permanentRedirect(canonicalGoodRedirectHref(address.segment, resolvedSearchParams));
+  }
   const presentationRequest = loadPublicDetailPresentation(goodId);
   const otherCompositionsRequest = loadGoodOtherCompositions(goodId);
   const shelfReviewSummariesRequest = Promise.all([resolvedRequest, otherCompositionsRequest, presentationRequest])
@@ -146,7 +181,7 @@ export default async function Page({ params, searchParams }: PageProps) {
   const detail = resolved.detail;
   if (!detail && resolved.adultGate) {
     const auth = await getCurrentAuthState();
-    return <AdultGoodGate goodId={goodId} signedIn={Boolean(auth.user)} />;
+    return <AdultGoodGate detailHref={goodDetailHref(address.segment)} signedIn={Boolean(auth.user)} />;
   }
   if (!detail) notFound();
   const event = reviewEvents.rows.find(row => row.goodId === goodId)?.event;
@@ -172,9 +207,9 @@ export default async function Page({ params, searchParams }: PageProps) {
         bottomAnnouncements={<GoodAnnouncements data={announcements} placement="bottom" />}
         promotionBanner={presentation?.banner ? <ProductDetailBanner data={presentation} /> : undefined}
         reviewEventBanner={event ? <ReviewEventBanner event={event} /> : undefined}
-        reviewHighlights={<ProductDetailReviewSummary goodId={goodId} data={presentation} />}
+        reviewHighlights={<ProductDetailReviewSummary goodId={goodId} goodCode={detail.good.code} data={presentation} />}
         otherCompositions={<GoodOtherCompositions data={otherCompositions} reviewSummaries={listingReviewSummaries} wishlist={listingWishlist} />}
-        selectedReviews={selectedReviews.length === 3 ? <GalleryBestReviews goodId={goodId} cards={selectedReviews} /> : undefined}
+        selectedReviews={selectedReviews.length === 3 ? <GalleryBestReviews goodId={goodId} goodCode={detail.good.code} cards={selectedReviews} /> : undefined}
         automaticRecommendations={<ProductDetailRecommendations data={presentation} manual={detail.relatedGoods} reviewSummaries={listingReviewSummaries} wishlist={listingWishlist} />}
         purchaseMessages={experience?.messages.length ? <ProductPurchaseMessages messages={experience.messages} /> : undefined}
         discovery={experience?.discovery}
@@ -182,10 +217,10 @@ export default async function Page({ params, searchParams }: PageProps) {
         goodsBenefits={<GoodsBenefitContent value={goodsBenefits} />}
         afterSales={<GoodAfterSalesContent value={afterSales} />}
         engagement={engagement}
-        qna={<GoodQna goodId={goodId} section={questionSection} />}
+        qna={<GoodQna goodId={goodId} goodCode={detail.good.code} section={questionSection} />}
         qnaSummary={{ count: questionSection.count }}
         reviewSummary={reviewSection.unavailable ? undefined : reviewSection.summary}
-        reviews={<GoodReviews goodId={goodId} section={reviewSection} />}
+        reviews={<GoodReviews goodId={goodId} goodCode={detail.good.code} section={reviewSection} />}
         sellerInfo={sellerInfo}
         listingWishlist={listingWishlist}
         listingReviewSummaries={listingReviewSummaries}

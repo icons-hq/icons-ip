@@ -408,7 +408,7 @@ export function GoodDetailView({
                 <p className="wc-pdp-tools__rating">
                   <Stars rating={reviewSummary.average} />
                   <strong className="wc-pdp-tools__average">{formatReviewAverage(reviewSummary.average)}</strong>
-                  <a className="wc-pdp-tools__reviews" href={goodReviewsHref(good.id)} onClick={openReviewsTab}>
+                  <a className="wc-pdp-tools__reviews" href={goodReviewsHref(good)} onClick={openReviewsTab}>
                     {reviewSummary.count.toLocaleString('ko-KR')}개 리뷰보기
                   </a>
                 </p>

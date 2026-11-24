@@ -21,7 +21,8 @@ it('rejects invalid decimal text and revisions before reaching RPC', async () =>
 it('accepts only the requested normalized table and revision in its write receipt', async () => {
   mock.rpc.mockResolvedValue({ data: saved, error: null });
   expect(await saveGoodsSizeChartAction('size-synthetic', values, 1, operation)).toEqual({ ok: true, value: saved });
-  expect(mock.revalidate).toHaveBeenCalledWith('/shop/size-synthetic');
+  /* 상세 주소는 상품 자동코드라(ADR-0050) 상세 라우트 전체를 갱신한다. */
+  expect(mock.revalidate).toHaveBeenCalledWith('/shop/[goodId]', 'page');
   for (const wrong of [{ ...saved, revision: 3 }, { ...saved, goodId: 'another-good' }, { ...saved, values: { ...values, enabled: false } }]) {
     mock.rpc.mockResolvedValue({ data: wrong, error: null });
     expect(await saveGoodsSizeChartAction('size-synthetic', values, 1, operation)).toMatchObject({ ok: false, uncertain: true });

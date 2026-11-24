@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { goodsGroupAxisChoices, type PublicGoodsGroup } from '@/lib/goods-groups';
+import { goodDetailHref } from '@/lib/goods-display';
 
 export function GoodsGroupSelector({ group }: { group: PublicGoodsGroup | null | undefined }) {
   if (!group || group.members.length < 2) return null;
@@ -8,7 +9,7 @@ export function GoodsGroupSelector({ group }: { group: PublicGoodsGroup | null |
       <legend>{axis}</legend>
       <div className="wc-goods-group__values">
         {goodsGroupAxisChoices(group, index).map(({ value, destination, selected }) => <Link
-          key={value} href={`/shop/${destination.goodId}`} prefetch={false}
+          key={value} href={goodDetailHref(destination.good)} prefetch={false}
           className="wc-goods-group__value" aria-current={selected ? 'true' : undefined}
           aria-label={`${group.optionNames.map((name, i) => `${name} ${destination.values[i]}`).join(', ')} 굿즈 보기`}>
           {value}

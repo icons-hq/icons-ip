@@ -354,7 +354,7 @@ export function useGoodPurchase({
       }
       if (result.error === 'auth_required' || result.error === 'onboarding_required') {
         savePendingBuyNow({ goodId: good.id, entries, selection: { variantId: selectedOption.id, quantity, additions: additionalSelections, customInputValues } });
-        const back = buyNowReturnPath(good.id, selectedOption.id);
+        const back = buyNowReturnPath(good, selectedOption.id);
         router.push(result.error === 'auth_required' ? `/login?next=${encodeURIComponent(back)}` : onboardingPath(back));
         return;
       }

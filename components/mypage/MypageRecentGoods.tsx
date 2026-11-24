@@ -9,6 +9,7 @@ import { productCardUnavailableLabel } from '@/lib/product-card-chips';
 import { readRecentGoods, recentGoodsKey } from '@/lib/product-detail-experiences';
 import { hrefFor } from '@/lib/routes';
 import { MypageSectionHead } from './MypageSectionHead';
+import { goodDetailHref } from '@/lib/goods-display';
 
 /** 대시보드에 보이는 최근 본 굿즈 수 — 레퍼런스 대시보드 블록과 같은 다섯 칸(11 §5.2 ④). */
 export const RECENT_GOODS_DASHBOARD_LIMIT = 5;
@@ -41,7 +42,7 @@ export function RecentGoodsCards({ goods, ipTitles }: { goods: readonly Good[]; 
             badges={goodDisplayBadges(good)}
             brand={ipTitles?.[good.ip] ?? null}
             compareAtPrice={good.compareAtPrice}
-            href={`/shop/${good.id}`}
+            href={goodDetailHref(good)}
             imageBackground={good.img}
             listSurface="standard"
             listingAppearance={good.listingAppearance}

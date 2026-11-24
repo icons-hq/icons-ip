@@ -14,6 +14,9 @@ const summary = { average: 4.5, count: 3, distribution: [0, 0, 0, 1, 2], photoCo
 
 const mocks = vi.hoisted(() => ({
   details: [] as CatalogGoodDetail[],
+  /* 공개 상품 주소(ADR-0050) 해석. 등록하지 않은 값은 지금처럼 내부 id 그대로다(목업 카탈로그와 같다). null 은 없는 주소. */
+  addresses: {} as Record<string, { goodId: string; segment: string } | null>,
+  resolveAddress: vi.fn(),
   adultGoods: 'hidden' as AdultGoodsAccess,
   adultGates: [] as string[],
   auth: { user: null as { id: string } | null },
@@ -46,6 +49,7 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('next/navigation', () => ({
   notFound: () => { throw new Error('NEXT_NOT_FOUND'); },
+  permanentRedirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); },
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 vi.mock('@/components/screens/GoodDetail', () => ({ GoodDetail: mocks.goodDetail }));
@@ -71,6 +75,7 @@ vi.mock('@/lib/catalog', () => ({
 }));
 vi.mock('@/lib/adult-goods-access.server', () => ({ getAdultGoodsAccess: async () => mocks.adultGoods }));
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => mocks.auth }));
+vi.mock('@/lib/goods-address.server', () => ({ resolvePublicGoodAddress: mocks.resolveAddress }));
 
 function detailFor(id: string, name: string, price: number): CatalogGoodDetail {
   return {
@@ -113,6 +118,8 @@ function adultDetail(): CatalogGoodDetail {
 }
 
 beforeEach(() => {
+  mocks.addresses = {};
+  mocks.resolveAddress.mockReset().mockImplementation(async (value: string) => (value in mocks.addresses ? mocks.addresses[value] : { goodId: value, segment: value }));
   mocks.goodDetail.mockClear();
   mocks.goodQna.mockClear();
   mocks.goodReviews.mockClear();
@@ -398,5 +405,94 @@ describe('/shop/[goodId] page', () => {
     expect(adult.title).toBe('한정 아크릴 스탠드 — ICONS');
     expect(adult.robots).toEqual({ index: false, follow: false });
     expect(general).not.toHaveProperty('robots');
+  });
+});
+
+/* MD-0051 · ADR-0050 — 공개 상품 주소는 상품 자동코드의 소문자형이다. 옛 주소(내부 id)·대문자 코드는 정식 주소로 영구 이동하고,
+   상세의 모든 로더는 내부 id 로 읽는다. 동적 라우트의 이동은 본문으로 나갈 수 있어 상태코드가 아니라 동작(던지는 이동)으로 확인한다. */
+describe('/shop/[goodId] 공개 상품 주소', () => {
+  function codedDetail(id: string, code: string, name: string, price: number): CatalogGoodDetail {
+    const base = detailFor(id, name, price);
+    return { ...base, good: { ...base.good, code } };
+  }
+  beforeEach(() => {
+    mocks.details = [codedDetail('hongsil-keyring', 'HSQ-0059', '아크릴 휴대폰 키링', 9000)];
+    mocks.addresses = {
+      'hsq-0059': { goodId: 'hongsil-keyring', segment: 'hsq-0059' },
+      'HSQ-0059': { goodId: 'hongsil-keyring', segment: 'hsq-0059' },
+      'hongsil-keyring': { goodId: 'hongsil-keyring', segment: 'hsq-0059' },
+      'no-such-good': null,
+    };
+  });
+
+  it('상품 자동코드 주소는 그 굿즈를 내부 id 로 읽어 그리고, 링크·구조화 데이터는 코드 주소를 쓴다', async () => {
+    vi.stubEnv('SITE_URL', 'https://iconsip.test');
+    try {
+      const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'hsq-0059' }), searchParams: Promise.resolve({}) }));
+      const metadata = await generateMetadata({ params: Promise.resolve({ goodId: 'hsq-0059' }), searchParams: Promise.resolve({}) });
+      const scripts = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map(match => JSON.parse(match[1]));
+
+      expect(mocks.resolveAddress).toHaveBeenCalledWith('hsq-0059');
+      expect(mocks.catalogDetail).toHaveBeenCalledWith('hongsil-keyring', { adultGoods: 'hidden' });
+      for (const loader of [mocks.engagement, mocks.shipping, mocks.sizeChart, mocks.otherCompositions]) expect(loader).toHaveBeenCalledWith('hongsil-keyring');
+      expect(mocks.reviewSection).toHaveBeenCalledWith('hongsil-keyring', expect.anything());
+      expect(mocks.questionSection).toHaveBeenCalledWith('hongsil-keyring', { page: 1 });
+      const props = mocks.goodDetail.mock.calls[0]?.[0];
+      expect(props?.qna).toMatchObject({ props: { goodId: 'hongsil-keyring', goodCode: 'HSQ-0059' } });
+      expect(props?.reviews).toMatchObject({ props: { goodId: 'hongsil-keyring', goodCode: 'HSQ-0059' } });
+      expect(scripts[0]).toMatchObject({ '@type': 'Product', url: 'https://iconsip.test/shop/hsq-0059' });
+      expect(scripts[1].itemListElement[2]).toMatchObject({ item: 'https://iconsip.test/shop/hsq-0059' });
+      expect(metadata.openGraph).toMatchObject({ url: 'https://iconsip.test/shop/hsq-0059' });
+      expect(metadata.title).toBe('아크릴 휴대폰 키링 — ICONS');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('옛 주소(내부 id)는 쿼리를 그대로 둔 채 상품 자동코드 주소로 영구 이동한다', async () => {
+    const query = { reviewPage: '2', utm_source: 'kakao', tag: ['a', 'b'] };
+    /* 서버는 해시를 볼 수 없어 reviewPage↔#reviews·qnaPage↔#qna 짝을 쿼리에서 되살린다(리뷰가 먼저). */
+    const target = 'NEXT_REDIRECT:/shop/hsq-0059?reviewPage=2&utm_source=kakao&tag=a&tag=b#reviews';
+    await expect(Page({ params: Promise.resolve({ goodId: 'hongsil-keyring' }), searchParams: Promise.resolve(query) })).rejects.toThrow(target);
+    await expect(generateMetadata({ params: Promise.resolve({ goodId: 'hongsil-keyring' }), searchParams: Promise.resolve(query) })).rejects.toThrow(target);
+    expect(mocks.goodDetail).not.toHaveBeenCalled();
+  });
+
+  it('Q&A 페이지 링크로 옛 주소에 들어오면 #qna 를 붙여 Q&A 위치로 옮긴다', async () => {
+    await expect(Page({ params: Promise.resolve({ goodId: 'hongsil-keyring' }), searchParams: Promise.resolve({ qnaPage: '1' }) }))
+      .rejects.toThrow(/^NEXT_REDIRECT:\/shop\/hsq-0059\?qnaPage=1#qna$/);
+  });
+
+  it('대문자로 들어온 상품 자동코드는 소문자 정식 주소로 옮긴다', async () => {
+    await expect(Page({ params: Promise.resolve({ goodId: 'HSQ-0059' }), searchParams: Promise.resolve({}) })).rejects.toThrow(/^NEXT_REDIRECT:\/shop\/hsq-0059$/);
+    expect(mocks.goodDetail).not.toHaveBeenCalled();
+  });
+
+  it('없는 주소는 로더를 부르지 않고 404 로 보낸다', async () => {
+    await expect(Page({ params: Promise.resolve({ goodId: 'no-such-good' }), searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(generateMetadata({ params: Promise.resolve({ goodId: 'no-such-good' }), searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mocks.catalogDetail).not.toHaveBeenCalled();
+    expect(mocks.reviewSection).not.toHaveBeenCalled();
+  });
+
+  it('주소는 풀려도 이 방문자가 볼 수 없는 굿즈(성인 인증이 닫힌 19금)는 코드 주소로 옮기지 않고 404 다', async () => {
+    mocks.details = [{ ...codedDetail('adult-stand', 'HSQ-0060', '한정 아크릴 스탠드', 30000), good: { ...codedDetail('adult-stand', 'HSQ-0060', '한정 아크릴 스탠드', 30000).good, saleRestriction: 'adult' } }];
+    mocks.addresses = { 'adult-stand': { goodId: 'adult-stand', segment: 'hsq-0060' } };
+    await expect(Page({ params: Promise.resolve({ goodId: 'adult-stand' }), searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(generateMetadata({ params: Promise.resolve({ goodId: 'adult-stand' }), searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
+  it('인증 전 방문자의 19금 상세 안내도 코드 주소로 돌아오게 하고 이름은 내지 않는다', async () => {
+    mocks.adultGoods = 'masked';
+    mocks.adultGates = ['adult-stand'];
+    mocks.details = [{ ...codedDetail('adult-stand', 'HSQ-0060', '한정 아크릴 스탠드', 30000), good: { ...codedDetail('adult-stand', 'HSQ-0060', '한정 아크릴 스탠드', 30000).good, saleRestriction: 'adult' } }];
+    mocks.addresses = { 'hsq-0060': { goodId: 'adult-stand', segment: 'hsq-0060' }, 'adult-stand': { goodId: 'adult-stand', segment: 'hsq-0060' } };
+
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'hsq-0060' }), searchParams: Promise.resolve({}) }));
+    expect(html).toContain(`href="/login?next=${encodeURIComponent('/shop/hsq-0060')}"`);
+    expect(html).not.toContain('한정 아크릴 스탠드');
+    expect(mocks.adultGate).toHaveBeenCalledWith('adult-stand');
+    /* 옛 주소로 들어온 인증 전 방문자도 같은 코드 주소로 옮긴다. */
+    await expect(Page({ params: Promise.resolve({ goodId: 'adult-stand' }), searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_REDIRECT:/shop/hsq-0060');
   });
 });

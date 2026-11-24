@@ -149,7 +149,7 @@ describe('바로구매', () => {
 
   it('로그인 전이면 선택을 세션 저장소에 두고 로그인 뒤 상품 상세로 돌아온다 — 직접입력값을 주소에 싣지 않는다', () => {
     expect(buyNowBody).toContain('savePendingBuyNow(');
-    expect(buyNowBody).toContain('buyNowReturnPath(good.id, selectedOption.id)');
+    expect(buyNowBody).toContain('buyNowReturnPath(good, selectedOption.id)');
     expect(buyNowBody).toContain('/login?next=');
   });
 });

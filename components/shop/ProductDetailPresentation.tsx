@@ -8,19 +8,22 @@ import type { PublicGoodRelations } from '@/lib/good-relations';
 import { listingHeartsFor } from './listing-hearts';
 import { ProductDetailReviewLink } from './ProductDetailReviewLink';
 import { ReviewEventDisclosureNote } from '@/components/reviews/ReviewEventBanner';
+import { goodDetailHref } from '@/lib/goods-display';
 
 export function ProductDetailBanner({ data }: { data: PublicDetailPresentation | null }) {
   const banner = data?.banner;
   return banner ? <aside className="wc-pdp-promotion" aria-label="굿즈 혜택 안내" data-style={banner.style}><strong>{banner.title}</strong><span>{banner.text}</span></aside> : null;
 }
-export function ProductDetailReviewSummary({ goodId, data }: { goodId: string; data: PublicDetailPresentation | null }) {
+export function ProductDetailReviewSummary({ goodId, goodCode, data }: { goodId: string; goodCode?: string | null; data: PublicDetailPresentation | null }) {
   const reviews = data?.reviews;
+  /* 리뷰 링크는 지금 보고 있는 정식 주소(상품 자동코드, ADR-0050)에 머문다. */
+  const address = { id: goodId, code: goodCode };
   if (!reviews?.count || !reviews.cards.length) return null;
   return <section className="wc-pdp-review-summary" aria-labelledby="pdp-review-highlight-heading">
-    <header><h2 id="pdp-review-highlight-heading">4점 이상 리뷰가 <strong>{Math.round(reviews.positiveCount / reviews.count * 100)}%</strong>예요</h2><ProductDetailReviewLink href={goodReviewsHref(goodId)}>리뷰 {reviews.count.toLocaleString('ko-KR')}건 모두 보기</ProductDetailReviewLink></header>
+    <header><h2 id="pdp-review-highlight-heading">4점 이상 리뷰가 <strong>{Math.round(reviews.positiveCount / reviews.count * 100)}%</strong>예요</h2><ProductDetailReviewLink href={goodReviewsHref(address)}>리뷰 {reviews.count.toLocaleString('ko-KR')}건 모두 보기</ProductDetailReviewLink></header>
     <p className="wc-pdp-review-summary__basis">공개된 구매 리뷰 전체 기준 · 사진 리뷰 우선</p>
     <ul className="wc-pdp-review-summary__cards">{reviews.cards.map(card => <li key={card.id}>
-      <ProductDetailReviewLink href={goodReviewsHref(goodId, undefined, { sort: 'rating_desc', photoOnly: card.imageUrls.length > 0 })}>
+      <ProductDetailReviewLink href={goodReviewsHref(address, undefined, { sort: 'rating_desc', photoOnly: card.imageUrls.length > 0 })}>
         {card.imageUrls[0] ? (
           // Signed review media follows the existing public-review storage policy.
           // eslint-disable-next-line @next/next/no-img-element
@@ -54,7 +57,7 @@ export function ProductDetailRecommendations({ data, manual, reviewSummaries, wi
     if (!goods.length || (kind === 'similar' || kind === 'together') && goods.length < 5) return null;
     return <section key={kind} className="wc-pdp-auto" aria-labelledby={`pdp-auto-${kind}`}>
       <h2 id={`pdp-auto-${kind}`}>{copy.title}</h2><p>{copy.basis}</p>
-      <div className="wc-pdp-auto__products">{goods.map(good => <ProductCard key={good.id} href={`/shop/${good.id}`} name={good.name}
+      <div className="wc-pdp-auto__products">{goods.map(good => <ProductCard key={good.id} href={goodDetailHref(good)} name={good.name}
         action={heartFor(good)} reviewSummary={reviewSummaries?.[good.id]}
         listSurface="standard" listingAppearance={good.listingAppearance} cartGood={good} price={good.price} priceMax={good.priceMax}
         compareAtPrice={good.compareAtPrice} showDiscountRate={good.showDiscountRate} badges={goodDisplayBadges(good)} salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'} imageBackground={good.img} />)}</div>

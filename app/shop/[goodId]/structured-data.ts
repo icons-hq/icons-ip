@@ -101,7 +101,7 @@ export function goodOfferAvailability(good: Good): string {
 
 export function productJsonLd(detail: GoodDetailContent, origin: string) {
   const { good, ip } = detail;
-  const url = `${origin}${goodDetailHref(good.id)}`;
+  const url = `${origin}${goodDetailHref(good)}`;
   const prices = goodOfferPrices(good);
   const availability = goodOfferAvailability(good);
   const images = goodImageUrls(detail, origin);
@@ -123,7 +123,7 @@ export function breadcrumbJsonLd(detail: Pick<GoodDetailContent, 'good'>, origin
   const crumbs = [
     { name: '홈', item: `${origin}/` },
     { name: '굿즈샵', item: `${origin}/shop` },
-    { name: detail.good.name, item: `${origin}${goodDetailHref(detail.good.id)}` },
+    { name: detail.good.name, item: `${origin}${goodDetailHref(detail.good)}` },
   ];
   return {
     '@context': 'https://schema.org',
