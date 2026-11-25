@@ -12,7 +12,9 @@
 --        0 결과 불명·멈춘 확인(unknown·리스 만료 confirming) — 돈이 빠졌을 수 있는 결제
 --        1 입금 기한 + 30분(앱 DEPOSIT_GRACE_MS)이 지난 입금 대기 — 한 번 조회로 반납·종료된다
 --        2 입금 기한 + 2분 ~ + 30분의 입금 대기 — 토스가 계좌를 만료(`expired`)시켰으면 바로 닫힌다.
---          유예 안에서 조회해도 닫히지 않으면 1로 넘어갈 때까지 다시 고르지 않는다(기한 뒤 한 번만)
+--          기한 뒤 실제로 조회(재정합 claim — goods_payment_reconciliation_audits)했는데 닫히지 않았으면 1로 넘어갈
+--          때까지 다시 고르지 않는다(기한 뒤 한 번만). 뽑기만 하고 조회하지 못한 후보(회차 예산 초과로 미룸·claim 전
+--          실패)는 뽑기 표식이 아니라 조회 기록으로 판정하므로 10분 뒤 다시 2단계로 뽑힌다
 --        3 기한 전 입금 대기의 6시간 정기 점검(웹훅 누락 대비) — 남는 칸만 쓴다
 --      단계 안에서는 1·2는 입금 기한이 이른 순, 그 밖은 지금처럼 마지막 확인이 오래된 순이다.
 -- ==========================================================================
@@ -37,6 +39,8 @@ begin
         (select max(g.requested_at) from private.goods_payment_reconciliation_audits g where g.target_id = a.id),
         (select max(t.requested_at) from private.ticket_payment_reconciliation_audits t where t.target_id = a.id),
         (select m.last_picked_at from private.payment_reconciliation_auto_checks m where m.attempt_id = a.id)) as last_checked_at,
+      (select max(g.requested_at) from private.goods_payment_reconciliation_audits g
+        where g.target_id = a.id and g.operation = 'payment') as last_reconciled_at,
       case
         when a.state <> 'awaiting_deposit' then 0
         when a.expires_at <= at - interval '30 minutes' then 1
@@ -60,8 +64,8 @@ begin
     from candidates c
     where (c.last_checked_at is null
         or c.last_checked_at <= at - case when c.state = 'awaiting_deposit' then interval '10 minutes' else interval '30 minutes' end)
-      -- 유예 안 확인은 입금 기한 뒤 한 번만 — 닫히지 않았으면 1단계(기한 + 30분)에서 다시 본다.
-      and (c.tier <> 2 or c.last_checked_at is null or c.last_checked_at < c.expires_at)
+      -- 유예 안 조회는 입금 기한 뒤 한 번만 — 조회했는데 닫히지 않았으면 1단계(기한 + 30분)에서 다시 본다.
+      and (c.tier <> 2 or c.last_reconciled_at is null or c.last_reconciled_at < c.expires_at)
   ), picked as (
     select r.id, r.purpose, r.provider, r.ref_id, r.rank from ranked r where r.rank <= p_limit
   ), marked as (

@@ -365,7 +365,8 @@ then 1 else 0 end as assert_awaiting_deposit_auto_check_marker_kept;
 -- 8. 자동 재확인 후보의 우선순위(20261126093000, 원장 VAC-021) — 결과 불명 → 기한 + 30분 지난 입금 대기(기한 이른 순)
 --    → 기한 직후 한 번 → 기한 전 6시간 정기 점검. 정기 점검이 돈이 걸린 결과 불명·만료 반납을 밀어내지 않는다.
 --    4911 기한 40분 지남 · 4912 기한 2시간 지남 · 4913 기한 10분 지남(확인 없음) · 4914 기한 18시간 남음·7시간 전 변경
---    4915 카드 결과 불명 · 4916 기한 20분 지남·기한 뒤 15분 전에 이미 확인 · 4917 기한 5분 지남·기한 전 3시간에 확인
+--    4915 카드 결과 불명 · 4916 기한 20분 지남·기한 뒤 15분 전에 실제 조회함 · 4917 기한 5분 지남·기한 전 3시간에 뽑힘
+--    4918 기한 20분 지남·기한 뒤 12분 전에 뽑혔지만 조회하지 못함(회차 예산 초과로 미룸 — 조회 기록 없음)
 -- ---------------------------------------------------------------------------
 -- 다른 시험의 미종결 시도는 이 트랜잭션 안에서만 방금 바뀐 것으로 만들어(갱신 트리거가 updated_at을 지금으로) 후보에서 뺀다.
 update public.payment_attempts set amount = amount where state in ('unknown', 'confirming');
@@ -373,7 +374,7 @@ update public.payment_attempts set amount = amount where state in ('unknown', 'c
 insert into public.orders (id, user_id, status, total, shipping_fee, expires_at, checkout_key)
 select ('20000000-0000-4000-8000-00000000' || n)::uuid, '00000000-0000-4000-8000-000000004902', 'pending', 31000, 3000,
   now() + interval '15 minutes', ('10000000-0000-4000-8000-00000000' || n)::uuid
-from unnest(array['4911', '4912', '4913', '4914', '4915', '4916', '4917']) as n;
+from unnest(array['4911', '4912', '4913', '4914', '4915', '4916', '4917', '4918']) as n;
 
 insert into public.payment_attempts (
   id, provider, user_id, purpose, ref_id, amount, currency, state, idempotency_key,
@@ -389,37 +390,44 @@ from (values
   ('4914', 'awaiting_deposit', interval '18 hours', interval '-7 hours'),
   ('4915', 'unknown', interval '10 minutes', interval '-20 minutes'),
   ('4916', 'awaiting_deposit', interval '-20 minutes', interval '-1 hour'),
-  ('4917', 'awaiting_deposit', interval '-5 minutes', interval '-1 hour')
+  ('4917', 'awaiting_deposit', interval '-5 minutes', interval '-1 hour'),
+  ('4918', 'awaiting_deposit', interval '-20 minutes', interval '-1 hour')
 ) as p(n, state, due, changed);
 
 insert into private.payment_reconciliation_auto_checks(attempt_id, last_picked_at) values
   ('30000000-0000-4000-8000-000000004916', now() - interval '15 minutes'),
-  ('30000000-0000-4000-8000-000000004917', now() - interval '3 hours')
+  ('30000000-0000-4000-8000-000000004917', now() - interval '3 hours'),
+  ('30000000-0000-4000-8000-000000004918', now() - interval '12 minutes')
 on conflict (attempt_id) do update set last_picked_at = excluded.last_picked_at;
+-- 실제 조회는 재정합 claim이 남기는 감사 행이다(결제사를 부르기 전에 claim이 쓴다).
+insert into private.goods_payment_reconciliation_audits(claim_token, operation, target_id, actor_ref, case_ref, claim_status, requested_at)
+values ('70000000-0000-4000-8000-000000004916', 'payment', '30000000-0000-4000-8000-000000004916',
+  'auto-priority-smoke-4916', 'auto-priority-smoke-4916', 'claimed', now() - interval '15 minutes');
 
 create function pg_temp.priority_picks(n integer) returns text[] language sql as $$
   select coalesce(array_agg(right(e->>'attemptId', 4) order by o), '{}')
   from jsonb_array_elements(public.service_claim_payment_reconciliation_candidates(n, array['toss'])) with ordinality x(e, o)
-  where e->>'attemptId' like '30000000-0000-4000-8000-0000000049__' and right(e->>'attemptId', 2) between '11' and '17'
+  where e->>'attemptId' like '30000000-0000-4000-8000-0000000049__' and right(e->>'attemptId', 2) between '11' and '18'
 $$;
 select pg_temp.priority_picks(30) as priority_first \gset
 select pg_temp.priority_picks(30) as priority_again \gset
-select 1 / case when :'priority_first'::text[] = array['4915', '4912', '4911', '4913', '4917', '4914']
+select 1 / case when :'priority_first'::text[] = array['4915', '4912', '4911', '4918', '4913', '4917', '4914']
   and cardinality(:'priority_again'::text[]) = 0
 then 1 else 0 end as assert_reconciliation_priority_order;
 
--- 기한 직후(유예 30분 안) 확인은 기한 뒤 한 번만이다 — 4913(기한 25분 지남)을 기한 뒤 12분 전에 확인한 것으로 두면 10분 간격이
--- 지났어도 1단계(기한 + 30분) 전에는 다시 고르지 않는다. 같은 간격의 4911(1단계)은 다시 고른다. 기한 + 30분이 지나면 4913도 고른다.
+-- 기한 직후(유예 30분 안) 조회는 기한 뒤 한 번만이다 — 4913(기한 25분 지남)을 기한 뒤 12분 전에 실제 조회한 것으로 두면 10분
+-- 간격이 지났어도 1단계(기한 + 30분) 전에는 다시 고르지 않는다. 같은 간격의 4911(1단계)은 다시 고른다. 기한 + 30분이 지나면
+-- 4913도 고른다.
 update public.payment_attempts set expires_at = now() - interval '25 minutes' where id = '30000000-0000-4000-8000-000000004913';
 update private.payment_reconciliation_auto_checks set last_picked_at = now() - interval '12 minutes'
 where attempt_id in ('30000000-0000-4000-8000-000000004913', '30000000-0000-4000-8000-000000004911');
+insert into private.goods_payment_reconciliation_audits(claim_token, operation, target_id, actor_ref, case_ref, claim_status, requested_at)
+values ('70000000-0000-4000-8000-000000004913', 'payment', '30000000-0000-4000-8000-000000004913',
+  'auto-priority-smoke-4913', 'auto-priority-smoke-4913', 'claimed', now() - interval '12 minutes');
 select pg_temp.priority_picks(30) as grace_once \gset
 update public.payment_attempts set expires_at = now() - interval '31 minutes' where id = '30000000-0000-4000-8000-000000004913';
 select pg_temp.priority_picks(30) as grace_done \gset
 select 1 / case when :'grace_once'::text[] = array['4911'] and :'grace_done'::text[] = array['4913']
 then 1 else 0 end as assert_grace_window_checked_once;
-
-select 1 / case when public.service_claim_payment_reconciliation_candidates(30, array['toss']) is not null
-then 1 else 0 end as assert_reconciliation_limit_30_accepted;
 
 rollback;
