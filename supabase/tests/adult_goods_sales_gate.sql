@@ -267,18 +267,14 @@ select 1 / case when (
   select 1 from public.order_items where order_id = :'adult_order'::uuid and good_id = 'adult-gate-adult'
 ) then 1 else 0 end as assert_verified_adult_orders_adult_good;
 
-select pg_temp.adult_gate_expect_error(
-  format($sql$select public.prepare_goods_payment_attempt('a0190000-0000-4000-8000-000000000002'::uuid,%L::uuid,'toss'::public.payment_provider)$sql$, :'adult_order'),
-  'goods_payment_provider_mismatch'
-);
--- 판매 제한 PG는 나이스페이다(2026-11-06). 은퇴한 코페이로는 준비하지 않는다.
+-- 19금 주문도 토스로 결제한다(2026-11-25 ADR-0053). 은퇴한 코페이로는 준비하지 않는다.
 select pg_temp.adult_gate_expect_error(
   format($sql$select public.prepare_goods_payment_attempt('a0190000-0000-4000-8000-000000000002'::uuid,%L::uuid,'korpay'::public.payment_provider)$sql$, :'adult_order'),
   'goods_payment_unavailable'
 );
 select 1 / case when (
-  public.prepare_goods_payment_attempt('a0190000-0000-4000-8000-000000000002'::uuid, :'adult_order'::uuid, 'nicepay'::public.payment_provider) ->> 'provider' = 'nicepay'
-) then 1 else 0 end as assert_adult_order_derives_nicepay;
+  public.prepare_goods_payment_attempt('a0190000-0000-4000-8000-000000000002'::uuid, :'adult_order'::uuid, 'toss'::public.payment_provider) ->> 'provider' = 'toss'
+) then 1 else 0 end as assert_adult_order_prepares_toss;
 
 select pg_temp.adult_gate_expect_error(
   $sql$select public.place_order('a0190000-0000-4000-8000-000000000003'::uuid,

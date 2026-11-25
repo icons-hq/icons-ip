@@ -11,12 +11,12 @@ begin;
 --   2. 제한 전환은 staff 세션 전용 setter로만 일어나고 감사 기록이 남는다
 --   3. 제한 상품 구매는 주문 생성에서 막힌다 — 스토어 비노출은 쿼리
 --      레이어라 보안 경계가 아니다
---   4. 카드 provider는 주문 구성에서 파생된다 — 일반 주문은 toss, 제한
---      주문은 nicepay뿐이고 클라이언트가 고를 수 없다. korpay는 진행 중 결제
---      drain만 남아 새 결제를 준비하지 않는다(2026-11-05 나이스페이 전환)
+--   4. 카드 provider는 주문 구성에서 파생된다 — 일반 주문은 toss뿐, 제한
+--      주문은 toss(2026-11-25 ADR-0053, 앱 기본) 또는 nicepay(전용 PG로 되돌릴 때)다.
+--      korpay는 진행 중 결제 drain만 남아 새 결제를 준비하지 않는다
 --   5. 무통장은 PG가 아니라 업종 제한과 무관하다 — 제한 주문에서도 열린다
---   6. 파생은 캡처 직전에 한 번 더 확인된다 — prepare 뒤에 상품이 내려가면
---      토스 선점이 거절되고, 그 거절은 attempt를 prepared로 남긴다
+--   6. 제한 주문도 토스로 결제하므로(ADR-0053) prepare 뒤 상품이 19금으로
+--      바뀌어도 토스 캡처는 막히지 않는다. 나이스페이 캡처도 제한 축에 걸리지 않는다
 --   7. 판매 제한 상품은 /search RPC에서도 감춰진다 — 목록·상세·캠페인·카트와
 --      같은 쿼리 레이어 비노출이고, 보안 경계는 여전히 3번이다
 -- ============================================================================
@@ -381,7 +381,7 @@ select 1 / case when (
 ) then 1 else 0 end as assert_unrestricted_order_opens_a_toss_attempt;
 
 -- ---------------------------------------------------------------------------
--- provider 파생 — 제한 주문은 nicepay뿐이다
+-- provider 파생 — 제한 주문은 toss(ADR-0053) 또는 nicepay다
 -- ---------------------------------------------------------------------------
 -- place_order가 제한 주문을 거절하므로 픽스처는 주문·아이템을 직접 만든다.
 -- 성인인증(#209·#210)이 붙어 주문 생성 차단이 걷히면 실제로 이 모양의 주문이
@@ -434,31 +434,6 @@ values
     '판매 제한 굿즈', 'restrict-ip'
   , (select id from public.goods_variants where good_id='restrict-adult-goods' and is_default));
 
-do $$
-declare
-  accepted boolean := false;
-  rejection text := '';
-begin
-  begin
-    perform public.prepare_goods_payment_attempt(
-      '00000000-0000-4000-8000-000000000f01',
-      '2c000000-0000-4000-8000-000000000001',
-      'toss'::public.payment_provider
-    );
-    accepted := true;
-  exception
-    when object_not_in_prerequisite_state then rejection := sqlerrm;
-  end;
-
-  if accepted then
-    raise exception 'a restricted order must not open a toss attempt';
-  end if;
-  if rejection <> 'goods_payment_provider_mismatch' then
-    raise exception 'a restricted toss attempt failed for the wrong reason: %', rejection;
-  end if;
-end;
-$$;
-
 -- 은퇴한 korpay로는 제한 주문도 준비하지 않는다.
 do $$
 declare
@@ -499,6 +474,50 @@ select 1 / case when (
   where attempt.purpose = 'order'
     and attempt.ref_id = '2c000000-0000-4000-8000-000000000001'::uuid
 ) then 1 else 0 end as assert_restricted_order_opens_a_nicepay_attempt;
+
+-- 2026-11-25 ADR-0053: 제한 주문의 앱 기본 카드 provider는 toss다. 같은 모양의 다른 주문으로 확인한다.
+insert into public.orders (
+  id, user_id, status, total, shipping_fee, discount_total,
+  address, expires_at, checkout_key, payment_method
+)
+values (
+  '2c000000-0000-4000-8000-000000000005',
+  '00000000-0000-4000-8000-000000000f01',
+  'pending', 23000, 3000, 0,
+  jsonb_build_object(
+    'recipientName', '제한토스',
+    'phone', '01012345678',
+    'postalCode', '06236',
+    'address1', '서울시 강남구'
+  ),
+  now() + interval '15 minutes',
+  '9c000000-0000-4000-8000-000000000007',
+  'card'
+);
+
+insert into public.order_items (
+  order_id, good_id, qty, unit_price,
+  good_name_snapshot, good_ip_id_snapshot, variant_id
+)
+values (
+  '2c000000-0000-4000-8000-000000000005', 'restrict-adult-goods', 1, 20000,
+  '판매 제한 굿즈', 'restrict-ip',
+  (select id from public.goods_variants where good_id='restrict-adult-goods' and is_default));
+
+select public.prepare_goods_payment_attempt(
+  '00000000-0000-4000-8000-000000000f01',
+  '2c000000-0000-4000-8000-000000000005'::uuid,
+  'toss'::public.payment_provider
+);
+
+select 1 / case when (
+  select count(*) = 1
+    and bool_and(attempt.provider = 'toss')
+    and bool_and(attempt.state = 'prepared')
+  from public.payment_attempts as attempt
+  where attempt.purpose = 'order'
+    and attempt.ref_id = '2c000000-0000-4000-8000-000000000005'::uuid
+) then 1 else 0 end as assert_restricted_order_opens_a_toss_attempt;
 
 -- ---------------------------------------------------------------------------
 -- 나이스페이 TID 기록 — 승인 API 전에 남기고, 재정합이 그 기록으로 조회한다
@@ -659,11 +678,10 @@ select 1 / case when (
 ) then 1 else 0 end as assert_restriction_does_not_close_bank_transfer;
 
 -- ---------------------------------------------------------------------------
--- claim 재검증 — prepare 뒤 제한 전환은 캡처 직전에 막힌다
+-- claim — prepare 뒤 상품이 19금으로 바뀌어도 토스 캡처는 진행된다(ADR-0053)
 -- ---------------------------------------------------------------------------
--- prepare의 파생은 결제 준비 시점의 판정이고 attempt는 그 뒤 최대 10분을 더
--- 산다. 그 창 안에서 상품을 내리면 이미 열린 토스 attempt가 캡처까지 완주할 수
--- 있는지 여기서 확인한다 — claim은 provider 승인 API 직전의 마지막 DB 관문이다.
+-- 2026-11-25까지는 제한 전환 뒤 토스 캡처를 여기서 막았다(#392). 이제 제한 주문도
+-- 토스로 결제하므로 같은 상황에서 claim이 정상 선점해야 한다.
 insert into public.goods (id, ip_id, name, price, stock, stock_qty, published_at)
 values ('restrict-flip-goods', 'restrict-ip', '판매 중 내려간 굿즈', 20000, 'ok', 10,null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
@@ -728,49 +746,38 @@ reset role;
 
 do $$
 declare
-  accepted boolean := false;
-  rejection text := '';
+  claimed jsonb;
 begin
-  begin
-    perform public.claim_goods_payment_attempt(
-      'toss'::public.payment_provider,
-      (
-        select attempt.provider_order_id
-        from public.payment_attempts as attempt
-        where attempt.purpose = 'order'
-          and attempt.ref_id = '2c000000-0000-4000-8000-000000000003'::uuid
-      ),
-      repeat('c', 64),
-      '4c000000-0000-4000-8000-000000000001'
-    );
-    accepted := true;
-  exception
-    when object_not_in_prerequisite_state then rejection := sqlerrm;
-  end;
+  claimed := public.claim_goods_payment_attempt(
+    'toss'::public.payment_provider,
+    (
+      select attempt.provider_order_id
+      from public.payment_attempts as attempt
+      where attempt.purpose = 'order'
+        and attempt.ref_id = '2c000000-0000-4000-8000-000000000003'::uuid
+    ),
+    repeat('c', 64),
+    '4c000000-0000-4000-8000-000000000001'
+  );
 
-  if accepted then
-    raise exception 'a toss capture must not proceed after a sale restriction lands';
-  end if;
-  if rejection <> 'goods_payment_provider_mismatch' then
-    raise exception 'a restricted toss claim failed for the wrong reason: %', rejection;
+  if claimed ->> 'claim_status' is distinct from 'claimed' then
+    raise exception 'a toss capture must not be blocked after a sale restriction lands: %', claimed;
   end if;
 end;
 $$;
 
--- 거절은 attempt를 종결시키지 않는다. prepared로 남아야 TTL 뒤 만료 경로가
--- attempt와 재고를 함께 정리한다 — 여기서 닫아 버리면 그 경로가 대상을 잃는다.
 select 1 / case when (
   select count(*) = 1
-    and bool_and(attempt.state = 'prepared')
-    and bool_and(attempt.claim_token is null)
-    and bool_and(attempt.claim_expires_at is null)
+    and bool_and(attempt.provider = 'toss')
+    and bool_and(attempt.state = 'confirming')
+    and bool_and(attempt.claim_token = '4c000000-0000-4000-8000-000000000001')
   from public.payment_attempts as attempt
   where attempt.purpose = 'order'
     and attempt.ref_id = '2c000000-0000-4000-8000-000000000003'::uuid
-) then 1 else 0 end as assert_rejected_claim_leaves_the_attempt_prepared;
+) then 1 else 0 end as assert_toss_claim_proceeds_after_restriction_lands;
 
 -- ---------------------------------------------------------------------------
--- claim 재검증은 한 방향이다 — nicepay attempt는 전환에 걸리지 않는다
+-- nicepay attempt도 제한 축 전환에 걸리지 않는다
 -- ---------------------------------------------------------------------------
 -- 전용 PG가 일반 상품을 결제하는 것은 업종 위반이 아니다. adult → none 전환이
 -- 이미 열린 nicepay 결제를 깨뜨리면, 제한을 푸는 결정이 진행 중인 결제를

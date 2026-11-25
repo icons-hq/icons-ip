@@ -32,7 +32,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - `CONTEXT.md`의 용어를 우선한다.
 - `팬덤 가입`은 v1에서 무료 `팔로우`다. 유료 `멤버십`과 섞지 않는다.
 - `교환`은 굿즈 `클레임` 유형(회수 후 재출고)으로만 쓴다.
-- 유료 가챠·`충전금`은 폐기됐다. 굿즈·티켓 신규 결제의 기본 provider는 토스페이먼츠 주문서형 v2이고(ADR-0013), `판매 제한 상품`(`goods.sale_restriction`, 성인(19금)) 포함 굿즈 주문만 나이스페이(웹표준 인증결제, 2026-11-06 코페이 대체)로 파생된다 — provider는 관리자가 고르는 값이 아니라 서버가 주문 단위로 파생·강제한다(앱 `RESTRICTED_GOODS_CARD_PROVIDER`·DB `prepare_goods_payment_attempt`). 코페이는 drain 전용으로 은퇴해 새 결제를 준비하지 않고, 진행 중 콜백·수동 복구만 남는다. 19금 오픈 트랙(성인인증 #595·19금 판매 #596·나이스페이 gate) 전까지 판매 제한 상품은 비노출·구매 차단이다. 토스 gate 상태·심사 시퀀스·잔여 위험은 `docs/runbooks/toss-production-rollout.md`를, 나이스페이 심사용 canary·카드사 심사·공개 순서는 `docs/runbooks/nicepay-production-rollout.md`를 따른다.
+- 유료 가챠·`충전금`은 폐기됐다. 굿즈·티켓 신규 결제의 기본 provider는 토스페이먼츠 주문서형 v2이고(ADR-0013), `판매 제한 상품`(`goods.sale_restriction`, 성인(19금)) 포함 굿즈 주문도 2026-11-25부터 토스로 파생된다(ADR-0053, 사용자 결정 — 그 전에는 나이스페이 웹표준, 2026-11-06 코페이 대체) — provider는 관리자가 고르는 값이 아니라 서버가 주문 단위로 파생·강제한다(앱 `RESTRICTED_GOODS_CARD_PROVIDER`·DB `prepare_goods_payment_attempt`, DB는 판매 제한 주문에 toss·nicepay를 받아 되돌릴 때 앱 상수만 바꾼다). 코페이는 drain 전용으로 은퇴해 새 결제를 준비하지 않고, 진행 중 콜백·수동 복구만 남는다. 19금 상품 노출은 성인 인증(ADR-0024)과 관리자 설정(성인 상품 공개)을 따른다. 토스 gate 상태·심사 시퀀스·잔여 위험은 `docs/runbooks/toss-production-rollout.md`를, 나이스페이로 되돌릴 때의 심사용 canary·카드사 심사·공개 순서는 `docs/runbooks/nicepay-production-rollout.md`를 따른다.
 - `바로구매`(상품 상세·위시 [구매하기] — 그 상품만 주문하고 장바구니를 읽거나 바꾸지 않는다)와 `선택 주문`(장바구니에서 체크한 줄만 주문)은 `docs/adr/0030-direct-buy-and-cart-selection.md`를 따른다. ADR-0026의 '바로구매 = 담고 장바구니', "주문 = 장바구니 전체" 문장은 대체됐으므로 근거로 쓰지 않는다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵 범위가 아니다.
 

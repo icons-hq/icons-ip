@@ -27,7 +27,8 @@ export type NewPaymentCheckoutPurpose = 'order' | 'ticket';
 
 /**
  * 콜백형 결제 게이트웨이를 가진 provider. 기본은 toss다(에픽 #384 재전환). 판매 제한
- * 상품(19금) 주문의 카드 PG는 nicepay다(2026-11-06, 코페이 대체). korpay는 drain 전용으로
+ * 상품(19금) 주문도 2026-11-25부터 toss다(ADR-0053). nicepay(2026-11-06, 코페이 대체)는 어댑터만
+ * 남아 RESTRICTED_GOODS_CARD_PROVIDER를 되돌리면 다시 쓴다. korpay는 drain 전용으로
  * 은퇴했다 — 진행 중 콜백·수동 복구를 위해 어댑터와 자격 증명 경로는 남기지만 새 결제는
  * 열지 않는다. bank_transfer는 게이트웨이 seam을 타지 않으므로 여기 없다.
  */

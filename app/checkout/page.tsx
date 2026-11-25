@@ -103,12 +103,12 @@ export default async function Page({ searchParams }: PageProps) {
   ]);
 
   /* 카드 결제 가능 여부는 이 주문서 품목으로 파생한 provider의 gate다 — 19금 굿즈가
-     섞이면 나이스페이다. 초안이면 그 줄(장바구니에만 있는 19금 굿즈는 끼지 않는다), 아니면 서버 카트 전체로 판정한다.
+     섞이면 RESTRICTED_GOODS_CARD_PROVIDER(지금은 토스, ADR-0053)다. 초안이면 그 줄(장바구니에만 있는 19금 굿즈는 끼지 않는다), 아니면 서버 카트 전체로 판정한다.
      주문 액션이 같은 품목으로 다시 판정하고, DB prepare가 최종 강제한다. */
   const cardProvider = await (draft ? deriveGoodsCartProvider(draft.lines.map(line => line.goodId)) : deriveUserCartProvider(auth.user.id))
     .catch(() => 'toss' as const);
   const paymentAvailable = goodsCheckoutPaymentsEnabled(auth.user.id, cardProvider);
-  /* 토스 가상계좌(무통장입금)가 열려 있어도 19금 굿즈 주문(나이스페이)에는 없다 — 안내 문구도 토스 카드 주문에만 쓴다. */
+  /* 토스 가상계좌(무통장입금)·계좌이체는 파생 provider가 토스인 주문에만 있다 — 19금 굿즈 주문도 토스로 파생되면(ADR-0053) 열린다. */
   const virtualAccountEnabled = cardProvider === 'toss' && tossVirtualAccountCheckoutEnabled();
 
   /* 확정은 place_order 가 한다 — 주문서는 카트에 적용해 둔 선택을 미리 보여주고, 같은 선택(cart_coupon_selections)을 바꾸게 한다(R25). */
@@ -126,7 +126,7 @@ export default async function Page({ searchParams }: PageProps) {
       catalog={{ goods: catalog.goods, ips: catalog.ips }}
       addressPrefill={addressPrefill}
       resumeOrderId={resumeOrderId}
-      /* 위에서 서버 카트 구성으로 파생한 provider의 gate다(19금 굿즈가 섞이면 나이스페이).
+      /* 위에서 서버 카트 구성으로 파생한 provider의 gate다(19금 굿즈가 섞여도 지금은 토스 — ADR-0053).
          주문 액션이 실제 카트로 다시 판정하고, 서버 prepare가 최종 gate다. */
       paymentAvailable={paymentAvailable}
       bankTransferAvailable={await bankTransferCheckoutEnabled()}
