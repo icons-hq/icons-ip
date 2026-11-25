@@ -160,9 +160,11 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         const selling = Boolean(good.publishedAt && !good.archivedAt);
         /* 예약 접수 전·종료처럼 배지가 예약 상태를 말하면 0개는 처리할 품절이 아니다. 물량 마감은 품절과 같이 강조한다. */
         const preorderQuiet = Boolean(good.preorderSaleLabel) && sale.label === good.preorderSaleLabel && sale.tone !== 'danger';
-        const soldOut = selling && readiness.availableQty === 0 && !preorderQuiet;
-        /* 안전재고 부족 경보(옵션 수량 기준)를 먼저, 없으면 소량 재고 표시를 쓴다 — 어휘는 '상세 재고'·판매상태 필터와 같다. */
-        const lowStockLabel = !selling || soldOut ? null : good.lowStockOptionCount > 0 ? `부족 ${good.lowStockOptionCount}개 옵션` : good.stock === 'low' ? '소량 재고' : null;
+        const nothingToSell = selling && readiness.availableQty === 0;
+        const soldOut = nothingToSell && !preorderQuiet;
+        /* 안전재고 부족 경보(옵션 수량 기준)를 먼저, 없으면 소량 재고 표시를 쓴다 — 어휘는 '상세 재고'·판매상태 필터와 같다.
+           지금 팔 수 있는 수량이 없으면(품절·예약 상태) 부족 경보는 할 일이 아니다. */
+        const lowStockLabel = !selling || nothingToSell ? null : good.lowStockOptionCount > 0 ? `부족 ${good.lowStockOptionCount}개 옵션` : good.stock === 'low' ? '소량 재고' : null;
         const qtyEmphasis = soldOut ? ' font-semibold text-destructive' : lowStockLabel ? ' font-semibold text-warning' : '';
         const lowStockBadge = lowStockLabel ? <AdminStatusBadge tone={statusTone('stock', 'low')}>{lowStockLabel}</AdminStatusBadge> : null;
         const priceText = priceLabel(good.priceMin, good.priceMax);
