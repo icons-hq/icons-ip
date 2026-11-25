@@ -23,11 +23,11 @@ afterEach(() => {
 describe('/robots.txt', () => {
   it('운영 배포는 개인·거래 화면을 닫고 운영 사이트맵을 알린다', async () => {
     process.env.VERCEL_ENV = 'production';
-    process.env.SITE_URL = 'https://iconsip.com';
+    process.env.SITE_URL = 'https://xsquare.kr';
     const { default: robots } = await import('./robots');
 
     const result = robots();
-    expect(result.sitemap).toBe('https://iconsip.com/sitemap.xml');
+    expect(result.sitemap).toBe('https://xsquare.kr/sitemap.xml');
     expect(result.rules).toMatchObject({ userAgent: '*', allow: '/' });
     expect((result.rules as { disallow: string[] }).disallow).toEqual(expect.arrayContaining(['/admin', '/my', '/checkout', '/cart']));
   });
@@ -47,7 +47,7 @@ describe('/sitemap.xml', () => {
 
     expect(route.dynamic).toBe('force-dynamic');
     const urls = (await route.default()).map((entry) => entry.url);
-    expect(urls).toEqual(expect.arrayContaining(['https://iconsip.com', 'https://iconsip.com/shop', 'https://iconsip.com/ip/maplestory', 'https://iconsip.com/shop/g4']));
+    expect(urls).toEqual(expect.arrayContaining(['https://xsquare.kr', 'https://xsquare.kr/shop', 'https://xsquare.kr/ip/maplestory', 'https://xsquare.kr/shop/g4']));
     expect(loader.load).toHaveBeenCalledTimes(1);
   });
 });

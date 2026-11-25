@@ -26,7 +26,7 @@ describe('상품 자동코드와 고객 화면 주소',()=>{
     expect(html).toContain('<input type="hidden" name="id" value="hongsilkweseuteu-akeuril-hyudaepon-kiring"/>');
     const address=html.match(/<input(?=[^>]*id="good-identifier-id")[^>]*>/)?.[0] ?? '';
     expect(address).toContain('readOnly');
-    expect(address).toContain('value="iconsip.com/shop/hsq-0059"');
+    expect(address).toContain('value="xsquare.kr/shop/hsq-0059"');
     expect(address).not.toContain('name=');
     expect(html.match(/hongsilkweseuteu/g)).toHaveLength(1);
     /* 주소가 바뀐다는 경고는 상품 자동코드를 직접 바꿀 때만 보인다(잠겨 있으면 입력할 것이 없다). */
@@ -44,12 +44,12 @@ describe('상품 자동코드와 고객 화면 주소',()=>{
   });
   it('상품 자동코드가 옛 값(내부 id의 대문자)이어도 코드 주소로 보고 쓸 수 없다고 하지 않는다',()=>{
     const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" code="G13" slug="g13" errors={{}} />);
-    expect(html).toContain('value="iconsip.com/shop/g13"');
+    expect(html).toContain('value="xsquare.kr/shop/g13"');
     expect(html).not.toContain('주소로 쓸 수 없는 글자');
   });
   it('주소에 쓸 수 없는 글자가 든 상품 자동코드면 처음 저장한 영문 값 주소를 보이고 이유를 알린다',()=>{
     const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" code="창고 A-1" slug="keyring" errors={{}} />);
-    expect(html).toContain('value="iconsip.com/shop/keyring"');
+    expect(html).toContain('value="xsquare.kr/shop/keyring"');
     expect(html).toContain('상품 자동코드에 주소로 쓸 수 없는 글자(공백·한글·기호)가 있어, 처음 저장할 때 정해진 영문 값으로 열립니다.');
   });
   it('잠긴 자동코드 칸에 바코드 형식 값이 들어 있으면 막지 않고 바코드 칸과 직접 바꾸기를 안내한다',()=>{

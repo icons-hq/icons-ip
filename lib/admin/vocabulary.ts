@@ -13,7 +13,7 @@ export const ADMIN_VOCABULARY = Object.freeze({
    * 2026-11-25부터 고객 화면 주소는 상품 자동코드로 열리고(ADR-0050) 이 값의 주소는 새 주소로 옮겨진다 — 이름은 아직 그대로다.
    */
   goodsUrl: '상품 URL',
-  /** 고객이 여는 상품 상세 주소(`iconsip.com/shop/<상품 자동코드 소문자>`, ADR-0050). 상품 자동코드를 따른다. */
+  /** 고객이 여는 상품 상세 주소(`xsquare.kr/shop/<상품 자동코드 소문자>`, ADR-0050). 상품 자동코드를 따른다. */
   goodsAddress: '고객 화면 주소',
   goodsList: '상품 조회/수정',
   goodsGroups: '그룹상품 조회/수정',

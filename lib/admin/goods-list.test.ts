@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOODS_LIST_SEARCH_FIELDS, GOODS_LIST_SEARCH_HINTS, GOODS_LIST_SORT_OPTIONS, GOODS_LIST_STOCK_OPTIONS, goodsConsoleFilterValues, goodsListHref, goodsListPreorderSaleLabel, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
+import { GOODS_LIST_SEARCH_FIELDS, GOODS_LIST_SEARCH_HINTS, GOODS_LIST_SORT_OPTIONS, GOODS_LIST_STOCK_OPTIONS, goodsConsoleFilterValues, goodsListHref, goodsListPreorderSaleLabel, goodsListSalePeriodLabel, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
 
 describe('goods list navigation', () => {
   it('상품번호(시스템 순번)와 상품 URL을 다른 검색 대상으로 두고, 예전 상품번호순 주소는 새 상품번호순으로 연다(S36-009·S36-X02)', () => {
@@ -102,5 +102,15 @@ describe('goodsListPreorderSaleLabel', () => {
     expect(goodsListPreorderSaleLabel([preorder('open', 5)])).toBeNull();
     expect(goodsListPreorderSaleLabel([preorder('scheduled'), null])).toBeNull();
     expect(goodsListPreorderSaleLabel([])).toBeNull();
+  });
+});
+
+describe('goodsListSalePeriodLabel', () => {
+  const now = Date.parse('2026-11-25T03:00:00.000Z');
+  it('판매기간 시작 전은 판매 예정, 끝난 뒤는 판매 종료, 판매 중이거나 기간이 없으면 null이다(고객 화면과 같은 판정)', () => {
+    expect(goodsListSalePeriodLabel('2026-11-27T02:00:00.000Z', '2026-12-06T12:00:00.000Z', now)).toBe('판매 예정');
+    expect(goodsListSalePeriodLabel('2026-11-01T00:00:00.000Z', '2026-11-25T03:00:00.000Z', now)).toBe('판매 종료');
+    expect(goodsListSalePeriodLabel('2026-11-01T00:00:00.000Z', '2026-12-06T12:00:00.000Z', now)).toBeNull();
+    expect(goodsListSalePeriodLabel(null, null, now)).toBeNull();
   });
 });

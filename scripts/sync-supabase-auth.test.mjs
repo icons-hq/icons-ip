@@ -52,6 +52,9 @@ describe('repository Auth redirect contract', () => {
       expect(pipeline).toContain(`https://${host}/auth/callback`);
       expect(pipeline).toContain(`https://${host}/auth/recovery/callback`);
     }
+    // 운영 Auth Site URL(production sync 두 곳)은 정규 주소 xsquare.kr이다(도메인 전환 3단계).
+    expect(pipeline.match(/^\s+SITE_URL: https:\/\/xsquare\.kr$/gm)).toHaveLength(2);
+    expect(pipeline).not.toMatch(/^\s+SITE_URL: https:\/\/(?:www\.)?iconsip\.com$/m);
     expect(pipeline).toContain('https://icons-ip.vercel.app/auth/recovery/callback');
     expect(pipeline).toContain('https://icons-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback');
     expect(pipeline).toContain('https://icons-git-*-sangwopark19icons-1055s-projects.vercel.app/auth/recovery/callback');
