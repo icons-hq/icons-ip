@@ -124,6 +124,7 @@ const operators = [
   // 부분 반품(원장 #17·ADR-0047): 스위치 OFF 불변, 고른 품목만 회수, 결제사 확인 뒤 적용·클레임 완료, 배송 건 비움 배송비, 반품배송비
   // 편도·왕복 한 번, 남은 수량 전부 = 주문 전체 반품, 무통장 송금 대기, 결제사 거절 확인 필요, 불량 재고, 대리 접수. 경합은 아래 스크립트.
   sql('order_partial_return'),
+  sql('order_claim_reason_return_fee'),
   script('order_partial_return_concurrency.sh', 'PARTIAL_RETURN_TEST_SCOPE'),
   script('order_partial_cancellation_concurrency.sh', 'PARTIAL_CANCEL_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
@@ -285,6 +286,8 @@ const storefront = [
   sql('toss_escrow_key_transfer_partial_cancel'),
   // 가상계좌 환불 후속: 환급 계좌 입력·변경과 취소 재시도, 은행 환불 감시(실패·지연·처리 완료), 계좌이체 에스크로 운영자 조회.
   sql('virtual_account_refund_followups'),
+  sql('virtual_account_refund_account_notice'),
+  sql('virtual_account_partial_cancel'),
   // 가상계좌 입금 오류 되돌림 자동 처리: 감지·재입금 해제·자동 재확인·기한 뒤 반납 취소(환불 없음)·발송 주문 확인 필요·취소 요청 경로.
   sql('toss_virtual_account_deposit_reversal'),
   // 운영 알림 요약 메일: 새 문의·답변 지연·시스템 장애를 한 통으로(커서·지연 1회·범주·전용 dispatcher gate).
