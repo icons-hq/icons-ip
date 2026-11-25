@@ -88,6 +88,7 @@ import { STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE, orderHasUnsentShipmentAf
 import { OrderFulfillmentHoldBadges, OrderFulfillmentHoldList, OrderFulfillmentHoldNotice } from '@/components/admin/OrderFulfillmentHoldNotice';
 import { VirtualAccountRefundNotice } from '@/components/admin/VirtualAccountRefundNotice';
 import { VirtualAccountRefundAccountEntry } from '@/components/admin/VirtualAccountRefundAccountEntry';
+import { adminVirtualAccountPartialCancelHint } from '@/lib/admin/virtual-account-refund-account';
 import { WarehouseStopRequirementNote } from '@/components/admin/OrderWarehouseStopPanel';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -172,7 +173,7 @@ function OrderVirtualAccountFacts({ order, canManage }: { order: AdminOrderRecor
       {canManage && order.cancellationRequest?.stage === 'needs_review' ? <VirtualAccountRefundAccountEntry claimId={order.cancellationRequest.id}
         claimType={order.cancellationRequest.claimType} lastErrorCode={order.cancellationRequest.lastErrorCode} orderId={order.id} /> : null}
       {account.refund && account.refund.state !== 'failed' ? <p className="text-xs leading-relaxed text-muted-foreground">{adminVirtualAccountRefundHint(account.refund)}</p> : null}
-      <p className="text-xs leading-relaxed text-muted-foreground">{ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS[account.state]} 가상계좌 결제는 주문 전체로만 취소·반품할 수 있습니다.</p>
+      <p className="text-xs leading-relaxed text-muted-foreground">{ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS[account.state]} {adminVirtualAccountPartialCancelHint(account)}</p>
     </div>
   );
 }

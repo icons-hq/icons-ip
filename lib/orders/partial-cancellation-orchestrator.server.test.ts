@@ -73,6 +73,43 @@ describe('재고 부족 부분 취소 오케스트레이터', () => {
     expect(d.refund).toHaveBeenCalledWith(expect.objectContaining({ reasonCode: 'return', refundAmount: 9_500, expectedBalanceBefore: 40_000 }));
   });
 
+  /* 입금된 가상계좌(에스크로 아님) 부분 반품·부분 취소(2026-11-25 보강) — 계좌는 반품 요청에서 찾고, 계좌 때문에 멈추면 구매자에게 알린다. */
+  it('부분 반품은 반품 요청 id로 환불 계좌를 찾고, 계좌 때문에 멈추면 그 요청으로 계좌 요청을 보낸다', async () => {
+    const CLAIM_ID = '77777777-7777-4777-8777-777777777777';
+    const notify = vi.fn(async () => undefined);
+    const d = deps({
+      refund: vi.fn(async () => approved({ outcome: 'needs_review', reasonCode: 'provider_refund_account_required', refundedAmount: undefined })),
+      notifyRefundAccountNeeded: notify,
+    }, row({ reasonCode: 'return', claimId: CLAIM_ID }));
+    await expect(reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, d))
+      .resolves.toEqual({ ok: false, code: 'provider_refund_account_required' });
+    expect(d.refund).toHaveBeenCalledWith(expect.objectContaining({ claimId: CLAIM_ID, reasonCode: 'return' }));
+    expect(d.markNeedsReview).toHaveBeenCalledWith({ id: ID, actorId: ACTOR, code: 'provider_refund_account_required' });
+    expect(notify).toHaveBeenCalledWith(CLAIM_ID);
+
+    // 재고 부족 부분 취소는 구매자가 계좌를 넣을 요청이 없다 — 알리지 않고 운영자 확인(결제확인필요)으로 남긴다.
+    const stockout = vi.fn(async () => undefined);
+    await reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, deps({
+      refund: vi.fn(async () => approved({ outcome: 'needs_review', reasonCode: 'provider_refund_account_required', refundedAmount: undefined })),
+      notifyRefundAccountNeeded: stockout,
+    }));
+    expect(stockout).not.toHaveBeenCalled();
+  });
+
+  it('결제사 요청 조립: 가상계좌 환불 계좌가 있으면 싣고(어댑터가 계좌 접미를 붙인다) 없으면 싣지 않는다', () => {
+    const attempt = { id: 'attempt-1' } as Parameters<typeof orderPartialCancellationRefundRequest>[0];
+    const base = { partialCancellationId: ID, paymentKey: PAYMENT_KEY, refundAmount: 9_500, expectedBalanceBefore: 40_000 };
+    const account = { bankCode: '88', accountNumber: '110123456789', holderName: '김토스' };
+    expect(orderPartialCancellationRefundRequest(attempt, { ...base, refundReceiveAccount: account })).toMatchObject({
+      idempotencyKey: `refund:attempt-1:partial:${ID}`, refundReceiveAccount: account,
+    });
+    expect(orderPartialCancellationRefundRequest(attempt, base)).not.toHaveProperty('refundReceiveAccount');
+    // 전액 취소 오케스트레이터의 단계별 부분 취소(차감·남은 잔액)도 계좌를 싣는다.
+    expect(cancellationRefundRequest(attempt, { amount: 40_000, reason: '사유', paymentKey: PAYMENT_KEY,
+      partial: { refundAmount: 3_000, requestId: 'r1', expectedBalanceBefore: 3_000, scope: 'remainder' }, refundReceiveAccount: account,
+    })).toMatchObject({ idempotencyKey: 'refund:attempt-1:remainder:r1', refundReceiveAccount: account });
+  });
+
   it('결제사 요청 조립: 부분 반품은 반품 사유, 재고 부족 부분 취소는 지금 사유, 멱등키는 같은 원장 id 규칙', () => {
     const attempt = { id: 'attempt-1' } as Parameters<typeof orderPartialCancellationRefundRequest>[0];
     const base = { partialCancellationId: ID, paymentKey: PAYMENT_KEY, refundAmount: 9_500, expectedBalanceBefore: 40_000 };

@@ -33,6 +33,7 @@ import {
   type AdminOrderStatus,
 } from '@/lib/admin/orders';
 import { VirtualAccountRefundNotice } from '@/components/admin/VirtualAccountRefundNotice';
+import { adminVirtualAccountPartialCancelHint } from '@/lib/admin/virtual-account-refund-account';
 import { tossBankLabel } from '@/lib/payments/toss-bank-codes';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
@@ -185,7 +186,7 @@ function OrderVirtualAccountCard({ detail }: { detail: AdminOrderDetail }) {
     {escrow?.deliveryState === 'manual_required' ? <AdminNotice role="status" tone="danger">{ADMIN_ESCROW_MANUAL_REQUIRED_HINT}</AdminNotice> : null}
     <VirtualAccountRefundNotice canManage orderId={detail.order.id} refund={account.refund} />
     {account.refund && account.refund.state !== 'failed' ? <p className="text-sm leading-relaxed text-muted-foreground">{adminVirtualAccountRefundHint(account.refund)}</p> : null}
-    <p className="text-sm leading-relaxed text-muted-foreground">{ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS[account.state]} 가상계좌 결제는 주문 전체로만 취소·반품할 수 있습니다.</p>
+    <p className="text-sm leading-relaxed text-muted-foreground">{ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS[account.state]} {adminVirtualAccountPartialCancelHint(account)}</p>
   </AdminSectionCard>;
 }
 

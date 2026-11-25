@@ -86,3 +86,23 @@ export function virtualAccountRefundAccountEntryMessage(
   if (retry === 'failed') return '환불 계좌를 저장했습니다. 환불 다시 요청은 보내지 못했습니다 — 주문 처리 패널의 [상태 다시 확인]을 눌러주세요.';
   return '환불 계좌를 저장했습니다. 지금은 시스템이 환불을 다시 요청할 상태가 아닙니다 — 화면을 새로고침해 결제사 확인 오류를 확인한 뒤 [상태 다시 확인]을 눌러주세요.';
 }
+
+/**
+ * 가상계좌 칸의 부분 취소 안내(2026-11-25 — ADR-0049 결정 5 보강). 에스크로가 아님이 확인된 입금 결제만 부분 취소·부분 반품·반품배송비
+ * 차감을 받는다(토스: 입금 뒤 부분 취소 가능, 에스크로는 구매확정 전 부분 취소 불가). 화면 안내일 뿐이고 판정은 DB
+ * (private.toss_virtual_account_partial_cancel_ready)가 한다 — 에스크로 선택을 모르면 작업자 확인(배송 등록 작업 '에스크로 결제 아님') 뒤에 열린다.
+ */
+export function adminVirtualAccountPartialCancelHint(account: {
+  useEscrow: boolean | null;
+  escrow?: { deliveryState: string; escrowStatus: string | null } | null;
+}): string {
+  const confirmedNonEscrow = account.useEscrow === false
+    || (account.useEscrow === null && account.escrow?.deliveryState === 'skipped' && !account.escrow.escrowStatus);
+  if (confirmedNonEscrow) {
+    return '구매안전서비스(에스크로)를 쓰지 않은 결제라 입금 뒤 부분 취소·부분 반품·반품배송비 차감도 할 수 있습니다(고객 환불 계좌로 부분 환불).';
+  }
+  if (account.useEscrow === true) {
+    return '구매안전서비스(에스크로)를 쓴 결제는 구매확정 전 부분 취소를 받지 않아 주문 전체로만 취소·반품할 수 있습니다.';
+  }
+  return '구매안전서비스(에스크로) 적용 여부를 확인하기 전에는 주문 전체로만 취소·반품할 수 있습니다.';
+}

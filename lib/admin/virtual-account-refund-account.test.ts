@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adminVirtualAccountPartialCancelHint,
   normalizeAdminRefundAccountEntry,
   showsVirtualAccountRefundAccountEntry,
   VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS,
@@ -47,5 +48,20 @@ describe('가상계좌 환급 계좌 대신 입력', () => {
       'refund_account_not_virtual_account', 'refund_account_gift_order', 'invalid_refund_account_reason', 'operator_capability_required']) {
       expect(VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS[code], code).toBeTruthy();
     }
+  });
+});
+
+/* 가상계좌 칸의 부분 취소 안내(2026-11-25) — 판정은 DB, 화면은 에스크로 근거로 안내만 고른다. */
+describe('가상계좌 부분 취소 안내', () => {
+  it('에스크로가 아님이 확인된 결제만 부분 취소·부분 반품을 안내한다', () => {
+    expect(adminVirtualAccountPartialCancelHint({ useEscrow: false, escrow: null })).toContain('부분 취소·부분 반품·반품배송비 차감도 할 수 있습니다');
+    // 선택 기록이 없어도 작업자가 결제 조회로 에스크로가 아님을 확인했으면(건너뜀·거래 상태 없음) 열린다.
+    expect(adminVirtualAccountPartialCancelHint({ useEscrow: null, escrow: { deliveryState: 'skipped', escrowStatus: null } }))
+      .toContain('부분 취소·부분 반품');
+    expect(adminVirtualAccountPartialCancelHint({ useEscrow: true, escrow: null })).toContain('주문 전체로만 취소·반품');
+    expect(adminVirtualAccountPartialCancelHint({ useEscrow: null, escrow: { deliveryState: 'waiting', escrowStatus: null } }))
+      .toContain('확인하기 전에는 주문 전체로만');
+    expect(adminVirtualAccountPartialCancelHint({ useEscrow: null, escrow: { deliveryState: 'skipped', escrowStatus: 'CONFIRMED' } }))
+      .toContain('주문 전체로만');
   });
 });

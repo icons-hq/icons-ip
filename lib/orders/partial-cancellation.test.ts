@@ -63,7 +63,13 @@ describe('부분 취소 응답 좁히기', () => {
     expect(parseOrderPartialCancellationServiceRow(null)).toBeNull();
     expect(parseOrderPartialCancellationServiceRow({ id: record.id, orderId: ITEM, paymentId: SHIPMENT, provider: 'toss', state: 'processing',
       paymentAmount: 40_000, balanceBefore: 30_500, refundAmount: 17_500, paymentKey: 'KEY', paymentStatus: 'paid', paymentLiveAmount: 40_000 }))
-      .toMatchObject({ balanceBefore: 30_500, refundAmount: 17_500 });
+      .toMatchObject({ balanceBefore: 30_500, refundAmount: 17_500, claimId: null });
+    // 부분 반품 원장은 반품 요청 id를 싣는다 — 가상계좌 환불이 그 요청의 환급 계좌를 찾는다(2026-11-25). 요청 없는 반품·요청 있는 재고 부족 취소는 받지 않는다.
+    const base = { id: record.id, orderId: ITEM, paymentId: SHIPMENT, provider: 'toss', state: 'processing',
+      paymentAmount: 40_000, balanceBefore: 30_500, refundAmount: 17_500, paymentKey: 'KEY', paymentStatus: 'paid', paymentLiveAmount: 40_000 };
+    expect(parseOrderPartialCancellationServiceRow({ ...base, reasonCode: 'return', claimId: ITEM })).toMatchObject({ reasonCode: 'return', claimId: ITEM });
+    expect(() => parseOrderPartialCancellationServiceRow({ ...base, reasonCode: 'return', claimId: null })).toThrow();
+    expect(() => parseOrderPartialCancellationServiceRow({ ...base, reasonCode: 'out_of_stock', claimId: ITEM })).toThrow();
   });
 });
 
