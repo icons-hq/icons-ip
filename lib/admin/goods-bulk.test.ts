@@ -121,6 +121,11 @@ describe('상품 일괄 변경 계약', () => {
   it('오류 문장은 무엇이 문제인지와 다음에 할 일을 함께 말한다', () => {
     expect(goodsBulkError('operator_capability_required')).toBe('상품을 바꿀 권한이 없습니다. 최고 관리자에게 매니저 관리에서 상품 관리 권한을 요청해주세요.');
     expect(goodsBulkError('goods_category_required')).toBe('대표 카테고리가 없어 공개할 수 없습니다. 상품 수정에서 대표 카테고리를 골라주세요.');
+    /* QA G4: 고시가 빈 공개 상품은 판매중지·판매중·판매가·판매기간 변경이 막힌다(상품 저장이 받지 않는다). 하려던 일이 공개가 아니므로
+       "공개할 수 없습니다"가 아니라 왜 바꿀 수 없는지와 풀 방법을 말한다. 표의 짧은 말도 같다. */
+    expect(goodsBulkError('goods_notice_required')).toBe('공개 중인 상품인데 상품정보제공고시가 비어 있어 바꿀 수 없습니다. 상품 수정에서 고시를 채운 뒤 다시 해주세요.');
+    expect(goodsBulkSkipMessage('goods_notice_required')).not.toContain('공개할 수 없습니다');
+    expect(goodsBulkSkipLabel('goods_notice_required', 'stop')).toBe('공개 중인데 상품정보제공고시가 비어 있음(먼저 채우기)');
     /* 바꿀 수 있는 상품이 없을 때: 명령을 모르면 어느 명령에나 맞는 말로, 기간 할인 걸기·중지는 그 명령에서 건너뛰는 이유를 모두 적는다(DB의 건너뛰기 이유와 같다). */
     expect(goodsBulkError('goods_bulk_all_skipped')).toBe('바꿀 수 있는 상품이 없습니다. 상품의 지금 상태를 확인한 뒤 다시 해주세요.');
     expect(goodsBulkError('goods_bulk_all_skipped', 'archive')).toBe(goodsBulkError('goods_bulk_all_skipped'));

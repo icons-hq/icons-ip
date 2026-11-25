@@ -124,6 +124,7 @@ export function GoodsBulkForm({ kind, command, fields, locked, promotionIp, onCo
       {period ? <GoodReadback>{period.reversed ? '종료가 시작보다 앞입니다. 날짜를 다시 확인해주세요.' : `${period.text} ${command === 'discount' ? '할인합니다.' : '팝니다.'}`}</GoodReadback> : null}
       {command === 'discount' ? <p className={NOTE}>여러 상품에 묶어서 걸고 한 번에 멈추려면 <Link className="font-medium text-primary underline-offset-4 hover:underline" href={newDiscountPromotionHref(promotionIp ? { ip: promotionIp } : {})}>할인 프로모션</Link>을 쓰세요.</p> : null}
       {command === 'discount_stop' ? <p className={NOTE}>상품마다 따로 건 할인과 할인 프로모션이 건 할인도 함께 멈춥니다. 멈춘 할인은 되살릴 수 없습니다.</p> : null}
+      {command === 'archive' ? <p className={NOTE}>보관한 상품은 고객 화면에서 내려가고, [복원]하면 초안으로 돌아옵니다. 재고수량이 0인 상품만 보관됩니다.</p> : null}
       {command === 'restore' ? <p className={NOTE}>복원한 상품은 초안으로 돌아옵니다.</p> : null}
       {command === 'dissolve' ? <p className={NOTE}>묶였던 상품과 재고·주문 기록은 그대로 남습니다.</p> : null}
       <div className="flex flex-wrap justify-end gap-2"><Button type="submit">변경 내용 확인</Button></div>
@@ -141,7 +142,9 @@ export function GoodsBulkPreviewTable({ preview }: { preview: GoodsBulkPreview }
     <p className="text-sm"><strong className="font-semibold">{GOODS_BULK_LABELS[command]}</strong> · 바꿀 상품 {applied}개{skippedCount ? ` · 건너뜀 ${skippedCount}개` : ''}
       {preview.groups.length ? ` · 그룹 ${preview.groups.length}개` : ''}{stops ? ` · 멈출 할인 ${stops}건` : ''}{period ? ` · ${period} (KST)` : ''}</p>
     {applied ? null : <AdminNotice role="alert" tone="warning" title="바꿀 수 있는 상품이 없습니다."><p>상품마다 건너뛴 이유를 확인해주세요.</p></AdminNotice>}
-    <GroupTable label="일괄 변경 대상" layout="fixed"><TableHeader><TableRow><TableHead className="w-[44%]">상품명·상품 자동코드</TableHead><TableHead>현재</TableHead><TableHead>변경 후</TableHead></TableRow></TableHeader>
+    {/* 창 안쪽 폭(576 − 여백 32 = 544px)에 세 열이 모두 들어온다: 고정 배치라 열 폭은 머리 칸의 비율(36·24·40%)이고 칸의 글은 줄을 바꾼다.
+        건너뛴 이유가 들어가는 '변경 후'에 가장 넓은 폭을 준다 — 이름과 이유를 한 화면에서 함께 본다(QA G1). */}
+    <GroupTable label="일괄 변경 대상" layout="fixed"><TableHeader><TableRow><TableHead className="w-[36%]">상품명·상품 자동코드</TableHead><TableHead className="w-[24%]">현재</TableHead><TableHead>변경 후</TableHead></TableRow></TableHeader>
       <TableBody>{[...preview.goods].sort((a, b) => Number(Boolean(b.skip)) - Number(Boolean(a.skip))).map(row => <TableRow key={row.id} className="data-[skipped]:text-muted-foreground" data-skipped={row.skip ? 'true' : undefined}>
         <TableCell className="whitespace-normal wrap-anywhere">{row.name}{row.code ? <small className="block text-xs text-muted-foreground">{row.code}</small> : null}</TableCell>
         <TableCell className="whitespace-normal">{before(row, command)}</TableCell><TableCell className="whitespace-normal">{after(row, preview)}</TableCell></TableRow>)}</TableBody></GroupTable>

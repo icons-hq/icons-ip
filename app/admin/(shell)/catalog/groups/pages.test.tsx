@@ -1,11 +1,11 @@
 import { beforeEach, expect, it, vi } from 'vitest';
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { groupTestGroup as group, groupTestIdentity as identity, groupTestSource as source } from '@/lib/admin/goods-groups.test-fixtures';
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), groups: vi.fn(), group: vi.fn(), source: vi.fn(), create: vi.fn(), session: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), groups: vi.fn(), group: vi.fn(), source: vi.fn(), create: vi.fn(), session: vi.fn(), categories: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
 vi.mock('@/lib/admin/goods-groups.server', () => ({ loadGoodsGroups: mocks.groups, loadGoodsGroup: mocks.group, loadGoodsGroupSource: mocks.source }));
 vi.mock('@/lib/admin/goods-group-console.server', () => ({ loadGoodsGroupConsole: mocks.groups }));
-vi.mock('@/lib/admin/category.server', () => ({ loadGoodsCategoryOptions: async () => [] }));
+vi.mock('@/lib/admin/category.server', () => ({ loadGoodsCategoryOptions: mocks.categories }));
 vi.mock('@/lib/admin/fulfillment-origins.server', () => ({ loadGoodsFulfillmentOptions: async () => [] }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.create }));
 vi.mock('@/components/admin/screens/GoodsGroupsScreen', () => ({ GoodsGroupsScreen: () => null }));
@@ -19,7 +19,14 @@ import { GoodsGroupEditor } from '@/components/admin/GoodsGroupEditor';
 function children(value: ReactNode): ReactElement<Record<string, unknown>>[] { return Children.toArray(value).flatMap(row => isValidElement<Record<string, unknown>>(row) ? [row, ...children(row.props.children as ReactNode)] : []); }
 beforeEach(() => { vi.resetAllMocks(); mocks.guard.mockResolvedValue({ user: { id: identity.actorId } }); mocks.create.mockResolvedValue({ auth: { getSession: mocks.session } });
   mocks.session.mockResolvedValue({ data: { session: { user: { id: identity.actorId }, access_token: `x.${Buffer.from(JSON.stringify({ session_id: identity.sessionId })).toString('base64url')}.x` } } });
-  mocks.groups.mockResolvedValue({ rows: [group], total: 1, page: 1, pageSize: 30 }); mocks.group.mockResolvedValue(group); mocks.source.mockResolvedValue(source);
+  mocks.groups.mockResolvedValue({ rows: [group], total: 1, page: 1, pageSize: 30 }); mocks.group.mockResolvedValue(group); mocks.source.mockResolvedValue(source); mocks.categories.mockResolvedValue([]);
+});
+/* QA G6: 카테고리 셀렉트는 단계만큼 들여 쓴다 — 하위가 상위보다 먼저 나오지 않게 카테고리 관리 화면과 같은 순서로 넘긴다. */
+it('목록의 카테고리 선택지는 상위 바로 아래에 하위가 오는 순서로 넘긴다', async () => {
+  const node = (id: string, name: string, parentId: string | null, depth: number, sortOrder: number) => ({ id, name, parentId, depth, sortOrder, code: `c-${id}`, archivedAt: null, updatedAt: '', childCount: 0, assignedGoodCount: 0 });
+  mocks.categories.mockResolvedValue([node('plush', '봉제인형', 'doll', 2, 0), node('doll', '인형', null, 1, 1), node('figure', '피규어', 'doll', 2, 1), node('cushion', '쿠션', null, 1, 2)]);
+  const result = await Page({});
+  expect(result.props.categories).toEqual([{ id: 'doll', name: '인형', depth: 1 }, { id: 'plush', name: '봉제인형', depth: 2 }, { id: 'figure', name: '피규어', depth: 2 }, { id: 'cushion', name: '쿠션', depth: 1 }]);
 });
 it('모든 경로는 catalog.manage 인가 후에만 데이터를 조회한다', async () => {
   mocks.guard.mockRejectedValue(new Error('forbidden')); await expect(Page({})).rejects.toThrow('forbidden'); await expect(NewPage({})).rejects.toThrow('forbidden');

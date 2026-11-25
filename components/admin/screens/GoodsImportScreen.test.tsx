@@ -99,6 +99,18 @@ describe('goods workbook confirmation screen', () => {
     expect(html).toContain('저장 완료');
     expect(html).not.toContain('검증한 1개 상품 적용');
   });
+  /* QA S7: 코드를 비운 새 상품은 저장할 때 상품 자동코드가 만들어진다. 저장 뒤에도 '코드 자동 생성'이면 아직 안 만들어진 것으로 읽힌다. */
+  it('코드를 비운 새 상품은 저장 전에는 코드 자동 생성, 저장 뒤에는 만들어졌다고 말한다', () => {
+    const fresh = { ...group, code: '', kind: 'new' as const, warnings: [] };
+    const before = renderToStaticMarkup(<GoodsImportScreen initialView={{ ...view, groups: [fresh] }} />);
+    expect(before).toContain('>코드 자동 생성<');
+    const after = renderToStaticMarkup(<GoodsImportScreen initialView={{ ...view, state: 'complete', groups: [{ ...fresh, result: { status: 'success', id: 'good' } }] }} />);
+    expect(after).toContain('상품 자동코드 생성됨 · 상품 목록에서 확인');
+    expect(after).not.toContain('>코드 자동 생성<');
+    /* 저장하지 못한 줄과, 코드 칸을 비운 채 고치는 기존 상품은 그대로다. */
+    const failed = renderToStaticMarkup(<GoodsImportScreen initialView={{ ...view, state: 'complete', groups: [{ ...fresh, result: { status: 'failed', error: '저장하지 못했습니다.' } }] }} />);
+    expect(failed).toContain('>코드 자동 생성<');
+  });
   it('offers a reusable failure workbook and keeps upload available', () => {
     const html = renderToStaticMarkup(
       <GoodsImportScreen

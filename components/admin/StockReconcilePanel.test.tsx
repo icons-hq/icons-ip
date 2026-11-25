@@ -43,6 +43,20 @@ describe('재고 파일 대조 화면', () => {
     expect(html).not.toContain('기준 시각 뒤 재고를 직접 바꾼 옵션');
   });
 
+  /* QA G7: 1440 화면에서 표가 놓이는 칸은 1082px다. 최소 폭이 그보다 크면(전에는 1180px) 마지막 '상태' 열이 가로 스크롤 뒤로 밀린다. */
+  it("대조 결과 표는 1440 화면의 칸(1082px)보다 넓지 않게 그리고, 긴 머리글은 낱말 사이에서 접는다 — 마지막 '상태' 열까지 보인다", () => {
+    const html = renderToStaticMarkup(<StockReconcileResult snapshot={snapshot} showSame={false} />);
+    const result = html.split('aria-label="옵션별 대조 결과"')[1].split('</table>')[0];
+    const minWidth = Number(/<table[^>]*class="[^"]*min-w-\[(\d+)px\]/.exec(result)?.[1]);
+    expect(minWidth).toBeLessThanOrEqual(1082);
+    const heads = [...result.matchAll(/<th[^>]*class="([^"]*)"[^>]*>(.*?)<\/th>/g)].map(match => ({ wraps: match[1].split(' ').includes('whitespace-normal') && match[1].split(' ').includes('break-keep'), text: match[2].replace(/<[^>]+>/g, '') }));
+    expect(heads.map(head => head.text.replace(/맞춘 뒤 재고수량.*/, '맞춘 뒤 재고수량'))).toEqual(['상품 · 옵션', '옵션 자동코드', '찾은 코드', '파일 수량', '기준 시각 뒤 출고', '기준 시각 뒤 회수', '출고 대기', '회수 뒤 미반영', '지금 재고수량', '맞춘 뒤 재고수량', '상태']);
+    for (const name of ['기준 시각 뒤 출고', '기준 시각 뒤 회수', '회수 뒤 미반영', '지금 재고수량']) expect(heads.find(head => head.text === name)?.wraps, name).toBe(true);
+    expect(heads.find(head => head.text.startsWith('맞춘 뒤 재고수량'))?.wraps).toBe(true);
+    /* 접히는 머리글의 한 줄 넘김이 덮이지 않게(kit 기본은 한 줄) 한 줄 고정 클래스가 함께 남지 않는다. */
+    for (const head of heads.filter(item => item.wraps)) expect(html).not.toMatch(new RegExp(`<th[^>]*class="[^"]*whitespace-nowrap[^"]*whitespace-normal[^"]*"[^>]*>${head.text.slice(0, 4)}`));
+  });
+
   it('기준 시각 뒤 재고 조정·다른 대조가 있으면 반영 전에 알린다', () => {
     const adjusted = { ...snapshot, items: snapshot.items.map((entry, index) => index === 0
       ? { ...entry, returnedSinceQty: 2, awaitingReturnQty: 1, adjustedSinceCount: 1, adjustedSinceQty: 5 } : entry) };

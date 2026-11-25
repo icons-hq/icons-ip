@@ -126,8 +126,10 @@ function ParentCategoryField({ categories, editingId, error, onChange, value }: 
       {value ? <Button onClick={() => onChange('')} type="button" variant="outline">최상위로</Button> : null}
     </div>
     <input name="parentId" type="hidden" value={value} />
-    {/* 카테고리는 있는데 상위로 둘 수 있는 곳이 없을 때만, 버튼이 잠긴 이유를 적는다. */}
-    {!rows.length && categories.some((category) => category.id !== editingId) ? <span className={HINT}>지금 상위로 둘 수 있는 카테고리가 없습니다. 상품이 연결됐거나 4단계인 카테고리 아래에는 둘 수 없습니다.</span> : null}
+    {/* 버튼이 잠겼으면 이유를 적는다(화면 규칙 5). 다른 카테고리가 하나도 없을 때도 말한다 — 카테고리가 하나뿐인 화면에서 버튼이 이유 없이 흐렸다(QA). */}
+    {!rows.length ? <span className={HINT}>{categories.some((category) => category.id !== editingId)
+      ? '지금 상위로 둘 수 있는 카테고리가 없습니다. 상품이 연결됐거나 4단계인 카테고리 아래에는 둘 수 없습니다.'
+      : '다른 카테고리가 없어 최상위 카테고리로 둡니다.'}</span> : null}
     <FieldError>{error}</FieldError>
     {open ? <AdminPickerDialog<ParentRow>
       emptyText="일치하는 카테고리가 없습니다."

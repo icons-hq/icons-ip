@@ -31,7 +31,9 @@ export const GOODS_BULK_SKIP_LABELS: Record<string, string> = {
   goods_publish_incomplete: '대표 이미지·상품정보제공고시·옵션 가운데 빠진 것이 있음',
   goods_category_required: '대표 카테고리가 없음',
   goods_kc_review_required: 'KC 검토가 끝나지 않음',
-  goods_notice_required: '상품정보제공고시가 비어 있음',
+  /* 공개 가드가 아니다. 상품 저장(admin_save_good → admin_upsert_good)이 공개 중인 상품을 고시가 빈 채로는 받지 않아, 판매상태·판매가·판매기간 변경이
+     모두 여기서 막힌다(공개는 goods_publish_incomplete로 따로 막힌다). 그래서 '공개할 수 없음'이 아니라 지금 상태와 풀 방법을 말한다. */
+  goods_notice_required: '공개 중인데 상품정보제공고시가 비어 있음(먼저 채우기)',
   fulfillment_origin_required: '출고지가 없음',
   fulfillment_origin_inactive: '쓰지 않는 출고지가 연결됨',
   parent_archived: 'IP가 보관됨(IP를 먼저 복원)',
@@ -190,7 +192,7 @@ export function goodsBulkError(code: string | null, command?: GoodsBulkCommand):
     good_archived: '보관된 상품은 바꿀 수 없습니다. 먼저 복원해주세요.',
     goods_kc_review_required: 'KC 검토가 끝나지 않아 공개할 수 없습니다. 상품 수정의 KC 정보에서 검토를 마쳐주세요.',
     goods_category_required: '대표 카테고리가 없어 공개할 수 없습니다. 상품 수정에서 대표 카테고리를 골라주세요.',
-    goods_notice_required: '상품정보제공고시가 비어 있어 공개할 수 없습니다. 상품 수정에서 고시를 채워주세요.',
+    goods_notice_required: '공개 중인 상품인데 상품정보제공고시가 비어 있어 바꿀 수 없습니다. 상품 수정에서 고시를 채운 뒤 다시 해주세요.',
     goods_publish_incomplete: '대표 이미지·상품정보제공고시·옵션 가운데 빠진 것이 있어 공개할 수 없습니다. 상품 수정에서 채워주세요.',
     fulfillment_origin_required: '출고지가 없어 공개할 수 없습니다. 상품 수정에서 출고지를 골라주세요.',
     fulfillment_origin_inactive: '쓰지 않는 출고지가 연결돼 있어 공개할 수 없습니다. 상품 수정에서 사용 중인 출고지를 골라주세요.',

@@ -6,6 +6,7 @@ import { GoodsListScreen } from './GoodsListScreen';
 import { GoodsInlineDialogHost, GoodsInlineDialogNotice } from '../GoodsInlineDialogHost';
 import { GoodsListFiltersForm } from './GoodsListFiltersForm';
 import { GoodsListDateRange } from './GoodsListDateRange';
+import { GoodsListQueryField } from './GoodsListQueryField';
 import { MarketingLinksGoodsGrid } from '../marketing/MarketingLinksGoodsGrid';
 import { GOODS_READINESS_REASONS, unknownGoodsReadiness, type GoodsReadinessReasonCode } from '@/lib/admin/goods-readiness';
 import { goodEditorHref, goodsListDateRangeFromEnd, goodsListDateRangeFromStart, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
@@ -50,8 +51,11 @@ describe('goods list screen', () => {
     expect(host.type).toBe(GoodsInlineDialogHost);
     expect(host.props.identity).toEqual(identity);
     const inside = walk(host.props.children as ReactNode);
-    const grid = inside.find(node => typeof node.props.className === 'string' && (node.props.className as string).includes('[&_table]:min-w-[1012px]'));
+    const grid = inside.find(node => typeof node.props.className === 'string' && (node.props.className as string).includes('[&>.relative_table]:min-w-[1012px]'));
     expect(grid).toBeTruthy();
+    /* QA G1: 최소 폭은 목록 표에만 건다. 뿌리 아래 모든 table에 걸면(`[&_table]`) 작업 막대가 여는 일괄 변경 창의 표까지 1012px가 되어
+       576px 창에서 '변경 후'(건너뛴 이유) 열이 보이지 않는다. */
+    expect(grid!.props.className as string).not.toMatch(/\[&_table\]:min-w/);
     expect(walk(grid!.props.children as ReactNode).some(node => node.type === GoodsInlineDialogHost)).toBe(false);
     // 모두 저장하고 닫힌 창의 결과 문구는 표 밖, 목록 위에 남는다.
     expect(inside.find(node => node.type === GoodsInlineDialogNotice)?.props.listedGoodIds).toEqual([]);
@@ -98,7 +102,7 @@ describe('goods list screen', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0 }} canIssueMarketingLinks={false} />);
     // 체크박스 label은 칸을 덮는 절대 배치라 내용 폭이 없다. 자동 표 배치에서 표가 좁아지면 이 칸부터 0px로 접혀 누를 곳이 사라진다.
     const grid = html.match(/<div class="([^"]*)" data-console-grid="">/)?.[1] ?? '';
-    expect(grid.split(' ')).toEqual(expect.arrayContaining(['[&amp;_thead_th:first-child]:min-w-10', expect.stringMatching(/^\[&amp;_table\]:min-w-\[\d+px\]$/)]));
+    expect(grid.split(' ')).toEqual(expect.arrayContaining(['[&amp;_thead_th:first-child]:min-w-10', expect.stringMatching(/^\[&amp;&gt;\.relative_table\]:min-w-\[\d+px\]$/)]));
   });
   it('shows server status counts independently of the filtered total and exposes real list controls', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({ status: 'draft', from: '2026-10-01', pageSize: '50', image: 'without' }), goods: [], ips: [], total: 3, pageSize: 50, counts: { all: 20, active: 15, draft: 3, published: 12, archived: 5 } }} />);
@@ -398,7 +402,7 @@ describe('goods list screen', () => {
     const widths = [...html.matchAll(/<col style="width:(\d+)px"/g)].map(match => Number(match[1]));
     expect(widths.length).toBe(9);
     // 표의 최소 폭은 체크박스 칸(40)과 기본 열 폭의 합이다 — 좁은 화면에서 필요한 만큼만 가로로 스크롤한다.
-    const minWidth = Number(/\[&amp;_table\]:min-w-\[(\d+)px\]/.exec(html)?.[1]);
+    const minWidth = Number(/\[&amp;&gt;\.relative_table\]:min-w-\[(\d+)px\]/.exec(html)?.[1]);
     expect(widths.reduce((sum, width) => sum + width, 40)).toBe(minWidth);
     expect(minWidth).toBeLessThanOrEqual(1100);
     const headers = [...html.matchAll(/<th[^>]*scope="col"[^>]*>([^<]+)<\/th>/g)].map(match => match[1]);
@@ -572,6 +576,34 @@ describe('goods list screen', () => {
     const row = rowOf(html, 'long-good-id-1234567890');
     expect(row.match(/<a [^>]*class="[^"]*\btext-primary\b/g)).toHaveLength(1);
     expect(/<a (?=[^>]*data-goods-list="preview-link")[^>]*class="([^"]*)"/.exec(row)?.[1].split(' ')).toContain('text-muted-foreground');
+  });
+  /* QA G2: 조회 조건은 비제어 입력이라 처음 그린 값만 쓴다. 건수 칸·[초기화]는 화면 안에서 주소만 바꾸므로, 조건마다 걸린 값을 key로 줘
+     그 입력을 새로 그린다 — 안 그러면 '소량 재고' 칸을 눌러도 판매상태 셀렉트가 '전체'로 남고 [검색]을 누르면 조건이 풀린다. */
+  it('조회 조건의 입력은 주소에 걸린 값이 바뀌면 새로 그려진다(건수 칸을 누른 뒤에도 셀렉트가 그 값을 보인다)', () => {
+    type Node = ReactElement<Record<string, unknown>>;
+    const walk = (value: ReactNode): Node[] => Children.toArray(value).flatMap(node => isValidElement<Record<string, unknown>>(node) ? [node, ...walk(node.props.children as ReactNode), ...walk(node.props.label as ReactNode)] : []);
+    /* Children.toArray는 화면이 준 key 앞에 '.$'를 붙이고 ':'를 '=2'로 바꾼다('.$stock=2low'). key가 없는 자식에는 자리 번호('.0')를 준다. 화면이 준 key만 읽는다. */
+    const keyOf = (node: Node | undefined) => { const raw = String(node?.key ?? ''); return raw.startsWith('.$') ? raw.slice(2).replaceAll('=2', ':') : null; };
+    const tree = (values: Record<string, string>) => walk(GoodsListFiltersForm({ data: { filters: normalizeGoodsListFilters(values), goods: [], ips: [], total: 0 } }) as Node);
+    const control = (nodes: Node[], name: string) => nodes.find(node => node.props.name === name && 'defaultValue' in node.props);
+    const before = tree({}), after = tree({ stock: 'low', salePeriod: 'scheduled', status: 'draft', q: '키링', field: 'name' });
+    /* 건수 칸이 바꾸는 세 조건: 판매상태(stock)·판매기간(salePeriod)·전시상태(status 라디오 묶음). */
+    expect([keyOf(control(before, 'stock')), keyOf(control(after, 'stock'))]).toEqual(['stock:all', 'stock:low']);
+    expect(control(after, 'stock')?.props.defaultValue).toBe('low');
+    expect([keyOf(control(before, 'salePeriod')), keyOf(control(after, 'salePeriod'))]).toEqual(['salePeriod:all', 'salePeriod:scheduled']);
+    const statusGroup = (nodes: Node[]) => nodes.find(node => node.type === 'fieldset' && walk(node.props.children as ReactNode).some(child => child.props.name === 'status'));
+    expect([keyOf(statusGroup(before)), keyOf(statusGroup(after))]).toEqual(['status:active', 'status:draft']);
+    /* [초기화]도 같은 화면 안 이동이다 — 나머지 조건과 검색어 줄도 걸린 값으로 key를 갖는다. */
+    expect(Object.fromEntries(['readiness', 'categoryId', 'ipId', 'dateField', 'originId', 'payment', 'saleType', 'restriction', 'image'].map(name => [name, keyOf(control(before, name))])))
+      .toEqual({ readiness: 'readiness:all', categoryId: 'categoryId:', ipId: 'ipId:', dateField: 'dateField:created', originId: 'originId:', payment: 'payment:all', saleType: 'saleType:all', restriction: 'restriction:all', image: 'image:all' });
+    /* 같은 줄에 나란한 입력끼리 key가 겹치면 React가 서로를 헷갈린다 — 이름을 앞에 붙여 모두 다르다. */
+    const keys = [...before.filter(node => 'defaultValue' in node.props && typeof node.props.name === 'string').map(keyOf), keyOf(statusGroup(before))];
+    expect(new Set(keys).size).toBe(keys.length);
+    const queryField = (nodes: Node[]) => nodes.find(node => node.type === GoodsListQueryField);
+    expect(keyOf(queryField(before))).not.toBeNull();
+    expect(keyOf(queryField(before))).not.toBe(keyOf(queryField(after)));
+    expect(keyOf(before.find(node => node.type === GoodsListDateRange))).toBe('range:~');
+    expect(keyOf(tree({ from: '2026-11-01', to: '2026-11-25' }).find(node => node.type === GoodsListDateRange))).toBe('range:2026-11-01~2026-11-25');
   });
   it('검색 대상에서 상품 URL(영문 내부 값)은 고를 수 없다 — 저장해 둔 주소(field=id)로 들어왔을 때만 그 조건이 보인다', () => {
     const form = (values: Record<string, string>) => renderToStaticMarkup(<GoodsListFiltersForm data={{ filters: normalizeGoodsListFilters(values), goods: [], ips: [], total: 0 }} />);

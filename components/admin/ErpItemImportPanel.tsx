@@ -225,7 +225,8 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
         try {
           const clears = await countClears(blankRows);
           const question = clears === null ? erpItemBlanksUncheckedConfirmation(blankRows.length) : clears.items ? erpItemClearsConfirmation(clears) : null;
-          go = !question || await adminConfirm(question);
+          /* 확인창의 제목·버튼은 누르면 일어나는 일을 말한다 — 본문 끝의 '그대로 올릴까요?'에 답하는 버튼이다. */
+          go = !question || await adminConfirm({ title: clears === null ? '올려 둔 값이 지워질 수 있습니다' : '올려 둔 값이 지워집니다', message: question, confirmLabel: '그대로 올리기' });
         } finally { setChecking(false); }
         if (!go) return;
         showProgress();

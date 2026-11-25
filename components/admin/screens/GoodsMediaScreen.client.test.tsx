@@ -1,9 +1,9 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 /* 상품 동영상·숏클립 화면: 머리말은 상품명과 상품 자동코드, 저장 안 하고 떠나면 묻고, 칸 이름은 '제목', 결과를 모를 때 버튼은 [저장됐는지 확인]. */
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
-const mocks = vi.hoisted(() => ({ save: vi.fn(), guard: vi.fn() }));
+const mocks = vi.hoisted(() => ({ save: vi.fn(), guard: vi.fn(), recovery: vi.fn() }));
 vi.mock('react', async () => ({
   ...await vi.importActual<typeof import('react')>('react'),
   useState: (initial: unknown) => {
@@ -14,6 +14,7 @@ vi.mock('react', async () => ({
   useRef: (initial: unknown) => { const index = hooks.refIndex++; hooks.refs[index] ??= { current: initial }; return hooks.refs[index]; },
 }));
 vi.mock('@/components/admin/useAdminLeaveGuard', () => ({ useAdminLeaveGuard: mocks.guard }));
+vi.mock('@/components/admin/useAdminStateRecovery', () => ({ useAdminStateRecovery: mocks.recovery }));
 vi.mock('@/app/admin/goods-media-actions', () => ({ saveGoodMediaAction: mocks.save, cancelGoodsMediaAction: vi.fn(), verifyGoodsMediaAction: vi.fn(), prepareGoodsMediaAction: vi.fn() }));
 
 import { AdminPageHeader } from '@/components/admin/console/AdminKit';
@@ -45,11 +46,14 @@ function view() {
     form: all.find(node => node.type === 'form')!,
     submit: all.find(node => node.type === 'button' && node.props.type === 'submit')!,
     guard: () => mocks.guard.mock.lastCall![0] as { dirty: boolean; message: string },
+    recovery: () => mocks.recovery.mock.lastCall![0] as { id: string; dirty: boolean; value: unknown; onRestore: (saved: unknown) => void },
   };
 }
 const attach = (kind: GoodsMediaKind, next: GoodsMediaAsset | null) => (view().field(kind).props.onAsset as (asset: GoodsMediaAsset | null) => void)(next);
 
-beforeEach(() => { hooks.states = []; hooks.index = 0; hooks.refs = []; hooks.refIndex = 0; mocks.save.mockReset(); mocks.guard.mockReset(); current = initial; goodCode = 'G10'; });
+beforeEach(() => { hooks.states = []; hooks.index = 0; hooks.refs = []; hooks.refIndex = 0; mocks.save.mockReset(); mocks.guard.mockReset(); mocks.recovery.mockReset(); current = initial; goodCode = 'G10';
+  vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://example.supabase.co'); });
+afterEach(() => { vi.unstubAllEnvs(); });
 
 describe('머리말', () => {
   it('상품명과 상품 자동코드로 보이고 내부 번호는 보이지 않는다', () => {
@@ -104,6 +108,65 @@ describe('저장 안 하고 떠날 때', () => {
     expect(view().guard().dirty).toBe(true);
     (view().field('shortclip').props.onBusy as (busy: boolean) => void)(false);
     expect(view().guard().dirty).toBe(false);
+  });
+});
+
+/* QA G5: 브라우저 뒤로 가기는 막을 수 없다(확인창을 띄울 수 없다). 저장하지 않은 영상 구성을 이 탭에 보관했다가 돌아오면 되살린다
+   (보관·복구 규칙은 useAdminStateRecovery가 맡고, 화면은 무엇을 보관하고 되살린 값을 어떻게 받는지를 정한다). */
+describe('뒤로 가기로 떠났다 돌아올 때', () => {
+  /* 브라우저에 보관돼 있던 모습: 실제 영상 기록의 형식(코덱 표기·경로)이어야 되살린다. 주소(url)는 보관한 값을 믿지 않고 경로에서 다시 만든다. */
+  const stored = (kind: GoodsMediaKind, title?: string) => { const { url: _url, ...rest } = asset(kind, title); void _url; return { ...rest, videoCodec: 'avc1.640028', path: `${kind}/${rest.id}.mp4`, url: 'https://evil.example/x.mp4' }; };
+  it('바꾼 것이 없으면 보관하지 않고, 영상을 올리거나 제목을 바꾸면 그 구성을 보관한다', () => {
+    expect(view().recovery()).toMatchObject({ id: 'goods-media', dirty: false });
+    attach('video', asset('video'));
+    const recovery = view().recovery();
+    expect(recovery.dirty).toBe(true);
+    expect(recovery.value).toEqual({ video: asset('video'), shortclip: null });
+  });
+  it('올리는 중인 파일은 되살릴 수 없어 그것만으로는 보관하지 않는다(떠날 때 묻기는 한다)', () => {
+    (view().field('video').props.onBusy as (busy: boolean) => void)(true);
+    const shown = view();
+    expect(shown.guard().dirty).toBe(true);
+    expect(shown.recovery().dirty).toBe(false);
+  });
+  it('보관해 둔 구성을 되살리고, 아직 상품에 적용되지 않았다고 알리며, 떠날 때 다시 묻는다', () => {
+    view().recovery().onRestore({ video: stored('video', '되살린 영상'), shortclip: null });
+    const shown = view();
+    expect((shown.field('video').props.asset as GoodsMediaAsset).title).toBe('되살린 영상');
+    expect((shown.field('video').props.asset as GoodsMediaAsset).url).toBe(`https://example.supabase.co/storage/v1/object/public/goods-videos/video/${asset('video').id}.mp4`);
+    expect(shown.text).toContain('저장하지 않고 떠났던 영상 변경을 되살렸습니다. [영상 구성 저장]을 눌러야 상품에 적용됩니다.');
+    expect(shown.guard().dirty).toBe(true);
+    expect(shown.all.find(node => node.props.role === 'alert')).toBeUndefined();
+  });
+  it('저장된 영상을 뺀 것도 되살린다', () => {
+    current = { ...initial, video: asset('video') };
+    view().recovery().onRestore({ video: null, shortclip: null });
+    const shown = view();
+    expect(shown.field('video').props.asset).toBeNull();
+    expect(shown.guard().dirty).toBe(true);
+  });
+  it('브라우저에 있던 값은 형식을 다시 확인한다 — 맞지 않으면 화면을 건드리지 않는다', () => {
+    for (const broken of [null, 'text', [], {}, { video: null }, { video: { id: 'x' }, shortclip: null }, { video: stored('shortclip'), shortclip: null }, { video: null, shortclip: stored('video') }]) {
+      view().recovery().onRestore(broken);
+      const shown = view();
+      expect(shown.field('video').props.asset, JSON.stringify(broken)).toBeNull();
+      expect(shown.field('shortclip').props.asset, JSON.stringify(broken)).toBeNull();
+      expect(shown.text).not.toContain('되살렸습니다');
+    }
+  });
+  it('그사이 같은 구성이 저장돼 있으면 되살릴 것이 없다', () => {
+    current = { ...initial, video: asset('video') };
+    view().recovery().onRestore({ video: stored('video'), shortclip: null });
+    const shown = view();
+    expect(shown.text).not.toContain('되살렸습니다');
+    expect(shown.guard().dirty).toBe(false);
+  });
+  it('영상 구성을 읽지 못한 화면은 보관하지도 되살리지도 않는다', () => {
+    current = { ...initial, unavailable: true };
+    const recovery = view().recovery();
+    expect(recovery.dirty).toBe(false);
+    recovery.onRestore({ video: stored('video'), shortclip: null });
+    expect(view().text).not.toContain('되살렸습니다');
   });
 });
 

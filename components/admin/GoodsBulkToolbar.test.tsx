@@ -67,7 +67,9 @@ describe('일괄 변경 설정: 고르면 필요한 입력만 열린다', () => 
     expect(formHtml('discount')).toContain(`href="${newDiscountPromotionHref()}"`);
     const all = (['publish', 'unpublish', 'start', 'stop', 'archive', 'restore', 'price', 'discount', 'discount_stop', 'period', 'dissolve'] as const).map(command => formHtml(command)).join('');
     for (const stale of ['비교 시점', '비교 결과', '유효합니다', '판매 재개', '판매 운영', '전시 중지', '즉시할인 등록', '제한 해제', '해당']) expect(all, stale).not.toContain(stale);
-    expect(formHtml('archive')).not.toContain('<p');
+    /* QA S3: 보관 창이 대상 한 줄과 버튼뿐이라 무슨 일이 일어나는지(고객 화면에서 내려감·복원하면 초안·재고가 남으면 안 됨)를 미리보기에서야 알았다. */
+    expect(formHtml('archive')).toContain('보관한 상품은 고객 화면에서 내려가고, [복원]하면 초안으로 돌아옵니다. 재고수량이 0인 상품만 보관됩니다.');
+    for (const command of ['publish', 'unpublish', 'start', 'stop'] as const) expect(formHtml(command), command).not.toContain('<p');
   });
 });
 
@@ -82,6 +84,18 @@ describe('저장 전 표: 상품마다 현재 → 변경 후, 건너뛰는 상�
     ]);
     expect(html.match(/data-skipped="true"/g)).toHaveLength(2);
     expect(html).not.toContain('바꿀 수 있는 상품이 없습니다.');
+  });
+  /* QA G1: 창 안쪽 폭은 544px다(576px 창 − 여백 32px). 세 열이 그 안에 들어오도록 고정 배치에 비율 폭을 주고, 표에 최소 폭을 주지 않는다.
+     '변경 후'(건너뛴 이유)가 가로 스크롤 뒤로 밀리면 "건너뛴 이유를 확인해주세요"라고 말하면서 이유를 보여 주지 못한다. */
+  it('표는 창 폭 안에 세 열을 모두 보인다 — 고정 배치·비율 폭이고 최소 폭이 없다', () => {
+    const html = tableHtml(preview('stop', [good('good-a', { stock: 'low', skip: 'goods_notice_required' })]));
+    const table = /<table[^>]*class="([^"]*)"/.exec(html)?.[1] ?? '';
+    expect(table.split(' ')).toEqual(expect.arrayContaining(['w-full', 'table-fixed']));
+    expect(table).not.toMatch(/min-w-\[/);
+    const widths = [...html.matchAll(/<th[^>]*class="([^"]*)"[^>]*>([^<]*)<\/th>/g)].map(match => [match[2], /w-\[(\d+)%\]/.exec(match[1])?.[1] ?? 'auto']);
+    expect(widths).toEqual([['상품명·상품 자동코드', '36'], ['현재', '24'], ['변경 후', 'auto']]);
+    /* 줄의 칸은 줄을 바꾼다(한 줄로 늘어나 칸을 넘치지 않는다). */
+    expect(html.match(/<td[^>]*class="[^"]*whitespace-normal/g)).toHaveLength(3);
   });
   /* B-08: 소량 재고로 지정한 상품은 [판매중으로]가 건드리지 않는다 — 지금 판매상태를 그대로 보이고 건너뛴다고 말한다. */
   it('판매중으로: 판매중지인 상품만 바뀌고 소량 재고·판매중 상품은 지금 상태 그대로 건너뛴다', () => {

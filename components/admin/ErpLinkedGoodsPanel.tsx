@@ -124,7 +124,8 @@ export function ErpLinkedGoodsPanel() {
 
   const commit = async () => {
     if (!loaded || pending || !chosen.length) return;
-    if (!await adminConfirm(erpLinkedGoodsConfirmation(chosen))) return;
+    /* 확인 버튼은 누른 버튼과 같은 이름이다([선택한 N건 반영]). */
+    if (!await adminConfirm({ title: '연결 상품에 반영', message: erpLinkedGoodsConfirmation(chosen), confirmLabel: `선택한 ${count(chosen.length)}건 반영` })) return;
     const request = { operationId: loaded.preview.operationId, keys: chosen.map((row) => row.key) };
     setStatus(null);
     startTransition(async () => {

@@ -64,6 +64,8 @@ const CAPTION = 'px-2 py-2 text-left text-sm text-muted-foreground';
 const CODE = 'font-mono text-xs tabular-nums';
 const HINT = 'text-sm text-muted-foreground';
 const NUM = 'text-right tabular-nums';
+/* 대조 결과 표의 긴 머리글('기준 시각 뒤 출고' 등)은 낱말 사이에서 두 줄로 접는다 — 숫자 열이 머리글 길이만큼 넓어지지 않는다. */
+const WRAP_HEAD = 'whitespace-normal break-keep';
 const count = (value: number) => value.toLocaleString('ko-KR');
 const signed = (value: number) => (value > 0 ? `+${count(value)}` : count(value));
 
@@ -126,24 +128,27 @@ export function StockReconcileResult({ snapshot, showSame, onToggleSame }: { sna
       그 뒤에 받은 재고 파일로 다시 대조하거나, 반영한 뒤 재고 조정으로 다시 더해주세요.
     </AdminNotice> : null}
     {visible.length ? <div className={TABLE_REGION} role="region" aria-label="옵션별 대조 결과" tabIndex={0}>
-      <table className={`${TABLE} min-w-[1180px]`} data-slot="table">
+      {/* 열 11개가 1440 화면의 카드 안쪽(1082px)에 다 들어와야 마지막 '상태' 열(줄임 −60 등)이 보인다(QA G7 — 최소 폭 1180px라 98px가 잘렸다).
+          긴 머리글과 '찾은 코드'가 낱말 사이에서 접히게 해 열 폭을 줄였다: 머리글이 두 줄일 때 열 폭의 합이 910px쯤(직접 변경 배지가 붙으면 1010px쯤)이다.
+          최소 폭 960px는 더 좁은 화면에서 상품 이름 칸이 한 글자씩 꺾이지 않게 남긴 값이고, 그때만 가로로 민다. */}
+      <table className={`${TABLE} min-w-[960px]`} data-slot="table">
         <caption className={CAPTION}>
           {applied ? '반영 결과(출고·회수·출고 대기·재고수량은 반영할 때 다시 잰 값)' : '반영 전 미리보기'}
           {onToggleSame ? <> · <button className="underline underline-offset-4" type="button" onClick={onToggleSame}>{showSame ? '바뀌는 옵션만 보기' : `같은 옵션 ${count(items.length - changed.length)}개도 보기`}</button></> : null}
         </caption>
         <TableHeader><TableRow>
-          <TableHead scope="col">상품 · 옵션</TableHead><TableHead scope="col">옵션 자동코드</TableHead><TableHead scope="col">찾은 코드</TableHead>
-          <TableHead scope="col" className="text-right">파일 수량</TableHead>
-          <TableHead scope="col" className="text-right">기준 시각 뒤 출고</TableHead><TableHead scope="col" className="text-right">기준 시각 뒤 회수</TableHead>
-          <TableHead scope="col" className="text-right">출고 대기</TableHead><TableHead scope="col" className="text-right">회수 뒤 미반영</TableHead>
-          <TableHead scope="col" className="text-right">{applied ? '반영 전' : '지금'} 재고수량</TableHead>
-          <TableHead scope="col" className="text-right">{applied ? '반영 뒤 재고수량'
+          <TableHead scope="col">상품 · 옵션</TableHead><TableHead scope="col" className={WRAP_HEAD}>옵션 자동코드</TableHead><TableHead scope="col">찾은 코드</TableHead>
+          <TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>파일 수량</TableHead>
+          <TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>기준 시각 뒤 출고</TableHead><TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>기준 시각 뒤 회수</TableHead>
+          <TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>출고 대기</TableHead><TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>회수 뒤 미반영</TableHead>
+          <TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>{applied ? '반영 전' : '지금'} 재고수량</TableHead>
+          <TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>{applied ? '반영 뒤 재고수량'
             : <AdminLabelWithHelp help={STOCK_RECONCILE_HELP.targetQty} label="맞춘 뒤 재고수량">맞춘 뒤 재고수량</AdminLabelWithHelp>}</TableHead><TableHead scope="col">상태</TableHead>
         </TableRow></TableHeader>
         <TableBody>{visible.map((item) => <TableRow key={item.variantId}>
           <TableCell className="max-w-72 whitespace-normal">{itemName(item)}{item.preorder ? <span className="ml-1 text-xs text-muted-foreground">(예약판매)</span> : null}</TableCell>
           <TableCell className={CODE}>{item.optionCode}</TableCell>
-          <TableCell className="whitespace-nowrap text-muted-foreground">{STOCK_MATCH_KIND_LABELS[item.matchKind]} · {count(item.sourceRow)}번째 줄</TableCell>
+          <TableCell className="whitespace-normal break-keep text-muted-foreground">{STOCK_MATCH_KIND_LABELS[item.matchKind]} · {count(item.sourceRow)}번째 줄</TableCell>
           <TableCell className={NUM}>{count(item.fileQty)}</TableCell>
           <TableCell className={NUM}>{count(item.shippedSinceQty)}</TableCell>
           <TableCell className={NUM}>{count(item.returnedSinceQty)}</TableCell>
@@ -290,7 +295,8 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
   /* 손으로 바꾼 열 연결이 있을 때만 묻는다. 자동으로 정한 연결은 같은 파일을 다시 읽으면 그대로 돌아온다. */
   const restart = async () => {
     const manual = source && plan ? stockManualColumnCount(source.table, plan) : 0;
-    if (manual > 0 && !await adminConfirm(`직접 바꾼 열 연결 ${count(manual)}개가 사라집니다. 처음부터 다시 할까요?`)) return;
+    /* 확인창의 제목·버튼은 누르면 일어나는 일을 말한다('확인'·'확인'으로 두지 않는다). */
+    if (manual > 0 && !await adminConfirm({ title: '처음부터 다시 하기', message: `직접 바꾼 열 연결 ${count(manual)}개가 사라집니다. 처음부터 다시 할까요?`, confirmLabel: '처음부터 다시' })) return;
     reset();
   };
 
@@ -331,7 +337,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
     const confirmText = changedCount
       ? `옵션 ${count(changedCount)}개의 재고수량을 파일에 맞춰 바꿉니다${shortages ? `(부족 ${count(shortages)}개는 0으로)` : ''}. 반영할까요?`
       : '바뀌는 옵션이 없습니다. 이 파일로 대조했다는 기록만 남길까요?';
-    if (!await adminConfirm(confirmText)) return;
+    if (!await adminConfirm({ title: changedCount ? '재고수량 반영' : '대조 기록 남기기', message: confirmText, confirmLabel: applyLabel })) return;
     setError(''); setMessage(''); setConflicts([]);
     startWorking(async () => {
       let result: Awaited<ReturnType<typeof applyStockReconcileAction>>;

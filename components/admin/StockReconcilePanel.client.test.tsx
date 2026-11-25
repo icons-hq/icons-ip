@@ -21,6 +21,7 @@ vi.mock('react', async () => ({
 
 import { Button } from '@/components/admin/kit/ui/button';
 import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
 import { STOCK_RECONCILE_PATH, type StockReconcileDocument } from '@/lib/admin/stock-reconcile';
 import { StockReconcilePanel } from './StockReconcilePanel';
 
@@ -87,6 +88,18 @@ describe('재고 대조 — 처음부터 다시', () => {
     expect(confirm).toHaveBeenCalledWith('직접 바꾼 열 연결 1개가 사라집니다. 처음부터 다시 할까요?');
     expect(view().button('처음부터 다시')).toBeDefined();
     expect(router.replace).not.toHaveBeenCalled();
+  });
+
+  /* QA S13: 확인창의 제목과 버튼이 둘 다 '확인'이면 누르면 무슨 일이 일어나는지 말하지 않는다. 누른 버튼과 같은 이름을 준다. */
+  it('확인창의 제목과 버튼은 누르면 일어나는 일을 말한다', async () => {
+    const seen: { title?: string; confirmLabel?: string; message: string }[] = [];
+    const release = setAdminConfirmHandler(async (request) => { seen.push(request); return false; });
+    try {
+      readPastedTable();
+      change(view().byLabel('품명 열의 항목'), 'barcode');
+      await restart();
+    } finally { release(); }
+    expect(seen).toEqual([{ title: '처음부터 다시 하기', message: '직접 바꾼 열 연결 1개가 사라집니다. 처음부터 다시 할까요?', confirmLabel: '처음부터 다시' }]);
   });
 
   it('확인하면 비운다', async () => {

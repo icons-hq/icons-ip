@@ -266,6 +266,17 @@ it('카테고리가 없으면 새 등록 카드를 펼쳐 둔다', () => {
   const html = render({ canManagePlatform: false, data: { categories: [], mappings: [], activation: off } });
   expect(html).toMatch(/<details[^>]*data-fold-card=""[^>]*open=""[^>]*><summary[^>]*>(?:(?!<\/summary>)[\s\S])*새 카테고리 등록/);
   expect(html).toContain('등록된 카테고리가 없습니다.');
-  // 고를 곳이 없는 선택창은 열 수 없다.
+  // 고를 곳이 없는 선택창은 열 수 없다. 버튼이 왜 잠겼는지도 적는다.
   expect(html).toMatch(/<button(?=[^>]*disabled="")[^>]*>상위 카테고리 고르기<\/button>/);
+  expect(html).toContain('다른 카테고리가 없어 최상위 카테고리로 둡니다.');
+});
+
+/* QA: 카테고리가 하나뿐일 때 그 카테고리를 고치는 칸의 [상위 카테고리 고르기]가 이유 없이 흐렸다. */
+it('카테고리가 하나뿐이면 상위로 둘 곳이 없다는 것을 잠긴 버튼 아래에 적는다', () => {
+  const html = render({ canManagePlatform: false, data: { categories: [categories[1]].map((category) => ({ ...category, parentId: null, depth: 1 })), mappings: [], activation: off } });
+  expect(html).toMatch(/<button(?=[^>]*disabled="")[^>]*>상위 카테고리 고르기<\/button>/);
+  /* 고치는 칸: 자기 말고 다른 카테고리가 없다. */
+  expect(html.match(/다른 카테고리가 없어 최상위 카테고리로 둡니다\./g)).toHaveLength(1);
+  /* 새 카테고리 칸: 하나 있는 카테고리에 상품이 연결돼 있어 그 아래에는 둘 수 없다 — 이쪽은 전부터 이유를 적었다. */
+  expect(html.match(/지금 상위로 둘 수 있는 카테고리가 없습니다\./g)).toHaveLength(1);
 });

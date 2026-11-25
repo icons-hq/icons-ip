@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadAdminGoodsList } from './goods-list.server';
 import { goodsConsoleFilterValues, normalizeGoodsListFilters } from './goods-list';
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), visible: [] as string[], visibleError: false, selects: [] as string[], filters: [] as string[], supplies: null as unknown[] | null, inFilters: [] as string[], salePeriods: null as unknown[] | null, saleIds: [] as string[] }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), visible: [] as string[], visibleError: false, selects: [] as string[], filters: [] as string[], supplies: null as unknown[] | null, inFilters: [] as string[], salePeriods: null as unknown[] | null, saleIds: [] as string[], categoryRows: [] as unknown[] }));
 const priceStates = [{ id: 'g1', price: 12000, compareAtPrice: null, activeDiscountEndsAt: null }, { id: 'g2', price: 9000, compareAtPrice: 11000, activeDiscountEndsAt: '2026-10-30T00:00:00Z' }];
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ ...mocks, rpc: (name: string, args: unknown) => ['admin_goods_ip_options', 'admin_goods_origin_options'].includes(name) ? Promise.resolve({ data: [], error: null })
   : name === 'admin_goods_list_price_states' ? Promise.resolve({ data: priceStates, error: null }) : mocks.rpc(name, args) }) }));
@@ -14,7 +14,7 @@ const counts = { all: 1000, active: 900, draft: 600, published: 300, archived: 1
 const row = { id: 'g1', code: 'CODE-1', name: '상품', ipId: 'ip', ipTitle: 'IP', imagePath: null, categoryName: '문구',
   publishedAt: null, archivedAt: null, stock: 'ok', stockQty: 0, readiness: decision };
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.visible = []; mocks.visibleError = false; mocks.selects = []; mocks.filters = []; mocks.supplies = null; mocks.inFilters = []; mocks.salePeriods = []; mocks.saleIds = [];
+  vi.clearAllMocks(); mocks.visible = []; mocks.visibleError = false; mocks.selects = []; mocks.filters = []; mocks.supplies = null; mocks.inFilters = []; mocks.salePeriods = []; mocks.saleIds = []; mocks.categoryRows = [];
   mocks.from.mockImplementation((table: string) => {
     const rows = table === 'goods_variants' ? [{ id: 'v1', good_id: 'g1', stock_qty: 7, name: '기본', code: 'V-1' }, { id: 'v2', good_id: 'g2', stock_qty: 1, name: '블루', code: 'V-2' },
       { id: 'v3', good_id: 'g2', stock_qty: 2, name: '레드', code: 'V-3' }]
@@ -27,7 +27,7 @@ beforeEach(() => {
       is: (column: string, value: unknown) => { mocks.filters.push(`${table}:is:${column}:${value}`); return builder; },
       not: (column: string, op: string, value: unknown) => { mocks.filters.push(`${table}:not:${column}:${op}:${value}`); return builder; },
       eq: (column: string, value: unknown) => { mocks.filters.push(`${table}:eq:${column}:${value}`); return builder; },
-      limit: () => columns.includes('supply') ? Promise.resolve(mocks.supplies ? { data: mocks.supplies, error: null } : { data: null, error: { message: 'denied' } }) : result, range: () => Promise.resolve({ data: [], error: null }),
+      limit: () => columns.includes('supply') ? Promise.resolve(mocks.supplies ? { data: mocks.supplies, error: null } : { data: null, error: { message: 'denied' } }) : result, range: () => Promise.resolve({ data: table === 'catalog_categories' ? mocks.categoryRows : [], error: null }),
       then: (resolve: (value: unknown) => unknown, reject?: (reason: unknown) => unknown) => (columns.includes('sale_starts_at')
         ? Promise.resolve(saleRows ? { data: saleRows, error: null } : { data: null, error: { message: 'denied' } }) : result).then(resolve, reject) };
     return builder;
@@ -50,6 +50,20 @@ describe('goods workspace server boundary', () => {
       p_category_id: '00000000-0000-4000-8000-000000000001', p_readiness: 'stock_unavailable', p_filters: goodsConsoleFilterValues(normalizeGoodsListFilters({})), p_limit: 50, p_offset: 50 });
     // Besides the category filter, only the current page's base prices and active options are read (inline edit).
     expect(mocks.from.mock.calls.map(call => call[0]).sort()).toEqual(['catalog_categories', 'goods', 'goods_variants']);
+  });
+  /* QA G6: 카테고리 셀렉트는 단계만큼 들여 쓴다. 노출 순서만으로 늘어놓으면 하위(봉제인형, 순서 0)가 상위(인형, 순서 1)보다 먼저 나와
+     들여 쓴 줄이 어느 카테고리 밑인지 알 수 없다 — 카테고리 관리 화면과 같은 순서(상위 → 그 하위)로 싣는다. */
+  it('카테고리 조건의 선택지는 상위 바로 아래에 하위가 오는 순서로 싣는다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, rows: [], total: 0 }, error: null });
+    const category = (id: string, name: string, parent_id: string | null, depth: number, sort_order: number, archived_at: string | null = null) => ({ id, name, parent_id, depth, sort_order, archived_at, code: `c-${id}` });
+    /* DB가 돌려주는 순서(노출 순서 → 코드): 하위 봉제인형(0)이 상위 인형(1)보다 앞이다. */
+    mocks.categoryRows = [category('plush', '봉제인형', 'doll', 2, 0), category('doll', '인형', null, 1, 1), category('figure', '피규어', 'doll', 2, 1, '2026-11-25T00:00:00Z'), category('cushion', '쿠션', null, 1, 2), category('keyring', '키링', null, 1, 3)];
+    const result = await loadAdminGoodsList(normalizeGoodsListFilters({}));
+    expect(result.categories).toEqual([
+      { id: 'doll', name: '인형', depth: 1, archivedAt: null }, { id: 'plush', name: '봉제인형', depth: 2, archivedAt: null }, { id: 'figure', name: '피규어', depth: 2, archivedAt: '2026-11-25T00:00:00Z' },
+      { id: 'cushion', name: '쿠션', depth: 1, archivedAt: null }, { id: 'keyring', name: '키링', depth: 1, archivedAt: null },
+    ]);
+    expect(mocks.selects).toContain('catalog_categories:id,name,depth,archived_at,parent_id,sort_order,code');
   });
   it('품절(out_of_stock)·판매중지(stopped) 판매상태 필터를 목록 RPC의 p_stock 그대로 보낸다(MD-0026)', async () => {
     mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, rows: [], total: 0 }, error: null });

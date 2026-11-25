@@ -13,6 +13,10 @@ import { GOODS_LIST_HELP } from '@/lib/admin/help/goods-list';
 /*
  * 상품 조회 조건(스마트스토어 상품 조회/수정의 행 구성 그대로). 모양만 kit 카드·입력·버튼(ADR-0028)이고,
  * 조건 이름·URL 계약(GET 폼)·순서는 바뀌지 않는다.
+ *
+ * 입력은 비제어(GET 폼)라 처음 그릴 때의 값만 쓴다. 건수 칸·[초기화]처럼 화면 안에서 주소만 바뀌는 이동은 폼을 새로 만들지 않으므로,
+ * 조건마다 이름과 지금 걸린 값을 `key`로 줘(같은 줄의 입력끼리 겹치지 않게 이름을 앞에 붙인다) 그 조건이 바뀌면 그 입력만 새로 그린다(QA G2 — '소량 재고' 칸을 누른 뒤에도 판매상태 셀렉트가 '전체'로 남아
+ * [검색]을 누르면 조건이 풀렸다). 다른 입력에 적어 둔 값은 그대로 남는다.
  */
 const CHOICE = 'inline-flex min-h-7 cursor-pointer items-center gap-2 text-sm';
 /* 넓은 화면에서는 버튼 자리를 뺀 나머지를 다섯 칸이 나눠 쓴다. 칸이 좁아지면 다음 줄로 내려간다. */
@@ -34,38 +38,38 @@ export function GoodsListFiltersForm({ data }: { data: AdminGoodsListData }) {
     <input type="hidden" name="pageSize" value={data.pageSize ?? filters.pageSize ?? GOODS_LIST_PAGE_SIZE} />
     <SearchRow label={<label htmlFor="goods-list-query">검색어</label>}>
       {/* 넓은 화면에서는 검색 대상과 입력 칸이 한 줄이다 — 첫 화면에 상품이 더 보인다. 안내는 고른 검색 대상을 따른다(TKT-074). */}
-      <GoodsListQueryField key={filters.field ?? 'all'} field={filters.field ?? 'all'} query={filters.query} />
+      <GoodsListQueryField key={`${filters.field ?? 'all'}:${filters.query}`} field={filters.field ?? 'all'} query={filters.query} />
     </SearchRow>
     {/* 자주 쓰는 조건만 첫 화면에 둔다(판매상태·카테고리 한 줄). 나머지는 아래 상세검색에 접혀 있어도 같은 폼으로 제출된다. 넓은 화면에서는 오른쪽 끝을 상세검색·초기화·검색 자리로 비워 둔다. */}
     <SearchRow className="lg:border-b-0 lg:pr-56" label={<label htmlFor="goods-list-stock">판매상태</label>}><div className="flex flex-wrap items-center gap-2">
-      <AdminSelect id="goods-list-stock" name="stock" defaultValue={filters.stock} wrapperClassName={SELECT}>{GOODS_LIST_STOCK_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect>
-      <AdminSelect aria-label="판매기간" id="goods-list-sale-period" name="salePeriod" defaultValue={filters.salePeriod ?? 'all'} wrapperClassName={SELECT}><option value="all">전체 판매기간</option><option value="scheduled">판매 예정</option><option value="ended">판매 종료</option></AdminSelect>
+      <AdminSelect key={`stock:${filters.stock}`} id="goods-list-stock" name="stock" defaultValue={filters.stock} wrapperClassName={SELECT}>{GOODS_LIST_STOCK_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect>
+      <AdminSelect key={`salePeriod:${filters.salePeriod ?? 'all'}`} aria-label="판매기간" id="goods-list-sale-period" name="salePeriod" defaultValue={filters.salePeriod ?? 'all'} wrapperClassName={SELECT}><option value="all">전체 판매기간</option><option value="scheduled">판매 예정</option><option value="ended">판매 종료</option></AdminSelect>
       {/* "?"는 '판매 준비' 한 곳이다 — 남은 항목이 무엇을 막는지는 이름으로 드러나지 않는다. 줄이 바뀌어도 셀렉트와 떨어지지 않게 한 묶음으로 둔다. */}
       <span className={`flex items-center gap-1 ${SELECT}`} data-goods-search="readiness">
-        <AdminSelect aria-label="판매 준비 상태" id="goods-list-readiness" name="readiness" defaultValue={filters.readiness} wrapperClassName="w-full flex-1"><option value="all">전체 준비 상태</option><option value="review_required">확인할 상품 전체</option><option value="ready">설정 준비 완료</option>{Object.entries(GOODS_READINESS_REASONS).map(([code, reason]) => <option key={code} value={code}>{reason.label}</option>)}</AdminSelect>
+        <AdminSelect key={`readiness:${filters.readiness}`} aria-label="판매 준비 상태" id="goods-list-readiness" name="readiness" defaultValue={filters.readiness} wrapperClassName="w-full flex-1"><option value="all">전체 준비 상태</option><option value="review_required">확인할 상품 전체</option><option value="ready">설정 준비 완료</option>{Object.entries(GOODS_READINESS_REASONS).map(([code, reason]) => <option key={code} value={code}>{reason.label}</option>)}</AdminSelect>
         <AdminHelpTip help={GOODS_LIST_HELP.readiness} label="판매 준비" />
       </span>
-      <AdminSelect aria-label="카테고리" id="goods-list-category" name="categoryId" defaultValue={filters.categoryId} wrapperClassName={SELECT}><option value="">전체 카테고리</option>{categories.map(category => <option key={category.id} value={category.id}>{'　'.repeat(Math.max(0, category.depth - 1))}{category.name}{category.archivedAt ? ' · 보관' : ''}</option>)}</AdminSelect>
-      <AdminSelect aria-label="연결 IP" id="goods-list-ip" name="ipId" defaultValue={filters.ipId} wrapperClassName={SELECT}><option value="">전체 IP</option>{ips.map(ip => <option key={ip.id} value={ip.id}>{ip.title}{ip.archivedAt ? ' · 보관' : ''}</option>)}</AdminSelect>
+      <AdminSelect key={`categoryId:${filters.categoryId}`} aria-label="카테고리" id="goods-list-category" name="categoryId" defaultValue={filters.categoryId} wrapperClassName={SELECT}><option value="">전체 카테고리</option>{categories.map(category => <option key={category.id} value={category.id}>{'　'.repeat(Math.max(0, category.depth - 1))}{category.name}{category.archivedAt ? ' · 보관' : ''}</option>)}</AdminSelect>
+      <AdminSelect key={`ipId:${filters.ipId}`} aria-label="연결 IP" id="goods-list-ip" name="ipId" defaultValue={filters.ipId} wrapperClassName={SELECT}><option value="">전체 IP</option>{ips.map(ip => <option key={ip.id} value={ip.id}>{ip.title}{ip.archivedAt ? ' · 보관' : ''}</option>)}</AdminSelect>
     </div></SearchRow>
     {/* [상세검색][초기화][검색]은 넓은 화면에서 위 줄 오른쪽 끝에 얹어 카드 높이를 줄인다(바닥 줄이 없다). 펼쳐도 같은 자리이고, 읽는 순서는 상세 조건 뒤다. */}
     <div className="relative" data-goods-search="footer">
     <details className="group/advanced" data-goods-search="advanced" open={hasDetails}>
       <summary className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} my-2 w-fit cursor-pointer list-none lg:absolute lg:right-[7.75rem] lg:bottom-full lg:my-0 lg:mb-2.5 [&::-webkit-details-marker]:hidden`} data-slot="button">상세검색 <ChevronDown aria-hidden="true" className="transition-transform group-open/advanced:rotate-180" /></summary>
       <div className="border-t">
-      <SearchRow label="전시상태"><fieldset className="flex flex-wrap gap-x-5 gap-y-1 sm:pt-1"><legend className="sr-only">전시상태</legend>
+      <SearchRow label="전시상태"><fieldset key={`status:${filters.status}`} className="flex flex-wrap gap-x-5 gap-y-1 sm:pt-1"><legend className="sr-only">전시상태</legend>
         {[{ value: 'active', label: '보관 제외' }, { value: 'all', label: '전체' }, { value: 'draft', label: '초안' }, { value: 'published', label: '공개' }, { value: 'archived', label: '보관' }].map(item => <label className={CHOICE} key={item.value}><input type="radio" name="status" value={item.value} defaultChecked={filters.status === item.value} />{item.label}</label>)}
       </fieldset></SearchRow>
       <SearchRow label={<label htmlFor="goods-list-date-field">기간</label>}><div className="flex flex-wrap items-center gap-2">
-        <AdminSelect id="goods-list-date-field" name="dateField" defaultValue={filters.dateField ?? 'created'} wrapperClassName="w-36">{GOODS_LIST_DATE_FIELDS.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}</AdminSelect>
-        <GoodsListDateRange from={filters.from} to={filters.to} />
+        <AdminSelect key={`dateField:${filters.dateField ?? 'created'}`} id="goods-list-date-field" name="dateField" defaultValue={filters.dateField ?? 'created'} wrapperClassName="w-36">{GOODS_LIST_DATE_FIELDS.map(option => <option value={option.value} key={option.value}>{option.label}</option>)}</AdminSelect>
+        <GoodsListDateRange key={`range:${filters.from ?? ''}~${filters.to ?? ''}`} from={filters.from} to={filters.to} />
       </div></SearchRow>
       <div className="grid gap-2 py-3 sm:grid-cols-[5rem_minmax(0,1fr)] sm:gap-4"><span className="text-sm font-medium sm:pt-1.5">상세검색</span><div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:max-w-3xl">
-        <AdminSelect aria-label="출고지" id="goods-list-origin" name="originId" defaultValue={filters.originId ?? ''}><option value="">전체 출고지</option>{origins.map(origin => <option key={origin.id} value={origin.id}>{origin.name}{origin.active ? '' : ' · 사용 안 함'}</option>)}</AdminSelect>
-        <AdminSelect aria-label="결제수단" id="goods-list-payment" name="payment" defaultValue={filters.payment ?? 'all'}><option value="all">전체 결제수단</option><option value="card">카드 결제 가능</option><option value="bank">무통장입금 가능</option><option value="none">결제수단 없음</option></AdminSelect>
-        <AdminSelect aria-label="판매 유형" name="saleType" defaultValue={filters.saleType ?? 'all'}><option value="all">전체 판매 유형</option><option value="stock">일반 재고 상품</option><option value="preorder">예약판매 옵션 포함</option></AdminSelect>
-        <AdminSelect aria-label="판매 제한" name="restriction" defaultValue={filters.restriction ?? 'all'}><option value="all">전체 판매 제한</option><option value="none">제한 없음</option><option value="adult">성인 상품</option></AdminSelect>
-        <AdminSelect aria-label="대표 이미지" id="goods-list-image" name="image" defaultValue={filters.image ?? 'all'}><option value="all">대표 이미지 전체</option><option value="with">이미지 등록</option><option value="without">이미지 미등록</option></AdminSelect>
+        <AdminSelect key={`originId:${filters.originId ?? ''}`} aria-label="출고지" id="goods-list-origin" name="originId" defaultValue={filters.originId ?? ''}><option value="">전체 출고지</option>{origins.map(origin => <option key={origin.id} value={origin.id}>{origin.name}{origin.active ? '' : ' · 사용 안 함'}</option>)}</AdminSelect>
+        <AdminSelect key={`payment:${filters.payment ?? 'all'}`} aria-label="결제수단" id="goods-list-payment" name="payment" defaultValue={filters.payment ?? 'all'}><option value="all">전체 결제수단</option><option value="card">카드 결제 가능</option><option value="bank">무통장입금 가능</option><option value="none">결제수단 없음</option></AdminSelect>
+        <AdminSelect key={`saleType:${filters.saleType ?? 'all'}`} aria-label="판매 유형" name="saleType" defaultValue={filters.saleType ?? 'all'}><option value="all">전체 판매 유형</option><option value="stock">일반 재고 상품</option><option value="preorder">예약판매 옵션 포함</option></AdminSelect>
+        <AdminSelect key={`restriction:${filters.restriction ?? 'all'}`} aria-label="판매 제한" name="restriction" defaultValue={filters.restriction ?? 'all'}><option value="all">전체 판매 제한</option><option value="none">제한 없음</option><option value="adult">성인 상품</option></AdminSelect>
+        <AdminSelect key={`image:${filters.image ?? 'all'}`} aria-label="대표 이미지" id="goods-list-image" name="image" defaultValue={filters.image ?? 'all'}><option value="all">대표 이미지 전체</option><option value="with">이미지 등록</option><option value="without">이미지 미등록</option></AdminSelect>
       </div></div>
       </div>
     </details>

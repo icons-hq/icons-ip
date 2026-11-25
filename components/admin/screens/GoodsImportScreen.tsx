@@ -742,7 +742,8 @@ export function GoodsImportScreen({
                     <TableCell className="align-top whitespace-normal wrap-anywhere">
                       {group.name || '이름 없음'}
                       <small className="block text-xs text-muted-foreground">
-                        {group.code || '코드 자동 생성'}
+                        {/* 코드를 비워 둔 새 상품은 저장할 때 상품 자동코드가 만들어진다. 저장된 뒤에도 '코드 자동 생성'으로 두면 아직 안 만들어진 것으로 읽힌다(QA S7). */}
+                        {group.code || (group.kind === 'new' && group.result?.status === 'success' ? '상품 자동코드 생성됨 · 상품 목록에서 확인' : '코드 자동 생성')}
                       </small>
                     </TableCell>
                     <TableCell className="align-top">
