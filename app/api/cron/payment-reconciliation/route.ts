@@ -1,5 +1,10 @@
 import { timingSafeEqual } from 'node:crypto';
-import { paymentAttemptRoute, reconcilablePaymentProviders, reconcilePaymentAttempt } from '@/lib/payments/attempt-reconciliation.server';
+import {
+  paymentAttemptRoute,
+  reconcilablePaymentProviders,
+  reconcilePaymentAttempt,
+  type PaymentAttemptReconciliation,
+} from '@/lib/payments/attempt-reconciliation.server';
 import { createRuntimeDepositReversal, parseDepositReversalClaims } from '@/lib/payments/goods-deposit-reversal.runtime.server';
 import { tossBoundPaymentSecretKey, tossEscrowSecretKey } from '@/lib/payments/runtime-gateway';
 import { createTossVirtualAccountRefundInspector, type VirtualAccountRefundWatch } from '@/lib/payments/toss-virtual-account-refund-watch.server';
@@ -8,12 +13,15 @@ import { cronErrorCode, startCronRun } from '@/lib/system-health/cron-run.server
 import { isUuid } from '@/lib/uuid';
 
 /*
- * 미종결 결제 자동 재확인(원장 PAY-067·PAY-063). 10분마다 결과 불명(unknown)·멈춘 확인(confirming 리스 만료) 시도를 최대 3건
- * 골라 결제사 조회 API로 다시 확인한다. 고르는 규칙은 DB(service_claim_payment_reconciliation_candidates)가 정한다 — 조회 API가 있는
- * 시도(굿즈 토스·나이스페이, 티켓 토스) 중 이 배포에 결제사 설정이 있는 것(앱이 넘긴다), 마지막 변경 뒤 10분, 만든 지 7일 안, 30분 안에
- * 누구도 확인하거나 이 cron이 뽑지 않은 것을 마지막 확인이 오래된 순으로. DB가 뽑는 순간 표식을 남겨, 결제사 조회 전에 끝난 후보도
- * 30분 동안 다시 뽑히지 않는다(조회하지 못하는 후보가 큐를 막지 않는다). 그래서 같은 시도는 30분에 한 번만 조회되고 회차당 조회는
- * 3건이다(토스 조회 API 반복 호출 제한). 설정된 결제사가 없으면 DB를 부르지 않는다. needs_review(결제사와 원장이 어긋남)는 고르지 않는다 —
+ * 미종결 결제 자동 재확인(원장 PAY-067·PAY-063). 10분마다 결과 불명(unknown)·멈춘 확인(confirming 리스 만료) 시도와 가상계좌 입금
+ * 대기(awaiting_deposit)를 최대 30건 골라 결제사 조회 API로 다시 확인한다. 고르는 규칙은 DB(service_claim_payment_reconciliation_candidates)가
+ * 정한다 — 조회 API가 있는 시도(굿즈 토스·나이스페이, 티켓 토스) 중 이 배포에 결제사 설정이 있는 것(앱이 넘긴다), 만든 지 7일 안, 결과
+ * 불명은 마지막 변경 뒤 10분·30분 안에 누구도 확인하거나 이 cron이 뽑지 않은 것, 입금 대기는 기한이 지났거나 6시간 넘게 바뀌지 않은 것을
+ * 10분 간격으로. 순서는 우선순위 단계다(VAC-021, 2026-11-26): 결과 불명 → 입금 기한 + 30분이 지난 입금 대기(입금 기한이 이른 순) → 기한
+ * 직후 한 번 → 기한 전 6시간 정기 점검. 그래서 가상계좌 주문이 몰려도 정기 점검이 돈이 걸린 결과 불명·만료 반납을 밀어내지 않는다.
+ * DB가 뽑는 순간 표식을 남겨, 결제사 조회 전에 끝난 후보도 그 간격 동안 다시 뽑히지 않는다(조회하지 못하는 후보가 큐를 막지 않는다).
+ * 같은 시도의 조회 간격은 그대로 두고(토스 조회 API 반복 호출 제한) 회차당 건수만 늘려 RECONCILE_CONCURRENCY건씩 동시에 조회한다 —
+ * 시간당 최대 180건(이전 18건). 설정된 결제사가 없으면 DB를 부르지 않는다. needs_review(결제사와 원장이 어긋남)는 고르지 않는다 —
  * 운영자가 시스템 상태 화면에서 본다. 확정은 재정합 seam(claim 리스·DB 멱등 finalizer)이 해서 웹훅·운영자 재확인과 겹쳐도 안전하다.
  * 응답에는 건수만 싣는다(시도·주문 식별자 없음). 조회 실패·결제사 설정 없음은 503으로 남긴다.
  *
@@ -37,8 +45,11 @@ export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 export const maxDuration = 90;
 const headers = { 'Cache-Control': 'private, no-store, max-age=0' };
-const BATCH_LIMIT = 3;
-/** 이 시간이 지나면 남은 후보는 다음 회차로 미룬다(시도당 조회 최대 8초 × 2와 승인 뒤 취소 예약의 여유). */
+/** 회차당 후보 상한 — DB 함수의 상한(30)과 같다. */
+const BATCH_LIMIT = 30;
+/** 동시에 조회하는 후보 수. 결제사 조회·반납 호출이 한 회차에 이 수 이상 겹치지 않는다. */
+const RECONCILE_CONCURRENCY = 5;
+/** 이 시간이 지나면 아직 시작하지 않은 후보는 다음 회차로 미룬다(시도당 조회 최대 8초 × 2와 승인 뒤 취소 예약의 여유). */
 const START_BUDGET_MS = 40_000;
 const REFUND_WATCH_LIMIT = 3;
 /** 환불 감시는 결제 재확인 뒤에 돈다 — 이 시간(라우트 시작부터)이 지나면 남은 감시는 다음 회차로 미룬다(조회 8초 × 3). */
@@ -100,19 +111,27 @@ export async function GET(request: Request) {
       const candidates = error ? null : parseCandidates(data, providers);
       if (!candidates) throw new Error('reconciliation_candidates_unavailable');
       counts.candidates = candidates.length;
-      for (const candidate of candidates) {
-        if (Date.now() - started > START_BUDGET_MS) { counts.deferred += 1; continue; }
-        const result = await reconcilePaymentAttempt(candidate, `auto-${stamp}-${candidate.attemptId.replace(/-/g, '')}`);
-        if (result.kind === 'reconciled') {
-          if (result.outcome === 'approved') counts.approved += 1;
-          else if (result.outcome === 'declined' || result.outcome === 'canceled') counts.closed += 1;
-          // 가상계좌 입금 대기 재확인(입금 전·기한 유예 안) — 정상 대기다(ADR-0049).
-          else if (result.outcome === 'awaiting_deposit') counts.awaitingDeposit += 1;
-          else counts.unresolved += 1;
-        } else if (result.kind === 'in_progress') counts.inProgress += 1;
-        else if (result.kind === 'unavailable') counts.unavailable += 1;
-        else counts.failed += 1;
-      }
+      // DB가 정한 우선순위대로 꺼내 RECONCILE_CONCURRENCY건씩 동시에 조회한다. 시도마다 claim 리스·주문 잠금이 따로라 서로 겹치지 않는다.
+      let next = 0;
+      const worker = async () => {
+        while (next < candidates.length) {
+          const candidate = candidates[next];
+          next += 1;
+          if (Date.now() - started > START_BUDGET_MS) { counts.deferred += 1; continue; }
+          const result = await reconcilePaymentAttempt(candidate, `auto-${stamp}-${candidate.attemptId.replace(/-/g, '')}`)
+            .catch((): PaymentAttemptReconciliation => ({ kind: 'failed' }));
+          if (result.kind === 'reconciled') {
+            if (result.outcome === 'approved') counts.approved += 1;
+            else if (result.outcome === 'declined' || result.outcome === 'canceled') counts.closed += 1;
+            // 가상계좌 입금 대기 재확인(입금 전·기한 유예 안) — 정상 대기다(ADR-0049).
+            else if (result.outcome === 'awaiting_deposit') counts.awaitingDeposit += 1;
+            else counts.unresolved += 1;
+          } else if (result.kind === 'in_progress') counts.inProgress += 1;
+          else if (result.kind === 'unavailable') counts.unavailable += 1;
+          else counts.failed += 1;
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(RECONCILE_CONCURRENCY, candidates.length) }, worker));
     }
 
     const reversals = { checked: 0, redeposited: 0, waiting: 0, closed: 0, cancellation: 0, review: 0, unavailable: 0, failed: 0, deferred: 0, errored: false };
