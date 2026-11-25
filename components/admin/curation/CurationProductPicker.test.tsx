@@ -50,7 +50,7 @@ describe('CurationProductPicker URL 추가', () => {
       options={[{ id: 'm1', title: '2단 필통', archivedAt: null }]} selectedIds={[]} />);
     expect(html).toContain('상품 URL로 추가');
     /* 고객 화면 주소는 상품 자동코드로 열린다(ADR-0050) — 예시도 코드 주소다. */
-    expect(html).toContain('placeholder="https://iconsip.com/shop/hsq-0059 또는 /shop/hsq-0059"');
+    expect(html).toContain('placeholder="https://xsquare.kr/shop/hsq-0059 또는 /shop/hsq-0059"');
   });
 
   /* 1014-112 — 여러 줄 붙여넣기와 엑셀 한 열 추가는 검색 폼을 제출하지 않는 별도 묶음이다. */

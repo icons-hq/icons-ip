@@ -17,7 +17,8 @@
 - 상점관리자 설정 상태(2026-11-06 확인):
   - 인증결과URL: "설정함". 가맹점 URL은 `https://iconsip.com/`과 도메인 형식 `iconsip.com` 두 개다.
     `https://iconsip.com/`만 있을 때 운영 거래등록이 `CS13`(인증되지 않은 도메인)으로 실패했고,
-    `iconsip.com`을 추가하자 바로 성공했다.
+    `iconsip.com`을 추가하자 바로 성공했다. 2026-11-25 도메인 전환으로 도메인 형식 `xsquare.kr`를 더했다 —
+    Ret_URL origin은 운영 `SITE_URL`(`https://xsquare.kr`)을 따른다.
   - 신규 연동방식(V2) 사용여부: **사용**(2026-11-06 전환, 전환 완료일 2026-11-20). 되돌릴 수 없다.
   - 가맹점 인증키: **발급**(2026-11-06, 대표 상점ID 휴대폰 본인인증). 재발급은 KCP 심사를 거친다.
 - 테스트 서버(`testcert.kcp.co.kr`)에서 우리 암호 구현으로 거래등록이 `0000`으로 성공했다.
@@ -42,7 +43,7 @@
 | `KCP_CERT_ENC_KEY` | 가맹점 인증키 | 상점관리자에서 발급 | KCP 샘플의 테스트 키 |
 | `KCP_CERT_WEB_SITE_ID` | DI 발급 기준 웹사이트코드(12자리) | **필수** | 생략 가능 |
 | `ADULT_VERIFICATION_DIGEST_SECRET` | DI·거래번호 HMAC 비밀값(32자 이상) | 새로 생성, **바꾸지 않는다** | 환경별 임의값 |
-| `SITE_URL` | Ret_URL origin | `https://iconsip.com` | https 또는 로컬 개발 호스트 |
+| `SITE_URL` | Ret_URL origin | `https://xsquare.kr`(2026-11-25 전 `https://iconsip.com`) | https 또는 로컬 개발 호스트 |
 | `ADULT_VERIFICATION_ENABLED` | `true`면 모든 회원에게 개방 | 개방 시점에 `true` | QA 때만 |
 | `ADULT_VERIFICATION_CANARY_USER_ID` | 공개 전 단일 canary 계정 UUID | canary 때만 | 선택 |
 
@@ -61,7 +62,7 @@
 2. **신규 연동방식(V2) 사용** — 부가서비스 › 휴대폰본인확인 › 연동방식 설정 › 사용여부 변경하기.
    전환 완료일을 고른다. **"사용"으로 바꾸면 "미사용"으로 되돌릴 수 없다.** 신규 가맹점은 V2만 쓰므로
    잃는 것은 없지만, KCP 안내대로 테스트를 마치고 운영 개방 일정에 맞춰 바꾼다.
-3. **인증결과URL** — 부가서비스 › 휴대폰본인확인 › 인증결과URL 설정. 도메인 형식(`iconsip.com`)으로 등록한다 —
+3. **인증결과URL** — 부가서비스 › 휴대폰본인확인 › 인증결과URL 설정. 도메인 형식(`xsquare.kr`, 옛 `iconsip.com`)으로 등록한다 —
    프로토콜·경로를 붙인 `https://iconsip.com/`만으로는 운영에서 `CS13`이 났다. `www` 등 다른 호스트로 Ret_URL을
    보내면 그 도메인을 추가한다. 등록·삭제는 실시간 반영이 아니라고 안내되므로 바꿀 때는 추가 후 삭제한다.
 4. 샘플·가이드: 연동방식 설정 화면의 "V2 연동 샘플 다운로드"(개발지원센터로 이동). 받은 샘플은 로컬에서만 본다.

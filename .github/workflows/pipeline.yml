@@ -446,7 +446,7 @@ jobs:
       - name: Sync and verify Supabase Auth configuration
         env:
           PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
-          SITE_URL: https://iconsip.com
+          SITE_URL: https://xsquare.kr
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
           ENFORCE_REQUEST_RATE_LIMITS: "true"
@@ -458,6 +458,8 @@ jobs:
           CONFIRMATION_SUBJECT: 엑스스퀘어 가입 확인 코드
           # custom SMTP 메일의 발신자 표시 이름 — 앱 메일(lib/email/sender.ts EMAIL_SENDER_NAME)과 같은 값.
           SMTP_SENDER_NAME: X SQUARE
+          # 옛 도메인 iconsip.com 주소는 되돌리기(runbook domain-migration-xsquare.md)를 위해 남긴다 — 지금은 Vercel이
+          # 경로를 유지한 채 xsquare.kr로 308 리디렉션해 앱에 닿지 않는다.
           REDIRECT_URLS: |
             https://iconsip.com/auth/callback
             https://iconsip.com/auth/recovery/callback
@@ -1428,7 +1430,7 @@ jobs:
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
-          SITE_URL: https://iconsip.com
+          SITE_URL: https://xsquare.kr
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
           TURNSTILE_SECRET_KEY: ${{ secrets.TURNSTILE_SECRET_KEY }}
