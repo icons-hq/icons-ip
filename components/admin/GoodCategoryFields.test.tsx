@@ -71,7 +71,7 @@ describe('상품 등록 추가 카테고리', () => {
     expect(html).toContain('data-good-category-additional=""');
     expect(html).toMatch(/<input[^>]*type="hidden"[^>]*name="additionalCategoryIds"[^>]*value="\[&quot;note&quot;\]"/);
     expect(html).toContain('문구 &gt; 노트');
-    expect(html).toContain('aria-label="노트 추가 카테고리 해제"');
+    expect(html).toContain('aria-label="노트 추가 카테고리에서 빼기"');
     expect(html).toMatch(/<button[^>]*>카테고리 추가<\/button>/);
   });
 

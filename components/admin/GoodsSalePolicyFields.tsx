@@ -153,7 +153,7 @@ export function GoodsPurchaseLimitFields({ values, current, errors, quantityRead
         <div hidden={!memberLimit && !errors?.memberLifetimeQtyLimit} className="grid min-w-0 gap-x-6 gap-y-5 sm:grid-cols-2">
           <QuantityInput name="memberLifetimeQtyLimit" label="1인 최대 구매수량" value={values.memberLifetimeQtyLimit} error={errors?.memberLifetimeQtyLimit} />
         </div>
-        <p className="-mt-2 text-sm text-muted-foreground">회원 1명이 이 상품을 누적으로 살 수 있는 수량입니다. 지난 구매와 결제 대기 주문까지 세고, 전액 취소·환불이 끝난 주문은 뺍니다.</p>
+        <p className="-mt-2 text-sm text-muted-foreground">회원 1명이 이 상품을 통틀어 살 수 있는 수량입니다. 지난 구매와 결제 대기 주문까지 세고, 전액 취소·환불이 끝난 주문은 뺍니다.</p>
       </fieldset>
       {quantityReadOnly ? QUANTITY_FIELDS.map((name) => <input key={name} type="hidden" name={name} value={values[name] ?? ''} />) : null}
       <p className="text-sm text-muted-foreground">수량은 같은 상품의 모든 옵션을 합쳐 셉니다.</p>

@@ -298,7 +298,7 @@ export function GoodWorkspaceErrors({ errors }: { errors?: Record<string, string
     <ul className="flex list-disc flex-col gap-1 pl-5">{entries.map(([field, message]) => { const target = errorTarget(field); return <li key={field}><a className="underline underline-offset-4 wrap-anywhere hover:text-destructive/80" href={`#${target.id}`} onClick={(event) => {
       event.preventDefault(); focusGoodWorkspaceTarget(target.id, target.field);
     }}>{message}</a></li>; })}</ul>
-    <p className="text-muted-foreground">입력값과 업로드한 이미지가 유지됩니다. 해당 항목을 수정하고 다시 저장해주세요.</p>
+    <p className="text-muted-foreground">입력한 내용과 올린 이미지는 그대로 남습니다. 위 항목을 고친 뒤 다시 저장해주세요.</p>
   </section>;
 }
 

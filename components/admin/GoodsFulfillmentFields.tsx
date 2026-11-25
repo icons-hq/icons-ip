@@ -46,9 +46,9 @@ export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSumm
     </AdminFormGrid>
     <div className="flex min-w-0 flex-col gap-2">
       <GoodChoiceCards legend="배송비 유형">
-        {choice('policy', '출고지 정책 따름', '출고지에 정해 둔 배송비')}
+        {choice('policy', '출고지 정책 따름', '출고지에 정해 둔 배송비를 받습니다')}
         {choice('free', '무료배송', '배송비를 받지 않습니다')}
-        {choice('individual', '개별 배송비', '이 상품만 따로 정한 배송비')}
+        {choice('individual', '개별 배송비', '이 상품에만 따로 정한 배송비를 받습니다')}
       </GoodChoiceCards>
       <ErrorText id="good-shipping-type-error">{typeError}</ErrorText>
     </div>

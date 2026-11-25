@@ -94,7 +94,7 @@ export function GoodWorkspacePurchaseCostsSection({ serverError }: { serverError
     return [...others, { ...entryFor(optionKey), ...patch }];
   });
   return <DraftBody testId="costs">
-    <p className="text-muted-foreground">공급처에서 사 오는 옵션 1개의 값입니다. 금액과 세금 처리는 함께 넣거나 함께 비웁니다. 0원도 넣을 수 있습니다.</p>
+    <p className="text-muted-foreground">옵션 1개를 공급처에서 사 오는 가격입니다. 금액과 세금 처리는 함께 넣거나 함께 비웁니다. 0원도 넣을 수 있습니다.</p>
     {rows.map((row, index) => {
       const key = goodsOptionRowKey(row), entry = entryFor(key), label = row.name.trim() || `옵션 ${index + 1}`;
       return <div key={key} className="grid min-w-0 gap-3 border-t pt-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] sm:items-end">
@@ -123,7 +123,7 @@ export function GoodWorkspacePricePeriodsSection({ serverError }: { serverError?
   const options = rows.map((row, index) => ({ key: goodsOptionRowKey(row), label: `${row.name.trim() || `옵션 ${index + 1}`}${row.isActive === false ? ' (사용 중지)' : ''}` }));
   const update = (key: string, patch: Partial<GoodWorkspacePricePeriodDraft>) => set((current) => current.map((entry) => entry.key === key ? { ...entry, ...patch } : entry));
   return <DraftBody testId="prices">
-    <p className="text-muted-foreground">정한 기간 동안 옵션을 기간 할인가로 팝니다. 같은 옵션의 기간은 겹칠 수 없습니다.</p>
+    <p className="text-muted-foreground">정한 기간에만 옵션을 기간 할인가로 팝니다. 같은 옵션의 기간은 겹칠 수 없습니다.</p>
     {value.map((entry, index) => <fieldset key={entry.key} className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4">
       <legend className="float-left w-full p-0 text-sm font-medium">기간 할인 {index + 1}</legend>
       <div className={FIELD_LABEL_CLASS}><label htmlFor={`${entry.key}-option`}>대상 옵션</label>
@@ -159,7 +159,7 @@ export function GoodWorkspaceBenefitsSection({ serverError }: { serverError?: st
   const { value, set, error } = useExtra('benefits');
   const [picker, setPicker] = useState<number | null>(null), [templates, setTemplates] = useState(false);
   return <DraftBody testId="benefits">
-    <p className="text-muted-foreground">상품 상세에 보이는 안내입니다. 사은품 재고와 출고는 따로 준비해야 합니다.</p>
+    <p className="text-muted-foreground">상품 상세에 보이는 안내입니다. 사은품 재고와 출고는 따로 챙겨야 합니다.</p>
     <GoodsBenefitFields values={value} onChange={set} onPickPhoto={setPicker} onOpenTemplates={() => setTemplates(true)} fieldPrefix="goods-workspace-benefit-image" />
     <SectionError message={error ?? serverError} />
     {picker !== null ? <GoodsPhotoPicker onClose={() => setPicker(null)} onSelect={(photo) => { set((current) => withGiftImage(current, picker, photo.imagePath)); setPicker(null); }} /> : null}
@@ -192,7 +192,7 @@ export function GoodWorkspaceSizeChartSection({ serverError }: { serverError?: s
   const displayId = useId();
   const preview = parseGoodsSizeChart(value.chart);
   return <DraftBody testId="size-chart">
-    <p className="text-muted-foreground">상품의 측정 치수를 표로 보여 줍니다. 사이즈 이름은 구매 옵션과 이어지지 않습니다.</p>
+    <p className="text-muted-foreground">상품의 치수를 표로 보여 줍니다. 표의 사이즈 이름은 구매 옵션과 따로 적습니다.</p>
     <div className="flex min-w-0 flex-col gap-2"><Label htmlFor={displayId}>고객 화면 표시</Label><NativeSelect className="w-full sm:w-72" id={displayId} value={value.enabled ? 'enabled' : 'disabled'} onChange={(event) => set((current) => ({ ...current, enabled: event.target.value === 'enabled' }))}><option value="disabled">표시 안 함 · 표는 그대로 보관</option><option value="enabled">표시</option></NativeSelect></div>
     <GoodsSizeChartFields chart={value.chart} onChange={(chart) => set((current) => ({ ...current, chart }))} />
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>사이즈 템플릿에서 가져오기</button><Link className="text-sm underline underline-offset-4" href={GOODS_SIZE_TEMPLATES_PATH} target="_blank" rel="noreferrer">사이즈 템플릿 관리 ↗</Link></div>
@@ -282,7 +282,7 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
     else { setMessage(result.error); if (!result.uncertain) setPendingFile(null); }
   }
   return <DraftBody testId="fulfillment">
-    <p className="text-muted-foreground">택배만 쓰면 바꿀 것이 없습니다. 다른 수령 방식을 쓰려면 아래 근거 칸과 확인 체크도 채워야 합니다.</p>
+    <p className="text-muted-foreground">택배만 쓰면 바꿀 것이 없습니다. 다른 수령 방식을 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.</p>
     <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" disabled={pending || Boolean(pendingFile)}>
       <legend className="sr-only">상품 제공 방식</legend>
       <GoodsFulfillmentDraftFields draft={value} onChange={(draft) => set(draft as GoodWorkspaceExtraDraft['fulfillment'])} onUpload={(file) => { void upload(file); }} fieldId={fieldId} />
@@ -297,7 +297,7 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
 export function GoodWorkspaceProductionSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('production');
   return <DraftBody testId="production">
-    <p className="text-muted-foreground">쓰지 않으면 바꿀 것이 없습니다. 쓰려면 아래 근거 칸과 확인 체크도 채워야 합니다.</p>
+    <p className="text-muted-foreground">쓰지 않으면 바꿀 것이 없습니다. 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.</p>
     <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4"><legend className="sr-only">주문 후 제작</legend>
       <GoodsProductionFields draft={value} onChange={(draft) => set(draft)} idPrefix="workspace-production" />
     </fieldset>

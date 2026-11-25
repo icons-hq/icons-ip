@@ -118,7 +118,7 @@ describe('다른 상품 선택형 옵션을 현재 초안에 적용', () => {
       expect(plan([blank], { ...source, ...overrides, rows } as GoodsOptionImportSource)).toEqual({ ok: false, error: result.error });
       return [result.problem, result.error];
     };
-    expect(problem([])).toEqual(['no_active', "이 상품은 옵션이 모두 사용 중지돼 있어 불러올 옵션이 없습니다. 그 상품의 '옵션 사용 중지·다시 사용'에서 옵션을 다시 사용으로 바꾼 뒤 불러와 주세요."]);
+    expect(problem([])).toEqual(['no_active', "이 상품은 옵션이 모두 사용 중지돼 있어 불러올 옵션이 없습니다. 그 상품의 '옵션 사용 중지·다시 사용'에서 [다시 사용]을 누른 뒤 불러와 주세요."]);
     expect(problem([row({}, '기본 옵션')])).toEqual(['no_options', '이 상품은 옵션 없이 파는 상품이라 불러올 옵션이 없습니다. 다른 상품을 골라 주세요.']);
     expect(problem([row({ 색상: '빨강' }), row({}, '기본 옵션')])).toEqual(['mixed', '이 상품에는 옵션값이 없는 옵션이 섞여 있어 불러올 수 없습니다. 그 상품의 옵션목록에서 옵션값이 없는 옵션을 사용 중지하거나 삭제한 뒤 불러와 주세요.']);
     expect(problem([row({ 색상: '빨강' }), row({ 색상: '빨강', 사이즈: 'M' })])[0]).toBe('axis_mismatch');

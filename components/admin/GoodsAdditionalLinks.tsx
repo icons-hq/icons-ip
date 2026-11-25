@@ -77,7 +77,7 @@ export function GoodsAdditionalLinks({ baseGoodId, items, onChange, disabled = f
       onSelect={pick}
       rowBlocked={(good) => linked.has(good.id) ? null : good.id === baseGoodId ? '지금 편집 중인 상품' : full ? `최대 ${MAX_ADDITIONAL_GOODS}개까지` : good.published ? null : '공개 전 상품은 연결할 수 없음'}
       selectedKeys={[...linked]}
-      title={adminGoodsCopy('추가 구성 상품 고르기')}
+      title={adminGoodsCopy('추가 구성 상품 선택')}
     /> : null}
   </div>;
 }

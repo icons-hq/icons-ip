@@ -116,8 +116,8 @@ describe('템플릿 선택창', () => {
     expect(templateDialog()).toBeUndefined();
     button('템플릿에서 가져오기').props.onClick!();
     const dialog = templateDialog()!.props;
-    expect(dialog).toMatchObject({ title: '고시정보 템플릿 선택', selectLabel: '적용', searchPlaceholder: '템플릿 이름으로 찾기', emptyText: '일치하는 템플릿이 없습니다.' });
-    expect(dialog.description).toBe('고르면 고시정보 7개 칸이 템플릿 내용으로 바뀝니다.');
+    expect(dialog).toMatchObject({ title: '상품정보제공고시 템플릿 선택', selectLabel: '적용', searchPlaceholder: '템플릿 이름으로 찾기', emptyText: '일치하는 템플릿이 없습니다.' });
+    expect(dialog.description).toBe('고르면 상품정보제공고시 7개 칸이 템플릿 내용으로 바뀝니다.');
     dialog.onClose();
     expect(templateDialog()).toBeUndefined();
   });
@@ -181,7 +181,7 @@ describe('템플릿 적용', () => {
   it('적어 둔 값이 하나라도 있으면 어떤 값이 바뀌는지 확인받고, 확인하면 가져온다', async () => {
     filled('noticeMaker');
     await expect(open().onSelect(preset())).resolves.toBe(true);
-    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 고시정보 7개가 모두 ‘아크릴 키링’ 내용으로 바뀝니다.');
+    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 7개 칸이 모두 ‘아크릴 키링’ 내용으로 바뀝니다.');
     expect(onApply).toHaveBeenCalledTimes(1);
   });
 
@@ -214,7 +214,7 @@ describe('템플릿 적용', () => {
     filled('noticeMaker');
     await open().onSelect(preset());
     restore();
-    expect(requests).toEqual([{ title: '고시정보 바꾸기', message: '지금 적어 둔 고시정보 7개가 모두 ‘아크릴 키링’ 내용으로 바뀝니다.', confirmLabel: '바꾸기' }]);
+    expect(requests).toEqual([{ title: '상품정보제공고시를 바꿀까요?', message: '지금 적어 둔 7개 칸이 모두 ‘아크릴 키링’ 내용으로 바뀝니다.', confirmLabel: '바꾸기' }]);
     confirm = stubAdminConfirm(true);
   });
 });
@@ -226,8 +226,8 @@ describe('다른 상품에서 복사', () => {
   it('[다른 상품에서 복사]가 상품 선택창을 열고 닫으면 닫힌다', () => {
     expect(copyPicker()).toBeUndefined();
     const picker = open();
-    expect(picker.title).toBe('고시정보를 가져올 상품 선택');
-    expect(picker.description).toBe('고른 상품의 고시정보 7개 칸을 가져옵니다.');
+    expect(picker.title).toBe('상품정보제공고시를 가져올 상품 선택');
+    expect(picker.description).toBe('고르면 상품정보제공고시 7개 칸이 그 상품의 내용으로 바뀝니다.');
     expect(picker.footer).toBeNull();
     picker.onClose();
     expect(copyPicker()).toBeUndefined();
@@ -239,7 +239,7 @@ describe('다른 상품에서 복사', () => {
     expect(actions.loadOf).toHaveBeenCalledExactlyOnceWith('good-a');
     expect(onApply).toHaveBeenCalledExactlyOnceWith(sevenValues);
     expect(onApply.mock.calls[0]).toHaveLength(1);
-    expect(texts(status()!).join('')).toBe('‘볼펜’의 고시정보 7개 칸을 가져왔습니다.');
+    expect(texts(status()!).join('')).toBe('‘볼펜’의 7개 칸을 가져왔습니다.');
   });
 
   it('고시가 비어 있는 상품은 가져오지 않고 선택창 안에 알리며 닫지 않는다', async () => {
@@ -248,7 +248,7 @@ describe('다른 상품에서 복사', () => {
     expect(onApply).not.toHaveBeenCalled(); expect(confirm).not.toHaveBeenCalled();
     const footer = copyPicker()!.props.footer as ReactElement<Props>;
     expect(footer.props.role).toBe('alert');
-    expect(texts(footer)).toEqual(['이 상품에는 적어 둔 고시정보가 없습니다.']);
+    expect(texts(footer)).toEqual(['이 상품에는 적어 둔 상품정보제공고시가 없습니다.']);
     expect(status()).toBeUndefined();
   });
 
@@ -268,9 +268,9 @@ describe('다른 상품에서 복사', () => {
   });
 
   it('읽지 못했으면 서버가 준 문장을 선택창 안에 보이고 창을 닫지 않는다', async () => {
-    actions.loadOf.mockResolvedValue({ error: '고시정보를 불러오지 못했습니다. 다시 시도해주세요.' });
+    actions.loadOf.mockResolvedValue({ error: '상품정보제공고시를 불러오지 못했습니다. 다시 시도해주세요.' });
     await expect(open().onSelect(good())).resolves.toBe(false);
-    expect(texts(copyPicker()!.props.footer as ReactElement<Props>)).toEqual(['고시정보를 불러오지 못했습니다. 다시 시도해주세요.']);
+    expect(texts(copyPicker()!.props.footer as ReactElement<Props>)).toEqual(['상품정보제공고시를 불러오지 못했습니다. 다시 시도해주세요.']);
     expect(onApply).not.toHaveBeenCalled();
   });
 
@@ -279,7 +279,7 @@ describe('다른 상품에서 복사', () => {
     actions.loadOf.mockResolvedValue({ name: '볼펜', notice: sevenValues });
     confirm.restore(); confirm = stubAdminConfirm(false);
     await expect(open().onSelect(good())).resolves.toBe(false);
-    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 고시정보 7개가 모두 ‘볼펜’ 내용으로 바뀝니다.');
+    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 7개 칸이 모두 ‘볼펜’ 내용으로 바뀝니다.');
     expect(onApply).not.toHaveBeenCalled();
     expect(copyPicker()!.props.footer).toBeNull();
     confirm.restore(); confirm = stubAdminConfirm(true);
@@ -311,7 +311,7 @@ describe('대표 카테고리에 맞는 템플릿 제안', () => {
     const apply = all(band()!).find((item) => item.type === 'button')!;
     apply.props.onClick!();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 고시정보 7개가 모두 ‘키링 템플릿’ 내용으로 바뀝니다.');
+    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 7개 칸이 모두 ‘키링 템플릿’ 내용으로 바뀝니다.');
     expect(onApply).toHaveBeenCalledExactlyOnceWith(suggested.notice, kc);
     expect(band()).toBeUndefined();
     await settle();

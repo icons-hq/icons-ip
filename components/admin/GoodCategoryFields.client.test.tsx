@@ -390,7 +390,7 @@ const hiddenValue = (value?: string) => JSON.parse(renderAdditional(value).find(
 const addButton = (value?: string) => renderAdditional(value).find((item) => item.props.id === 'good-additional-category')!;
 const chosenLabels = (tree: ReactElement<Props>[]) => tree.filter((item) => item.type === 'div' && item.props.className?.includes('flex-wrap items-center gap-2 text-sm'))
   .map((row) => texts(all(row).find((item) => item.type === 'span')!).join(''));
-const releaseButtons = () => renderAdditional().filter((item) => item.type === 'button' && texts(item).join('') === '해제');
+const releaseButtons = () => renderAdditional().filter((item) => item.type === 'button' && texts(item).join('') === '빼기');
 const additionalDialog = () => renderAdditional().find((item) => item.type === AdminPickerDialog) as ReactElement<DialogProps> | undefined;
 
 describe('추가 카테고리 칸', () => {
@@ -412,9 +412,9 @@ describe('추가 카테고리 칸', () => {
     expect(tree.some((item) => item.type === 'select' || item.props.id === 'good-additional-category-hint')).toBe(false);
   });
 
-  it('고른 카테고리는 줄로 보이고 [해제]로 뺀다', () => {
+  it('고른 카테고리는 줄로 보이고 [빼기]로 뺀다', () => {
     expect(chosenLabels(renderAdditional('["a","c"]'))).toEqual(['문구 > 가방', '문구 > 다이어리']);
-    expect(releaseButtons().map((item) => item.props['aria-label'])).toEqual(['가방 추가 카테고리 해제', '다이어리 추가 카테고리 해제']);
+    expect(releaseButtons().map((item) => item.props['aria-label'])).toEqual(['가방 추가 카테고리에서 빼기', '다이어리 추가 카테고리에서 빼기']);
     expect(hiddenValue('["a","c"]')).toEqual(['a', 'c']);
     releaseButtons()[0].props.onClick!();
     expect(hiddenValue()).toEqual(['c']);
@@ -440,7 +440,7 @@ describe('추가 카테고리 칸', () => {
   it('보관된 카테고리와 목록에 없는 번호는 이름으로 알아볼 수 있게 보인다', () => {
     categoryList = [root, node('a', '가방', { archivedAt: '2026-11-01' })];
     expect(chosenLabels(renderAdditional('["a","ghost"]'))).toEqual(['보관됨 · 문구 > 가방', '알 수 없는 카테고리']);
-    expect(releaseButtons().map((item) => item.props['aria-label'])).toEqual(['가방 추가 카테고리 해제', '알 수 없는 카테고리 추가 카테고리 해제']);
+    expect(releaseButtons().map((item) => item.props['aria-label'])).toEqual(['가방 추가 카테고리에서 빼기', '알 수 없는 카테고리 추가 카테고리에서 빼기']);
   });
 
   it('오류가 있으면 알린다', () => {
@@ -466,7 +466,7 @@ describe('추가 카테고리 선택창', () => {
     primary = 'a';
     addButton().props.onClick!();
     const props = additionalDialog()!.props;
-    expect(props.excludedNote).toBe('대표 카테고리, 하위 카테고리가 있거나 보관한 카테고리는 목록에서 뺐습니다.');
+    expect(props.excludedNote).toBe('대표 카테고리와, 하위 카테고리가 있거나 보관한 카테고리는 목록에서 뺐습니다.');
     const page = await firstPage(props.load(request()));
     expect(ids(page.rows)).toEqual(['b', 'c']); expect(page.total).toBe(2);
   });

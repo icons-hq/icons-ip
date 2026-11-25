@@ -34,9 +34,9 @@ describe('목록 색상칩 입력', () => {
     expect(html).toContain('색상 추가 (1/20)');
   });
 
-  it('고객 목록에는 전시 설정에서 컬러칩 표시를 켜야 보인다는 사실을 한 줄과 이동 링크로 말한다', () => {
+  it('고객 화면의 상품 목록에는 전시 설정에서 컬러칩 표시를 켜야 보인다는 사실을 한 줄과 이동 링크로 말한다', () => {
     for (const html of [render([]), render([{ label: '블랙', hex: '#000000' }])]) {
-      expect(html).toContain('고객 목록에는 전시 설정에서 ‘컬러칩 표시’를 켜야 보입니다.');
+      expect(html).toContain('고객 화면의 상품 목록에는 전시 설정에서 ‘컬러칩 표시’를 켜야 보입니다.');
       expect(html).toMatch(new RegExp(`<a[^>]*href="${STORE_PRESENTATION_PATH}"[^>]*target="_blank"[^>]*>전시 설정 열기 ↗</a>`));
     }
   });

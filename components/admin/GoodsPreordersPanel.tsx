@@ -293,7 +293,7 @@ function ReservationSelection({ goodId, page, onSaved, canAllocate }: { goodId: 
   }
   const status = { reserved: '입고 확인 전', allocated: '입고 확인 완료', released: '입고 전 취소', returned: '입고 후 환불' };
   return <div className="flex min-w-0 flex-col gap-3" data-preorder-allocation="" role="group" aria-label="예약 주문 선택">
-    {page.items.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">해당 상태의 예약 주문이 없습니다.</p> : <ul className="m-0 flex list-none flex-col divide-y rounded-lg border p-0">
+    {page.items.length === 0 ? <p className="py-6 text-center text-sm text-muted-foreground">이 상태의 예약 주문이 없습니다.</p> : <ul className="m-0 flex list-none flex-col divide-y rounded-lg border p-0">
       {page.items.map((item) => <li key={item.orderItemId} className="flex min-w-0 flex-col gap-1 px-3 py-3">
         <label className="flex items-start gap-2 text-sm">
           {canAllocate && item.state === 'reserved' && <input className="mt-0.5" form={form} type="checkbox" checked={selected.includes(item.orderItemId)}

@@ -86,7 +86,7 @@ describe('상품 선택창', () => {
   it('찾기 버튼을 누르기 전에는 선택창이 없고, 누르면 여러 개 고르는 공용 상품 선택창이 열린다', () => {
     expect(view().picker).toBeUndefined();
     const picker = open();
-    expect(picker.props).toMatchObject({ title: '추가구성상품 고르기', multiple: true, selectedKeys: ['g-a', 'g-b'] });
+    expect(picker.props).toMatchObject({ title: '추가구성상품 선택', multiple: true, selectedKeys: ['g-a', 'g-b'] });
     expect(picker.props.blockedReason).toBeNull();
   });
   it('이미 연결한 상품은 막지 않고(선택됨), 지금 편집 중인 상품과 50개가 찬 뒤의 다른 상품은 이유와 함께 막는다', () => {

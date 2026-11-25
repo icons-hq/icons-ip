@@ -53,15 +53,15 @@ export function parseGoodsDisplayOrderSlotRequest(value: unknown): { order: numb
 export function displayOrderBefore(row: Pick<GoodsDisplayOrderRow, 'order' | 'previousOrder'>): { order: number } | { reason: string } {
   if (row.order <= 0) return { reason: '더 앞 번호 없음' };
   if (row.previousOrder !== null && row.previousOrder >= row.order) return { reason: '같은 번호가 앞에 있음' };
-  if (row.previousOrder !== null && row.previousOrder >= row.order - 1) return { reason: '앞 번호가 차 있음' };
+  if (row.previousOrder !== null && row.previousOrder >= row.order - 1) return { reason: '바로 앞 번호를 쓰는 상품이 있음' };
   return { order: row.order - 1 };
 }
 
 /** 번호 칸 아래 한 줄: 이 번호를 이미 쓰는 상품이 있는지 알려 준다. */
 export function displayOrderSlotReadback(slot: GoodsDisplayOrderSlot): string {
-  if (slot.total <= 0) return `${slot.order}번은 비어 있습니다.`;
+  if (slot.total <= 0) return `${slot.order}번은 아직 쓰는 상품이 없습니다.`;
   const rest = slot.total - slot.names.length;
-  return `이미 ${slot.order}번인 상품이 있습니다: ${slot.names.join(', ')}${rest > 0 ? ` 외 ${rest}개` : ''}. 번호가 같으면 앞뒤를 직접 정할 수 없습니다.`;
+  return `${slot.order}번은 이미 쓰는 상품이 있습니다(${slot.names.join(', ')}${rest > 0 ? ` 외 ${rest}개` : ''}). 번호가 같은 상품끼리는 앞뒤를 정할 수 없습니다.`;
 }
 /** '[이 앞에 두기]'로 넣은 번호를 그대로 두고 있을 때의 한 줄. */
 export function displayOrderAnchorReadback(anchor: { name: string; order: number }): string {

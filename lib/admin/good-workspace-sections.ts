@@ -155,7 +155,7 @@ export type GoodWorkspaceSectionsResult =
   | { ok: false; field: GoodWorkspaceErrorField; error: string };
 
 export const GOOD_WORKSPACE_SALE_PERIOD_PREORDER_CONFLICT = '판매기간과 예약판매는 함께 저장할 수 없습니다. 판매 시기에서 하나만 골라주세요.';
-export const GOOD_WORKSPACE_PRODUCTION_PREORDER_CONFLICT = "주문 후 제작을 쓰는 상품은 예약판매를 함께 저장할 수 없습니다. '주문 후 제작'에서 주문제작 사용을 끄거나 판매 시기를 바꿔주세요.";
+export const GOOD_WORKSPACE_PRODUCTION_PREORDER_CONFLICT = "주문 후 제작을 쓰는 상품은 예약판매를 함께 저장할 수 없습니다. '주문 후 제작'의 체크를 끄거나 판매 시기를 바꿔주세요.";
 
 /**
  * 화면 상태 + 현재 옵션 행 → 제출 JSON. 입력이 없는 섹션은 빼서 기존 저장과 같은 결과를 낸다.

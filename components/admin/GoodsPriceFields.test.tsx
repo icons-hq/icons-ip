@@ -111,7 +111,7 @@ describe('판매가·할인 입력', () => {
     expect(JSON.parse(instruction!)).toEqual({ mode: 'period', amount: 1000, startsAt: '2026-11-30T15:00:00.000Z', endsAt: '2026-12-07T15:00:00.000Z', expectedFingerprint: 'none' });
     expect(on.replace(/<[^>]+>/g, '')).toContain('기간 중 할인가 9,000원');
     /* 기간 결과 한 줄이 옵션별 같은 금액까지 말한다 — 시작 칸 아래에 따로 안내를 두지 않는다. */
-    expect(on.replace(/<[^>]+>/g, '')).toContain('그 밖에는 판매가 10,000원입니다. 옵션마다 같은 금액을 뺍니다.');
+    expect(on.replace(/<[^>]+>/g, '')).toContain('그 밖에는 판매가 10,000원에 팝니다. 옵션마다 같은 금액을 뺍니다.');
     expect(on).not.toContain('goods-discount-start-hint');
     /* 기간을 끄면 기간 입력은 검증·제출에서 빠지고 복구용 값만 남는다. 지시는 none이다. */
     const off = render({ discountEnabled: true, discountValue: '1000', periodEnabled: false, periodStartsAt: '2026-12-01T00:00' }, NEW_GOOD_INSTANT_DISCOUNT);
@@ -144,11 +144,11 @@ describe('판매가·할인 입력', () => {
   });
 
   /* 2026-10-07 QA: 10%로 저장한 할인을 다시 열면 1,200원으로 보여, 판매가를 바꿔도 할인율이 따라가지 않는 것을 몰랐다. */
-  it('할인 칸 도움말은 %로 넣어도 원 금액으로 남는다는 것과 판매가를 바꾸면 할인을 다시 확인하라는 것을 두 문장으로 안내한다', () => {
+  it('할인 칸 도움말은 %로 넣어도 원 단위 금액으로 바뀐다는 것과 판매가를 바꾸면 할인을 다시 확인하라는 것을 두 문장으로 안내한다', () => {
     const html = render({ discountEnabled: true, discountValue: '10', discountUnit: 'percent' });
     const hint = html.slice(html.indexOf('id="goods-discount-value-hint"'));
     /* ADM-004 #74: 도움말은 두 문장이다. */
-    expect(hint.slice(0, hint.indexOf('</'))).toContain('%로 넣어도 저장하면 원 금액으로 남습니다. 판매가를 바꾸면 할인도 다시 확인해주세요.');
+    expect(hint.slice(0, hint.indexOf('</'))).toContain('%로 넣어도 저장하면 원 단위 금액으로 바뀝니다. 판매가를 바꾸면 할인도 다시 확인해주세요.');
     expect(hint.slice(hint.indexOf('>') + 1, hint.indexOf('</')).split('. ').length).toBe(2);
   });
 

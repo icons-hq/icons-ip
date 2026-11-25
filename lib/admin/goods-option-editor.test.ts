@@ -195,7 +195,7 @@ describe('옵션목록 선택·일괄수정·재고 합계', () => {
     expect(goodsOptionRemovalNotice([])).toBeNull();
     expect(goodsOptionRemovalNotice([saved])).toBe(`옵션(빨강)을 목록에서 뺍니다. ${GOODS_OPTION_REMOVAL_NOTE}`);
     expect(goodsOptionRemovalNotice([saved, fresh, stopped])).toBe(`옵션 3개(빨강, 파랑, 노랑)를 목록에서 뺍니다. ${GOODS_OPTION_REMOVAL_NOTE}`);
-    expect(GOODS_OPTION_REMOVAL_NOTE).toBe('주문·장바구니에 쓰인 옵션은 지워지지 않고 사용 중지로 남고, 한 번도 주문되지 않은 옵션은 재고와 함께 지워집니다. 상품을 저장해야 반영됩니다.');
+    expect(GOODS_OPTION_REMOVAL_NOTE).toBe('주문이나 장바구니에 쓰인 옵션은 지워지지 않고 사용 중지로 남습니다. 쓰인 적 없는 옵션은 재고와 함께 지워집니다. 상품을 저장해야 반영됩니다.');
     expect(GOODS_OPTION_STOP_PANEL_TITLE).toBe('옵션 사용 중지·다시 사용');
   });
 

@@ -475,11 +475,11 @@ export function preorderMutationError(message: string): string {
     preorder_policy_immutable: '저장한 예약 조건은 바꿀 수 없습니다. [새 예약 접수 중지]를 누른 뒤 새 예약 조건을 저장해주세요.',
     preorder_runtime_not_ready: '예약판매 기능을 준비 중입니다. 아직 저장할 수 없습니다.',
     /* 판매 시기 선택이 화면에서 먼저 막는다. 다른 창에서 그사이 판매기간·주문 후 제작을 저장했을 때만 여기까지 온다. */
-    goods_sale_period_preorder_conflict: "이 상품에 판매기간이 저장돼 있어 예약판매를 저장할 수 없습니다. 판매 시기에서 '예약판매'를 고르고 상품을 먼저 저장한 뒤 다시 저장해주세요.",
-    production_preorder_conflict: "주문 후 제작을 쓰는 상품은 예약판매를 함께 쓸 수 없습니다. '주문 후 제작'에서 주문제작 사용을 끄고 저장한 뒤 다시 저장해주세요.",
+    goods_sale_period_preorder_conflict: "이 상품에 판매기간이 저장돼 있어 예약판매를 저장할 수 없습니다. 판매 시기에서 '예약판매'를 고르고 상품을 먼저 저장한 뒤 예약판매를 다시 저장해주세요.",
+    production_preorder_conflict: "주문 후 제작을 쓰는 상품은 예약판매를 함께 쓸 수 없습니다. '주문 후 제작'의 체크를 끄고 저장한 뒤 예약판매를 다시 저장해주세요.",
     goods_variant_inactive: '사용 중지한 옵션에는 예약판매를 저장할 수 없습니다. [저장된 예약 조건 새로고침]을 누른 뒤 사용 중인 옵션만 다시 저장해주세요.',
     goods_variant_not_found: '그사이 옵션이 바뀌었습니다. 화면을 새로고침한 뒤 예약할 옵션을 다시 확인하고 저장해주세요.',
-    invalid_preorder_bulk: '저장 요청의 형식이 맞지 않습니다. 화면을 새로고침한 뒤 접수 기간·발송 예정일·옵션별 예약 물량을 다시 확인하고 저장해주세요.',
+    invalid_preorder_bulk: '입력한 내용을 저장하지 못했습니다. 화면을 새로고침한 뒤 접수 기간·발송 예정일·옵션별 예약 물량을 다시 확인하고 저장해주세요.',
     preorder_allocations_pending: '입고 확인 전인 예약 주문이 남아 있어 일반 재고 판매로 전환할 수 없습니다. 예약 주문 목록에서 입고 확인을 하거나 주문을 취소한 뒤 다시 전환해주세요.',
     preorder_physical_stock_changed: '그사이 옵션 재고수량이 바뀌었습니다. [예약 주문 새로고침]을 누른 뒤 재고수량을 확인하고 다시 입고 확인해주세요.',
     preorder_physical_stock_shortfall: '선택한 예약 주문 수량이 옵션 재고수량보다 많습니다. 선택을 줄이거나 재고 조정으로 재고수량을 맞춘 뒤 다시 입고 확인해주세요.',
@@ -487,7 +487,7 @@ export function preorderMutationError(message: string): string {
     preorder_reservation_released: '취소된 예약 품목이 선택에 있습니다. [예약 주문 새로고침]을 누른 뒤 취소된 품목을 빼고 다시 입고 확인해주세요.',
     random_preorder_options_mismatch: '판매 중인 옵션이나 예약 상태가 바뀌었습니다. [저장된 예약 조건 새로고침]을 누른 뒤 모든 옵션을 다시 확인해주세요.',
     random_option_required: '랜덤 판매 상품에서만 모든 옵션을 한 번에 예약할 수 있습니다. 판매 방식을 확인해주세요.',
-    invalid_random_preorder: '저장 요청의 형식이 맞지 않습니다. 화면을 새로고침한 뒤 접수 기간·발송 예정일·옵션별 예약 물량을 다시 확인하고 저장해주세요.',
+    invalid_random_preorder: '입력한 내용을 저장하지 못했습니다. 화면을 새로고침한 뒤 접수 기간·발송 예정일·옵션별 예약 물량을 다시 확인하고 저장해주세요.',
     'order cancellation in progress': '취소·반품·교환 요청이 진행 중인 주문이 선택에 있습니다. 그 요청을 먼저 처리하거나 그 주문을 빼고 다시 입고 확인해주세요.',
     'order fulfillment hold': '출고 보류 중인 주문(결제 확인 필요)이 선택에 있습니다. "출고 보류" 표시가 붙은 주문을 빼고 다시 입고 확인해주세요.',
   };

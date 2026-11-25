@@ -252,12 +252,12 @@ describe('GoodSection', () => {
     expect(draftHtml).toContain('모델·옵션·고시정보를 수정하면 실제 상품과 검토 근거가 달라질 수 있어 초안 전환과 KC 재검토가 필요합니다.');
     /* R13·D6②·T15b — 등록 화면은 KC와 나머지 설정을 기본 입력과 함께 저장하고, [실제 등록]으로 바로 공개한다(2026-11-19 저장 버튼 둘). 순서·재검토 조건은 한 문장이다. */
     const create = save(renderGoodSection(null));
-    const sentence = '[실제 등록]은 공개 조건과 KC를 모두 채웠으면 저장하면서 바로 공개하고, 공개 조건에 막히면 초안으로 저장해 두고 이유를 알려 줍니다. KC를 검토 완료로 저장한 뒤에도 상품명·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토해야 합니다.';
+    const sentence = '[실제 등록]을 누르면 저장하면서 바로 공개합니다. 공개 조건이나 KC가 덜 채워졌으면 초안으로 저장해 두고 이유를 알려 줍니다. KC 검토를 마친 뒤에도 상품명·IP·상품정보제공고시(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토해야 합니다.';
     expect(create).toContain(sentence);
-    /* 2026-11-25: 한 문장에 담던 것을 둘로 나눴다(공개 흐름 · KC 재검토). 개발 말('서버가 막으면')을 쓰지 않는다. */
-    expect(sentence.match(/다\.|줍니다\./g)).toHaveLength(2);
+    /* 2026-11-25: 한 문장에 담던 것을 셋으로 나눴다(누르면 일어나는 일 · 막혔을 때 · KC 재검토). 개발 말('서버가 막으면')을 쓰지 않는다. */
+    expect(sentence.match(/다\./g)).toHaveLength(3);
     expect(create).not.toContain('서버가 막으면');
-    expect(create).toContain('함께 저장할 설정(판매 방식·기간 할인·추가 구성·사은품·A/S·사이즈·색상칩·할인·배송비·묶음그룹·정기배송·수령 방식·제작·공급가)을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다. 재고 조정, 옵션 사용 중지·다시 사용, 상품 복사, 상품 보관·복원만 저장한 뒤 같은 자리에서 합니다.');
+    expect(create).toContain('이 화면에 입력한 내용은 KC·예약판매와 아래 ‘상품과 함께 저장할 설정’까지 한 번에 저장합니다. 하나라도 저장하지 못하면 아무것도 저장되지 않고 입력은 그대로 남습니다. 재고 조정, 옵션 사용 중지·다시 사용, 상품 복사, 상품 보관·복원만 저장한 뒤 같은 자리에서 합니다.');
     /* 저장 안내를 열지 않아도 다음 단계가 보인다. [실제 등록]은 늘 있고, 필수 입력이 남았으면 누를 때 알린다(제출하지 않는다). */
     expect(create).toContain('data-good-next-step="">[실제 등록]을 누르면 저장과 함께 바로 공개합니다. 필수 입력이 남아 있으면 그때 알려 드립니다. [임시저장]은 고객 화면에 보이지 않습니다.');
     expect(create).toMatch(/data-good-register-button=""[^>]*value="publish"[^>]*>실제 등록</);
@@ -578,8 +578,8 @@ describe('GoodSection', () => {
     const groups = [...hub.matchAll(/<details[^>]*data-good-operation-group="([a-z]+)"[^>]*>/g)];
     expect(groups.map((match) => match[1])).toEqual(['sales', 'benefits', 'delivery', 'manage', 'rare']);
     for (const group of groups) expect(group[0]).not.toContain('open=""');
-    expect(hub).toContain('항목마다 따로 저장합니다. 위 기본 정보는 함께 저장되지 않습니다.');
-    expect(hub.split('위 기본 정보는 함께 저장되지 않습니다.')).toHaveLength(2);
+    expect(hub).toContain('항목마다 따로 저장합니다. 위에서 고친 상품 내용은 함께 저장되지 않습니다.');
+    expect(hub.split('위에서 고친 상품 내용은 함께 저장되지 않습니다.')).toHaveLength(2);
     expect(hub.indexOf('data-good-operation-group="sales"')).toBeLessThan(hub.indexOf('id="good-operation-stock"'));
     expect(hub.indexOf('id="good-operation-stock"')).toBeLessThan(hub.indexOf('data-good-operation-group="benefits"'));
   });
@@ -653,7 +653,7 @@ describe('GoodSection', () => {
     const body = (id: string) => { const start = saved.indexOf(`id="good-operation-${id}"`); const end = saved.indexOf('</summary>', start); return saved.slice(end, saved.indexOf('</details>', end)); };
     const descriptions = (id: string) => [...body(id).matchAll(/^<\/summary><div[^>]*><p class="text-sm text-muted-foreground">([^<]*)<\/p>/g)].map((match) => match[1]);
     expect(descriptions('variants')).toEqual(['사용 중지한 옵션은 판매에서 빠지고, [다시 사용]을 누르면 다시 팔립니다.']);
-    expect(descriptions('costs')).toEqual(['공급처에서 사 오는 옵션 1개의 값입니다. 관리자만 보고 고칠 수 있습니다.']);
+    expect(descriptions('costs')).toEqual(['옵션 1개를 공급처에서 사 오는 가격입니다. 관리자만 보고 고칠 수 있습니다.']);
     for (const id of ['stock', 'listing-colors', 'additional', 'after-sales', 'transaction-terms', 'shipping-charge-group', 'subscription-policy', 'fulfillment', 'production', 'option-sale-mode', 'archive']) {
       expect(descriptions(id), id).toEqual([]);
     }

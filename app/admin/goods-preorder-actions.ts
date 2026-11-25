@@ -113,7 +113,7 @@ export async function saveRandomGoodsPreordersAction(goodIdValue: unknown, state
   if (!auth) return { ok: false, error: STAFF_REQUIRED };
   const goodId = id(goodIdValue);
   const request = parseRandomPreorderRequest(stateValue, valuesValue, optionsValue);
-  if (!goodId || !request) return { ok: false, error: '저장 요청의 형식이 맞지 않습니다. 화면을 새로고침한 뒤 접수 기간·발송 예정일·옵션별 예약 물량을 다시 확인하고 저장해주세요.' };
+  if (!goodId || !request) return { ok: false, error: '입력한 내용을 저장하지 못했습니다. 화면을 새로고침한 뒤 접수 기간·발송 예정일·옵션별 예약 물량을 다시 확인하고 저장해주세요.' };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_save_random_goods_preorders', {

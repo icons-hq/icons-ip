@@ -67,13 +67,13 @@ const OPERATION = {
   publish: ['게시 상태', '공개하면 고객이 상품을 볼 수 있고, 초안으로 돌리면 고객 화면에서 사라집니다.'],
   variants: ['옵션 사용 중지·다시 사용', '사용 중지한 옵션은 판매에서 빠지고, [다시 사용]을 누르면 다시 팔립니다.'],
   kc: ['KC 정보', 'KC 인증 대상인지 고르고, 대상이면 인증 종류·번호와 모델을 입력합니다. 검토를 마쳐야 공개할 수 있습니다.'],
-  costs: ['공급가(매입단가)', '공급처에서 사 오는 옵션 1개의 값입니다. 관리자만 보고 고칠 수 있습니다.'],
+  costs: ['공급가(매입단가)', '옵션 1개를 공급처에서 사 오는 가격입니다. 관리자만 보고 고칠 수 있습니다.'],
   'listing-colors': ['목록 색상칩', ''],
   additional: [adminGoodsCopy('추가 구성 상품'), ''],
-  benefits: ['사은품·이벤트 안내', '상품 상세에 보이는 안내입니다. 제공 조건은 설명에 적고, 사은품 재고와 출고는 따로 챙겨 주세요.'],
+  benefits: ['사은품·이벤트 안내', '상품 상세에 보이는 안내입니다. 받는 조건은 사은품 설명에 적고, 사은품 재고와 출고는 따로 챙겨야 합니다.'],
   'after-sales': ['A/S 안내·판매자 특이사항', ''],
-  'size-chart': ['사이즈 안내', '상품의 측정 치수입니다. 사이즈 이름은 구매 옵션과 따로 적습니다.'],
-  prices: ['기간 할인', '정한 기간 동안 옵션을 기간 할인가로 팝니다. 저장하면 바로 적용됩니다.'],
+  'size-chart': ['사이즈 안내', '상품의 치수를 표로 보여 줍니다. 표의 사이즈 이름은 구매 옵션과 따로 적습니다.'],
+  prices: ['기간 할인', '정한 기간에만 옵션을 기간 할인가로 팝니다. 저장하면 바로 적용됩니다.'],
   'transaction-terms': ['복수구매 할인·착불·수량별 배송비', ''],
   'shipping-charge-group': ['배송비 묶음그룹', ''],
   'subscription-policy': ['정기배송', ''],
@@ -331,7 +331,7 @@ export function GoodSection({
         {selected ? <section aria-labelledby="good-operation-hub-title" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" data-good-operation-hub="saved">
           <div className="flex flex-col gap-1">
             <h3 className="text-base leading-snug font-medium" id="good-operation-hub-title">이어서 설정</h3>
-            <p className="text-muted-foreground">항목마다 따로 저장합니다. 위 기본 정보는 함께 저장되지 않습니다.</p>
+            <p className="text-muted-foreground">항목마다 따로 저장합니다. 위에서 고친 상품 내용은 함께 저장되지 않습니다.</p>
           </div>
           {OPERATION_GROUPS.map((group) => {
             const visible = group.operations.filter((id) => operationPanels[id]);

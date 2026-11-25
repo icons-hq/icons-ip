@@ -147,7 +147,7 @@ const GoodPreviewContent = memo(function GoodPreviewContent({ detail, ip, shippi
   return (
       <div className="flex min-w-0 flex-col gap-4 border-t px-4 py-4 sm:px-5 sm:py-5">
         <p className="text-sm text-muted-foreground">
-          지금 입력한 내용으로 그린 화면입니다. 미리보기를 열어도 저장된 상품은 바뀌지 않습니다. KC 표는 검토를 마치고 저장한 내용만 나옵니다.
+          지금 입력한 내용이 고객 화면에 어떻게 보일지 미리 봅니다. 저장하기 전에는 실제 상품이 바뀌지 않습니다. KC 표에는 검토를 마치고 저장한 내용만 나옵니다.
           {periodNote ? ` ${periodNote}` : ''}
         </p>
         <div className="flex min-w-0 flex-col gap-2">
@@ -209,7 +209,7 @@ const SHARED_QUANTITY_FIELDS = ['orderQuantityLimitEnabled','minOrderQty','maxOr
  */
 const STOCK_EFFECT = {
   ok: '정상으로 판매합니다. 재고수량이 0이 되면 자동으로 품절로 보입니다.',
-  low: '구매는 그대로 되고, 장바구니에 남은 재고가 보입니다. 재고가 줄어도 자동으로 바뀌지 않아 직접 고릅니다.',
+  low: '그대로 살 수 있고, 장바구니에 남은 재고 수가 보입니다. 재고가 줄어도 이 상태로 자동으로 바뀌지는 않아 직접 골라야 합니다.',
   soldout: '재고가 있어도 고객 화면에 품절로 보이고 살 수 없습니다. 다시 팔려면 정상 판매로 바꿉니다.',
 } satisfies Record<keyof typeof ADMIN_STOCK_LABELS, string>;
 
@@ -592,7 +592,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const showRemainingCount = showPublishProgress && remaining.length > 0 && !(kcIsNextStep && remaining.length === 1 && remaining[0].key === 'kc');
   const nextStep: ReactNode = selected?.archivedAt ? null : published ? <span className="inline-flex items-center gap-1 text-warning"><AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />[실제 등록]을 누르면 공개 중인 상품 화면에 바로 반영됩니다. 반영하지 않고 보관만 하려면 [임시저장]을 누릅니다.</span>
     : kcIsNextStep ? <>KC 검토를 마쳐야 [실제 등록]으로 공개할 수 있습니다. 그 전에는 [임시저장]으로 저장합니다. {kcLink}</>
-    : kcContextChanged ? '바꾼 상품명·IP·고시정보나 옵션을 저장하면 KC를 다시 검토해야 공개할 수 있습니다. 지금은 [임시저장]으로 저장합니다.'
+    : kcContextChanged ? '바꾼 상품명·IP·상품정보제공고시나 옵션을 저장하면 KC를 다시 검토해야 공개할 수 있습니다. 지금은 [임시저장]으로 저장합니다.'
     : remaining.length ? '[실제 등록]을 누르면 저장과 함께 바로 공개합니다. 필수 입력이 남아 있으면 그때 알려 드립니다. [임시저장]은 고객 화면에 보이지 않습니다.'
     /* 새 상품은 서버가 공개를 막아도 래퍼가 초안으로 저장해 둔다. 저장된 상품은 KC 밖의 이유로 막히면 저장도 되돌린다(입력은 화면에 남는다). */
     : !selected ? '[실제 등록]을 누르면 저장과 함께 바로 공개합니다. 공개 조건에 막히면 초안으로 저장해 두고 이유를 알려 드립니다.'
@@ -635,7 +635,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <OwnedFields locked={groupOwned} fields={['categoryId']} values={initial}><GoodCategoryField categories={categories} primary={categoryId} onPrimaryChange={setCategoryId} error={errors.categoryId} /></OwnedFields>
         </div>
         {/* TKT-009: 잠금 안내의 버튼 하나 → 확인창 1회 → 바로 초안 전환·잠금 해제. 판매 준비 카드의 초안으로 되돌리기와 같은 서버 계약이다. */}
-        {locked && selected && <div className="flex min-w-0 flex-col gap-2" data-good-lock=""><AdminNotice title="공개 중 잠금: 상품명·연결 IP·제조자·제조국·소재·크기" tone="neutral">KC 검토를 받은 상품과 화면 내용이 어긋나지 않도록 잠가 두었습니다. 고치려면 [초안으로 전환 후 수정]을 누르세요. 고친 뒤에는 KC를 다시 검토해야 공개할 수 있습니다.</AdminNotice>
+        {locked && selected && <div className="flex min-w-0 flex-col gap-2" data-good-lock=""><AdminNotice title="공개 중 잠금: 상품명·연결 IP·제조자·제조국·소재·크기" tone="neutral">KC 검토를 받은 상품과 화면 내용이 어긋나지 않도록 잠가 두었습니다. 고치려면 [초안으로 전환 후 수정]을 누릅니다. 고친 뒤에는 KC를 다시 검토해야 공개할 수 있습니다.</AdminNotice>
           <div><GoodDraftSwitch id={selected.id} disabled={pending || draftBusy || Boolean(selected.archivedAt)} /></div></div>}
         {justUnpublished && !locked ? <div data-good-unlocked=""><AdminNotice tone="info" title="초안으로 전환했습니다"><span role="status">고객 화면에서 내려갔고 잠긴 항목을 고칠 수 있습니다. 저장한 뒤 KC를 다시 검토해야 공개할 수 있습니다.</span></AdminNotice></div> : null}
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -650,7 +650,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           ADM-004(복잡도 표 190행): 용어 도움말은 고르는 동안(연결 IP·대표 카테고리가 비어 있을 때)만 보인다. 입력칸이 아니라 안내 문구라 ADM-004 "복잡함 줄이기"
           지시 범위다 — 묶음 10의 "펼친 채로" 원칙은 입력 섹션 대상이라 여기에 걸리지 않는다(오케스트레이터 판단, T15a 리뷰).
         */}
-        {!locked && !groupOwned && (!values.ipId || !categoryId) ? <p className="-mt-2 text-xs text-muted-foreground" data-good-identity-help="">연결 IP는 상품이 속한 브랜드·작품입니다. 카테고리는 고객이 쇼핑몰에서 상품을 찾는 분류이고, 대표 카테고리를 골라야 공개할 수 있습니다.</p> : null}
+        {!locked && !groupOwned && (!values.ipId || !categoryId) ? <p className="-mt-2 text-xs text-muted-foreground" data-good-identity-help="">연결 IP는 상품이 속한 브랜드·작품입니다. 대표 카테고리를 골라야 공개할 수 있습니다.</p> : null}
         {canOpenIp && values.ipId && <a className="w-fit text-sm underline underline-offset-4" href={`/admin/catalog/ips/${encodeURIComponent(values.ipId)}`} target="_blank" rel="noreferrer">연결 IP의 공개 상태 확인 (새 탭)</a>}
         <div className="min-w-0 scroll-mt-24 outline-none" id="good-section-attributes" tabIndex={-1}>
           <OwnedFields locked={groupOwned} fields={[]} values={initial}><GoodsAttributeEditor categoryId={categoryId} goodId={selected?.id ?? null} initialSubmission={initial.productAttributes} initialDraft={initial.productAttributeDraft} error={errors.productAttributes} onChange={onAttributeChange} onRequiredMissing={setMissingAttributes} /></OwnedFields>
@@ -694,7 +694,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         <OwnedFields locked={groupOwned} fields={['description','descriptionFormat']} values={initial}>
           <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서 (상세페이지 소스)</option></SelectField>
           <div className="flex min-w-0 flex-col gap-3 rounded-lg border p-4" data-good-html-tools="" hidden={!htmlDescription}>
-            <p className="text-sm text-muted-foreground">다른 판매처의 상세페이지 HTML을 그대로 붙여넣을 수 있습니다. 스크립트와 임의 CSS는 지워집니다.</p>
+            <p className="text-sm text-muted-foreground">다른 판매처의 상세페이지 HTML을 그대로 붙여넣을 수 있습니다. 스크립트와 CSS는 지워집니다.</p>
             <div className="flex flex-wrap gap-2">
               <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" onClick={() => insertDescription('<h2>제목</h2>\n')} type="button">제목 넣기</button>
               <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" onClick={() => insertDescription('<p>문단 내용</p>\n')} type="button">문단 넣기</button>
@@ -704,12 +704,12 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             <GoodsDescriptionTools accountId={accountId} formRef={editorRef} disabled={groupOwned || !htmlDescription || pending || draftBusy || Boolean(selected?.archivedAt)} />
           </div>
           <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? `상세페이지 HTML (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)` : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? undefined : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
-          {descriptionWarnings.length > 0 && <div data-good-html-review=""><AdminNotice role="status" title="저장 전 확인: 입력한 원문은 그대로 남고, 아래 미리보기의 결과가 저장됩니다." tone="warning"><ul className="flex list-disc flex-col gap-1 pl-5 wrap-anywhere">{descriptionWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></AdminNotice></div>}
+          {descriptionWarnings.length > 0 && <div data-good-html-review=""><AdminNotice role="status" title="저장 전 확인: 아래 미리보기에 보이는 내용으로 저장됩니다. 입력한 원문은 편집 칸에 그대로 남아 있습니다." tone="warning"><ul className="flex list-disc flex-col gap-1 pl-5 wrap-anywhere">{descriptionWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></AdminNotice></div>}
           <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" data-good-html-tools="" disabled={!htmlDescription} hidden={!htmlDescription}>
             <ArtworkUploadField autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="올린 뒤 이미지 설명을 적고 [업로드한 이미지를 설명에 넣기]를 누릅니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
             <Field defaultValue={initial.descriptionImageAlt} label="이미지 설명 (선택)" name="descriptionImageAlt" maxLength={300} placeholder="예: 빨간 실이 감긴 아크릴 키링 앞면" />
             <button className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" onClick={() => insertDescription()} type="button">업로드한 이미지를 설명에 넣기</button>
-            <p className="text-sm text-muted-foreground">https 이미지 주소는 올리지 않아도 그대로 쓰이며, 그 주소의 이미지를 바꾸면 상세페이지도 바뀝니다. http 주소는 https로 바꿔 저장합니다. 이미지는 최대 20장입니다.</p>
+            <p className="text-sm text-muted-foreground">https 이미지 주소는 올리지 않고 HTML에 그대로 써도 되며, 그 주소의 이미지를 바꾸면 상세페이지도 바뀝니다. http 주소는 https로 바꿔 저장합니다. 올린 이미지는 최대 20장까지 넣을 수 있습니다.</p>
           </fieldset>
         </OwnedFields>
         {/* 2026-11-19 MD 요청: 긴 상세 이미지는 썸네일처럼 여러 장(최대 10장)을 올리고 순서를 바꾼다. 첫 칸 이름은 옛 한 장 칸(detailImagePath) 그대로다. */}
@@ -774,14 +774,14 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <div className="fixed right-(--admin-content-inset) bottom-(--admin-content-inset) left-(--admin-content-left) z-20 grid min-w-0 grid-cols-1 items-center gap-x-4 gap-y-1.5 border-t bg-background px-4 py-2 after:pointer-events-none md:gap-y-2 md:py-3 after:absolute after:inset-x-0 after:top-full after:h-(--admin-content-inset) after:bg-sidebar md:px-6 xl:grid-cols-[minmax(10rem,1fr)_auto] print:hidden" role="group" aria-label="기본 상품 저장" data-good-workspace-save="">
         <div className="flex min-w-0 flex-col gap-0.5">
           <GoodWorkspaceDetails stateId="good-save-info" className="group/save-info relative min-w-0" data-good-save-info="" onKeyDown={(event) => { if (event.key === 'Escape' && event.currentTarget.open) { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }}><summary className="flex w-fit cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"><strong className="text-sm font-medium" role="status">{statusLabel}</strong><span className="text-xs text-muted-foreground underline underline-offset-4">저장 안내</span></summary>
-            <div className="absolute bottom-[calc(100%+1.25rem)] left-0 z-30 flex w-[min(32.5rem,calc(100vw-2rem))] flex-col gap-2 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-md [&>p]:text-muted-foreground"><p>{atomicSections ? '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매, 아래 함께 저장할 설정(판매 방식·기간 할인·추가 구성·사은품·A/S·사이즈·색상칩·할인·배송비·묶음그룹·정기배송·수령 방식·제작·공급가)을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다. 재고 조정, 옵션 사용 중지·다시 사용, 상품 복사, 상품 보관·복원만 저장한 뒤 같은 자리에서 합니다.'
+            <div className="absolute bottom-[calc(100%+1.25rem)] left-0 z-30 flex w-[min(32.5rem,calc(100vw-2rem))] flex-col gap-2 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-md [&>p]:text-muted-foreground"><p>{atomicSections ? '이 화면에 입력한 내용은 KC·예약판매와 아래 ‘상품과 함께 저장할 설정’까지 한 번에 저장합니다. 하나라도 저장하지 못하면 아무것도 저장되지 않고 입력은 그대로 남습니다. 재고 조정, 옵션 사용 중지·다시 사용, 상품 복사, 상품 보관·복원만 저장한 뒤 같은 자리에서 합니다.'
               : '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건만 저장합니다. KC·재고 조정·혜택은 각 영역에서 별도 저장합니다.'}</p>
-            <p>{!selected ? '[임시저장]은 내 계정에 최대 40건을 보관하고 고객 화면에는 보이지 않습니다. 올리기를 마친 이미지와 입력값을 나중에 불러올 수 있습니다.'
+            <p>{!selected ? '[임시저장]은 내 계정에 최대 40건까지 보관하고 고객 화면에는 보이지 않습니다. 올린 이미지와 입력한 내용을 나중에 불러올 수 있습니다.'
               : published ? '공개 중인 상품의 [임시저장]은 입력을 이 브라우저에만 보관하고 고객 화면은 바꾸지 않습니다.'
-              : '[임시저장]은 상품을 고객 화면에 보이지 않는 상태로 저장합니다.'} 브라우저 자동 복구도 함께 유지됩니다.</p>
-            {dirty && <p>브라우저 복구 기록은 이 브라우저에만 남아 저장한 것이 아닙니다. KC·예약판매·함께 저장할 설정 입력은 복구되지 않습니다.</p>}
+              : '[임시저장]은 상품을 고객 화면에 보이지 않는 상태로 저장합니다.'} [임시저장]을 누르지 않아도 입력은 이 브라우저에 자동으로 보관됩니다.</p>
+            {dirty && <p>브라우저 복구 기록은 이 브라우저에만 남습니다. 상품을 저장한 것은 아닙니다. KC·예약판매·함께 저장할 설정 입력은 복구되지 않습니다.</p>}
             {/* ADM-004(복잡도 표 25·27행): 등록 화면의 순서 안내는 한 문장으로 줄이고, 저장된 초안의 순서는 판매 준비 카드(다음 할 일·판매 준비 안내)가 말한다. */}
-            {atomicSections ? <p>[실제 등록]은 공개 조건과 KC를 모두 채웠으면 저장하면서 바로 공개하고, 공개 조건에 막히면 초안으로 저장해 두고 이유를 알려 줍니다. KC를 검토 완료로 저장한 뒤에도 상품명·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토해야 합니다.</p> : null}
+            {atomicSections ? <p>[실제 등록]을 누르면 저장하면서 바로 공개합니다. 공개 조건이나 KC가 덜 채워졌으면 초안으로 저장해 두고 이유를 알려 줍니다. KC 검토를 마친 뒤에도 상품명·IP·상품정보제공고시(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토해야 합니다.</p> : null}
             </div>
           </GoodWorkspaceDetails>
           {nextStep ? <p className="text-xs text-muted-foreground" data-good-next-step="">{nextStep}</p> : null}

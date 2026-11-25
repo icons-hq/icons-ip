@@ -21,11 +21,11 @@ export function GoodCopySourceDialog({ accountId, blocked, onClose }: { accountI
   return <AdminGoodsPicker
     accountId={accountId}
     blockedReason={blocked ? '현재 입력을 저장하는 중이라 지금은 고를 수 없습니다. 저장이 끝난 뒤 다시 열어주세요.' : null}
-    description="보관하지 않은 상품을 등록일 최신순으로 20개씩 보여 줍니다. [복사 설정]을 누르면 그 상품의 복사 설정으로 이동하고, 거기서 [새 초안으로 복사]를 눌러야 새 상품이 만들어집니다. 복사한 상품은 재고 0으로 시작하고 KC를 다시 검토합니다."
+    description="[복사 설정]을 누르면 그 상품의 복사 설정으로 이동하고, 거기서 [새 초안으로 복사]를 눌러야 새 상품이 만들어집니다. 복사한 상품은 재고 0으로 시작하고 KC를 다시 검토해야 합니다. 보관한 상품은 목록에 나오지 않습니다."
     onClose={onClose}
     onSelect={() => undefined}
     rowAction={(good, { busy }) => busy
-      ? <span className="text-xs text-muted-foreground">잠시만요</span>
+      ? <span className="text-xs text-muted-foreground">불러오는 중</span>
       : <Link aria-label={`${good.name} 복사 설정 열기`} className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={`/admin/catalog/goods?goodId=${encodeURIComponent(good.id)}#good-operation-clone`} onClick={onClose} prefetch={false}>복사 설정</Link>}
     title="복사할 상품 선택"
   />;

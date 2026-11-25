@@ -13,7 +13,7 @@ export async function listGoodsDisplayOrderAction(input: unknown): Promise<{ ok:
   const auth = await requireAdminActionAccess(GOODS_DISPLAY_ORDER_PATH);
   if (!auth?.user) return { ok: false, error: '상품을 편집할 권한이 필요합니다.' };
   const request = parseGoodsDisplayOrderRequest(input);
-  if (!request) return { ok: false, error: '조회 조건을 확인해주세요.' };
+  if (!request) return { ok: false, error: '검색어가 너무 깁니다. 100자 안으로 줄여 다시 검색해주세요.' };
   try { return { ok: true, data: await listGoodsDisplayOrder(request) }; }
   catch (error) { unstable_rethrow(error); return { ok: false, error: GOODS_DISPLAY_ORDER_LOOKUP_ERROR }; }
 }
@@ -26,7 +26,7 @@ export async function readGoodsDisplayOrderSlotAction(input: unknown): Promise<{
   const auth = await requireAdminActionAccess(GOODS_DISPLAY_ORDER_PATH, { onUnauthenticated: 'error' });
   if (!auth?.user) return { ok: false, error: '상품을 편집할 권한이 필요합니다.' };
   const request = parseGoodsDisplayOrderSlotRequest(input);
-  if (!request) return { ok: false, error: '조회 조건을 확인해주세요.' };
+  if (!request) return { ok: false, error: '진열 순서는 0 이상의 숫자로 넣어주세요.' };
   try { return { ok: true, slot: await readGoodsDisplayOrderSlot(request.order, request.goodId) }; }
   catch (error) { unstable_rethrow(error); return { ok: false, error: GOODS_DISPLAY_ORDER_LOOKUP_ERROR }; }
 }

@@ -27,7 +27,7 @@ export function GoodsClaimPolicyFields({ values, current, errors, returnAddresse
   return <GoodFoldedRow title="반품·교환" id="good-section-claims" isDefault={CLAIM_FIELDS.every((name) => !live[name]?.trim())}
     summary={`반품 ${claimLabel(live.claimReturnAllowed)} · 교환 ${claimLabel(live.claimExchangeAllowed)} · 반품지 ${selectedPlace?.name ?? '출고지 반품 주소'}`}
     errorCount={Object.keys(errors ?? {}).filter(key => key.startsWith('claim')).length}>
-    <p className="text-sm text-muted-foreground">여기 적은 조건과 금액은 상품 상세에 보이는 안내입니다. 실제 청구나 환불 차감에는 쓰지 않고, 반품배송비 차감은 따로 정한 정책 금액을 씁니다.</p>
+    <p className="text-sm text-muted-foreground">여기 적은 조건과 금액은 상품 상세에 보이는 안내입니다. 실제로 받거나 환불에서 빼는 금액이 아닙니다. 환불에서 빼는 반품배송비는 따로 정한 정책 금액을 씁니다.</p>
     <AdminFormGrid>
       {(['claimReturnAllowed', 'claimExchangeAllowed'] as const).map((name) => <SelectField key={name} defaultValue={values[name]} error={errors?.[name]} name={name} label={name === 'claimReturnAllowed' ? '반품 조건' : '교환 조건'}>
         <option value="">미검토 · 기본 정책 확인</option><option value="true">기본 정책에 따라 가능</option><option value="false">제한 사유와 개별 확인 필요</option>

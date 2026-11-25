@@ -12,7 +12,7 @@ import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GoodAmo
 import { StableNumberInput } from './StableNumberInput';
 
 /* ADM-004 #74: 두 문장. 서버는 판매가·할인가만 저장해 할인 단위가 남지 않으므로 다시 열면 원으로 보인다. */
-const DISCOUNT_HINT = '%로 넣어도 저장하면 원 금액으로 남습니다. 판매가를 바꾸면 할인도 다시 확인해주세요.';
+const DISCOUNT_HINT = '%로 넣어도 저장하면 원 단위 금액으로 바뀝니다. 판매가를 바꾸면 할인도 다시 확인해주세요.';
 
 const KST = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 const at = (value: string) => KST.format(new Date(value));
@@ -116,18 +116,18 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, instant
         </label>
         <div className="flex min-w-0 flex-col gap-3" data-good-price-period="" hidden={periodOff}>
           <div className="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-2">
-            <AdminField inputId="goods-discount-start" label="할인 시작 · KST" error={periodError}>
+            <AdminField inputId="goods-discount-start" label="할인 시작 (KST)" error={periodError}>
               <input ref={startRef} className={GOOD_INPUT_CLASS} data-slot="input" id="goods-discount-start" name="discountStartsAt" type="datetime-local" disabled={periodOff || locked} required
                 aria-describedby={periodError ? 'goods-discount-start-error' : undefined} aria-invalid={periodError ? 'true' : undefined}
                 value={draft.periodStartsAt ?? ''} onChange={(event) => change({ periodStartsAt: event.target.value })} />
             </AdminField>
-            <AdminField inputId="goods-discount-end" label="할인 종료 · KST">
+            <AdminField inputId="goods-discount-end" label="할인 종료 (KST)">
               <input className={GOOD_INPUT_CLASS} data-slot="input" id="goods-discount-end" name="discountEndsAt" type="datetime-local" disabled={periodOff || locked} required
                 aria-invalid={periodError ? 'true' : undefined} value={draft.periodEndsAt ?? ''} onChange={(event) => change({ periodEndsAt: event.target.value })} />
             </AdminField>
           </div>
           {result.period && result.regularPrice !== null
-            ? <p className="text-sm text-muted-foreground tabular-nums" data-good-price-period-result="">{at(result.period.startsAt)} ~ {at(result.period.endsAt)} 할인가 {formatWon(result.regularPrice - result.period.amount)}, 그 밖에는 판매가 {formatWon(result.regularPrice)}입니다. 옵션마다 같은 금액을 뺍니다.</p>
+            ? <p className="text-sm text-muted-foreground tabular-nums" data-good-price-period-result="">{at(result.period.startsAt)} ~ {at(result.period.endsAt)}에는 할인가 {formatWon(result.regularPrice - result.period.amount)}, 그 밖에는 판매가 {formatWon(result.regularPrice)}에 팝니다. 옵션마다 같은 금액을 뺍니다.</p>
             : null}
         </div></> : null}
       </div>

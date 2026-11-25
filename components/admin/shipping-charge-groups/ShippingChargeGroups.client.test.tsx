@@ -248,7 +248,7 @@ it('조회 실패는 선택을 해제하거나 무료배송으로 바꾸지 않�
 });
 it('출고지와 다른 그룹이 골라져 있으면 알리고 다시 고르거나 해제하게 한다', () => {
   mode = 'field'; const { group } = chargeAdminFixtures(); fieldProps = { ...fieldProps, value: group.id, selectedGroup: { ...group, originId: ids.other } };
-  render(); effects(); expect(text(node())).toContain('고른 그룹의 출고지가 지금 출고지와 다릅니다. 같은 출고지의 그룹을 다시 고르거나 배정을 해제해주세요.');
+  render(); effects(); expect(text(node())).toContain('고른 그룹의 출고지가 지금 출고지와 다릅니다. 같은 출고지의 그룹을 다시 고르거나 [묶음그룹 배정 해제]를 눌러주세요.');
 });
 
 /* 요약 상자는 고른 그룹의 뜻을 말과 예시 금액으로 보이고, 저장 버전·내부 번호는 보이지 않는다(화면 규칙 8). */

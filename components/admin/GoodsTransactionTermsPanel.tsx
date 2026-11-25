@@ -121,9 +121,9 @@ export function GoodsDeliveryRuleFields({ value, onChange }: { value: GoodsTerms
         <GoodChoiceOption name={`${name}-payment`} value="collect" checked={fields.paymentMode === 'collect'} onChange={() => patch('paymentMode', 'collect')}>착불</GoodChoiceOption>
         <GoodChoiceOption name={`${name}-payment`} value="buyer_choice" checked={fields.paymentMode === 'buyer_choice'} onChange={() => patch('paymentMode', 'buyer_choice')}>구매자 선택</GoodChoiceOption>
       </GoodChoiceGroup>
-      {fields.paymentMode !== 'prepaid' ? <p className={GOOD_NOTE_CLASS} data-good-collect-note="">착불은 출고지에서 착불을 받을 준비가 돼 있어야 저장할 수 있습니다. <a className="underline underline-offset-4" href="/admin/settings/origins" target="_blank" rel="noreferrer">배송정보 관리</a>에서 출고지의 착불 조건을 먼저 준비하세요. 착불 배송비는 온라인 환불에 포함되지 않습니다.</p> : null}
+      {fields.paymentMode !== 'prepaid' ? <p className={GOOD_NOTE_CLASS} data-good-collect-note="">착불은 출고지에서 착불을 받을 준비가 돼 있어야 저장할 수 있습니다. <a className="underline underline-offset-4" href="/admin/settings/origins" target="_blank" rel="noreferrer">배송정보 관리</a>에서 출고지의 착불 조건을 먼저 준비해주세요. 착불 배송비는 온라인 환불에 포함되지 않습니다.</p> : null}
       <GoodChoiceCards legend="수량별 배송비" help={GOOD_FIELDS_B_HELP.quantityShipping}>
-        {kindCard('existing', '사용 안 함', '개수와 관계없이 상품의 배송비 그대로 받습니다.')}
+        {kindCard('existing', '사용 안 함', '개수와 관계없이 상품의 배송비를 그대로 받습니다.')}
         {kindCard('repeat', '수량마다 반복', '정한 개수마다 배송비를 다시 받습니다.', KIND_EXAMPLES.repeat)}
         {kindCard('tier2', '2구간', '개수가 한 구간을 넘으면 배송비를 더 받습니다.', KIND_EXAMPLES.tier2)}
         {kindCard('tier3', '3구간', '개수가 두 구간을 차례로 넘을 때마다 배송비를 더 받습니다.', KIND_EXAMPLES.tier3)}

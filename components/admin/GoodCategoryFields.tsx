@@ -136,13 +136,13 @@ export function GoodAdditionalCategoryField({ categories, primary, value, error 
       const category = categories.find((item) => item.id === id);
       return <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm" key={id}>
         <span className="min-w-0 wrap-anywhere">{category?.archivedAt ? '보관됨 · ' : ''}{category ? categoryPath(categories, id).join(' > ') : UNKNOWN_CATEGORY}</span>
-        <button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" aria-label={`${category?.name ?? UNKNOWN_CATEGORY} 추가 카테고리 해제`} onClick={() => setAdditional((current) => current.filter((item) => item !== id))}>해제</button>
+        <button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" aria-label={`${category?.name ?? UNKNOWN_CATEGORY} 추가 카테고리에서 빼기`} onClick={() => setAdditional((current) => current.filter((item) => item !== id))}>빼기</button>
       </div>;
     })}
     <div><button aria-haspopup="dialog" className={buttonVariants({ variant: 'outline' })} data-slot="button" id="good-additional-category" onClick={() => setOpen(true)} type="button">카테고리 추가</button></div>
     {open ? <AdminPickerDialog<CategoryPickerRow>
       emptyText="일치하는 카테고리가 없습니다."
-      excludedNote={primary ? '대표 카테고리, 하위 카테고리가 있거나 보관한 카테고리는 목록에서 뺐습니다.' : '하위 카테고리가 있거나 보관한 카테고리는 목록에서 뺐습니다.'}
+      excludedNote={primary ? '대표 카테고리와, 하위 카테고리가 있거나 보관한 카테고리는 목록에서 뺐습니다.' : '하위 카테고리가 있거나 보관한 카테고리는 목록에서 뺐습니다.'}
       load={load}
       multiple
       onClose={() => setOpen(false)}

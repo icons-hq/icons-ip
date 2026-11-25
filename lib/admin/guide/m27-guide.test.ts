@@ -159,7 +159,7 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
 
   it('등록 화면 한 번에 저장과 저장 뒤 항목(상태를 바꾸는 4개)을 안내한다(R13·D6②·T15b 1027T-024)', () => {
     const editor = repoFile('components/admin/GoodEditor.tsx');
-    expect(editor).toContain('기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매, 아래 함께 저장할 설정');
+    expect(editor).toContain('이 화면에 입력한 내용은 KC·예약판매와 아래 ‘상품과 함께 저장할 설정’까지 한 번에 저장합니다.');
     /* T15b: 저장 전에도 나머지 설정을 입력해 함께 저장한다. 저장 뒤에만 하는 것은 재고 조정·옵션 사용 중지·다시 사용·상품 복사·상품 보관·복원이다. */
     expect(repoFile('components/admin/sections/GoodSection.tsx')).toContain('상품과 함께 저장할 설정');
     expect(text).toContain('상품과 함께 저장할 설정 카드의 입력');

@@ -32,7 +32,7 @@ export function GoodsProductionFields({ draft, onChange, idPrefix = 'production'
     {lead ? <GoodReadback>상품 상세에는 &lsquo;결제 확인 후 {lead} 내 발송 예정입니다. 배송 기간은 별도입니다.&rsquo;로 보입니다. 결제 확인 당일은 세지 않고, 마지막 날 자정(KST) 전까지가 발송 예정 기한입니다.</GoodReadback> : null}
    </> : null}
    <AdminField label="설정 근거 (관리자만 봄)" inputId={`${idPrefix}-evidence`}><input className={GOOD_INPUT_CLASS} data-slot="input" id={`${idPrefix}-evidence`} minLength={2} maxLength={1000} required placeholder="예: 제작 업체 납기가 영업일 5일입니다" value={draft.evidence} onChange={e => onChange({ ...draft, evidence: e.target.value })} /></AdminField>
-   <label className={CHECK_LABEL_CLASS}><input type="checkbox" checked={draft.confirmed} onChange={e => onChange({ ...draft, confirmed: e.target.checked })} required />위 발송 예정 기간과, 제작을 시작한 뒤 취소는 담당자가 검토한다는 점을 확인했습니다.</label>
+   <label className={CHECK_LABEL_CLASS}><input type="checkbox" checked={draft.confirmed} onChange={e => onChange({ ...draft, confirmed: e.target.checked })} required />위 발송 예정 기간이 맞고, 제작을 시작한 뒤의 취소는 담당자가 검토한다는 것을 확인했습니다.</label>
  </>;
 }
 /** showDisabledReason=false면 잠금 이유 문장을 본문에 그리지 않는다(상품 편집기가 패널 위에 공통 잠금 안내를 보일 때). 잠금은 disabledReason이 맡는다. */

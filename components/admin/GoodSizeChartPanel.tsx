@@ -62,7 +62,7 @@ export function GoodSizeChartPanel({ goodId, accountId }: { goodId: string; acco
     busy.current = false; if (!mounted.current) return; setPending(false);
     if (result.ok) {
       setSnapshot(result.value); setValues(result.value.values); setBaseRevision(result.value.revision); setLatest(null); setConflict(false); setUncertain(false); setError(false);
-      request.current = null; local.discard(); setMessage(result.value.values.enabled ? '사이즈 안내를 저장했습니다.' : '고객 화면에는 표시하지 않습니다. 작성한 표는 보존했습니다.');
+      request.current = null; local.discard(); setMessage(result.value.values.enabled ? '사이즈 안내를 저장했습니다.' : '고객 화면에는 표시하지 않습니다. 작성한 표는 그대로 보관했습니다.');
       if (replaying && !current) setMessage('이전 저장 요청의 완료를 확인했습니다. 최신 저장본은 다시 조회해주세요.');
       if (current && current.revision !== result.value.revision) {
         setLatest(current); setConflict(true); local.capture({ baseRevision: result.value.revision, values: result.value.values, request: null }, true);

@@ -114,7 +114,7 @@ describe('지금 순서 보기', () => {
   it('한 칸 앞 번호가 비어 있지 않은 줄은 버튼 대신 이유를 보인다', () => {
     const picker = openPicker();
     const reason = (entry: GoodsDisplayOrderRow) => { const action = picker.props.rowAction(entry, { busy: false }) as Element; return action.type === 'span' ? text(action.props.children as ReactNode) : 'button'; };
-    expect(reason(row('hw-a', 5, 4))).toBe('앞 번호가 차 있음');
+    expect(reason(row('hw-a', 5, 4))).toBe('바로 앞 번호를 쓰는 상품이 있음');
     expect(reason(row('hw-b', 5, 5))).toBe('같은 번호가 앞에 있음');
     expect(reason(row('hw-c', 0, null))).toBe('더 앞 번호 없음');
     expect(reason(row('hw-d', 5, 3))).toBe('button');
@@ -162,12 +162,12 @@ describe('번호를 쓰는 상품 되읽기', () => {
     await vi.advanceTimersByTimeAsync(1);
     expect(mocks.slot).toHaveBeenCalledWith({ order: 7, goodId: 'hw-self' });
     await vi.advanceTimersByTimeAsync(0);
-    expect(view().readback).toEqual(['이미 7번인 상품이 있습니다: 키링, 스티커. 번호가 같으면 앞뒤를 직접 정할 수 없습니다.']);
+    expect(view().readback).toEqual(['7번은 이미 쓰는 상품이 있습니다(키링, 스티커). 번호가 같은 상품끼리는 앞뒤를 정할 수 없습니다.']);
   });
   it('아무도 쓰지 않는 번호는 비어 있다고 알린다', async () => {
     mocks.slot.mockResolvedValue({ ok: true, slot: { order: 8, names: [], total: 0 } });
     type('8'); view(); effects(); await vi.advanceTimersByTimeAsync(400);
-    expect(view().readback).toEqual(['8번은 비어 있습니다.']);
+    expect(view().readback).toEqual(['8번은 아직 쓰는 상품이 없습니다.']);
   });
   it('새 상품은 제외할 상품 없이 묻는다', async () => {
     props = { defaultValue: null, goodId: null };

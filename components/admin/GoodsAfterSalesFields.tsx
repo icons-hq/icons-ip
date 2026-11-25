@@ -35,7 +35,7 @@ function AfterSalesPhonePrefill({ phone, onFill }: { phone: string; onFill: (pho
   /* 이 칸은 고시의 A/S 연락처와 따로 저장된다. 고시 번호로 미리 채웠을 때는 그 사실을 같은 줄에서 말한다. */
   const same = Boolean(suggestion) && phone.trim() === suggestion;
   return <span className="contents" ref={marker}>
-    <small className="text-xs text-muted-foreground" data-goods-after-sales-prefill={same ? '' : undefined}>{same ? '상품정보고시의 A/S 연락처와 같은 번호입니다. 이 칸은 따로 저장됩니다.' : '상품정보고시의 A/S 전화번호와는 따로 저장됩니다.'}</small>
+    <small className="text-xs text-muted-foreground" data-goods-after-sales-prefill={same ? '' : undefined}>{same ? '상품정보제공고시의 A/S 연락처와 같은 번호입니다. 이 칸은 따로 저장됩니다.' : '상품정보제공고시의 A/S 연락처와는 따로 저장됩니다.'}</small>
   </span>;
 }
 

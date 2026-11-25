@@ -106,7 +106,7 @@ describe('공급가 섹션', () => {
   it('안내는 두 문장 이내로 줄이고 세금 처리 "?"는 첫 줄에만 단다', () => {
     workspace.optionRows = rows;
     const tree = GoodWorkspacePurchaseCostsSection({});
-    expect(text(nodes(tree).find(node => node.type === 'p')!.props.children as ReactNode)).toBe('공급처에서 사 오는 옵션 1개의 값입니다. 금액과 세금 처리는 함께 넣거나 함께 비웁니다. 0원도 넣을 수 있습니다.');
+    expect(text(nodes(tree).find(node => node.type === 'p')!.props.children as ReactNode)).toBe('옵션 1개를 공급처에서 사 오는 가격입니다. 금액과 세금 처리는 함께 넣거나 함께 비웁니다. 0원도 넣을 수 있습니다.');
     const labels = nodes(tree).filter(node => node.type === AdminLabelWithHelp);
     expect(labels.map(node => node.props.help)).toEqual([GOOD_PICKERS_B_HELP.purchaseTaxBasis, undefined]);
     expect(labels.map(node => node.props.label)).toEqual(['세금 처리', '세금 처리']);
@@ -226,12 +226,12 @@ describe('나머지 섹션의 안내 글', () => {
     const fulfillment = (draft.type as (props: unknown) => ReactNode)(draft.props);
     const fulfillmentLegend = nodes(fulfillment).find(node => node.type === 'legend')!;
     expect([fulfillmentLegend.props.className, text(fulfillmentLegend.props.children as ReactNode)]).toEqual(['sr-only', '상품 제공 방식']);
-    expect(intro(fulfillment)).toEqual(['택배만 쓰면 바꿀 것이 없습니다. 다른 수령 방식을 쓰려면 아래 근거 칸과 확인 체크도 채워야 합니다.']);
-    expect(intro(production)).toEqual(['쓰지 않으면 바꿀 것이 없습니다. 쓰려면 아래 근거 칸과 확인 체크도 채워야 합니다.']);
+    expect(intro(fulfillment)).toEqual(['택배만 쓰면 바꿀 것이 없습니다. 다른 수령 방식을 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.']);
+    expect(intro(production)).toEqual(['쓰지 않으면 바꿀 것이 없습니다. 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.']);
   });
   it('사이즈 안내: 저장된 상품의 패널과 같은 이름(고객 화면 표시·표시 안 함·템플릿에서 가져오기)을 쓴다', () => {
     const tree = GoodWorkspaceSizeChartSection({});
-    expect(intro(tree)).toEqual(['상품의 측정 치수를 표로 보여 줍니다. 사이즈 이름은 구매 옵션과 이어지지 않습니다.']);
+    expect(intro(tree)).toEqual(['상품의 치수를 표로 보여 줍니다. 표의 사이즈 이름은 구매 옵션과 따로 적습니다.']);
     const all = nodes(tree);
     expect(all.filter(node => node.type === Label).map(node => text(node.props.children as ReactNode))).toEqual(['고객 화면 표시']);
     expect(all.filter(node => node.type === 'option').map(node => text(node.props.children as ReactNode))).toEqual(['표시 안 함 · 표는 그대로 보관', '표시']);
@@ -240,10 +240,10 @@ describe('나머지 섹션의 안내 글', () => {
   });
   it('기간 할인: 입력이 없을 때 따로 말하지 않고 안내는 한 줄이다', () => {
     const tree = GoodWorkspacePricePeriodsSection({});
-    expect(intro(tree)).toEqual(['정한 기간 동안 옵션을 기간 할인가로 팝니다. 같은 옵션의 기간은 겹칠 수 없습니다.']);
+    expect(intro(tree)).toEqual(['정한 기간에만 옵션을 기간 할인가로 팝니다. 같은 옵션의 기간은 겹칠 수 없습니다.']);
   });
   it('사은품: 두 문장 이내', () => {
-    expect(intro(GoodWorkspaceBenefitsSection({}))).toEqual(['상품 상세에 보이는 안내입니다. 사은품 재고와 출고는 따로 준비해야 합니다.']);
+    expect(intro(GoodWorkspaceBenefitsSection({}))).toEqual(['상품 상세에 보이는 안내입니다. 사은품 재고와 출고는 따로 챙겨야 합니다.']);
   });
   it('화면에 쓰지 않는 표현(개발 용어·번역투·내부 값·옛 이름)이 없다', () => {
     workspace.optionRows = [{ name: '빨강', attributes: { 색상: '빨강' } }];

@@ -51,7 +51,7 @@ describe('상품 편집기 본문 문구', () => {
   it('판매상태를 고르면 고객 화면과 구매에서 달라지는 점을 한 줄로 말한다', () => {
     const effect = (stock: string) => text(between(render({ ...good, stock: stock as AdminGoodRecord['stock'] }), 'data-good-stock-effect=""', '</p>'));
     expect(effect('ok')).toContain('정상으로 판매합니다. 재고수량이 0이 되면 자동으로 품절로 보입니다.');
-    expect(effect('low')).toContain('구매는 그대로 되고, 장바구니에 남은 재고가 보입니다. 재고가 줄어도 자동으로 바뀌지 않아 직접 고릅니다.');
+    expect(effect('low')).toContain('그대로 살 수 있고, 장바구니에 남은 재고 수가 보입니다. 재고가 줄어도 이 상태로 자동으로 바뀌지는 않아 직접 골라야 합니다.');
     expect(effect('soldout')).toContain('재고가 있어도 고객 화면에 품절로 보이고 살 수 없습니다. 다시 팔려면 정상 판매로 바꿉니다.');
     /* 선택지 이름은 가이드·엑셀과 같다. */
     const html = render(good);
@@ -81,8 +81,8 @@ describe('상품 편집기 본문 문구', () => {
   it('HTML 상세설명 안내는 필요한 사실만 두 줄로 줄였고, 이미지 설명은 무엇인지 예시로 보인다', () => {
     const html = render(good, { values: { previousId: good.id, descriptionFormat: 'html', description: '<p>본문</p>' } });
     const tools = between(html, 'data-good-html-tools=""', 'id="good-section-notice"');
-    expect(text(tools)).toContain('다른 판매처의 상세페이지 HTML을 그대로 붙여넣을 수 있습니다. 스크립트와 임의 CSS는 지워집니다.');
-    expect(text(tools)).toContain('https 이미지 주소는 올리지 않아도 그대로 쓰이며, 그 주소의 이미지를 바꾸면 상세페이지도 바뀝니다. http 주소는 https로 바꿔 저장합니다. 이미지는 최대 20장입니다.');
+    expect(text(tools)).toContain('다른 판매처의 상세페이지 HTML을 그대로 붙여넣을 수 있습니다. 스크립트와 CSS는 지워집니다.');
+    expect(text(tools)).toContain('https 이미지 주소는 올리지 않고 HTML에 그대로 써도 되며, 그 주소의 이미지를 바꾸면 상세페이지도 바뀝니다. http 주소는 https로 바꿔 저장합니다. 올린 이미지는 최대 20장까지 넣을 수 있습니다.');
     expect(text(tools).match(/최대 20장/g)).toHaveLength(1);
     expect(tools).toContain('이미지 설명 (선택)');
     expect(tools).toContain('placeholder="예: 빨간 실이 감긴 아크릴 키링 앞면"');
@@ -98,7 +98,7 @@ describe('상품 편집기 본문 문구', () => {
 
   it('미리보기는 짧은 안내만 두고, 특정기간 할인이 시작 전이면 할인이 아직 안 나오는 까닭을 알린다', () => {
     const base = render(good);
-    expect(text(base)).toContain('지금 입력한 내용으로 그린 화면입니다. 미리보기를 열어도 저장된 상품은 바뀌지 않습니다. KC 표는 검토를 마치고 저장한 내용만 나옵니다.');
+    expect(text(base)).toContain('지금 입력한 내용이 고객 화면에 어떻게 보일지 미리 봅니다. 저장하기 전에는 실제 상품이 바뀌지 않습니다. KC 표에는 검토를 마치고 저장한 내용만 나옵니다.');
     expect(text(base)).not.toContain('KC 검토가 풀려');
     expect(text(base)).not.toContain('할인 시작 전이라');
     const future = render({ ...good, instantDiscount: period('2099-01-01T00:00:00Z', '2099-02-01T00:00:00Z') });

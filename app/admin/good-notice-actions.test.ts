@@ -48,6 +48,6 @@ describe('고른 상품의 고시정보 읽기(loadGoodNoticeOf)', () => {
   });
   it('읽기에 실패해도 내부 사정 없이 다시 시도하라고만 알린다', async () => {
     mocks.goodNotice.mockRejectedValue(new Error('secret provider state'));
-    expect(await loadGoodNoticeOf('good-a')).toEqual({ error: '고시정보를 불러오지 못했습니다. 다시 시도해주세요.' });
+    expect(await loadGoodNoticeOf('good-a')).toEqual({ error: '상품정보제공고시를 불러오지 못했습니다. 다시 시도해주세요.' });
   });
 });

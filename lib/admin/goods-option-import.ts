@@ -57,7 +57,7 @@ export class GoodsOptionImportError extends Error {
 export type GoodsOptionImportProblem = 'no_active' | 'no_options' | 'mixed' | 'axis_limit' | 'axis_mismatch' | 'duplicate' | 'too_many' | 'unreadable';
 export function goodsOptionImportProblemMessage(problem: GoodsOptionImportProblem, count = 0): string {
   switch (problem) {
-    case 'no_active': return `이 상품은 옵션이 모두 사용 중지돼 있어 불러올 옵션이 없습니다. 그 상품의 '${GOODS_OPTION_STOP_PANEL_TITLE}'에서 옵션을 다시 사용으로 바꾼 뒤 불러와 주세요.`;
+    case 'no_active': return `이 상품은 옵션이 모두 사용 중지돼 있어 불러올 옵션이 없습니다. 그 상품의 '${GOODS_OPTION_STOP_PANEL_TITLE}'에서 [다시 사용]을 누른 뒤 불러와 주세요.`;
     case 'no_options': return '이 상품은 옵션 없이 파는 상품이라 불러올 옵션이 없습니다. 다른 상품을 골라 주세요.';
     case 'mixed': return '이 상품에는 옵션값이 없는 옵션이 섞여 있어 불러올 수 없습니다. 그 상품의 옵션목록에서 옵션값이 없는 옵션을 사용 중지하거나 삭제한 뒤 불러와 주세요.';
     case 'axis_limit': return `이 상품은 옵션명이 ${GOODS_OPTION_AXIS_LIMIT}개를 넘어 불러올 수 없습니다. 그 상품의 옵션명을 ${GOODS_OPTION_AXIS_LIMIT}개 이하로 줄인 뒤 불러와 주세요.`;

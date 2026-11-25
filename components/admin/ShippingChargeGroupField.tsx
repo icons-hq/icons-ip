@@ -118,7 +118,7 @@ export function ShippingChargeGroupField({ identity, originId, value, onChange, 
     {name ? <input type="hidden" name={name} value={value ?? ''} /> : null}
     <ShippingChargeGroupSummary group={selected} ownerGoodId={ownerGoodId} inherited={readOnly} manageLink example />
     {!originId ? <p className="text-muted-foreground">출고지를 먼저 고르면 그 출고지의 그룹을 고를 수 있습니다.</p> : null}
-    {mismatch ? <p className="text-destructive wrap-anywhere" role="alert">고른 그룹의 출고지가 지금 출고지와 다릅니다. 같은 출고지의 그룹을 다시 고르거나 배정을 해제해주세요.</p> : null}
+    {mismatch ? <p className="text-destructive wrap-anywhere" role="alert">고른 그룹의 출고지가 지금 출고지와 다릅니다. 같은 출고지의 그룹을 다시 고르거나 [묶음그룹 배정 해제]를 눌러주세요.</p> : null}
     {error || loadedGroup?.error ? <p className="text-destructive wrap-anywhere" role="alert">{error || loadedGroup?.error}</p> : null}
     {!readOnly ? <div className="flex min-w-0 flex-wrap items-center gap-2 print:hidden">
       <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked} aria-haspopup="dialog"
@@ -136,7 +136,7 @@ export function ShippingChargeGroupField({ identity, originId, value, onChange, 
       rowKey={(group) => group.id}
       rowView={rowView}
       searchPlaceholder="그룹 이름"
-      title="배송비 묶음그룹 고르기"
+      title="배송비 묶음그룹 선택"
     /> : null}
   </div>;
 }

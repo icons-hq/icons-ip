@@ -19,7 +19,7 @@ export function GoodsListingColorFields({ colors, onChange }: { colors: GoodsCol
       <span className="text-xs text-muted-foreground">상품 카드 모습</span>
       <ul aria-label="상품 색상" className="m-0 flex list-none flex-wrap gap-1.5 p-0">{named.map((chip, index) => <li key={`${chip.label}:${index}`} title={chip.label}><span aria-hidden="true" className="block size-3.5 rounded-full border border-input" style={{ backgroundColor: chip.hex }} /><span className="sr-only">{chip.label}</span></li>)}</ul>
     </div> : null}
-    <p className="text-xs text-muted-foreground" data-good-listing-color-display="">고객 목록에는 전시 설정에서 &lsquo;컬러칩 표시&rsquo;를 켜야 보입니다. <a className="underline underline-offset-4" href={STORE_PRESENTATION_PATH} target="_blank" rel="noreferrer">전시 설정 열기 ↗</a></p>
+    <p className="text-xs text-muted-foreground" data-good-listing-color-display="">고객 화면의 상품 목록에는 전시 설정에서 &lsquo;컬러칩 표시&rsquo;를 켜야 보입니다. <a className="underline underline-offset-4" href={STORE_PRESENTATION_PATH} target="_blank" rel="noreferrer">전시 설정 열기 ↗</a></p>
   </>;
 }
 export function GoodsListingColorsPanel({ goodId }: { goodId: string }) {
@@ -34,7 +34,7 @@ export function GoodsListingColorsPanel({ goodId }: { goodId: string }) {
   async function save() {
     if (pending || revision === null) return;
     const parsed = parseGoodsColorChips(colors.map(chip => ({ label: chip.label.trim(), hex: chip.hex.toLowerCase() })));
-    if (!parsed) { setError(true); setMessage('색 이름은 서로 다르게 1~30자로 적고, 색은 최대 20개까지 등록해주세요.'); return; }
+    if (!parsed) { setError(true); setMessage('색 이름은 서로 다르게 1~30자로 적어주세요. 색은 20개까지 넣을 수 있습니다.'); return; }
     request.current ??= { colors: parsed, revision, id: crypto.randomUUID() }; setPending(true);
     let result: GoodsListingColorsResult;
     try { result = await saveGoodsListingColorsAction(goodId, request.current.colors, request.current.revision, request.current.id); }

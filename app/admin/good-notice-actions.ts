@@ -29,5 +29,5 @@ export async function loadGoodNoticeOf(goodId: unknown): Promise<{ notice?: Good
   if (!validOptionImportGoodId(goodId)) return { error: '복사할 상품을 다시 골라주세요.' };
   try {
     return await loadGoodNoticeOfGood(goodId) ?? { error: '상품을 찾을 수 없습니다. 목록을 다시 열어 골라주세요.' };
-  } catch { return { error: '고시정보를 불러오지 못했습니다. 다시 시도해주세요.' }; }
+  } catch { return { error: '상품정보제공고시를 불러오지 못했습니다. 다시 시도해주세요.' }; }
 }

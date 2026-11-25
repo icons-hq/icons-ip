@@ -102,7 +102,7 @@ describe('주문 후 제작 입력', () => {
     expect(html).toContain('고객 안내 (선택)');
     expect(html).toContain('상품 상세·주문서·주문 상세에 보입니다.');
     expect(html).toMatch(/<input[^>]*id="p1-evidence"[^>]*required=""|<input[^>]*required=""[^>]*id="p1-evidence"/);
-    expect(html).toMatch(/<input type="checkbox"[^>]*required=""[^>]*\/>위 발송 예정 기간과/);
+    expect(html).toMatch(/<input type="checkbox"[^>]*required=""[^>]*\/>위 발송 예정 기간이 맞고/);
   });
 });
 

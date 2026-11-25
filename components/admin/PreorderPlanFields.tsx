@@ -70,13 +70,13 @@ export function PreorderPlanFields({ plan, onChange, targets, table, all = false
   async function fillAll(qty: string | null) {
     const manual = preorderPlanManualCapacities(plan, targets, qty, scope);
     if (manual > 0 && !await adminConfirm({ title: '예약 물량을 한꺼번에 바꿀까요?', confirmLabel: '바꾸기',
-      message: `직접 넣은 예약 물량 ${manual.toLocaleString('ko-KR')}개가 ${qty === null ? '재고수량으로' : `${Number(qty).toLocaleString('ko-KR')}개로`} 바뀝니다.` })) return;
+      message: `옵션 ${manual.toLocaleString('ko-KR')}개에 직접 넣은 예약 물량이 ${qty === null ? '재고수량으로' : `${Number(qty).toLocaleString('ko-KR')}개로`} 바뀝니다.` })) return;
     onChange((current) => fillPreorderPlanCapacity(current, targets, qty, scope));
   }
   async function togglePerOption(next: boolean) {
     const own = next ? 0 : preorderPlanOwnSchedules(plan, targets);
-    if (own > 0 && !await adminConfirm({ title: '모든 옵션을 같은 일정으로 바꿀까요?', confirmLabel: '같은 일정으로',
-      message: `옵션마다 넣은 일정 ${own.toLocaleString('ko-KR')}개가 사라지고 모든 옵션이 같은 일정을 씁니다.` })) return;
+    if (own > 0 && !await adminConfirm({ title: '모든 옵션을 같은 일정으로 바꿀까요?', confirmLabel: '같은 일정으로 바꾸기',
+      message: `옵션 ${own.toLocaleString('ko-KR')}개에 따로 넣은 일정이 사라지고, 모든 옵션이 같은 일정을 씁니다.` })) return;
     onChange((current) => setPreorderPlanPerOption(current, next));
   }
   const included = targets.filter((target) => entryByKey.has(target.key));

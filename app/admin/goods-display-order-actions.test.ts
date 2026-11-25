@@ -38,8 +38,8 @@ describe('진열 순서 읽기 액션', () => {
   });
 
   it('조건의 모양이 틀리면 읽지 않고 고칠 방법을 알린다', async () => {
-    expect(await listGoodsDisplayOrderAction({ query: '', page: 0 })).toEqual({ ok: false, error: '조회 조건을 확인해주세요.' });
-    expect(await readGoodsDisplayOrderSlotAction({ order: -1, goodId: null })).toEqual({ ok: false, error: '조회 조건을 확인해주세요.' });
+    expect(await listGoodsDisplayOrderAction({ query: '', page: 0 })).toEqual({ ok: false, error: '검색어가 너무 깁니다. 100자 안으로 줄여 다시 검색해주세요.' });
+    expect(await readGoodsDisplayOrderSlotAction({ order: -1, goodId: null })).toEqual({ ok: false, error: '진열 순서는 0 이상의 숫자로 넣어주세요.' });
     expect(mocks.list).not.toHaveBeenCalled();
     expect(mocks.slot).not.toHaveBeenCalled();
   });

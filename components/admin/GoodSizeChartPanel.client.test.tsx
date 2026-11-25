@@ -55,7 +55,7 @@ it('disables public display without clearing measurements', async () => {
   await mount(); all(render()).find(node => (node.type === 'select' || node.type === NativeSelect) && node.props.value === 'enabled')?.props.onChange?.({ target: { value: 'disabled' } });
   mocks.save.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 2, values: { enabled: false, chart } } }); submit(); await settle();
   expect(mocks.save.mock.calls[0][1]).toEqual({ enabled: false, chart });
-  expect(text(render())).toContain('작성한 표는 보존했습니다.');
+  expect(text(render())).toContain('작성한 표는 그대로 보관했습니다.');
 });
 it('recovers a pending operation after remount and compares the current table after an old receipt', async () => {
   const oldRequest = { values, revision: 1, operationId: '99300000-0000-4000-8000-000000000001' };

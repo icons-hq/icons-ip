@@ -15,7 +15,7 @@ import { AdminGoodsPicker, type AdminGoodsPickerRow } from './AdminGoodsPicker';
 
 type Preset = GoodsNoticePresetPageData['presets'][number];
 const NO_NAMES: readonly string[] = [];
-const EMPTY_NOTICE_MESSAGE = '이 상품에는 적어 둔 고시정보가 없습니다.';
+const EMPTY_NOTICE_MESSAGE = '이 상품에는 적어 둔 상품정보제공고시가 없습니다.';
 const KC_MESSAGE = ' KC 정보에도 유형 틀이 들어갑니다. 모델·옵션·번호·사업자는 직접 입력해주세요.';
 
 /** 템플릿 선택창의 조회. 서버가 이미 20개씩 나눠 준다. */
@@ -83,7 +83,7 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
   /** 7칸을 바꾸기 전 확인. 적어 둔 값이 하나도 없으면 묻지 않고, 폼을 못 찾으면 있다고 보고 묻는다. */
   async function confirmReplace(source: string): Promise<boolean> {
     if (filledNoticeFields(rootRef.current?.closest('form')) === 0) return true;
-    return adminConfirm({ title: '고시정보 바꾸기', message: `지금 적어 둔 고시정보 7개가 모두 ‘${source}’ 내용으로 바뀝니다.`, confirmLabel: '바꾸기' });
+    return adminConfirm({ title: '상품정보제공고시를 바꿀까요?', message: `지금 적어 둔 7개 칸이 모두 ‘${source}’ 내용으로 바뀝니다.`, confirmLabel: '바꾸기' });
   }
   /** 템플릿을 적용한다. 확인에서 취소하면 false라 선택창이 그대로 남는다. */
   async function applyPreset(preset: Preset): Promise<boolean> {
@@ -102,7 +102,7 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
     if (noticeIsBlank(result.notice)) { setCopyNotice(EMPTY_NOTICE_MESSAGE); return false; }
     if (!await confirmReplace(good.name)) return false;
     onApply(result.notice);
-    setMessage(`‘${good.name}’의 고시정보 7개 칸을 가져왔습니다.`);
+    setMessage(`‘${good.name}’의 7개 칸을 가져왔습니다.`);
     return true;
   }
   const shown = suggestion && suggestion.key === suggestKey && !readOnly ? suggestion : null;
@@ -123,7 +123,7 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
     </div>
     {message && <p className="text-sm text-foreground" role="status">{message}</p>}
     {dialog === 'templates' ? <AdminPickerDialog<Preset>
-      description="고르면 고시정보 7개 칸이 템플릿 내용으로 바뀝니다."
+      description="고르면 상품정보제공고시 7개 칸이 템플릿 내용으로 바뀝니다."
       emptyText="일치하는 템플릿이 없습니다."
       load={loadNoticePresets}
       onClose={closeDialog}
@@ -132,14 +132,14 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
       rowView={(preset) => noticePresetRowView(preset, copyKcTemplate)}
       searchPlaceholder="템플릿 이름으로 찾기"
       selectLabel="적용"
-      title="고시정보 템플릿 선택"
+      title="상품정보제공고시 템플릿 선택"
     /> : null}
     {dialog === 'copy' ? <AdminGoodsPicker
-      description="고른 상품의 고시정보 7개 칸을 가져옵니다."
+      description="고르면 상품정보제공고시 7개 칸이 그 상품의 내용으로 바뀝니다."
       footer={copyNotice ? <p className="text-sm text-destructive" role="alert">{copyNotice}</p> : null}
       onClose={closeDialog}
       onSelect={copyFromGood}
-      title="고시정보를 가져올 상품 선택"
+      title="상품정보제공고시를 가져올 상품 선택"
     /> : null}
   </div>;
 }

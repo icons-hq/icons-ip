@@ -65,12 +65,12 @@ export function goodSaleTimingCardStates({ mode, kind, saved, sections }: {
 }): { locked: boolean; cards: { value: GoodSaleTimingMode; title: string; description: string; checked: boolean; disabled: boolean; blockedReason?: string }[] } {
   const locked = kind === 'saved' && saved?.state !== 'ready';
   const linkedReason = kind === 'saved' && saved?.state === 'ready' && saved.linked > 0
-    ? `예약을 건 옵션이 있어 고를 수 없습니다. 아래 예약 조건에서 [${saved.stockSwitchLabel}]을 누르면 풀립니다.` : undefined;
+    ? `예약판매가 걸린 옵션이 있어 고를 수 없습니다. 아래 예약 조건에서 [${saved.stockSwitchLabel}]을 누르면 고를 수 있습니다.` : undefined;
   const blocked: Record<GoodSaleTimingMode, string | undefined> = {
     now: linkedReason,
     period: linkedReason,
     preorder: !kind ? '보관한 상품은 예약판매를 바꿀 수 없습니다.'
-      : kind === 'draft' && sections?.extras?.production?.enabled && !sections.preorderPlan ? "'주문 후 제작'을 쓰는 상품은 예약판매를 함께 쓸 수 없습니다. 아래 '주문 후 제작'에서 주문제작 사용을 끄면 고를 수 있습니다." : undefined,
+      : kind === 'draft' && sections?.extras?.production?.enabled && !sections.preorderPlan ? "'주문 후 제작'을 쓰는 상품은 예약판매를 함께 쓸 수 없습니다. 아래 '주문 후 제작'의 체크를 끄면 고를 수 있습니다." : undefined,
   };
   return { locked, cards: GOOD_SALE_TIMING_CHOICES.map(([value, title, description]) => ({ value, title, description, checked: mode === value,
     disabled: locked || (Boolean(blocked[value]) && mode !== value), blockedReason: blocked[value] })) };
@@ -117,7 +117,7 @@ export function GoodSaleTiming({ values, error, errorCount, onChange, preorderSl
         ? <GoodsSalePeriodFields values={values} error={error} onChange={onChange} />
         : <><input type="hidden" name="saleStartsAt" value={values.saleStartsAt ?? ''} /><input type="hidden" name="saleEndsAt" value={values.saleEndsAt ?? ''} />
           {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}</>}
-      {periodPending ? <p className={GOOD_NOTE_CLASS} data-good-sale-period-pending="" role="status">이 상품에는 판매기간이 저장돼 있습니다. 상품을 먼저 저장해 판매기간을 끈 뒤에 예약판매를 저장할 수 있습니다. 공개 중인 상품은 그사이 재고수량이 바로 팔립니다.</p> : null}
+      {periodPending ? <p className={GOOD_NOTE_CLASS} data-good-sale-period-pending="" role="status">이 상품에는 판매기간이 저장돼 있습니다. 먼저 상품을 저장해 판매기간을 없앤 뒤에 예약판매를 저장할 수 있습니다. 공개 중인 상품은 그 사이에 지금 재고수량으로 바로 팔립니다.</p> : null}
       {/* 예약판매 입력은 이름이 없고 소속 폼을 뗐다(GOOD_DETACHED_FORM_ID). Enter로 상품이 저장되지 않게 막고, 자동복구는 이 안의 입력을 수정으로 세지 않는다. */}
       {preorderSlot ? <div className="contents" data-good-preorder-slot="" onKeyDown={(event) => { if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.preventDefault(); }}>{preorderSlot}</div> : null}
     </GoodEditorSubsection>

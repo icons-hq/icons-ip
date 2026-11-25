@@ -126,7 +126,7 @@ describe('판매 시기 — 고를 수 없는 카드는 이유와 푸는 방법�
     expect(linked.locked).toBe(false);
     for (const value of ['now', 'period']) {
       expect(card(linked, value)).toMatchObject({ disabled: true, checked: false });
-      expect(card(linked, value).blockedReason).toBe('예약을 건 옵션이 있어 고를 수 없습니다. 아래 예약 조건에서 [일반 재고 판매로 전환]을 누르면 풀립니다.');
+      expect(card(linked, value).blockedReason).toBe('예약판매가 걸린 옵션이 있어 고를 수 없습니다. 아래 예약 조건에서 [일반 재고 판매로 전환]을 누르면 고를 수 있습니다.');
     }
     expect(card(linked, 'preorder')).toMatchObject({ disabled: false, checked: true, blockedReason: undefined });
     /* 랜덤 판매는 모든 옵션 묶음 버튼 이름을 든다. */
@@ -147,7 +147,7 @@ describe('판매 시기 — 고를 수 없는 카드는 이유와 푸는 방법�
     const production = { ...EMPTY_GOOD_WORKSPACE_SECTIONS, extras: { production: { ...emptyGoodWorkspaceProduction(), enabled: true } } };
     const states = goodSaleTimingCardStates({ mode: 'now', kind: 'draft', sections: production });
     expect(card(states, 'preorder')).toMatchObject({ disabled: true });
-    expect(card(states, 'preorder').blockedReason).toContain("아래 '주문 후 제작'에서 주문제작 사용을 끄면 고를 수 있습니다.");
+    expect(card(states, 'preorder').blockedReason).toContain("아래 '주문 후 제작'의 체크를 끄면 고를 수 있습니다.");
     expect(card(states, 'period').disabled).toBe(false);
     expect(goodSaleTimingCardStates({ mode: 'now', kind: 'draft', sections: EMPTY_GOOD_WORKSPACE_SECTIONS }).cards.every((item) => !item.disabled)).toBe(true);
     const html = render({ salePeriodEnabled: 'false' }, { sections: production });
