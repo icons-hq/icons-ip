@@ -43,11 +43,11 @@ describe('미종결 결제 자동 재확인', () => {
     expect(maxDuration).toBe(90);
   });
 
-  it('이 배포에 설정된 결제사만 넘겨 DB가 뽑은 후보(최대 3건)를 재정합 seam으로 확인하고 건수만 응답한다', async () => {
+  it('이 배포에 설정된 결제사만 넘겨 DB가 뽑은 후보(최대 30건)를 재정합 seam으로 확인하고 건수만 응답한다', async () => {
     mocks.reconcile.mockResolvedValueOnce({ kind: 'reconciled', outcome: 'approved' }).mockResolvedValueOnce({ kind: 'reconciled', outcome: 'unknown' });
     const response = await GET(request());
     expect(response.status).toBe(200);
-    expect(mocks.rpc).toHaveBeenCalledWith('service_claim_payment_reconciliation_candidates', { p_limit: 3, p_providers: ['toss'] });
+    expect(mocks.rpc).toHaveBeenCalledWith('service_claim_payment_reconciliation_candidates', { p_limit: 30, p_providers: ['toss'] });
     // 가상계좌 입금 오류 되돌림 단계(ADR-0049 결정 4) — 토스가 설정된 배포만, 고를 것이 없으면 결제사를 부르지 않는다.
     expect(mocks.rpc).toHaveBeenCalledWith('service_claim_deposit_reversal_checks', { p_limit: 3 });
     expect(mocks.rpc).toHaveBeenCalledTimes(2);
@@ -80,6 +80,52 @@ describe('미종결 결제 자동 재확인', () => {
     expect((await GET(request())).status).toBe(503);
     mocks.rpc.mockResolvedValue({ data: null, error: { code: 'PGRST301' } });
     expect((await GET(request())).status).toBe(503);
+  });
+
+  it('DB가 정한 순서대로 5건씩 동시에 조회하고, 예외는 실패로 센다(VAC-021)', async () => {
+    const many = Array.from({ length: 30 }, (_, index) => ({
+      ...goods,
+      attemptId: `a7000000-0000-4003-8000-${String(100 + index).padStart(12, '0')}`,
+    }));
+    mocks.rpc.mockImplementation(async (name: string) => name === 'service_claim_deposit_reversal_checks'
+      ? { data: [], error: null } : { data: many, error: null });
+    let inFlight = 0;
+    let peak = 0;
+    mocks.reconcile.mockImplementation(async (candidate: { attemptId: string }) => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise(resolve => setTimeout(resolve, 5));
+      inFlight -= 1;
+      if (candidate.attemptId === many[29].attemptId) throw new Error('boom');
+      return { kind: 'reconciled', outcome: 'declined' };
+    });
+    const response = await GET(request());
+    expect(response.status).toBe(503);
+    expect(peak).toBe(5);
+    expect(mocks.reconcile.mock.calls.map(call => call[0].attemptId)).toEqual(many.map(candidate => candidate.attemptId));
+    expect(await response.json()).toMatchObject({ candidates: 30, closed: 29, failed: 1, deferred: 0 });
+  });
+
+  it('시작 예산(40초)이 지나면 아직 시작하지 않은 후보는 다음 회차로 미룬다', async () => {
+    const many = Array.from({ length: 12 }, (_, index) => ({
+      ...goods,
+      attemptId: `a7000000-0000-4003-8000-${String(200 + index).padStart(12, '0')}`,
+    }));
+    mocks.rpc.mockImplementation(async (name: string) => name === 'service_claim_deposit_reversal_checks'
+      ? { data: [], error: null } : { data: many, error: null });
+    const now = vi.spyOn(Date, 'now');
+    let clock = 1_000_000;
+    now.mockImplementation(() => clock);
+    mocks.reconcile.mockImplementation(async () => {
+      await Promise.resolve();
+      clock += 41_000;
+      return { kind: 'reconciled', outcome: 'awaiting_deposit' };
+    });
+    const response = await GET(request());
+    now.mockRestore();
+    // 첫 5건은 예산 안에서 함께 시작했고, 그 뒤 꺼낸 7건은 예산이 지나 미뤄진다.
+    expect(mocks.reconcile).toHaveBeenCalledTimes(5);
+    expect(await response.json()).toMatchObject({ candidates: 12, awaitingDeposit: 5, deferred: 7 });
   });
 
   it('후보가 없으면 결제사를 부르지 않고 성공이다', async () => {
