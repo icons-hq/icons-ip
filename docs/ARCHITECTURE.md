@@ -47,7 +47,7 @@ migration 파일 경로는 [배포 매핑](../supabase/manifests/admin-rollout-m
 | 배포 | `main` 대상 앱 전용 PR은 base SHA의 production+shared sync 성공 증거를 확인한 뒤 shared preview main을 변경 없이 읽고, merge-base 기준 diff에서 migration·roles·seed·Auth/template·Edge Function 또는 preview lifecycle 변경을 찾으면 isolated를 쓴다. `main` 외 통합 브랜치 대상 PR은 선행 stage의 누적 DB 변경을 놓치지 않도록 항상 isolated이며, isolated head는 현재 `main`을 포함해야 한다. 무데이터 `pr-<number>` branch는 플랫폼이 parent 이력을 다시 적용하는 배포 run이 끝나기를 기다린 뒤 나머지 schema·custom roles·seed와 repo 전체 Edge Functions를 적용하고, 선택 branch 키를 Vercel build/runtime에 동적으로 주입하고, Vercel preview handler 성공 뒤 recovery template를 branch에 적용한다. rename은 원본·대상 경로를 모두 판정하도록 비탐지하고 hosted `config.toml` 전체 push는 제외한다. `main` push는 production Supabase linked migration·custom roles·Edge Functions, Vercel 앱·template를 순서대로 배포하고, 모두 성공한 동일 상태를 shared preview main에 동기화한다. PR close cleanup은 최종 base와 무관하게 같은 per-PR concurrency key에서 branch 생성을 기다린 뒤 deterministic branch만 지운다. Sensitive 환경변수는 Vercel build 안에서 검증하며 Vercel Git 자동 배포는 비활성화 | GitHub Secrets + `.github/workflows/pipeline.yml`, `vercel.json` |
 | 프리뷰 환경 | 모든 PR 프리뷰는 `icons-ip-preview`의 default main 또는 isolated branch만 본다. shared main에는 PR migration을 쓰지 않고, isolated branch에는 운영 데이터를 clone하지 않는다. preview/branch ref가 운영 ref와 같으면 job이 실패하고 필수 secret이 없으면 프리뷰 배포를 건너뛴다 | [ADR-0006](adr/0006-preview-supabase-project.md), `.github/workflows/pipeline.yml` |
 | Production runtime | Vercel project/runtime Node.js Version은 공식 지원 범위인 24.x 유지 | Vercel Project Settings |
-| 도메인/DNS | `iconsip.com` primary, `www.iconsip.com` alias, `icons-ip.vercel.app` fallback. DNS는 Cloudflare에서 관리 | Cloudflare DNS, Vercel Domains |
+| 도메인/DNS | `xsquare.kr` primary(2026-11-25 전환, 단일 출처 `lib/site-domains.mjs`), `www.xsquare.kr`·옛 `iconsip.com`·`www.iconsip.com`은 `xsquare.kr`로 308, `icons-ip.vercel.app` fallback. DNS는 Cloudflare에서 관리(`xsquare.kr` 등록은 후이즈) | Cloudflare DNS, Vercel Domains |
 | Auth 메일 | 현재 Supabase Auth custom SMTP → Resend. 후속 Send Email Hook 경로는 raw-body 서명 → PII-free intent/fence atomic enqueue → stable Resend idempotency → signed webhook reducer로 dark deploy되며 DB gate 기본 OFF다. 주문 지연 고객 안내는 이 Auth Hook gate나 Auth source를 사용하지 않는다 | `app/api/hooks/supabase/send-email`, `app/api/webhooks/resend`, `lib/email/*`, `private.email_*` |
 | 트랜잭션 메일 | 기존 주문 확인·택배 배송 시작 경로는 canary까지 유지한다. 신규 `EmailDispatcher.enqueue/enqueueAll/dispatch/reduceProviderEvent`는 provider acceptance와 delivery를 분리하고 recipient·subject·raw error/provider payload를 저장하지 않는다. 주문 지연 안내와 안전재고 하루 1회 요약 메일은 각자 별도 source/전용 gate로 같은 dispatcher를 재사용한다 | `lib/email/*`, `supabase/migrations/20260807130001_transactional_email_deliveries.sql`, `supabase/migrations/20260813240000_email_dispatcher_dark.sql`, [`transactional-email.md`](./transactional-email.md) |
 | Secondary deletion ledger | versioned subject HMAC·fixed-field canonical digest와 same-key replay/conflict, 단조 sequence, signed stable pagination을 local fake로 검증한다. Production selector는 remote/env 없이 disabled로 fail closed하며 compliance 프로젝트·credential·restore replay는 #215 범위다 | `lib/privacy/deletion-ledger/*`, [`deletion-ledger-local-contract.md`](./deletion-ledger-local-contract.md) |
@@ -96,7 +96,7 @@ POP-UP 라우팅(X SQUARE 개편, ADR-0043): `/popups`는 오프라인 팝업(�
                                                       Resend custom SMTP
 ```
 
-Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은 zone에 Resend 발송 인증용 DKIM/SPF/DMARC/MX 레코드를 둔다.
+Cloudflare DNS는 `xsquare.kr`/`www.xsquare.kr`과 옛 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 각 zone에 Resend 발송 인증용 DKIM/SPF/DMARC/MX 레코드를 둔다. 옛 도메인의 308 리디렉션은 Vercel 도메인 설정이 한다(`docs/runbooks/domain-migration-xsquare.md`).
 
 핵심: **읽기**는 Server Component가 RLS 하에서 직접 조회. **상태 변경**은 Server Action이 검증 후 **RPC 함수** 호출. **돈 확정**은 `PaymentGateway.confirm`이 공급사 승인 응답을 엄격히 검증한 결과 → RPC이며 callback만으로 확정하지 않는다. 신규 결제의 기본 provider는 토스이고 모호 결과는 조회 API 기반 reconcile로 자동 정합화한다(ADR-0013). Korpay는 판매 제한 상품 전용으로 남으며, 자동 status/reconcile API가 없어 모호 결과를 추측하지 않고 `needs_review`로 격리한다. Auth 메일은 Supabase 기본 메일 provider가 아니라 Resend custom SMTP를 사용한다.
 
@@ -408,9 +408,9 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 
 Production Auth 설정:
 
-- Site URL: `https://iconsip.com`
+- Site URL: `https://xsquare.kr`
 - Redirect URLs: production·www·기본 Vercel·local origin마다 `/auth/callback`과 `/auth/recovery/callback`을 허용한다. preview 호스트의 두 callback은 전용 preview 프로젝트 allow-list에서만 관리하며 production allow-list에서는 제거한다. Site URL·allow-list는 `scripts/sync-supabase-auth.mjs`가 두 프로젝트에 각각 적용·검증한다.
-- 이메일 confirmation은 켜고, 가입 확인·비밀번호 재설정 메일은 Resend `iconsip.com` custom SMTP를 사용한다.
+- 이메일 confirmation은 켜고, 가입 확인·비밀번호 재설정 메일은 Resend `xsquare.kr` custom SMTP(`no-reply@xsquare.kr`)를 사용한다.
 - workflow가 Supabase Management API로 Site URL, 두 callback의 redirect allow-list, `mailer_otp_exp=3600`, secure email change와 email rate limit, 비밀번호 변경 가드(`security_update_password_require_current_password`·`security_update_password_require_reauthentication`)와 변경 알림 템플릿을 먼저 PATCH 후 read-back한다. 가드는 preview·staging에도 같은 sync 단계로 적용하고, 알림은 production에만 켠다. Shared preview main의 Auth 설정은 production 앱·Supabase가 성공한 main sync에서 갱신하고 isolated branch는 생성 workflow에서 같은 preview URL 계약을 적용한다. 각 Vercel handler가 성공한 뒤 `supabase/templates/recovery.html` 원문을 production/shared/isolated 대상에 활성화·read-back한다. custom SMTP 필수 필드가 비어 있으면 production 배포를 실패시킨다.
 - 외부 OAuth callback은 세 공급자 모두 `https://sbutbsghcxmxmxgrshwq.supabase.co/auth/v1/callback`이다. Google은 production 공개 앱, Apple은 `com.iconsip.app` primary App ID와 `com.iconsip.web` Services ID, Kakao는 앱 ID `1520482`의 REST API 키를 사용한다. Apple secret은 2027-01-18 이전에 교체한다.
 - Kakao 앱은 `(주) 아이콘스` 비즈 앱이고 `account_email`을 필수 동의·계정 정보 수집으로 요청한다. Supabase provider의 이메일 없는 사용자 허용은 꺼서 현재 `isOnboarded()`의 profile/auth email 필수 조건과 맞춘다.

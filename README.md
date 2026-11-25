@@ -59,7 +59,7 @@ NEXT_PUBLIC_SUPABASE_URL=
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=
 ICONS_CATALOG_SOURCE=
 AUTH_SIGNUP_RESEND_SECRET=
-SITE_URL=https://iconsip.com
+SITE_URL=https://xsquare.kr
 CRON_SECRET=
 # #191 dark path: Production only; Preview/CI leave empty and Hook stays disabled.
 SUPABASE_SEND_EMAIL_HOOK_SECRET=
@@ -112,7 +112,7 @@ ADULT_VERIFICATION_CANARY_USER_ID=
 - `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다. GitHub Actions의 PR preview는 선택된 shared/isolated Supabase 자격 증명과 함께 `supabase`를 강제한다.
 - `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키, 비밀번호 복구 증명 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
 - `NEXT_PUBLIC_TURNSTILE_SITE_KEY`: 가입·로그인·확인 메일 재전송·비밀번호 재설정 폼의 Cloudflare Turnstile 위젯(공개 값). 있으면 서버 액션이 토큰을 GoTrue(Supabase Auth CAPTCHA)에 `captchaToken`으로 넘기고, 비밀 키(`TURNSTILE_SECRET_KEY`)는 Vercel이 아니라 GitHub Actions secret으로 배포 파이프라인이 Supabase에 넣는다. 켜는 순서는 `docs/runbooks/signup-contact-channels.md` §13.
-- `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 토스 `successUrl`·`failUrl`, 나이스페이 `ReturnURL`, 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay·NICEPAY 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
+- `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://xsquare.kr`을 사용하며(2026-11-25 전환 전에는 `https://iconsip.com`, 두 값 모두 검사를 통과해 env만으로 되돌릴 수 있다) 토스 `successUrl`·`failUrl`, 나이스페이 `ReturnURL`, 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay·NICEPAY 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
 - `NAVER_SITE_VERIFICATION`: 선택. 네이버 서치어드바이저 소유확인 값(HTML 태그 방식의 content 값, 태그를 통째로 넣어도 content만 쓴다). 있으면 모든 화면 `<head>`에 `naver-site-verification` 메타를 내고, 없거나 모양이 다르면 내지 않는다. 빌드 때 읽으므로 값을 넣거나 바꾸면 다시 배포한다. `/robots.txt`·`/sitemap.xml`은 이 값과 무관하게 운영 배포에서 열리고(미리보기·스테이징은 전부 닫음), 규칙은 `lib/seo/search-engines.ts`다.
 - `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
 - `SUPABASE_SEND_EMAIL_HOOK_SECRET`·`RESEND_WEBHOOK_SECRET`: #191 Hook/webhook의 raw body 서명 검증용 서버 secret이다.
@@ -157,8 +157,8 @@ Auth URL·email link TTL·recovery template·비밀번호 변경 가드와 변�
 
 **Production** (`deploy-supabase`, `main` push):
 
-- Site URL: `https://iconsip.com`
-- Redirect URLs: `https://iconsip.com`, `https://www.iconsip.com`, `https://icons-ip.vercel.app`, `http://localhost:3000`, `http://127.0.0.1:3000` 각 origin의 `/auth/callback`과 `/auth/recovery/callback`
+- Site URL: `https://xsquare.kr`
+- Redirect URLs: `https://xsquare.kr`, `https://www.xsquare.kr`, 옛 도메인 `https://iconsip.com`·`https://www.iconsip.com`(되돌리기용), `https://icons-ip.vercel.app`, `http://localhost:3000`, `http://127.0.0.1:3000` 각 origin의 `/auth/callback`과 `/auth/recovery/callback`
 - 제거 대상: `https://icons-ip-*.vercel.app/auth/callback`. preview가 전용 프로젝트를 보게 된 뒤로는 운영 allow-list에 있을 이유가 없고, 애초에 실제 preview 호스트와 맞지도 않았다(아래).
 
 **Preview** (`sync-supabase-preview-main` 또는 `deploy-supabase-preview`):
@@ -172,7 +172,7 @@ Auth URL·email link TTL·recovery template·비밀번호 변경 가드와 변�
 
 공용 `/auth/callback`은 가입 확인과 OAuth code exchange만 성공시킨다. exchange 결과가 recovery이면 signed marker 유무와 관계없이 생성된 local session과 응답 cookie를 폐기하고 reset 오류로 닫는다.
 
-Server Action이 만드는 callback origin은 production·www·기본 Vercel·local 고정 origin과 플랫폼이 제공한 현재 `VERCEL_URL`만 허용한다. 인식하지 못한 `Origin`·`X-Forwarded-Host`·`Host`는 신뢰하지 않고 `https://iconsip.com`으로 닫는다.
+Server Action이 만드는 callback origin은 production·www·기본 Vercel·local 고정 origin과 플랫폼이 제공한 현재 `VERCEL_URL`만 허용한다. 인식하지 못한 `Origin`·`X-Forwarded-Host`·`Host`는 신뢰하지 않고 정규 주소 `https://xsquare.kr`(`lib/site-domains.mjs`)로 닫는다.
 
 비밀번호 재설정 요청은 계정 존재 여부와 무관하게 같은 응답을 반환한다. 같은 브라우저의 정규화 이메일별 요청은 raw email 대신 HMAC digest를 담은 `icons_auth_password_reset` 쿠키로 총 3회/10분 제한하고, 활성 이메일 bucket은 12개로 제한해 브라우저 cookie 크기를 넘지 않게 한다. Supabase provider rate limit은 실제 상한으로 둔다. 전용 callback의 서명 state가 요청 브라우저에만 있으므로 최신 메일 링크는 재설정을 요청한 브라우저에서 열어야 한다.
 
@@ -192,15 +192,16 @@ OAuth client secret, Apple Team ID·Key ID와 `.p8` 원문은 저장소, 문서,
 
 Production에서 이메일/PW 가입을 운영하려면 Supabase Auth custom SMTP를 활성화하고 Authentication → Rate Limits에서 이메일 전송 한도를 운영 트래픽에 맞춰 조정한다. Supabase 기본 메일 provider는 production 용도가 아니며, 기본 전송량 제한이 강하다. `main` 배포 workflow는 custom SMTP가 비활성화되어 있거나 `smtp_host`, `smtp_port`, `smtp_user`, `smtp_admin_email`이 비어 있으면 production 배포를 실패시킨다. SMTP 비밀번호는 workflow에서 읽거나 출력하지 않고 repo에 커밋하지 않는다.
 
-현재 production 메일 발송은 Supabase Auth → custom SMTP → Resend 경로를 사용한다. `iconsip.com`은 Resend에서 verified domain으로 관리하고, SMTP sender는 `no-reply@iconsip.com`을 기준으로 한다. 도메인 DNS는 Cloudflare에서 관리하며, Vercel 앱 레코드와 Resend DKIM/SPF/DMARC/MX 레코드를 함께 둔다. Resend 계정에 다른 프로젝트 도메인이 함께 있어도 앱별 domain-scoped API key를 분리해서 사용한다.
+현재 production 메일 발송은 Supabase Auth → custom SMTP → Resend 경로를 사용한다. `xsquare.kr`(옛 `iconsip.com`도 유지)은 Resend에서 verified domain으로 관리하고, SMTP sender와 앱 메일 `EMAIL_FROM`은 `no-reply@xsquare.kr`을 기준으로 한다(2026-11-25 전환, Resend 키는 발신 도메인에 묶여 있어 발신 주소를 바꿀 때 키도 함께 바꾼다). 도메인 DNS는 Cloudflare에서 관리하며, Vercel 앱 레코드와 Resend DKIM/SPF/DMARC/MX 레코드를 함께 둔다. Resend 계정에 다른 프로젝트 도메인이 함께 있어도 앱별 domain-scoped API key를 분리해서 사용한다.
 
 ## Production 도메인과 DNS
 
-- Primary: `https://iconsip.com`
-- WWW alias: `https://www.iconsip.com`
+- Primary: `https://xsquare.kr`
+- WWW: `https://www.xsquare.kr` → `xsquare.kr` 308
+- 옛 도메인: `https://iconsip.com`·`https://www.iconsip.com` → `xsquare.kr` 308(경로 유지, 최소 1년 유지)
 - Vercel fallback: `https://icons-ip.vercel.app`
 
-`iconsip.com` DNS는 Cloudflare에서 관리한다. Cloudflare에는 Vercel 연결용 apex/`www` 레코드와 Resend 발송 인증용 DKIM/SPF/DMARC/MX 레코드가 필요하다. Vercel custom domain과 Supabase Auth Site URL은 `iconsip.com`을 기준으로 맞춘다.
+두 도메인의 DNS는 Cloudflare에서 관리한다(`xsquare.kr` 등록은 후이즈 — `.kr`은 Cloudflare·Vercel 등록 이전 불가). Cloudflare에는 Vercel 연결용 apex/`www` 레코드와 Resend 발송 인증용 DKIM/SPF/DMARC/MX 레코드가 필요하다. Vercel custom domain과 Supabase Auth Site URL은 `xsquare.kr`을 기준으로 맞춘다. 전환 절차·되돌리기는 [domain-migration-xsquare.md](docs/runbooks/domain-migration-xsquare.md).
 
 ## 주요 스크립트
 

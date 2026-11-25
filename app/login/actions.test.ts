@@ -568,7 +568,7 @@ describe('requestPasswordResetAction', () => {
     await requestPasswordResetAction({}, resetFormData());
 
     expect(mocks.resetPasswordForEmail).toHaveBeenCalledWith('fan@icons.gg', {
-      redirectTo: 'https://iconsip.com/auth/recovery/callback',
+      redirectTo: 'https://xsquare.kr/auth/recovery/callback',
     });
     expect(latestCookieSet(AUTH_RECOVERY_NEXT_COOKIE_NAME)?.options).toMatchObject({ secure: true });
   });

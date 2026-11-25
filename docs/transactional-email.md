@@ -182,10 +182,10 @@ provider callback replay와 known-only Toss webhook 재전달이 겹쳐도 legac
 | 이름 | 필수 | 설명 |
 |---|---|---|
 | `EMAIL_PROVIDER_API_KEY` | ✅ | provider API 키. Resend 기준 `re_…` |
-| `EMAIL_FROM` | ✅ | 보내는 주소. 예: `no-reply@iconsip.com`(또는 `이름 <주소>`). 표시 이름은 env에 무엇을 적어도 쓰지 않고 코드의 `X SQUARE`(`lib/email/sender.ts`, `RESEND_FROM`도 같다)를 붙인다 — 로컬 파트 앞의 도메인이 인증된 도메인이어야 한다 |
+| `EMAIL_FROM` | ✅ | 보내는 주소. 운영 `no-reply@xsquare.kr`(2026-11-25 전 `no-reply@iconsip.com`, 또는 `이름 <주소>`). 표시 이름은 env에 무엇을 적어도 쓰지 않고 코드의 `X SQUARE`(`lib/email/sender.ts`, `RESEND_FROM`도 같다)를 붙인다 — 로컬 파트 앞의 도메인이 인증된 도메인이어야 한다 |
 | `EMAIL_REPLY_TO` | — | 회신 주소. 발신 전용을 유지하려면 비워둔다 |
 | `EMAIL_PROVIDER_ENDPOINT` | — | 기본 `https://api.resend.com/emails`. 같은 모양의 API면 이 값만 바꿔 갈아끼운다 |
-| `SITE_URL` | — | 메일 본문 링크의 고정 오리진. Vercel Preview에서는 필수이며 나머지 환경의 기본값은 `https://iconsip.com` |
+| `SITE_URL` | — | 메일 본문 링크의 고정 오리진. Vercel Preview에서는 필수이며 나머지 환경의 기본값은 정규 주소 `https://xsquare.kr`(`lib/site-domains.mjs`) |
 
 주문·재입고·문의 답변·배송 지연 안내 메일은 `lib/email/site-url.ts`의 같은 주소 규칙을 사용한다. 앞뒤 공백과 마지막 슬래시를 제거한다. 명시한 `SITE_URL`이 우선하며, Vercel Preview에서는 재배포 후에도 유지되는 테스트 사이트 주소를 반드시 설정한다. `VERCEL_URL`은 배포마다 달라지므로 메일 오리진으로 사용하지 않는다. 미설정 Preview의 지연 안내 worker는 작업 선점 전에 중단하고 cron은 503을 반환한다. 일반 거래 메일 훅도 구성 실패를 반환하며 공급자에게 발송하지 않는다. 스테이징은 배포 스크립트가 지정한 `SITE_URL` 별칭을 유지하고 운영 기본 주소는 `https://iconsip.com`이다. 재시도 중인 메일이 있는 동안 `SITE_URL`을 변경하지 않는다. 이 규칙 변경은 발송 gate나 수신자·멱등키를 바꾸지 않는다.
 
@@ -206,8 +206,10 @@ provider callback replay와 known-only Toss webhook 재전달이 겹쳐도 legac
 Vercel에서는 Production·Preview 모두 sensitive로 등록한다. Preview에 실제 발신 도메인을
 쓰면 테스트 메일이 실사용자에게 갈 수 있으므로, Preview는 키를 비워 두는 것이 기본이다.
 
-Production용 앱 전용 키는 `icons-ip-app-transactional`(2026-08-25 발급, sending 전용,
-`iconsip.com` 도메인 제한)이다. Supabase Auth SMTP가 쓰는 키(`icons-ip-supabase-auth` 등)와
+Production용 앱 전용 키는 `icons-ip-app-transactional-xsquare`(2026-11-25 발급, sending 전용,
+`xsquare.kr` 도메인 제한)이다. Resend 키는 발신 도메인에 묶여 있어 발신 주소의 도메인을 바꾸면 키도 새로 만든다 —
+도메인 전환 전 키 `icons-ip-app-transactional`(2026-08-25, `iconsip.com` 제한)은 되돌리기용으로 남긴다.
+Supabase Auth SMTP가 쓰는 키(`icons-ip-supabase-auth-xsquare`, 같은 이유로 2026-11-25 교체)와
 분리해 두었으므로 한쪽 rotation이 다른 쪽 발송을 끊지 않는다. secret 값은 이 문서에 남기지 않는다.
 Preview의 `email_deliveries`에는 해당 `failed` 행이 쌓인다 — 보내지 않은 사실의 정확한 기록이며
 raw provider 사유 대신 `legacy_failure`만 저장되는 것이 정상이다.
@@ -216,13 +218,14 @@ raw provider 사유 대신 `legacy_failure`만 저장되는 것이 정상이다.
 
 ## 3. 발신 도메인 인증 (SPF · DKIM · DMARC) — 코드로 할 수 없는 부분
 
-DNS와 provider 콘솔 작업이다. `iconsip.com` DNS는 **Cloudflare**에서 관리한다
+DNS와 provider 콘솔 작업이다. `xsquare.kr`·`iconsip.com` DNS는 **Cloudflare**에서 관리한다
 ([`ARCHITECTURE.md` §도메인/DNS](./ARCHITECTURE.md)).
 
 ### 3.1 현재 상태
 
-Supabase Auth custom SMTP가 이미 Resend를 쓰고 있고 발신자는 `no-reply@iconsip.com`,
-Resend 도메인은 `iconsip.com`이다. 즉 **`iconsip.com`의 SPF·DKIM은 이미 발급·등록되어 있을 가능성이 높다.**
+2026-11-25 도메인 전환 뒤 Supabase Auth custom SMTP와 앱 메일의 발신자는 `no-reply@xsquare.kr`이고 Resend 도메인
+`xsquare.kr`은 2026-11-18 검증(Forge·도쿄, 루트 SPF 포함)을 마쳤다. 아래는 처음 `iconsip.com`을 붙일 때의 기록이다.
+전환 전 발신자는 `no-reply@iconsip.com`, Resend 도메인은 `iconsip.com`이었다. 즉 **`iconsip.com`의 SPF·DKIM은 이미 발급·등록되어 있을 가능성이 높다.**
 새 키를 만들기 전에 Resend 콘솔의 Domains에서 `iconsip.com`이 `Verified`인지 먼저 확인한다.
 Verified라면 3.2는 건너뛰고 3.3(DMARC)만 확인하면 된다.
 

@@ -119,7 +119,7 @@ Editor 계정으로 웹훅 등록과 웹훅 테스트가 된다(2026-11-19 실�
    기대값: `400`과 `{"err":"invalid_request",...}`.
 4. 카카오 콘솔 [앱] > [웹훅] > [계정 상태 변경 웹훅] > 웹훅 등록:
    - 상태: 사용함
-   - 웹훅 URL: `https://iconsip.com/api/webhooks/kakao/account-status` (전환 뒤 주소는 §4)
+   - 웹훅 URL: `https://xsquare.kr/api/webhooks/kakao/account-status` (2026-11-19 처음엔 `iconsip.com` 주소로 등록, §4)
    - 변경 이벤트: OAUTH 카테고리의 **User Unlinked**만
 5. 콘솔 [도구] > [웹훅 테스트]에서 계정 상태 변경 웹훅을 보내 202를 확인한다. 테스트 화면은 응답 상태와 보낸 SET을
    그대로 보여 준다.
@@ -143,10 +143,10 @@ Editor 계정으로 웹훅 등록과 웹훅 테스트가 된다(2026-11-19 실�
 
 웹훅은 대개 리디렉션을 따라가지 않는다([domain-migration-xsquare.md](domain-migration-xsquare.md) 2단계).
 
-- **전환 전(지금)**: `https://iconsip.com/api/webhooks/kakao/account-status`. `xsquare.kr`는 아직 `iconsip.com`으로
-  307 리디렉션 중이라 지금 `xsquare.kr`로 등록하면 받지 못한다.
-- **3단계 전환 직후**: 콘솔의 웹훅 URL을 `https://xsquare.kr/api/webhooks/kakao/account-status`로 바꾼다
-  (domain-migration 3단계 4번 "웹훅 교체"에 포함). 옛 주소는 308 리디렉션이 되므로 늦출수록 재전송이 실패로 쌓인다.
+- **전환 전(2026-11-19~11-25)**: `https://iconsip.com/api/webhooks/kakao/account-status`. 그때는 `xsquare.kr`가
+  `iconsip.com`으로 307 리디렉션 중이었다.
+- **3단계 전환(2026-11-25) 뒤**: `https://xsquare.kr/api/webhooks/kakao/account-status`. 옛 주소는 308 리디렉션이라
+  카카오가 따라오지 않으므로 콘솔 주소가 옛 값이면 연결 해제가 반영되지 않는다.
 
 ## 5. 탈퇴 검토 대기
 

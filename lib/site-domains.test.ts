@@ -7,13 +7,13 @@ import {
   PRODUCTION_SITE_ORIGINS,
 } from './site-domains.mjs';
 
-describe('운영 도메인 단일 출처(도메인 전환 1단계)', () => {
-  it('정규 주소는 아직 iconsip.com이고 운영 도메인 목록 안에 있다', () => {
-    expect(CANONICAL_SITE_ORIGIN).toBe('https://iconsip.com');
+describe('운영 도메인 단일 출처(도메인 전환 3단계)', () => {
+  it('정규 주소는 xsquare.kr이고 운영 도메인 목록 안에 있다', () => {
+    expect(CANONICAL_SITE_ORIGIN).toBe('https://xsquare.kr');
     expect(PRODUCTION_SITE_ORIGINS).toContain(CANONICAL_SITE_ORIGIN);
   });
 
-  it('운영 SITE_URL origin은 두 도메인의 루트만 받는다', () => {
+  it('운영 SITE_URL origin은 두 도메인의 루트만 받는다(옛 도메인은 되돌리기·코페이 드레인용)', () => {
     expect(PRODUCTION_SITE_ORIGINS).toEqual(['https://iconsip.com', 'https://xsquare.kr']);
     expect(isProductionSiteOrigin('https://xsquare.kr')).toBe(true);
     for (const origin of ['https://www.xsquare.kr', 'http://xsquare.kr', 'https://xsquare.kr.evil.example', 'https://x-square.kr'])
