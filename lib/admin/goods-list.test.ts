@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOODS_LIST_SEARCH_FIELDS, GOODS_LIST_SEARCH_HINTS, GOODS_LIST_SORT_OPTIONS, GOODS_LIST_STOCK_OPTIONS, goodsConsoleFilterValues, goodsListHref, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
+import { GOODS_LIST_SEARCH_FIELDS, GOODS_LIST_SEARCH_HINTS, GOODS_LIST_SORT_OPTIONS, GOODS_LIST_STOCK_OPTIONS, goodsConsoleFilterValues, goodsListHref, goodsListPreorderSaleLabel, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
 
 describe('goods list navigation', () => {
   it('상품번호(시스템 순번)와 상품 URL을 다른 검색 대상으로 두고, 예전 상품번호순 주소는 새 상품번호순으로 연다(S36-009·S36-X02)', () => {
@@ -82,5 +82,25 @@ describe('goods list navigation', () => {
     expect(next.searchParams.get('page')).toBe('4');
     expect(next.searchParams.has('goodId')).toBe(false);
     expect(goodEditorHref(filters, 'g100', 'kc')).toContain('#good-operation-kc');
+  });
+});
+
+describe('goodsListPreorderSaleLabel', () => {
+  const at = '2026-11-25T03:00:00.000Z';
+  const preorder = (state: string, availableQty = 0, extra: Record<string, unknown> = {}) => ({ mode: 'preorder', availableQty, policyId: 'a1000000-0000-4000-8000-000000000001', policyRevision: 1, state,
+    startsAt: state === 'scheduled' ? '2026-12-02T02:00:00.000Z' : '2026-11-20T02:00:00.000Z', endsAt: state === 'closed' ? '2026-11-24T14:59:00.000Z' : '2026-12-13T14:59:00.000Z',
+    expectedShipDate: '2026-12-14', calculatedAt: at, nextChangeAt: state === 'scheduled' ? '2026-12-02T02:00:00.000Z' : null, ...extra });
+  const stock = { mode: 'stock', availableQty: 0, policyId: null, policyRevision: null, state: 'stock', startsAt: null, endsAt: null, expectedShipDate: null, calculatedAt: at, nextChangeAt: null };
+  it('예약판매만 있고 주문받을 물량이 없으면 고객 화면과 같은 예약 상태를 돌려준다', () => {
+    expect(goodsListPreorderSaleLabel([preorder('scheduled'), preorder('scheduled')])).toBe('판매 예정');
+    expect(goodsListPreorderSaleLabel([preorder('open')])).toBe('예약 물량 마감');
+    expect(goodsListPreorderSaleLabel([preorder('closed')])).toBe('예약 접수 종료');
+    expect(goodsListPreorderSaleLabel([preorder('stopped')])).toBe('예약 접수 중지');
+  });
+  it('일반 재고 옵션이 섞였거나, 물량이 남았거나, 예약 상태를 읽지 못하면 null(배지는 품절 그대로)이다', () => {
+    expect(goodsListPreorderSaleLabel([preorder('scheduled'), stock])).toBeNull();
+    expect(goodsListPreorderSaleLabel([preorder('open', 5)])).toBeNull();
+    expect(goodsListPreorderSaleLabel([preorder('scheduled'), null])).toBeNull();
+    expect(goodsListPreorderSaleLabel([])).toBeNull();
   });
 });
