@@ -113,7 +113,7 @@ export function GoodWorkspacePreorderCard({ serverError, disabled = false }: { s
     {targets.length
       ? <PreorderPlanFields plan={plan} targets={targets} table={targets.length > 1} all={all} disabled={disabled} idPrefix="workspace-preorder"
         /* 저장을 시도해 섹션 오류가 났을 때만 칸별 안내를 보인다. 칸을 고치면 다음 그리기에서 바로 사라진다. */
-        problems={error ? preorderPlanProblems(plan, targets, { all }) : null}
+        problems={error ? preorderPlanProblems(plan, targets, { all, table: targets.length > 1 }) : null}
         capacityNote={all ? RANDOM_PREORDER_CAPACITY_NOTE : undefined}
         onChange={(update) => setSections((current) => current.preorderPlan ? withGoodWorkspacePreorderPlan(current, update(current.preorderPlan), optionRows) : current)} />
       : <p className="text-sm text-muted-foreground">사용 중인 옵션이 없습니다. 위 옵션목록에서 옵션을 사용으로 바꾸면 예약 물량을 넣을 수 있습니다.</p>}

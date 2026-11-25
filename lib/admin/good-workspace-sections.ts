@@ -139,7 +139,8 @@ export function withGoodWorkspacePreorderPlan(draft: GoodWorkspaceSectionsDraft,
   const { preorderPlan, ...rest } = draft;
   void preorderPlan;
   if (!plan) return { ...rest, preorders: [] };
-  const preorders = expandPreorderPlan(plan, goodWorkspacePreorderTargets(rows), { all: goodWorkspaceRandomSale(draft) }).map((entry) => ({
+  const targets = goodWorkspacePreorderTargets(rows);
+  const preorders = expandPreorderPlan(plan, targets, { all: goodWorkspaceRandomSale(draft), table: targets.length > 1 }).map((entry) => ({
     key: `plan:${entry.key}`, optionKey: entry.key, capacityQty: entry.capacityFromStock ? '' : entry.capacityQty, capacityFromStock: entry.capacityFromStock,
     startsAt: entry.startsAt, endsAt: entry.endsAt, expectedShipDate: entry.expectedShipDate }));
   return { ...rest, preorderPlan: plan, preorders };
@@ -199,9 +200,11 @@ export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, 
     const fail = (error: string) => ({ ok: false as const, field: 'workspacePreorders' as const, error });
     if (draft.extras?.production?.enabled) return fail(GOOD_WORKSPACE_PRODUCTION_PREORDER_CONFLICT);
     const targets = goodWorkspacePreorderTargets(rows), all = goodWorkspaceRandomSale(draft);
-    const problem = preorderPlanProblemMessage(preorderPlanProblems(draft.preorderPlan, targets, { all, now }), { table: targets.length > 1 });
+    /* 옵션이 하나만 남으면 화면은 표 없이 공통 일정 칸만 보인다. 저장도 그 공통 일정으로 한다(옵션별 일정이 남아 있어도 쓰지 않는다). */
+    const table = targets.length > 1;
+    const problem = preorderPlanProblemMessage(preorderPlanProblems(draft.preorderPlan, targets, { all, table, now }), { table });
     if (problem) return fail(`예약판매: ${problem} 예약판매를 하지 않으려면 판매 시기를 바꿔주세요.`);
-    for (const entry of expandPreorderPlan(draft.preorderPlan, targets, { all })) {
+    for (const entry of expandPreorderPlan(draft.preorderPlan, targets, { all, table })) {
       const row = rows.find((candidate) => goodsOptionRowKey(candidate) === entry.key)!;
       const values = { state: 'active' as const, capacityQty: entry.capacityQty.trim(), startsAt: entry.startsAt, endsAt: entry.endsAt, expectedShipDate: entry.expectedShipDate };
       if (!parseGoodsPreorderInput(values)) return fail(`예약판매: ${entry.name} 옵션의 예약 물량은 1 이상의 정수, 접수 시작은 종료보다 앞서야 합니다.`);

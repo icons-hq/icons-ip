@@ -6,7 +6,7 @@ vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc, from: () => ({ select: () => ({ in: mocks.goods }) }) }) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
-import { readGoodsAdditionalAction, checkGoodsAdditionalCandidateAction, saveGoodsAdditionalAction } from './goods-additional-actions';
+import { readGoodsAdditionalAction, checkGoodsAdditionalCandidateAction, saveGoodsAdditionalAction, searchGoodsAdditionalCandidatesAction } from './goods-additional-actions';
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff1' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'staff' });
@@ -90,5 +90,50 @@ describe('추가 구성으로 연결할 수 있는 상품 확인', () => {
     expect(await checkGoodsAdditionalCandidateAction('g1', '')).toMatchObject({ ok: false });
     expect(await checkGoodsAdditionalCandidateAction(undefined, 'g2')).toMatchObject({ ok: false });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('추가구성상품 선택창 조회', () => {
+  const filters = { query: '케이스', field: 'name', categoryId: '', page: 1 };
+  const row = (id: string) => ({ id, code: id.toUpperCase(), name: `상품 ${id}`, categoryName: '케이스', imagePath: null, publishedAt: '2026-11-01T00:00:00Z', archivedAt: null });
+
+  it('운영자가 아니면 조회하지 않는다', async () => {
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'user1' }, isStaff: false, role: 'user' });
+    expect(await searchGoodsAdditionalCandidatesAction('g1', filters)).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  /* 규칙 2: 고를 수 없는 상품은 조회에서 뺀다. 지금 편집 중인 상품과 검색 조건을 함께 보내 DB가 거르고 센다. */
+  it('지금 연결할 수 있는 상품만 돌려주는 조회에 기준 상품·검색 조건·페이지를 보낸다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { total: 21, rows: [row('g2')] }, error: null });
+    const result = await searchGoodsAdditionalCandidatesAction('g1', { ...filters, field: 'code', page: 2 });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_goods_additional_candidates', {
+      p_base_good_id: 'g1', p_query: '케이스', p_field: 'code', p_category_id: null, p_limit: 20, p_offset: 20,
+    });
+    expect(result).toEqual({ ok: true, data: { total: 21, page: 2, pageSize: 20,
+      rows: [{ id: 'g2', code: 'G2', name: '상품 g2', categoryName: '케이스', imageUrl: null, published: true }] } });
+  });
+
+  it('저장 전인 새 상품은 기준 상품 없이 조회한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { total: 0, rows: [] }, error: null });
+    expect(await searchGoodsAdditionalCandidatesAction(null, filters)).toMatchObject({ ok: true, data: { total: 0, rows: [] } });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_goods_additional_candidates', expect.objectContaining({ p_base_good_id: null, p_offset: 0 }));
+  });
+
+  it('마지막 페이지를 넘겨 물으면 마지막 페이지를 다시 읽는다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { total: 21, rows: [] }, error: null }).mockResolvedValueOnce({ data: { total: 21, rows: [row('g9')] }, error: null });
+    const result = await searchGoodsAdditionalCandidatesAction('g1', { ...filters, page: 5 });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_search_goods_additional_candidates', expect.objectContaining({ p_offset: 20 }));
+    expect(result).toMatchObject({ ok: true, data: { page: 2, rows: [{ id: 'g9' }] } });
+  });
+
+  it('조건이 맞지 않거나 조회가 실패하면 고칠 수 있는 말로 알리고 내부 오류를 흘리지 않는다', async () => {
+    expect(await searchGoodsAdditionalCandidatesAction('g1', { ...filters, field: 'barcode' })).toEqual({ ok: false, error: '상품 검색 조건을 확인해주세요.' });
+    expect(await searchGoodsAdditionalCandidatesAction('', filters)).toEqual({ ok: false, error: '상품 검색 조건을 확인해주세요.' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'operator_capability_required' } });
+    expect(await searchGoodsAdditionalCandidatesAction('g1', filters)).toEqual({ ok: false, error: '연결할 수 있는 상품을 불러오지 못했습니다. 잠시 뒤 다시 검색해주세요.' });
+    mocks.rpc.mockResolvedValue({ data: { total: 1, rows: [{ id: 'g2' }] }, error: null });
+    expect(await searchGoodsAdditionalCandidatesAction('g1', filters)).toMatchObject({ ok: false });
   });
 });

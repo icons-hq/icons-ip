@@ -111,7 +111,7 @@ export function PreorderEditor({ goodId, variants, table = variants.length > 1, 
   const id = useId();
   function save() {
     setError(null);
-    const found = preorderPlanProblems(plan, targets);
+    const found = preorderPlanProblems(plan, targets, { table });
     const problem = preorderPlanProblemMessage(found, { table });
     if (problem) {
       setChecked(true);
@@ -119,7 +119,7 @@ export function PreorderEditor({ goodId, variants, table = variants.length > 1, 
       focusField(group.current, firstPreorderPlanProblemField(found, targets, { table }));
       return;
     }
-    const entries = expandPreorderPlan(plan, targets);
+    const entries = expandPreorderPlan(plan, targets, { table });
     startTransition(async () => {
       const result = await saveGoodsPreordersBulkAction(goodId, entries.map((entry) => ({ variantId: entry.key, capacityQty: entry.capacityQty.trim(),
         startsAt: entry.startsAt, endsAt: entry.endsAt, expectedShipDate: entry.expectedShipDate })));
@@ -133,7 +133,7 @@ export function PreorderEditor({ goodId, variants, table = variants.length > 1, 
     });
   }
   return <div className="flex min-w-0 flex-col gap-4" data-preorder-editor="" ref={group} role="group" aria-label="새 예약 조건">
-    <PreorderPlanFields plan={plan} onChange={setPlan} targets={targets} table={table} disabled={pending} idPrefix={id} problems={checked ? preorderPlanProblems(plan, targets) : null}
+    <PreorderPlanFields plan={plan} onChange={setPlan} targets={targets} table={table} disabled={pending} idPrefix={id} problems={checked ? preorderPlanProblems(plan, targets, { table }) : null}
       excludedNote={busy.length ? `${preorderOptionNames(busy.map((variant) => variant.name))} 옵션은 이미 예약판매 중이라 표에서 뺐습니다. ${RESTART_CAPACITY_NOTE}` : undefined} />
     {pendingOrders.length ? <p className="text-xs font-medium text-warning" data-preorder-pending-note="">{previousRoundPendingText(pendingOrders)}</p> : null}
     <p className="text-xs text-muted-foreground">{SAVE_APPLIES_NOTE}</p>

@@ -6,6 +6,8 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { imageUrlFromBg, publicMediaUrl } from '@/lib/media';
+import { GOODS_OPTION_IMPORT_PAGE_SIZE, parseGoodsOptionImportFilters, type GoodsOptionImportPage } from '@/lib/admin/goods-option-import';
+import { goodsPickerLastPage, goodsPickerPageFromSearch } from '@/lib/admin/goods-option-import.server';
 import { createClient } from '@/lib/supabase/server';
 import {
   additionalCandidateVerdict, parseAdditionalGoodCandidates, parseAdditionalGoodIds, parseAdminAdditionalGoods,
@@ -63,6 +65,32 @@ export async function checkGoodsAdditionalCandidateAction(baseGoodIdValue: unkno
     const items = error ? null : parseAdditionalGoodCandidates(data);
     return items ? { ok: true, verdict: additionalCandidateVerdict(items, candidate) } : { ok: false, error: '연결할 수 있는 상품인지 확인하지 못했습니다. 잠시 뒤 다시 골라주세요.' };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '연결할 수 있는 상품인지 확인하지 못했습니다. 잠시 뒤 다시 골라주세요.' }; }
+}
+const CANDIDATE_SEARCH_FAILED = '연결할 수 있는 상품을 불러오지 못했습니다. 잠시 뒤 다시 검색해주세요.';
+/**
+ * 추가구성상품 선택창의 상품 조회. 지금 연결할 수 있는 상품만 등록일 최신순으로 20개씩 돌려준다 —
+ * 고를 수 없는 상품(공개 전·판매기간 밖·품절·판매 중지·판매 제한)과 지금 편집 중인 상품은 조회에서 뺀다(화면 규칙 2). 총 개수도 걸러 낸 뒤의 수다.
+ * 입력은 공용 상품 선택창과 같은 `{ query, field, categoryId, page }`다. 저장 전인 새 상품은 기준 상품이 없다(null).
+ */
+export async function searchGoodsAdditionalCandidatesAction(baseGoodIdValue: unknown, input: unknown): Promise<{ ok: true; data: GoodsOptionImportPage } | Failure> {
+  if (!await requireAdminActionAccess('/admin/catalog/goods')) return { ok: false, error: STAFF_REQUIRED };
+  const base = baseGoodIdValue === null ? null : goodId(baseGoodIdValue);
+  const filters = parseGoodsOptionImportFilters(input);
+  if ((baseGoodIdValue !== null && !base) || !filters) return { ok: false, error: '상품 검색 조건을 확인해주세요.' };
+  try {
+    const client = await createClient();
+    const read = async (page: number) => {
+      const { data, error } = await client.rpc('admin_search_goods_additional_candidates', {
+        p_base_good_id: base, p_query: filters.query, p_field: filters.field, p_category_id: filters.categoryId || null,
+        p_limit: GOODS_OPTION_IMPORT_PAGE_SIZE, p_offset: (page - 1) * GOODS_OPTION_IMPORT_PAGE_SIZE,
+      });
+      return error ? null : goodsPickerPageFromSearch(data, page);
+    };
+    let page = await read(filters.page);
+    /* 마지막 페이지를 넘겨 물었으면(그사이 품절 등으로 줄었으면) 마지막 페이지를 다시 읽는다. */
+    if (page && filters.page > goodsPickerLastPage(page.total)) page = await read(goodsPickerLastPage(page.total));
+    return page ? { ok: true, data: page } : { ok: false, error: CANDIDATE_SEARCH_FAILED };
+  } catch (error) { unstable_rethrow(error); return { ok: false, error: CANDIDATE_SEARCH_FAILED }; }
 }
 export async function saveGoodsAdditionalAction(goodIdValue: unknown, idsValue: unknown, revisionValue: unknown): Promise<{ ok: true; message: string } | Failure> {
   if (!await requireAdminActionAccess('/admin/catalog/goods')) return { ok: false, error: STAFF_REQUIRED };

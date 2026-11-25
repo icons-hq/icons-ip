@@ -5,7 +5,7 @@ import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { adminConfirm } from '@/lib/admin/confirm';
 import {
   expandPreorderPlan, fillPreorderPlanCapacity, preorderCapacityProblem, preorderCapacityStockNote, preorderPlanManualCapacities, preorderPlanOwnSchedules,
-  preorderPlanReadback, preorderSellableStock, setPreorderPlanPerOption,
+  preorderPlanReadback, preorderPlanUsesOwnSchedules, preorderSellableStock, setPreorderPlanPerOption,
   type PreorderApplyField, type PreorderApplyProblems, type PreorderPlan, type PreorderPlanOption, type PreorderPlanProblems, type PreorderPlanTarget,
 } from '@/lib/admin/goods-preorders';
 import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_TABLE_FRAME_CLASS, GoodReadback } from './GoodEditorParts';
@@ -53,8 +53,8 @@ export function PreorderPlanFields({ plan, onChange, targets, table, all = false
   capacityNote?: ReactNode;
 }) {
   const [fill, setFill] = useState('');
-  const scope = { all };
-  const perOption = plan.perOption && !all && table;
+  const scope = { all, table };
+  const perOption = preorderPlanUsesOwnSchedules(plan, scope);
   const entries = expandPreorderPlan(plan, targets, scope);
   const entryByKey = new Map(entries.map((entry) => [entry.key, entry]));
   const readback = preorderPlanReadback(plan, targets, { all, table });

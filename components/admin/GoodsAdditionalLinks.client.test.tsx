@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 /* 추가 구성 상품 연결 목록: 공용 상품 선택창으로 고르고, 목록은 사진·상품명·상품 자동코드로 보이며, 내부 번호(상품 URL)는 보이지 않는다. */
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], index: 0 }));
-const mocks = vi.hoisted(() => ({ check: vi.fn() }));
+const mocks = vi.hoisted(() => ({ check: vi.fn(), search: vi.fn() }));
 vi.mock('react', async () => ({
   ...await vi.importActual<typeof import('react')>('react'),
   useState: (initial: unknown) => {
@@ -12,7 +12,7 @@ vi.mock('react', async () => ({
     return [hooks.states[index], (next: unknown) => { hooks.states[index] = typeof next === 'function' ? (next as (value: unknown) => unknown)(hooks.states[index]) : next; }];
   },
 }));
-vi.mock('@/app/admin/goods-additional-actions', () => ({ checkGoodsAdditionalCandidateAction: mocks.check }));
+vi.mock('@/app/admin/goods-additional-actions', () => ({ checkGoodsAdditionalCandidateAction: mocks.check, searchGoodsAdditionalCandidatesAction: mocks.search }));
 vi.mock('@/app/admin/goods-option-import-actions', () => ({ searchGoodsOptionImportAction: vi.fn() }));
 
 import type { AdminAdditionalGood } from '@/lib/admin/goods-additional';
@@ -89,22 +89,28 @@ describe('상품 선택창', () => {
     expect(picker.props).toMatchObject({ title: '추가구성상품 선택', multiple: true, selectedKeys: ['g-a', 'g-b'] });
     expect(picker.props.blockedReason).toBeNull();
   });
-  it('이미 연결한 상품은 막지 않고(선택됨), 지금 편집 중인 상품과 50개가 찬 뒤의 다른 상품은 이유와 함께 막는다', () => {
+  it('이미 연결한 상품은 막지 않고(선택됨), 50개가 찬 뒤의 다른 상품은 이유와 함께 막는다', () => {
     const picker = open();
     const blocked = picker.props.rowBlocked!;
     expect(blocked(good('g-a'))).toBeNull();
-    expect(blocked(good('g-base'))).toBe('지금 편집 중인 상품');
     expect(blocked(good('g-z'))).toBeNull();
     current = Array.from({ length: MAX_ADDITIONAL_GOODS }, (_, index) => linked(`g-${index}`));
     const full = view().picker!.props.rowBlocked!;
     expect(full(good('g-1'))).toBeNull();
     expect(full(good('g-z'))).toBe('최대 50개까지');
   });
-  it('공개 전(초안) 상품은 눌러 보기 전에 줄에서 이유를 말하고, 확인 요청도 보내지 않는다', () => {
-    const blocked = open().props.rowBlocked!;
-    expect(blocked(good('g-draft', { published: false }))).toBe('공개 전 상품은 연결할 수 없음');
-    expect(blocked(good('g-open', { published: true }))).toBeNull();
-    expect(mocks.check).not.toHaveBeenCalled();
+  /* 규칙 2: 고를 수 없는 상품은 목록에 넣고 눌렀을 때 거절하지 않는다. 조회가 지금 연결할 수 있는 상품만 돌려주고(총 개수·페이지도 그 수), 뺐다고 한 줄로 알린다. */
+  it('지금 연결할 수 있는 상품만 돌려주는 조회를 쓰고, 뺀 상품을 한 줄로 알린다', async () => {
+    const picker = open();
+    expect(picker.props.excludedNote).toBe('지금 고객이 살 수 없는 상품(공개 전·판매기간 밖·품절·판매 중지·판매 제한)은 목록에서 뺐습니다.');
+    const page = { rows: [good('g-c')], total: 1, page: 2, pageSize: 20 };
+    mocks.search.mockResolvedValueOnce({ ok: true, data: page });
+    await expect(picker.props.load!({ query: '케이스', field: 'code', filter: 'category-1', page: 2 })).resolves.toBe(page);
+    /* 지금 편집 중인 상품을 함께 보내 서버가 자기 자신을 뺀다. 검색 대상이 하나뿐인 요청은 상품명으로 찾는다. */
+    expect(mocks.search).toHaveBeenLastCalledWith('g-base', { query: '케이스', field: 'code', categoryId: 'category-1', page: 2 });
+    mocks.search.mockResolvedValueOnce({ ok: false, error: '연결할 수 있는 상품을 불러오지 못했습니다. 잠시 뒤 다시 검색해주세요.' });
+    await expect(picker.props.load!({ query: '', field: '', filter: '', page: 1 })).resolves.toEqual({ error: '연결할 수 있는 상품을 불러오지 못했습니다. 잠시 뒤 다시 검색해주세요.' });
+    expect(mocks.search).toHaveBeenLastCalledWith('g-base', { query: '', field: 'name', categoryId: '', page: 1 });
   });
   it('고를 수 있는 상품이면 연결 목록 맨 뒤에 사진·상품명·상품 자동코드와 함께 붙인다', async () => {
     mocks.check.mockResolvedValue({ ok: true, verdict: 'available' });

@@ -29,15 +29,31 @@ export async function searchGoodsOptionImportSources(filters: GoodsOptionImportF
       p_filters: goodsConsoleFilterValues(normalizeGoodsListFilters({ field: filters.field, sort: 'created_desc' })),
       p_limit: GOODS_OPTION_IMPORT_PAGE_SIZE, p_offset: offset,
     });
-  if (error || !record(data) || !Number.isSafeInteger(data.total) || Number(data.total) < 0 || !Array.isArray(data.rows) || data.rows.length > GOODS_OPTION_IMPORT_PAGE_SIZE) throw new Error(LOOKUP_ERROR);
-  const lastPage = Math.max(1, Math.ceil(Number(data.total) / GOODS_OPTION_IMPORT_PAGE_SIZE));
+  const page = error ? null : goodsPickerPageFromSearch(data, filters.page);
+  if (!page) throw new Error(LOOKUP_ERROR);
+  const lastPage = goodsPickerLastPage(page.total);
   if (filters.page > lastPage) return searchGoodsOptionImportSources({ ...filters, page: lastPage });
-  const rows = data.rows.map(row => {
-    if (!record(row) || typeof row.id !== 'string' || typeof row.code !== 'string' || typeof row.name !== 'string' || row.archivedAt !== null) throw new Error(LOOKUP_ERROR);
-    return { id: row.id, code: row.code, name: row.name, categoryName: typeof row.categoryName === 'string' ? row.categoryName : null,
-      imageUrl: typeof row.imagePath === 'string' && row.imagePath ? publicMediaUrl(row.imagePath) : null, published: typeof row.publishedAt === 'string' };
-  });
-  return { rows, total: Number(data.total), page: filters.page, pageSize: GOODS_OPTION_IMPORT_PAGE_SIZE };
+  return page;
+}
+
+/** 조건에 맞는 상품 수로 마지막 페이지를 구한다(1부터). */
+export function goodsPickerLastPage(total: number): number {
+  return Math.max(1, Math.ceil(total / GOODS_OPTION_IMPORT_PAGE_SIZE));
+}
+
+/**
+ * 상품 선택창 조회 함수(`admin_search_goods_console`·`admin_search_goods_option_sources`·`admin_search_goods_additional_candidates`)의
+ * 응답 `{ total, rows }`을 선택창 한 페이지로 바꾼다. 재고·준비 상태 같은 운영 값은 싣지 않는다. 모양이 다르면 null.
+ */
+export function goodsPickerPageFromSearch(data: unknown, page: number): GoodsOptionImportPage | null {
+  if (!record(data) || !Number.isSafeInteger(data.total) || Number(data.total) < 0 || !Array.isArray(data.rows) || data.rows.length > GOODS_OPTION_IMPORT_PAGE_SIZE) return null;
+  const rows: GoodsOptionImportPage['rows'] = [];
+  for (const row of data.rows) {
+    if (!record(row) || typeof row.id !== 'string' || typeof row.code !== 'string' || typeof row.name !== 'string' || row.archivedAt !== null) return null;
+    rows.push({ id: row.id, code: row.code, name: row.name, categoryName: typeof row.categoryName === 'string' ? row.categoryName : null,
+      imageUrl: typeof row.imagePath === 'string' && row.imagePath ? publicMediaUrl(row.imagePath) : null, published: typeof row.publishedAt === 'string' });
+  }
+  return { rows, total: Number(data.total), page, pageSize: GOODS_OPTION_IMPORT_PAGE_SIZE };
 }
 
 async function readTargetVersion(targetId: string | null): Promise<string> {

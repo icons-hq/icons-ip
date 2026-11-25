@@ -194,12 +194,20 @@ export interface PreorderPlanEntry {
 export function emptyPreorderPlan(): PreorderPlan {
   return { perOption: false, startsAt: '', endsAt: '', expectedShipDate: '', options: {} };
 }
-/** `all`: 랜덤 판매 — 모든 옵션이 같은 일정으로 예약해야 하므로 빼둔 옵션·옵션별 일정을 무시한다. */
-export interface PreorderPlanScope { all?: boolean }
+/**
+ * `all`: 랜덤 판매 — 모든 옵션이 같은 일정으로 예약해야 하므로 빼둔 옵션·옵션별 일정을 무시한다.
+ * `table`: 옵션 표를 보이는 화면인가(기본 true). 옵션이 하나만 남아 표 없이 공통 일정 칸만 보이는 화면(false)에서는 옵션별 일정을 쓰지 않는다 —
+ * '옵션마다 일정을 다르게'로 넣어 둔 날짜가 남아 있어도, 화면에 보이는 공통 일정과 저장되는 일정이 달라지면 안 된다.
+ */
+export interface PreorderPlanScope { all?: boolean; table?: boolean }
+/** 옵션별 일정을 실제로 쓰는가: 켜 두었고, 랜덤 판매가 아니고, 옵션 표가 보이는 화면일 때만. */
+export function preorderPlanUsesOwnSchedules(plan: Pick<PreorderPlan, 'perOption'>, { all = false, table = true }: PreorderPlanScope = {}): boolean {
+  return plan.perOption && !all && table;
+}
 
 /** 화면 입력을 옵션별 예약 조건으로 펼친다. 체크를 끈 옵션은 빠지고, 물량을 고치지 않은 옵션은 지금 재고수량을 쓴다. */
-export function expandPreorderPlan(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], { all = false }: PreorderPlanScope = {}): PreorderPlanEntry[] {
-  const perOption = plan.perOption && !all;
+export function expandPreorderPlan(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], { all = false, table = true }: PreorderPlanScope = {}): PreorderPlanEntry[] {
+  const perOption = preorderPlanUsesOwnSchedules(plan, { all, table });
   return targets.flatMap((target) => {
     const option = plan.options[target.key] ?? {};
     if (option.excluded && !all) return [];
@@ -253,9 +261,9 @@ export function setPreorderPlanPerOption(plan: PreorderPlan, perOption: boolean)
 
 /** 저장 전 확인. `common`은 공통 일정 칸, `options`는 옵션 키별 칸, `none`은 예약할 옵션이 하나도 없음. */
 export interface PreorderPlanProblems { common: PreorderApplyProblems; options: Record<string, PreorderApplyProblems>; none: boolean }
-export function preorderPlanProblems(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], { all = false, now = Date.now() }: PreorderPlanScope & { now?: number } = {}): PreorderPlanProblems {
-  const entries = expandPreorderPlan(plan, targets, { all });
-  const perOption = plan.perOption && !all;
+export function preorderPlanProblems(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], { all = false, table = true, now = Date.now() }: PreorderPlanScope & { now?: number } = {}): PreorderPlanProblems {
+  const entries = expandPreorderPlan(plan, targets, { all, table });
+  const perOption = preorderPlanUsesOwnSchedules(plan, { all, table });
   const options: Record<string, PreorderApplyProblems> = {};
   for (const entry of entries) {
     const capacity = preorderCapacityProblem(entry.capacityQty);
@@ -291,14 +299,14 @@ export function firstPreorderPlanProblemField(problems: PreorderPlanProblems, ta
  * 예약 입력 되읽기('글보다 화면' 3): "12월 1일 10:00부터 7일 23:59까지 주문받고 12월 20일에 보냅니다. 옵션 12개 · 예약 물량 합계 1,200개."
  * 덜 채워졌으면 채워진 만큼만 읽고, 순서가 틀리면(종료가 시작보다 앞·발송 예정일이 접수 종료일보다 앞·접수 종료가 지남) 그 자리에서 알린다.
  */
-export function preorderPlanReadback(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], { all = false, now = Date.now(), table = true }: PreorderPlanScope & { now?: number; table?: boolean } = {}): GoodsReadback | null {
-  const entries = expandPreorderPlan(plan, targets, { all });
+export function preorderPlanReadback(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], { all = false, now = Date.now(), table = true }: PreorderPlanScope & { now?: number } = {}): GoodsReadback | null {
+  const entries = expandPreorderPlan(plan, targets, { all, table });
   const valid = entries.filter((entry) => !preorderCapacityProblem(entry.capacityQty));
   const total = valid.reduce((sum, entry) => sum + Number(entry.capacityQty), 0).toLocaleString('ko-KR');
   const blank = entries.length - valid.length;
   const scope = !entries.length ? '' : !table ? (blank ? '' : `예약 물량 ${total}개.`)
     : blank ? `옵션 ${entries.length}개 중 ${blank}개는 예약 물량이 비어 있습니다.` : `옵션 ${entries.length}개 · 예약 물량 합계 ${total}개.`;
-  if (plan.perOption && !all) return scope ? { text: `옵션마다 다른 일정으로 주문받습니다. ${scope}`, problem: false } : null;
+  if (preorderPlanUsesOwnSchedules(plan, { all, table })) return scope ? { text: `옵션마다 다른 일정으로 주문받습니다. ${scope}`, problem: false } : null;
   const range = kstInputRangeLabel(plan.startsAt, plan.endsAt, now);
   if (range?.reversed) return { text: '접수 종료가 접수 시작보다 앞입니다. 날짜를 다시 확인해주세요.', problem: true };
   const ends = optionalInstant(plan.endsAt);

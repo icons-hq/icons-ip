@@ -423,7 +423,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
      * 저장된 상품의 예약판매는 판매 시기 안의 [예약판매 저장]으로 따로 저장한다. 예약 입력을 넣고 상품만 저장하면 "저장했습니다"로 보이는데
      * 예약은 걸리지 않는다(2026-11-19 예약 없이 일반 재고로 팔린 사고와 같은 모양). 저장하지 않은 예약 입력이 있으면 상품 저장을 멈추고 할 일을 알린다.
      */
-    if (selected && workspace?.readPanelStash?.(`preorder-wanted:${selected.id}`) === true) {
+    /* 단, 판매기간이 저장돼 있는 상품은 이 상품 저장으로 판매기간을 먼저 꺼야 예약판매를 저장할 수 있다(예약판매 패널이 그동안 저장 버튼을 잠근다).
+       그 선행 저장까지 막으면 두 저장이 서로를 기다린다. 넣어 둔 예약 입력은 폼 밖에 보관돼 있어 이 저장 뒤에도 그대로 남는다. */
+    if (selected && lockedValues.salePeriodEnabled !== 'true' && workspace?.readPanelStash?.(`preorder-wanted:${selected.id}`) === true) {
       const plan = (workspace.readPanelStash(`preorder-plan:${selected.id}`) ?? workspace.readPanelStash(`random-preorder-plan:${selected.id}`)) as PreorderPlan | undefined;
       if (plan && preorderPlanHasInput(plan)) {
         event.preventDefault(); setClientErrors({ form: GOOD_UNSAVED_PREORDER_MESSAGE });

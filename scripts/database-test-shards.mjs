@@ -217,6 +217,8 @@ const catalog = [
   sql('goods_instant_discount_period', { kc: true }),
   // 다른 상품 옵션 불러오기 선택창 조회(migration 20261126111000): 선택형 옵션이 있는 상품만 나오고 총 개수·페이지가 맞는지, 권한·실행 권한 봉인.
   sql('admin_goods_option_source_search'),
+  // 추가구성상품 선택창 조회(migration 20261126112000): 지금 연결할 수 있는 상품만 나오고 총 개수·페이지가 맞는지, 편집 중인 상품 제외, 권한·실행 권한 봉인.
+  sql('admin_goods_additional_candidate_search', { kc: true }),
 ];
 
 const storefront = [

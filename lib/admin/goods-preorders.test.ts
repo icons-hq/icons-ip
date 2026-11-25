@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  emptyPreorderPlan, expandPreorderPlan, preorderSellableStock, fillPreorderPlanCapacity, firstPreorderPlanProblemField, parseAdminPreorderReservations, parseGoodsPreorderBulkRequest, parseGoodsPreorderInput,
+  emptyPreorderPlan, expandPreorderPlan, preorderPlanUsesOwnSchedules, preorderSellableStock, fillPreorderPlanCapacity, firstPreorderPlanProblemField, parseAdminPreorderReservations, parseGoodsPreorderBulkRequest, parseGoodsPreorderInput,
   parseRandomPreorderRequest, pendingPreorderReservationsByVariant, preorderApplyProblemLabels, preorderApplyProblems, preorderBulkSavedMessage,
   preorderCapacityFromStock, preorderCapacityProblem, preorderCapacityStockNote, preorderEditorTargets, preorderMutationError, preorderOptionNames, preorderPlanHasInput,
   preorderPlanManualCapacities, preorderPlanOwnSchedules, preorderPlanProblemMessage, preorderPlanProblems, preorderPlanReadback, preparePreorderAllocation, setPreorderPlanPerOption,
@@ -314,5 +314,24 @@ describe('이전 회차 예약이 남은 옵션의 예약 물량 기본값', () 
     expect(preorderSellableStock({ stockQty: 50 })).toBe(50);
     expect(preorderSellableStock({ stockQty: null })).toBeNull();
     expect(preorderSellableStock(undefined)).toBeUndefined();
+  });
+});
+
+describe('옵션 표가 없는 화면의 예약 일정', () => {
+  /* '옵션마다 일정을 다르게'로 한 옵션에 다른 날짜를 넣은 뒤 다른 옵션을 지워 그 옵션만 남으면, 화면은 공통 일정 칸만 보인다.
+     보이는 공통 일정과 저장되는 일정이 같아야 한다(고객에게 약속하는 발송 예정일이 화면과 달라지면 안 된다). */
+  const plan = { ...emptyPreorderPlan(), perOption: true, startsAt: '2026-12-01T10:00', endsAt: '2026-12-07T23:59', expectedShipDate: '2026-12-20',
+    options: { only: { startsAt: '2027-01-05T10:00', endsAt: '2027-01-10T23:59', expectedShipDate: '2027-02-01' } } };
+  const targets = [{ key: 'only', name: '빨강', stockQty: 10 }];
+
+  it('표가 없으면 옵션별 일정을 쓰지 않고 공통 일정으로 펼친다', () => {
+    expect(preorderPlanUsesOwnSchedules(plan, { table: false })).toBe(false);
+    expect(expandPreorderPlan(plan, targets, { table: false })).toMatchObject([{ key: 'only', startsAt: '2026-12-01T10:00', endsAt: '2026-12-07T23:59', expectedShipDate: '2026-12-20' }]);
+  });
+
+  it('표가 있으면(옵션이 둘 이상인 상품에서 하나만 예약할 수 있을 때 포함) 넣어 둔 옵션별 일정을 그대로 쓴다', () => {
+    expect(preorderPlanUsesOwnSchedules(plan, { table: true })).toBe(true);
+    expect(expandPreorderPlan(plan, targets)).toMatchObject([{ key: 'only', startsAt: '2027-01-05T10:00', endsAt: '2027-01-10T23:59', expectedShipDate: '2027-02-01' }]);
+    expect(preorderPlanUsesOwnSchedules(plan, { all: true })).toBe(false);
   });
 });

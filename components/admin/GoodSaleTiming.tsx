@@ -41,7 +41,8 @@ export async function chooseGoodSaleTiming(next: GoodSaleTimingMode, { mode, kin
   if (next === mode) return false;
   const rows = optionRows ?? [];
   if (kind === 'draft' && sections?.preorderPlan && next !== 'preorder') {
-    const count = expandPreorderPlan(sections.preorderPlan, goodWorkspacePreorderTargets(rows), { all: goodWorkspaceRandomSale(sections) }).length;
+    const targets = goodWorkspacePreorderTargets(rows);
+    const count = expandPreorderPlan(sections.preorderPlan, targets, { all: goodWorkspaceRandomSale(sections), table: targets.length > 1 }).length;
     if (preorderPlanHasInput(sections.preorderPlan) && !await adminConfirm(saleTimingDiscardConfirm(count))) return false;
     setSections?.((current) => withGoodWorkspacePreorderPlan(current, null, rows));
   }

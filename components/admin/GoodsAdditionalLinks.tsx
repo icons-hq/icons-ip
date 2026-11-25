@@ -2,7 +2,8 @@
 'use client';
 
 import { useState } from 'react';
-import { checkGoodsAdditionalCandidateAction } from '@/app/admin/goods-additional-actions';
+import { checkGoodsAdditionalCandidateAction, searchGoodsAdditionalCandidatesAction } from '@/app/admin/goods-additional-actions';
+import type { AdminPickerLoader } from '@/lib/admin/picker';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { MAX_ADDITIONAL_GOODS, type AdminAdditionalGood } from '@/lib/admin/goods-additional';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
@@ -11,8 +12,8 @@ import { AdminGoodsPicker, type AdminGoodsPickerRow } from './AdminGoodsPicker';
 /*
  * 추가 구성 상품 연결 목록(저장 전 등록 화면과 저장된 상품의 독립 패널이 같이 쓴다).
  * 상품은 공용 상품 선택창(화면 규칙 1)에서 찾아 연결 목록 맨 뒤에 붙이고, 목록은 사진·상품명·상품 자동코드로 보인다(내부 번호는 보이지 않는다 — 규칙 8).
- * 선택창의 상품 조회는 보관하지 않은 모든 상품을 보여 주므로, 줄에서 바로 알 수 있는 것(공개 전 상품·지금 편집 중인 상품·50개 가득)은 줄에 이유를 보이고,
- * 나머지(품절·재고 없음·판매 제한 등)는 고른 순간 저장 함수와 같은 조건으로 확인해 선택창 안에 이유를 보이고 연결하지 않는다.
+ * 선택창에는 지금 연결할 수 있는 상품만 나온다 — 고객이 살 수 없는 상품(공개 전·판매기간 밖·품절·판매 중지·판매 제한)과 지금 편집 중인 상품은
+ * 조회에서 빼고 한 줄로 알린다(규칙 2). 목록을 본 뒤에 품절된 경우에 대비해, 고른 순간에도 저장 함수와 같은 조건으로 한 번 더 확인한다.
  */
 
 /** 두 화면(저장 전 등록·저장된 상품)이 같은 한 줄 안내를 쓴다. 품절·판매 중지 상품은 연결해 둬도 고객에게 보이지 않는다(저장 함수의 판매 가능 조건과 같다). */
@@ -31,6 +32,11 @@ export function GoodsAdditionalLinks({ baseGoodId, items, onChange, disabled = f
 }) {
   const [open, setOpen] = useState(false);
   const [problem, setProblem] = useState('');
+  /* 지금 연결할 수 있는 상품만 돌려주는 조회. 총 개수와 페이지도 걸러 낸 뒤의 수다. 선택창은 가장 최근에 받은 조회 함수를 쓰므로 매번 새로 만들어도 된다. */
+  const load: AdminPickerLoader<AdminGoodsPickerRow> = async (request) => {
+    const result = await searchGoodsAdditionalCandidatesAction(baseGoodId, { query: request.query, field: request.field || 'name', categoryId: request.filter, page: request.page });
+    return result.ok ? result.data : { error: result.error };
+  };
   const linked = new Set(items.map((item) => item.goodId));
   const full = items.length >= MAX_ADDITIONAL_GOODS;
   async function pick(good: AdminGoodsPickerRow) {
@@ -69,13 +75,15 @@ export function GoodsAdditionalLinks({ baseGoodId, items, onChange, disabled = f
     </ol>}
     {open ? <AdminGoodsPicker
       blockedReason={disabled ? '저장하는 중이라 지금은 고를 수 없습니다. 끝난 뒤 다시 열어주세요.' : null}
-      description="고른 상품은 연결 목록 맨 뒤에 붙습니다. 지금 고객이 살 수 있는 상품만 연결할 수 있습니다."
+      description="고른 상품은 연결 목록 맨 뒤에 붙습니다."
+      excludedNote="지금 고객이 살 수 없는 상품(공개 전·판매기간 밖·품절·판매 중지·판매 제한)은 목록에서 뺐습니다."
+      load={load}
       footer={problem ? <p className="text-sm text-destructive wrap-anywhere" role="alert">{problem}</p> : null}
       multiple
       onClose={() => { setOpen(false); setProblem(''); }}
       onDeselect={(good) => onChange((current) => current.filter((entry) => entry.goodId !== good.id))}
       onSelect={pick}
-      rowBlocked={(good) => linked.has(good.id) ? null : good.id === baseGoodId ? '지금 편집 중인 상품' : full ? `최대 ${MAX_ADDITIONAL_GOODS}개까지` : good.published ? null : '공개 전 상품은 연결할 수 없음'}
+      rowBlocked={(good) => linked.has(good.id) ? null : full ? `최대 ${MAX_ADDITIONAL_GOODS}개까지` : null}
       selectedKeys={[...linked]}
       title={adminGoodsCopy('추가 구성 상품 선택')}
     /> : null}
