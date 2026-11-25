@@ -80,6 +80,47 @@ commit;
 - 세션 끊기는 `auth.sessions` 행 삭제다(supabase-js `auth.admin.signOut`은 대상 사용자의 JWT가 있어야 해 사용자 ID로 쓸 수 없다). 로컬 격리 스택에서 `postgres` 소유 함수의 삭제 권한과 GoTrue의 refresh 거절을 확인했다. 호스티드는 위 배포 전 확인으로 권한을 보고, 첫 회수 뒤 대상 계정이 로그인으로 돌아가는지 한 번 본다.
 - 사용자·세션 없이 사용자 ID만 넘기는 service_role 운영자 경로(어드민 이미지·상품 미디어 올리기, 티켓 검표, 일부 엑셀 기록, 초대 메일 준비 등)는 DB가 세션을 알 수 없어 앱 가드(2단계 인증 대기면 운영자 아님)가 막는다.
 
+## 역할 설정 전에 새 운영자를 들이는 법(호환 단계, 2026-11-25 원장 OPS-007)
+
+운영은 아직 역할 설정을 마치지 않은 호환 단계다(`private.operator_access_state.configured = false`, `private.operator_memberships` 0행). 이 상태에서는 다음이 모두 막혀 있다.
+
+- **초대:** 판매자 정보 → 매니저 관리의 초대 만들기는 DB가 `operator_setup_required`로 거절한다(`admin_create_operator_invitations` 등, `20261020085217_operator_email_invitations.sql`). 역할 설정을 마쳐도 초대 메일은 전역 메일 발송 제어에 묶여 나가지 않을 수 있다.
+- **역할 변경:** `admin_change_operator_role`은 역할 설정이 끝났고 매니저 명단에 이미 있는 사람에게만 된다.
+- **SQL로 `profiles.role`만 `staff`로 바꾸기:** 호환 권한은 migration 시점의 명단(`private.operator_legacy_cohort`)에만 주므로 접근 모드가 `none`이고 관리자 화면에 들어오지 못한다(`private.operator_access_for`).
+
+**지금 가능한 유일한 길**은 운영 DB SQL로 ① 회원 역할 승격 ② 매니저 명단(`private.operator_memberships`) 행 추가 ③ 감사 기록 수기 입력을 한 트랜잭션으로 하는 것이다. 명단에 행이 있으면 호환 단계에서도 그 행의 역할 범위만 열린다(`operator_access_for`의 `configured` 모드). 명시적 승인(요청자·사유)을 받은 뒤 Supabase SQL 편집기에서 한다.
+
+1. 대상을 확인한다. 이미 가입하고 이메일 인증을 마친 계정이어야 하고, 정지·탈퇴 상태가 아니어야 한다. 역할은 [권한 표](../../supabase/migrations/20261020085213_operator_capability_core.sql)(`private.operator_role_capabilities`)에서 업무에 맞는 최소한을 고른다: `deputy`(부매니저)·`influencer`·`agency`·`logistics`(물류, 출고 전용)·`primary`(주매니저, 판매·운영자 관리·플랫폼까지 열림). **`owner`(통합 매니저)는 쓰지 않는다** — 한 명만 허용되는 유일 인덱스가 있고 대표 지정은 역할 설정·승계 절차로만 한다.
+
+```sql
+select u.id, u.email, p.role, p.suspended_at, p.nickname
+from auth.users u join public.profiles p on p.id = u.id
+where u.email = '<대상 이메일>';
+```
+
+2. 한 트랜잭션으로 적용한다. 값은 위에서 읽은 `id`와 고른 역할이다. `profiles.role`은 `staff`로 올린다(`admin`은 호환 단계의 일부 관리자 전용 RPC 판정에 쓰이므로 꼭 필요할 때만, 통합 매니저가 정해진 뒤에는 쓰지 않는다).
+
+```sql
+begin;
+update public.profiles set role = 'staff'
+ where id = '<대상 profiles.id>' and role = 'user' and suspended_at is null;
+-- 영향 행이 1이어야 한다. 0이면 rollback 하고 대상 상태를 다시 읽는다.
+insert into private.operator_memberships(profile_id, manager_role)
+ values ('<대상 profiles.id>', '<deputy|influencer|agency|logistics|primary>');
+insert into public.audit_log(actor_id, action, target, diff)
+ values (null, 'admin.operator.manual_grant', 'operator:<대상 profiles.id>',
+   jsonb_build_object('approvedBy', '<승인자 이름>', 'executedBy', '<실행자 이름>', 'reason', '<사유>',
+     'managerRole', '<위와 같은 역할>', 'path', 'runbook operator-access: 역할 설정 전 수기 추가'));
+commit;
+```
+
+3. 확인한다: 같은 SQL 편집기에서 `select private.operator_access_for('<대상 profiles.id>');`의 `mode`가 `configured`, `capabilities`가 고른 역할의 범위인지 본다. 대상이 로그인해 허용 화면은 열리고 허용 밖 화면·직접 URL은 거절되는지(제한 계정 확인) 본다. 2단계 인증 스위치가 켜져 있으면 대상은 첫 접속에서 인증 앱부터 등록한다.
+4. 되돌리기: 같은 방식의 트랜잭션으로 `delete from private.operator_memberships where profile_id = '<id>'`, `update public.profiles set role = 'user' where id = '<id>'`, 사유를 적은 `audit_log` 행(`admin.operator.manual_revoke`)을 넣는다. 로그인 세션 끊기가 필요하면 [역할 변경·회수·승계](#역할-변경회수승계)의 회수와 같이 `auth.sessions` 정리를 별도 승인으로 한다.
+
+**한계:** 이 길은 `audit_log`가 수기 기록이라 화면 감사 흐름(`admin.operator.*` 자동 기록)과 달리 행위자가 비고 사유·승인자는 사람이 적은 값이다. 명단 행은 최초 역할 설정 때 그대로 매핑에 포함해 확정해야 한다 — 최초 설정은 `staff/admin` 전원이 매핑에 들어와야 하고 기존 명시 지정은 그 안에서 다시 정해진다(`admin_activate_operator_access`). 수기로 올린 계정을 빠뜨리면 설정이 `operator_setup_incomplete`로 거절된다. 또한 [배포 런북](smartstore-admin-rollout.md)이 말하는 '장애 대응을 이유로 raw 역할을 늘려 우회하지 않는다'는 명단 행 없이 `profiles.role`만 올리는 것을 뜻한다 — 위 절차는 명단 행과 감사 기록을 함께 남기는 허용된 경로다.
+
+**장기 해법:** 역할 설정을 활성화한다. [최초 전환](#최초-전환)의 순서(기존 운영자 전원 검토 → 통합 매니저 명시 선택 → 역할 적용)를 따르면 위 SQL 없이 매니저 관리의 초대·역할 변경이 열린다. 초대 메일을 쓰려면 그 뒤 [이메일 초대](#이메일-초대)의 발송 제어 준비(`EMAIL_DISPATCH_HMAC_SECRET`, Resend, 전역 발송 제어)도 확인한다. 오픈 직후 운영자를 계속 늘려야 한다면 이 절차를 반복하기보다 역할 설정을 먼저 끝내는 쪽이 안전하다.
+
 ## 이메일 초대
 
 초대 생성 → 이메일 발송 접수/전달 → 수락은 각각 별도 상태다. 한 번에 1~10명을 초대하며 통합 매니저를 제외한 매니저와 유효한 수락 대기 초대를 합해 최대 1,000명이다. 초대는 생성 후 7일 동안 유효하다.

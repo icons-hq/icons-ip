@@ -48,6 +48,7 @@ function deps(overrides: Partial<OrderPartialCancellationDependencies> = {}, loa
   return {
     load: vi.fn(async () => load),
     refund: vi.fn(async () => approved()),
+    beginRetry: vi.fn(async () => 'processing'),
     complete: vi.fn(async () => undefined),
     reject: vi.fn(async () => undefined),
     markNeedsReview: vi.fn(async () => undefined),
@@ -71,6 +72,70 @@ describe('재고 부족 부분 취소 오케스트레이터', () => {
     const d = deps({}, row({ reasonCode: 'return' }));
     await expect(reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, d)).resolves.toEqual({ ok: true, status: 'completed' });
     expect(d.refund).toHaveBeenCalledWith(expect.objectContaining({ reasonCode: 'return', refundAmount: 9_500, expectedBalanceBefore: 40_000 }));
+  });
+
+  /* 입금된 가상계좌(에스크로 아님) 부분 반품·부분 취소(2026-11-25 보강) — 계좌는 반품 요청에서 찾고, 계좌 때문에 멈추면 구매자에게 알린다. */
+  it('부분 반품은 반품 요청 id로 환불 계좌를 찾고, 계좌 때문에 멈추면 그 요청으로 계좌 요청을 보낸다', async () => {
+    const CLAIM_ID = '77777777-7777-4777-8777-777777777777';
+    const notify = vi.fn(async () => undefined);
+    const d = deps({
+      refund: vi.fn(async () => approved({ outcome: 'needs_review', reasonCode: 'provider_refund_account_required', refundedAmount: undefined })),
+      notifyRefundAccountNeeded: notify,
+    }, row({ reasonCode: 'return', claimId: CLAIM_ID }));
+    await expect(reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, d))
+      .resolves.toEqual({ ok: false, code: 'provider_refund_account_required' });
+    expect(d.refund).toHaveBeenCalledWith(expect.objectContaining({ claimId: CLAIM_ID, reasonCode: 'return' }));
+    expect(d.markNeedsReview).toHaveBeenCalledWith({ id: ID, actorId: ACTOR, code: 'provider_refund_account_required' });
+    expect(notify).toHaveBeenCalledWith(CLAIM_ID);
+
+    // 재고 부족 부분 취소는 구매자가 계좌를 넣을 요청이 없다 — 알리지 않고 운영자 확인(결제확인필요)으로 남긴다.
+    const stockout = vi.fn(async () => undefined);
+    await reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, deps({
+      refund: vi.fn(async () => approved({ outcome: 'needs_review', reasonCode: 'provider_refund_account_required', refundedAmount: undefined })),
+      notifyRefundAccountNeeded: stockout,
+    }));
+    expect(stockout).not.toHaveBeenCalled();
+  });
+
+  // 2026-11-25 리뷰: 결제확인필요 원장의 재시도는 결제사를 부르기 전에 처리 중으로 옮긴다(그동안 환급 계좌 변경·동시 재시도가 막힌다).
+  it('결제확인필요 원장은 처리 중으로 옮긴 뒤에만 결제사를 부르고, 옮기지 못하면 부르지 않는다', async () => {
+    const d = deps({}, row({ state: 'needs_review' }));
+    await expect(reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, d)).resolves.toEqual({ ok: true, status: 'completed' });
+    expect(d.beginRetry).toHaveBeenCalledWith({ id: ID, actorId: ACTOR });
+    expect(vi.mocked(d.beginRetry).mock.invocationCallOrder[0]).toBeLessThan(vi.mocked(d.refund).mock.invocationCallOrder[0]);
+
+    // 처리 중 원장(첫 시도·다른 호출이 진행 중)은 옮기지 않고 같은 멱등키로 확인한다.
+    const processing = deps();
+    await reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, processing);
+    expect(processing.beginRetry).not.toHaveBeenCalled();
+
+    for (const [state, result] of [
+      ['completed', { ok: true, status: 'already_completed' }],
+      ['rejected', { ok: false, code: 'partial_cancel_rejected' }],
+      ['awaiting_transfer', { ok: false, code: 'not_ready' }],
+    ] as const) {
+      const moved = deps({ beginRetry: vi.fn(async () => state) }, row({ state: 'needs_review' }));
+      await expect(reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, moved)).resolves.toEqual(result);
+      expect(moved.refund).not.toHaveBeenCalled();
+    }
+    const failed = deps({ beginRetry: vi.fn(async () => { throw new Error('db'); }) }, row({ state: 'needs_review' }));
+    await expect(reconcileOrderPartialCancellation({ partialCancellationId: ID, actorId: ACTOR }, failed))
+      .resolves.toEqual({ ok: false, code: 'local_state_unavailable' });
+    expect(failed.refund).not.toHaveBeenCalled();
+  });
+
+  it('결제사 요청 조립: 가상계좌 환불 계좌가 있으면 싣고(어댑터가 계좌 접미를 붙인다) 없으면 싣지 않는다', () => {
+    const attempt = { id: 'attempt-1' } as Parameters<typeof orderPartialCancellationRefundRequest>[0];
+    const base = { partialCancellationId: ID, paymentKey: PAYMENT_KEY, refundAmount: 9_500, expectedBalanceBefore: 40_000 };
+    const account = { bankCode: '88', accountNumber: '110123456789', holderName: '김토스' };
+    expect(orderPartialCancellationRefundRequest(attempt, { ...base, refundReceiveAccount: account })).toMatchObject({
+      idempotencyKey: `refund:attempt-1:partial:${ID}`, refundReceiveAccount: account,
+    });
+    expect(orderPartialCancellationRefundRequest(attempt, base)).not.toHaveProperty('refundReceiveAccount');
+    // 전액 취소 오케스트레이터의 단계별 부분 취소(차감·남은 잔액)도 계좌를 싣는다.
+    expect(cancellationRefundRequest(attempt, { amount: 40_000, reason: '사유', paymentKey: PAYMENT_KEY,
+      partial: { refundAmount: 3_000, requestId: 'r1', expectedBalanceBefore: 3_000, scope: 'remainder' }, refundReceiveAccount: account,
+    })).toMatchObject({ idempotencyKey: 'refund:attempt-1:remainder:r1', refundReceiveAccount: account });
   });
 
   it('결제사 요청 조립: 부분 반품은 반품 사유, 재고 부족 부분 취소는 지금 사유, 멱등키는 같은 원장 id 규칙', () => {
@@ -234,6 +299,7 @@ describe('같은 결제의 다회 부분 취소(가짜 토스, 잔액 누적)', 
     const completed: Array<{ id: string; transactionKey: string }> = [];
     const partial = (id: string, refundAmount: number, balanceBefore: number) => reconcileOrderPartialCancellation({ partialCancellationId: id, actorId: ACTOR }, {
       load: async () => row({ id, refundAmount, balanceBefore }),
+      beginRetry: async () => 'processing',
       // 기본 의존성과 같은 요청 조립(순수 함수)을 쓴다 — 조립이 바뀌면 이 시험이 같이 본다.
       refund: input => toss.gateway.refund(orderPartialCancellationRefundRequest(ATTEMPT, input)),
       complete: async input => { completed.push({ id: input.id, transactionKey: input.transactionKey }); },

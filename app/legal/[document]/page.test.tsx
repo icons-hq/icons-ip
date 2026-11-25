@@ -103,7 +103,7 @@ describe('/legal/[document] 라우트', () => {
 
   it('개인정보처리방침은 성인 인증·주소록·결제대행사 수탁자를 본문에 담는다', async () => {
     const privacy = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'privacy' }) }));
-    for (const text of ['성인 인증 (휴대폰 본인확인)', '엔에이치엔케이씨피 주식회사', '주소록 (선택)', '토스페이먼츠 주식회사', '나이스정보통신 주식회사']) {
+    for (const text of ['성인 인증 (휴대폰 본인확인)', '엔에이치엔케이씨피 주식회사', '주소록 (선택)', '토스페이먼츠 주식회사']) {
       expect(privacy, text).toContain(text);
     }
     expect(privacy).not.toContain('코페이');

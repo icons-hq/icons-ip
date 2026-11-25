@@ -97,12 +97,13 @@ export function AccountDeletionPanel({ presentation, requestKey }: AccountDeleti
             남겨주시면, 운영자가 진행 중인 거래가 없는지 확인한 뒤 처리하고 문의 답변으로 알려드려요.
           </p>
           <ul className="account-deletion-facts">
-            <li>처리되면 이 계정으로 다시 로그인할 수 없고, {INQUIRY_WITHDRAWAL_SCOPE.erased.join('·')}은 바로 지워지고, 닉네임은 &lsquo;{INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}&rsquo;에 구분 번호가 붙은 이름으로 바뀌어요.</li>
+            <li>처리되면 이 계정으로 다시 로그인할 수 없고, {INQUIRY_WITHDRAWAL_SCOPE.erased.join('·')}은 바로 지워지고, 닉네임은 &lsquo;{INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}&rsquo;에 구분 번호가 붙은 이름으로 바뀌어요. 쓰지 않은 적립금도 더 이상 쓸 수 없어요.</li>
             <li>
-              {INQUIRY_WITHDRAWAL_SCOPE.retained.join(', ')}은 완전 삭제 절차가 준비될 때까지 이용할 수 없는 상태로 남아요.
+              이메일 주소는 처리 결과를 문의 답변으로 알려드리기 위해 {INQUIRY_WITHDRAWAL_SCOPE.emailRetentionDays}일 동안 보관한 뒤 지워요.
               {' '}{INQUIRY_WITHDRAWAL_SCOPE.rejoin}.
             </li>
-            <li>{INQUIRY_WITHDRAWAL_SCOPE.transactionRecords}은 관련 법에 따라 정해진 기간(최대 5년) 보관한 뒤 파기해요.</li>
+            <li>관련 법에 따라 {INQUIRY_WITHDRAWAL_SCOPE.transactionRecords}은 5년, {INQUIRY_WITHDRAWAL_SCOPE.inquiries}은 3년 동안 보관한 뒤 파기해요.</li>
+            <li>{INQUIRY_WITHDRAWAL_SCOPE.posts}은 지워지지 않고 작성자가 &lsquo;{INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}&rsquo;으로 보여요. 지우고 싶은 리뷰는 탈퇴를 요청하기 전에 직접 삭제해주세요.</li>
             <li>진행 중인 주문·배송·취소·환불, 이용 전 티켓, 정기배송이 있으면 그 일이 끝난 뒤 처리돼요.</li>
           </ul>
           <WcButton href={ACCOUNT_DELETION_INQUIRY_HREF} variant="primary">1:1 문의로 탈퇴 요청하기</WcButton>

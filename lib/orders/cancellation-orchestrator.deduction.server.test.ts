@@ -163,6 +163,8 @@ describe('reconcileOrderCancellation — 반품배송비 차감', () => {
     expect(deps.refundProviderPayment).toHaveBeenCalledWith({
       paymentId: 'payment-1', provider: 'toss', amount: 30000, reason: '엑스스퀘어 반품 환불(반품배송비 차감)',
       paymentKey: PAYMENT_KEY, partial: { refundAmount: 27000, requestId: REQUEST_ID },
+      // 가상계좌 차감 환불이 이 반품의 환급 계좌를 찾는다(2026-11-25 — 전액 환불과 같은 고르기).
+      requestId: REQUEST_ID,
     });
     expect(refundDeduction.recordPartialRefund).toHaveBeenCalledWith({
       requestId: REQUEST_ID, actorId: ACTOR_ID, paymentId: 'payment-1', refundedAmount: 27000,

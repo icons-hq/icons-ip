@@ -13,7 +13,9 @@ import {
   type OrderRefundSummary,
   type OrderWithdrawalReasonType,
 } from '../../lib/orders';
-import { orderClaimAvailability, type OrderClaimEligibility } from '@/lib/orders/claims';
+import { normalizeRefundAccount, orderClaimAvailability, type OrderClaimEligibility } from '@/lib/orders/claims';
+import { submitOrderClaim } from './OrderClaimRequest';
+import { isVirtualAccountRefundNumber, RefundAccountFieldset, VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE, type RefundAccountDraft } from './RefundAccountFieldset';
 
 export { LEGAL_WITHDRAWAL_NOTICE };
 export const CANCELLATION_FAILURE_MESSAGE = '취소 요청을 처리하지 못했습니다. 주문 상태를 새로 확인한 뒤 다시 시도해주세요.';
@@ -74,6 +76,26 @@ export async function submitOrderCancellation(
   return status === 'requested' || status === 'canceled' || status === 'already_canceled'
     ? status
     : false;
+}
+
+/** 가상계좌 주문 취소의 환급 계좌 안내(반품 신청 화면과 같은 규칙 — ADR-0049 결정 5 보강). */
+export const VIRTUAL_ACCOUNT_CANCEL_REFUND_INTRO = '가상계좌로 결제한 주문은 이 계좌로 결제대행사가 환불해요. 비워 두면 결제 화면에서 입력한 계좌로 환불하고, 그 계좌도 없으면 주문 상세에서 계좌를 받아요. 입력하신 계좌는 마스킹해 보관하고, 환급 완료 30일 뒤 원문을 파기합니다.';
+
+/**
+ * 환급 계좌를 함께 낸 주문 취소(입금된 가상계좌 주문). 취소 전용 라우트는 계좌를 받지 않으므로 클레임 라우트(취소 유형)로 보낸다 —
+ * 같은 접수 함수(request_order_claim)가 같은 사유·같은 자동 승인으로 받고, 가상계좌 주문이면 DB가 계좌를 결제사에 그대로 보낼 수 있는지
+ * 판정해 받지 않으면 신청 전체를 되돌린다(invalid_refund_account). 자동 승인은 취소 화면의 '접수'로 읽는다.
+ */
+export async function submitOrderCancellationWithRefundAccount(
+  orderId: string,
+  account: RefundAccountDraft,
+  fetcher?: Parameters<typeof submitOrderClaim>[2],
+): Promise<CancellationSubmissionResult | 'invalid_refund_account'> {
+  const result = await submitOrderClaim(orderId, { claimType: 'cancel', reasonType: 'change_of_mind', ...account }, fetcher);
+  if (result === 'auto_approved' || result === 'requested') return 'requested';
+  if (result === 'canceled' || result === 'already_canceled' || result === 'deadline_expired' || result === 'invalid_refund_account') return result;
+  if (result === 'not_claimable' || result === 'partial_return_unavailable') return 'not_cancelable';
+  return false;
 }
 
 interface CancellationBasePresentation {
@@ -275,6 +297,11 @@ interface OrderCancellationProps {
   paymentMethod?: 'card' | 'bank_transfer' | null;
   /** 부분 반품(ADR-0047) 스위치. 취소를 신청할 수 없을 때의 안내가 반품의 일부 신청을 말한다. */
   partialReturnEnabled?: boolean;
+  /**
+   * 입금된 토스 가상계좌 결제 주문인지(ADR-0049 결정 5 보강). 그러면 취소 확인 단계에 환급 계좌 칸(반품 신청과 같은 부품)을 보인다 —
+   * 결제대행사가 이 계좌로 환불한다. 판정의 진실원은 DB이고 이 값은 표시 힌트다. 입금 전(결제 대기) 취소는 계좌 반납이라 계좌가 필요 없다.
+   */
+  virtualAccountRefund?: boolean;
 }
 
 type SubmissionState =
@@ -296,9 +323,14 @@ export function OrderCancellation({
   refund,
   paymentMethod,
   partialReturnEnabled = false,
+  virtualAccountRefund = false,
 }: OrderCancellationProps) {
   const router = useRouter();
   const [submission, setSubmission] = useState<SubmissionState>('idle');
+  const [account, setAccount] = useState<RefundAccountDraft>({ bankName: '', accountNumber: '', accountHolder: '' });
+  const [accountError, setAccountError] = useState<string | null>(null);
+  /* 입금 전(결제 대기) 취소는 계좌 반납이라 환불이 없다 — 입금된 주문의 취소에만 계좌 칸을 보인다. */
+  const askRefundAccount = virtualAccountRefund && status !== 'pending' && status !== 'canceled';
   const openButtonRef = useRef<HTMLButtonElement>(null);
   const shouldRestoreFocus = useRef(false);
   const presentation = cancellationPresentation(status, refund, cancellationRequest, { deliveredAt, eligibility, paymentMethod });
@@ -315,13 +347,32 @@ export function OrderCancellation({
   }
 
   async function cancelOrder() {
+    const normalized = askRefundAccount ? normalizeRefundAccount(account) : { ok: true as const, value: null };
+    if (!normalized.ok) {
+      setAccountError(normalized.error);
+      return;
+    }
+    if (normalized.value && !isVirtualAccountRefundNumber(normalized.value.accountNumber)) {
+      setAccountError(VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE);
+      return;
+    }
+    setAccountError(null);
     setSubmission('submitting');
 
-    let result: CancellationSubmissionResult = false;
+    let result: CancellationSubmissionResult | 'invalid_refund_account' = false;
     try {
-      result = await submitOrderCancellation(orderId, 'change_of_mind');
+      result = normalized.value
+        ? await submitOrderCancellationWithRefundAccount(orderId, normalized.value)
+        : await submitOrderCancellation(orderId, 'change_of_mind');
     } catch {
       result = false;
+    }
+
+    if (result === 'invalid_refund_account') {
+      /* 신청 전체가 되돌려졌다 — 계좌를 고쳐 다시 신청한다. */
+      setAccountError(VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE);
+      setSubmission('confirming');
+      return;
     }
 
     if (!result) {
@@ -372,6 +423,17 @@ export function OrderCancellation({
             <div className="order-cancellation-confirm">
               <strong>{presentation.confirmTitle}</strong>
               <p>{presentation.confirmBody}</p>
+              {askRefundAccount ? (
+                <RefundAccountFieldset
+                  error={accountError}
+                  idPrefix="order-cancel"
+                  intro={VIRTUAL_ACCOUNT_CANCEL_REFUND_INTRO}
+                  legend="환급 계좌 (선택)"
+                  onChange={setAccount}
+                  value={account}
+                  virtualAccount
+                />
+              ) : null}
               <div>
                 <button autoFocus className="btn btn-ghost" type="button" onClick={closeConfirmation}>돌아가기</button>
                 <button className="btn order-cancellation-submit" type="button" onClick={() => void cancelOrder()}>{presentation.actionLabel}</button>

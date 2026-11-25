@@ -33,6 +33,13 @@ import {
 import { Download, TriangleAlert } from 'lucide-react';
 import { GoodsFlowSteps } from './GoodsFlowSteps';
 import { statusTone } from '@/lib/admin/status-tone';
+import { adminConfirm } from '@/lib/admin/confirm';
+import {
+  goodsImportPriceChangeText,
+  goodsImportPriceConfirmation,
+  goodsImportPriceGuardLines,
+  goodsPriceGuardReasonText,
+} from '@/lib/admin/goods-price-guard';
 import {
   AdminField,
   AdminFormGrid,
@@ -436,6 +443,11 @@ export function GoodsImportScreen({
   }
   async function apply() {
     if (!view) return;
+    // 적용 순간 한 번: 이 파일로 적용할 상품 중 판매가가 0원·1,000원 미만이거나 절반 이하·두 배 이상인 것을 모아 확인받는다.
+    const priceCheck = goodsImportPriceConfirmation(
+      view.groups.filter((group) => !group.result && (group.kind === 'new' || group.kind === 'update')),
+    );
+    if (priceCheck && !(await adminConfirm(priceCheck))) return;
     stop.current = false;
     setBusy(true);
     setError('');
@@ -749,6 +761,19 @@ export function GoodsImportScreen({
                             {message}
                           </p>
                         ))}
+                        {group.kind === 'new' || group.kind === 'update' ? (() => {
+                          const text = goodsImportPriceChangeText(group.priceChange);
+                          if (!text) return null;
+                          const reasons = [...new Set(goodsImportPriceGuardLines(group.priceChange).flatMap((line) => line.reasons))];
+                          return reasons.length ? (
+                            <p className={WARNING} data-price-check="true">
+                              <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+                              {`${text} (${goodsPriceGuardReasonText(reasons)} — 금액을 확인해주세요)`}
+                            </p>
+                          ) : (
+                            <p className="text-sm text-muted-foreground tabular-nums" data-price-change="true">{text}</p>
+                          );
+                        })() : null}
                         {group.warnings.map((message) => (
                           <p key={message} className={WARNING}>
                             <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />

@@ -65,10 +65,13 @@ function parseRefundWatches(value: unknown): VirtualAccountRefundWatch[] | null 
   const rows: VirtualAccountRefundWatch[] = [];
   for (const row of value) {
     if (!row || typeof row !== 'object') return null;
-    const { attemptId, orderId, paymentKey, providerOrderId, amount } = row as Record<string, unknown>;
+    const { attemptId, orderId, paymentKey, providerOrderId, amount, expectedBalance } = row as Record<string, unknown>;
     if (!isUuid(attemptId) || !isUuid(orderId) || typeof paymentKey !== 'string' || typeof providerOrderId !== 'string'
       || typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount <= 0) return null;
-    rows.push({ attemptId, orderId, paymentKey, providerOrderId, amount });
+    // 가상계좌 부분 환불(2026-11-25) 뒤의 감시는 결제사에 남아야 할 잔액을 함께 받는다. 없으면(예전 응답) 전액 환불(0)이다.
+    if (expectedBalance !== undefined && (typeof expectedBalance !== 'number' || !Number.isSafeInteger(expectedBalance)
+      || expectedBalance < 0 || expectedBalance >= amount)) return null;
+    rows.push({ attemptId, orderId, paymentKey, providerOrderId, amount, expectedBalance: expectedBalance ?? 0 });
   }
   return rows;
 }

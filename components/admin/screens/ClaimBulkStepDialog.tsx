@@ -300,12 +300,15 @@ export function RefundStep({ defective = {}, onDefective, onRun, preview, progre
   const excluded = rows.filter((row) => row.blocker !== null);
   /* 반품배송비 차감(ADR-0031): 환불 금액은 서버가 이미 뺀 값이다. 차감하는 행이 있을 때만 안내를 더한다. */
   const deducted = rows.some((row) => row.blocker === null && Boolean(row.deductionAmount));
+  /* 부분 반품(ADR-0047, CLM-136): 금액은 고른 상품 몫이고 그 금액만 부분 취소한다. */
+  const partial = rows.some((row) => row.blocker === null && row.partialReturn);
   return <div className="flex min-w-0 flex-col gap-4" data-claim-bulk-refund="">
     <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
       토스·나이스페이 결제는 한 건씩 순서대로 결제사에 전액 취소를 요청하고 결제사 조회로 확인합니다. 확인되면 주문 취소·재고
       복원과 환불 완료 기록이 함께 끝납니다. 입고완료 건은 환불 접수를 먼저 기록합니다. 일부가 실패해도 이미 취소된
       건은 되돌리지 않고 건별 결과로 보여 줍니다.
       {deducted ? ' 단순 변심 반품은 반품배송비를 뺀 환불 금액만 부분 취소합니다. 결제사가 그 결제의 부분 취소를 받지 않으면 전액 환불하고 반품배송비는 배송비 청구로 따로 받습니다.' : null}
+      {partial ? ' 부분 반품은 전액 취소가 아니라 고객이 고른 상품 몫(표의 환불 금액)만 부분 취소하고 남은 상품은 그대로 둡니다. 결제사가 부분 취소를 받지 않으면 요청이 확인 필요로 남고 상세의 "부분 반품" 칸에서 처리합니다.' : null}
     </AdminNotice>
     <div className="flex flex-col gap-1 rounded-lg border bg-muted/40 px-3 py-2.5" data-claim-bulk-refund-total="">
       <p className="text-sm">처리 <strong className="tabular-nums">{totals.count}건</strong> · 환불 합계 <strong className="text-base tabular-nums">{krw(totals.amount)}</strong></p>
@@ -319,7 +322,7 @@ export function RefundStep({ defective = {}, onDefective, onRun, preview, progre
           {rows.flatMap((row) => [<TableRow data-claim-bulk-blocked={row.blocker ? '' : undefined} key={row.claimId}>
             <TableCell className="tabular-nums">{row.reference}</TableCell>
             <TableCell>{row.providerLabel}</TableCell>
-            <TableCell className="text-right tabular-nums">{row.amount === null ? '-' : krw(row.amount)}{row.deductionAmount ? <span className="block text-xs text-muted-foreground" data-claim-bulk-refund-deduction="">{returnFeeDeductionRowNote(row.deductionAmount)}</span> : null}</TableCell>
+            <TableCell className="text-right tabular-nums">{row.amount === null ? '-' : krw(row.amount)}{row.partialReturn ? <span className="block text-xs text-muted-foreground" data-claim-bulk-partial-return="">부분 반품 · 고른 상품 몫</span> : null}{row.deductionAmount ? <span className="block text-xs text-muted-foreground" data-claim-bulk-refund-deduction="">{returnFeeDeductionRowNote(row.deductionAmount)}</span> : null}</TableCell>
             <TableCell className="whitespace-normal">{row.blocker ? <span className="text-muted-foreground">제외 · {adminClaimCopy(row.blocker)}</span> : '확정'}</TableCell>
           </TableRow>,
           ...(!row.blocker && row.items && row.items.some((item) => item.state !== 'recorded') && onDefective ? [<TableRow data-claim-bulk-stock="" key={`${row.claimId}-stock`}>

@@ -151,13 +151,14 @@ describe('법정 문서 레지스트리', () => {
     expect(koreanLegalDate('2026-11-06')).toBe('2026년 11월 6일');
   });
 
-  /* 결제대행사는 서버가 주문 단위로 정한다(ADR-0013) — 기본 토스페이먼츠, 19금 상품 주문의 카드 결제만 나이스페이. */
-  it('지급방법과 처리위탁이 실제 결제대행사(토스페이먼츠 기본, 19금 상품 주문은 나이스정보통신)를 밝힌다', () => {
+  /* 결제대행사는 서버가 주문 단위로 정한다(ADR-0013) — 2026-11-25부터 19금 상품 주문도 토스페이먼츠(ADR-0053). */
+  it('지급방법과 처리위탁이 실제 결제대행사(19금 상품 주문도 토스페이먼츠)를 밝힌다', () => {
     const termsPayment = LEGAL_DOCUMENTS.terms.articles
       .find((article) => article.heading.includes('지급방법'))!
       .paragraphs!.join('\n');
     expect(termsPayment).toMatch(/상품과 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해/);
-    expect(termsPayment).toMatch(/19금 상품이 담긴 주문의 카드 대금은 결제대행사인 나이스정보통신 주식회사를 통해/);
+    expect(termsPayment).not.toMatch(/나이스정보통신/);
+    expect(termsPayment).not.toMatch(/19금 상품이 담긴 주문에는 제공하지 않습니다/);
 
     const processorRows = LEGAL_DOCUMENTS.privacy.articles
       .find((article) => article.heading.includes('위탁'))!
@@ -165,9 +166,8 @@ describe('법정 문서 레지스트리', () => {
     const processors = new Map(processorRows.map((row) => [row[0], row.join(' ')]));
     for (const operation of ['결제 처리', '취소', '환급']) {
       expect(processors.get('토스페이먼츠 주식회사'), operation).toContain(operation);
-      expect(processors.get('나이스정보통신 주식회사'), operation).toContain(operation);
     }
-    expect(processors.get('나이스정보통신 주식회사')).toContain('19금 상품');
+    expect(processors.has('나이스정보통신 주식회사')).toBe(false);
     expect([...processors.keys()].join(' ')).not.toMatch(/코페이/);
   });
 
@@ -275,6 +275,19 @@ describe('이용약관', () => {
     expect(body).toMatch(/1:1 문의\(\/my\/inquiries\)/);
     expect(body).toMatch(/탈퇴 요청은/);
   });
+
+  /* 탈퇴 처리(20261126104000)의 실제 동작 — 법정 보존분 외 즉시 파기, 이메일 3일, 재가입 1년 차단, 게시물 익명 표시. */
+  it('제7조는 탈퇴 처리의 파기 범위·이메일 보관·게시물·재가입 제한을 실제 동작과 같게 밝힌다', () => {
+    const body = terms.articles.find((article) => article.heading.includes('회원 탈퇴'))!.paragraphs!.join('\n');
+    expect(body).toContain('개인정보처리방침 제3조가 정한 정보를 제외한 개인정보를 지체 없이 파기합니다');
+    expect(body).toContain('1:1 문의로 받은 탈퇴는 처리 결과를 문의 답변으로 알리기 위해 이메일 주소를 탈퇴 처리일부터 3일 동안 보관한 뒤 파기합니다');
+    expect(body).toContain('쓰지 않은 쿠폰과 적립금은 더 이상 사용할 수 없습니다');
+    expect(body).toContain('작성자를 "탈퇴한 회원"으로 표시해 남습니다');
+    expect(body).toContain('1년 동안은 같은 이메일 주소나 같은 소셜 로그인 계정으로 다시 가입할 수 없습니다');
+    expect(body).toContain('끝나지 않은 거래가 있으면 그 거래가 끝난 뒤 처리합니다');
+    expect(body).toContain('카카오가 보내는 계정 탈퇴 알림을 근거로 같은 방법으로 탈퇴를 처리할 수 있습니다');
+    expect(body).not.toContain('탈퇴를 처리하면 회사는 개인정보를 지체 없이 파기합니다');
+  });
 });
 
 describe('개인정보처리방침', () => {
@@ -336,7 +349,7 @@ describe('개인정보처리방침', () => {
     const processors = consignment!.table!.rows.map((row) => row[0]);
     expect(processors).toEqual(
       expect.arrayContaining([
-        'Supabase, Inc.', 'Vercel, Inc.', '토스페이먼츠 주식회사', '나이스정보통신 주식회사', '엔에이치엔케이씨피 주식회사', '한진택배', 'Resend',
+        'Supabase, Inc.', 'Vercel, Inc.', '토스페이먼츠 주식회사', '엔에이치엔케이씨피 주식회사', '한진택배', 'Resend',
       ]),
     );
   });
@@ -366,6 +379,46 @@ describe('개인정보처리방침', () => {
 
     expect(wmsRow?.[0]).toBe(PENDING_PROCESSOR_LABEL);
     expect(PENDING_PROCESSOR_LABEL).toBe('확인 중');
+  });
+
+  /* 원장 CUS-095: 남양주 출고지는 우체국택배로 나가고 남양주 창고(별도 회사)가 출고지시 파일을 받는다(ADR-0016,
+     20261012130000). 서비스 이름은 확인된 것만 적고, 법인명이 확인되지 않은 창고 운영 수탁자는 확인 중으로 남긴다. */
+  it('처리위탁 표는 남양주 출고의 우체국택배와 김포·남양주 물류창고 운영 수탁자를 모두 담는다 (CUS-095)', () => {
+    const consignment = privacy.articles.find((article) => article.heading.includes('위탁'))!;
+    const rows = consignment.table!.rows;
+    const names = rows.map((row) => row[0]);
+    expect(names[names.indexOf('한진택배') + 1]).toBe('우체국택배');
+    expect(rows.find((row) => row[0] === '우체국택배')![1]).toContain('남양주 물류창고에서 출고하는 상품의 배송');
+    const warehouses = rows.filter((row) => row[0] === PENDING_PROCESSOR_LABEL).map((row) => row[1]);
+    expect(warehouses).toEqual(['김포 물류창고 보관·출고 관리(WMS) 운영', '남양주 물류창고 보관·포장·출고(출고 요청 파일 처리)']);
+    expect(consignment.closing!.join('\n')).toContain('김포·남양주 물류창고 운영 수탁자의 법인명은 확정되는 대로');
+    /* 확인되지 않은 법인명을 지어 넣지 않는다. */
+    expect(names.join(' ')).not.toMatch(/서원|우정사업본부|난소프트/);
+  });
+
+  it('제3조는 탈퇴 처리 때 지우는 것, 이메일 3일 보관, 재가입 방지 값·동의 기록 1년, 게시물 익명 표시를 밝힌다 (CUS-036)', () => {
+    const retention = privacy.articles.find((article) => article.heading.startsWith('제3조 '))!;
+    expect(retention.paragraphs!.join('\n')).toContain('회원 탈퇴를 처리하면 회원의 개인정보를 지체 없이 파기합니다');
+    const rows = retention.table!.rows.map((row) => row[0]);
+    expect(rows[0]).toContain('주문 배송지');
+    expect(rows[2]).toBe('소비자의 불만 또는 분쟁처리에 관한 기록(1:1 문의·상품 문의와 답변, 상담 기록)');
+    const closing = retention.closing!.join('\n');
+    for (const item of ['위시리스트', '장바구니', '알림함', 'IP 팔로우', '쓰지 않은 쿠폰', '출석 코인', '소셜 로그인 연결 정보', '성인 인증 기록']) {
+      expect(closing, item).toContain(item);
+    }
+    expect(closing).toContain('계정 이메일 주소는 1:1 문의로 받은 탈퇴의 처리 결과를 문의 답변으로 알리기 위해 탈퇴 처리일부터 3일 동안 보관한 뒤 파기하며, 카카오계정 탈퇴 알림을 근거로 처리한 경우에는 처리할 때 바로 파기합니다');
+    /* 검토 반영: 처리 뒤 앱 알림 없음·3일 안 재파기, 성별·활동 동의 기록 1년, 처리 중인 신고, 2단계 인증 수단, 접속 기록 3개월(이메일 포함). */
+    for (const text of ['처리가 끝난 신고 기록', '2단계 인증 수단', '탈퇴를 처리한 뒤에는 앱 알림을 보내지 않습니다', '탈퇴 처리일부터 3일 안에 함께 파기합니다',
+      '성별·활동 기록 선택 동의의 철회 기록(동의 여부·일시)', '처리 중인 것은 대상 게시물 검토를 마치기 위해 탈퇴 처리일부터 최대 1년',
+      '로그인·인증 처리 기록(일시, IP 주소, 이메일 주소)은 위 표의 서비스 접속에 관한 기록으로 3개월 동안 보관한 뒤 파기합니다']) {
+      expect(closing, text).toContain(text);
+    }
+    expect(closing).toContain('복원할 수 없게 변환한 값을 탈퇴 처리일부터 1년 동안 보관');
+    expect(closing).toContain('마케팅 정보 수신 동의·철회 기록(수단·동의 여부·일시)과 성별·활동 기록 선택 동의의 철회 기록(동의 여부·일시)은 동의 철회 사실을 확인하기 위해 탈퇴 처리일부터 1년');
+    expect(closing).toContain('작성자는 "탈퇴한 회원"으로 표시됩니다');
+    expect(closing).not.toContain('다른 회원 정보와 함께 회원 탈퇴 시 파기합니다');
+    expect(privacy.articles.find((article) => article.heading.startsWith('제2조 ('))!.list)
+      .toContain('탈퇴한 회원이 같은 이메일 주소·소셜 로그인 계정으로 곧바로 다시 가입하는 부정 이용 방지');
   });
 
   /*

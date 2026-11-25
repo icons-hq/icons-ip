@@ -104,6 +104,65 @@ export function goodsPriceGuardNotice(before: number, after: number): string {
   return reasons.length ? `\n\n새 판매가가 ${goodsPriceGuardReasonText(reasons)}입니다. 금액을 잘못 입력하지 않았는지 확인해주세요.` : '';
 }
 
+/**
+ * 상품 엑셀 반입(CAT-108). 행마다 저장된 판매가·할인가와 파일이 정한 새 값을 계획에 싣는다(검증 결과와 함께 24시간 보관).
+ * 판매가 = 할인 전 금액, 할인가 = 고객이 내는 금액. 미리보기가 이전 → 새 금액을 보이고, 적용 순간 기준에 걸린 상품을 한 번에 확인받는다.
+ */
+export interface GoodsImportPriceChange {
+  saved: { regularPrice: number; salePrice: number } | null;
+  next: { regularPrice: number; salePrice: number };
+  /** 이 반입으로 초안이 공개로 바뀐다. 낮은 금액을 바꾸지 않아도 공개 순간에는 다시 본다. */
+  publishing: boolean;
+}
+
+export interface GoodsImportPriceRow { name: string; priceChange?: GoodsImportPriceChange | null }
+
+/** 확인할 줄. 판매가는 항상, 할인가는 할인이 걸리는(또는 걸려 있던) 상품만 본다. */
+export function goodsImportPriceGuardLines(change: GoodsImportPriceChange | null | undefined, prefix = ''): GoodsPriceGuardLine[] {
+  if (!change) return [];
+  const { saved, next, publishing } = change;
+  const checkLow = (before: number | null, after: number) => publishing || before === null || before !== after;
+  const lines: GoodsPriceGuardLine[] = [];
+  const regular = goodsPriceGuardLine(`${prefix}판매가`, saved?.regularPrice ?? null, next.regularPrice, { checkLow: checkLow(saved?.regularPrice ?? null, next.regularPrice) });
+  if (regular) lines.push(regular);
+  if (next.salePrice !== next.regularPrice || (saved !== null && saved.salePrice !== saved.regularPrice)) {
+    const sale = goodsPriceGuardLine(`${prefix}할인가`, saved?.salePrice ?? null, next.salePrice, { checkLow: checkLow(saved?.salePrice ?? null, next.salePrice) });
+    if (sale) lines.push(sale);
+  }
+  return lines;
+}
+
+/** 미리보기 한 줄: 바뀌는 금액만 "판매가 29,000원 → 2,900원 · 할인가 ...". 새 상품은 새 금액만. 바뀌는 것이 없으면 null. */
+export function goodsImportPriceChangeText(change: GoodsImportPriceChange | null | undefined): string | null {
+  if (!change) return null;
+  const { saved, next } = change;
+  const parts: string[] = [];
+  const part = (label: string, before: number | null, after: number) => {
+    if (before === null) parts.push(`${label} ${won(after)}`);
+    else if (before !== after) parts.push(`${label} ${won(before)} → ${won(after)}`);
+  };
+  part('판매가', saved?.regularPrice ?? null, next.regularPrice);
+  if (next.salePrice !== next.regularPrice || (saved !== null && saved.salePrice !== saved.regularPrice))
+    part('할인가', saved?.salePrice ?? null, next.salePrice);
+  return parts.length ? parts.join(' · ') : null;
+}
+
+/** 이 상품의 금액에 확인할 이유가 있는지(미리보기 강조용). */
+export function goodsImportPriceNeedsCheck(change: GoodsImportPriceChange | null | undefined): boolean {
+  return goodsImportPriceGuardLines(change).length > 0;
+}
+
+/** 적용 직전 한 번의 확인창. 적용할 상품 중 기준에 걸린 것만 모아 보인다. 없으면 null. */
+export function goodsImportPriceConfirmation(rows: readonly GoodsImportPriceRow[]): { title: string; message: string; confirmLabel: string } | null {
+  const lines = rows.flatMap((row) => goodsImportPriceGuardLines(row.priceChange, `${row.name || '이름 없음'} `));
+  if (!lines.length) return null;
+  return {
+    title: GOODS_PRICE_GUARD_TITLE,
+    message: `${GOODS_PRICE_GUARD_INTRO}\n\n${formatGoodsPriceGuardList(lines)}\n\n맞으면 검증한 상품 ${rows.length.toLocaleString('ko-KR')}개를 적용합니다.`,
+    confirmLabel: '이대로 적용',
+  };
+}
+
 /** 여러 상품의 판매가 변경(목록 일괄 변경·ERP 판매가 반영) 중 확인할 줄. 이름은 상품명(옵션명)이다. */
 export function goodsPriceGuardRows<T>(rows: readonly T[], pick: (row: T) => { label: string; before: number | null; after: number } | null): GoodsPriceGuardLine[] {
   const lines: GoodsPriceGuardLine[] = [];

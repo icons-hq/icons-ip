@@ -6,6 +6,13 @@ NICEPAY)로 운영하는 절차다. 순서는 **자격 증명 등록 → dark de
 AuthToken, 승인번호, 카드번호, 원문 응답, 자격 증명 fingerprint는 문서·issue·PR·로그·명령
 인자에 기록하지 않는다. 이 저장소는 공개 저장소다.
 
+## 2026-11-25 보류 — 19금 상품도 토스로 결제한다
+
+ADR-0053(사용자 결정): 운영에 나이스페이 MID·키가 없어 19금 상품을 결제할 수 없었으므로 판매 제한 주문의 카드
+결제사를 토스로 파생한다(앱 `RESTRICTED_GOODS_CARD_PROVIDER = 'toss'`). DB는 판매 제한 주문에 `toss`·`nicepay`를 모두
+받으므로, 이 runbook으로 나이스페이를 다시 열 때는 자격 증명 등록·canary·카드사 심사를 마친 뒤 앱 상수를 `nicepay`로
+되돌려 배포한다. 아래 절차와 상태 기록은 그때를 위한 것이다.
+
 ## 현재 상태 (2026-11-06)
 
 - 코드는 dark다. Vercel Production에 `NICEPAY_MID`·`NICEPAY_MERCHANT_KEY`가 없으므로

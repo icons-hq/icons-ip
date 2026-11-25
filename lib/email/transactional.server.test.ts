@@ -7,6 +7,8 @@ import {
   sendVirtualAccountIssuedEmail,
   sendDepositReversalEmail,
   sendDepositReversalCanceledEmail,
+  sendVirtualAccountRefundAccountEmail,
+  parseRefundAccountNotice,
 } from './transactional.server';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -928,3 +930,65 @@ describe('입금 오류 되돌림 메일(ADR-0049 결정 4)', () => {
   });
 });
 
+
+describe('가상계좌 환불 계좌 요청 메일(ADR-0049 결정 5 보강, 2026-11-25)', () => {
+  const CLAIM_ID = 'c1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b';
+  const USER_ID = 'a1b2c3d4-e5f6-4a7b-8c9d-0e1f2a3b4c5d';
+  const notice = { claimId: CLAIM_ID, orderId: ORDER_ID, orderNumber: '2026112500000001', userId: USER_ID, claimType: 'cancel', code: 'required' };
+
+  function mockNotice(value: unknown, error: unknown = null) {
+    mocks.rpc.mockImplementation(async (name: string) => {
+      if (name === 'claim_email_delivery') return { data: true, error: null };
+      if (name === 'service_virtual_account_refund_account_notice') return { data: value, error };
+      return { data: null, error: null };
+    });
+  }
+
+  it('DB가 지금도 계좌가 필요하다고 판정하면 클레임·사유마다 한 통 보낸다 — 계좌 원문은 싣지 않는다', async () => {
+    mockNotice(notice);
+    const result = await sendVirtualAccountRefundAccountEmail(CLAIM_ID);
+    expect(result.status).toBe('sent');
+    expect(rpcCalls('service_virtual_account_refund_account_notice')[0][1]).toEqual({ p_request_id: CLAIM_ID });
+    expect(rpcCalls('claim_email_delivery')[0][1]).toMatchObject({
+      target_dedupe_key: `order_refund_account:${CLAIM_ID}:required`,
+      target_template: 'order_refund_account',
+      target_recipient: 'buyer@example.com',
+    });
+    const { subject, text } = mocks.send.mock.calls[0][0] as { subject: string; text: string };
+    expect(subject).toContain('환불받을 계좌를 입력해 주세요');
+    expect(text).toContain('주문 취소 환불을 보낼 계좌가 없어');
+    expect(text).toContain(`/orders/${ORDER_ID}`);
+  });
+
+  it('결제사가 계좌를 받지 않은 반품은 다시 확인을 요청한다(다른 dedupe)', async () => {
+    mockNotice({ ...notice, claimType: 'return', code: 'invalid' });
+    expect((await sendVirtualAccountRefundAccountEmail(CLAIM_ID)).status).toBe('sent');
+    expect(rpcCalls('claim_email_delivery')[0][1]).toMatchObject({ target_dedupe_key: `order_refund_account:${CLAIM_ID}:invalid` });
+    const { subject, text } = mocks.send.mock.calls[0][0] as { subject: string; text: string };
+    expect(subject).toContain('환불 계좌를 다시 확인해 주세요');
+    expect(text).toContain('반품 환불을 입력하신 계좌로 보내지 못했어요');
+  });
+
+  it('그 사이 계좌가 입력돼 환불이 다시 진행됐거나(대상 아님) 다른 클레임이면 보내지 않는다', async () => {
+    mockNotice(null);
+    expect(await sendVirtualAccountRefundAccountEmail(CLAIM_ID)).toEqual({ status: 'skipped', reason: 'refund_account_not_needed' });
+    mockNotice({ ...notice, claimId: 'd1a2b3c4-d5e6-4f70-8a9b-0c1d2e3f4a5b' });
+    expect(await sendVirtualAccountRefundAccountEmail(CLAIM_ID)).toEqual({ status: 'skipped', reason: 'refund_account_not_needed' });
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  it('판정 조회가 실패해도 던지지 않고 로그를 남긴다', async () => {
+    mockNotice(null, { message: 'boom' });
+    const result = await sendVirtualAccountRefundAccountEmail(CLAIM_ID);
+    expect(result.status).toBe('failed');
+    expect(loggedLines().some((line) => line.includes('virtual account refund account failed'))).toBe(true);
+  });
+
+  it('판정 응답 모양이 어긋나면 대상이 아닌 것으로 읽는다', () => {
+    expect(parseRefundAccountNotice(notice)).toMatchObject({ claimId: CLAIM_ID, code: 'required', claimType: 'cancel' });
+    expect(parseRefundAccountNotice({ ...notice, code: 'other' })).toBeNull();
+    expect(parseRefundAccountNotice({ ...notice, claimType: 'exchange' })).toBeNull();
+    expect(parseRefundAccountNotice({ ...notice, userId: 'not-a-uuid' })).toBeNull();
+    expect(parseRefundAccountNotice([])).toBeNull();
+  });
+});

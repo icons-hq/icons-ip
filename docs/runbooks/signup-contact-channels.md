@@ -460,8 +460,8 @@ App Store 심사 가이드라인 4.8(로그인 서비스는 이메일을 숨길 
 - **HMAC 비밀값은 `AUTH_SIGNUP_RESEND_SECRET` 재사용**(새 env 없음). 이 값은 production·preview 빌드 가드의 필수 env라 운영에 이미 있고, 새 env를
   요구하면 등록 전까지 방어가 꺼진다. 메시지 앞에 도메인 접두(`icons-auth-mail-abuse-v1` + 종류)를 붙여 쿠키 서명과 충돌하지 않는다.
 - **가용성 우선(fail open).** 비밀값이 없거나(로컬) 한도 DB 호출이 실패하면 앱 한도를 건너뛰고 경고·오류 로그만 남긴다. GoTrue CAPTCHA는 반대로
-  켜져 있으면 fail closed다(Cloudflare가 응답하지 않으면 GoTrue가 500). 막힘이 의심되면 GitHub secret을 지우고 Supabase 콘솔에서 CAPTCHA를 끈다
-  (sync는 키가 없으면 끄지 않고 건드리지 않으므로 콘솔에서 직접 끈다).
+  켜져 있으면 fail closed다(Cloudflare가 응답하지 않으면 GoTrue가 500). 막힘이 의심되면 아래 '장애 비상 절차'를 따른다 — 장애 종류(검증 장애·위젯
+  장애)에 따라 단계가 다르고, GitHub secret만 지우면 다음 main 배포가 실패한다.
 - **CSP.** 이 저장소는 `Content-Security-Policy` 헤더를 두지 않아(`next.config.ts`·`proxy.ts` 확인) `challenges.cloudflare.com` 허용 목록을 바꿀 곳이
   없다. CSP를 도입하면 `script-src`·`frame-src`·`connect-src`에 `https://challenges.cloudflare.com`을 넣어야 한다.
 - **빌드 가드.** `scripts/check-vercel-build-env.mjs`는 Vercel에 `TURNSTILE_SECRET_KEY`가 있으면(앱이 읽지 않는 비밀값) 경고한다. 동기화 스크립트는
@@ -545,8 +545,52 @@ forwarding')상 이 헤더는 **secret 키 요청만** 받는다 — publishable
    '가입·재설정 메일 시간당 한도에 도달했습니다', 시간당 한 줄)으로 남아 시스템 상태 화면·알림·요약 메일에 잡힌다
    (`service_record_auth_mail_limit_alert`, 개인정보 없음). Vercel 경보(Alerts) 만들기 화면에는 로그 문구로 거는 조건이 없어(2026-11-24 확인)
    Vercel 쪽 경보는 걸지 않는다 — 로그 문구로 경보가 필요해지면 로그 드레인으로 외부 도구에 보내야 한다. `[auth-mail-abuse] rejected`는 한도 거절 추세 확인용이다.
-7. 운영 중 위젯이 안 뜨는 환경(광고 차단 등)에서는 가입·로그인이 막힌다 — 안내 문구가 새로고침을 권한다. 문의가 늘면 한도 로그부터 보고, 급하면
-   Supabase 콘솔에서 CAPTCHA를 끈다.
+7. 운영 중 위젯이 안 뜨는 환경(광고 차단 등)에서는 가입·로그인이 막힌다 — 안내 문구가 새로고침을 권한다. 문의가 늘면 한도 로그부터 보고, 전체 장애로
+   보이면 아래 '장애 비상 절차'를 따른다(콘솔에서 CAPTCHA를 끄는 것만으로는 풀리지 않는 장애가 있다).
+
+### 장애 비상 절차(Turnstile·Cloudflare 장애, 2026-11-25 원장 OPS-121·CUS-103)
+
+증상은 같다 — 이메일 로그인·가입·확인 메일 재전송·비밀번호 재설정이 모두 막힌다(어드민 운영자 로그인 포함, 소셜 로그인과 이미 로그인한 세션의 갱신은
+CAPTCHA 대상이 아니라 통한다). 하지만 **원인에 따라 풀리는 단계가 다르다.** 먼저 어느 쪽인지 가른다: 로그인 화면에서 위젯이 아예 안 뜨고 곧바로 "자동 로그인 방지
+확인을 완료하지 못했습니다"가 나오면 B(위젯 장애), 위젯은 뜨는데 제출하면 막히거나 Supabase가 오류(500·`captcha_failed`)를 내면 A(검증 장애)다.
+브라우저 개발자도구 Network에서 `challenges.cloudflare.com/turnstile/v0/api.js`가 실패하면 B다.
+
+| | A. 검증 장애(Cloudflare siteverify 실패) | B. 위젯 장애(스크립트가 안 뜸) |
+|---|---|---|
+| 막는 곳 | Supabase GoTrue가 토큰을 검증하다 실패 | 앱이 먼저 거절 — 사이트 키가 있으면 토큰 없는 요청을 GoTrue를 부르기 전에 거절한다(`app/login/actions.ts`의 `captchaTokenFromForm` → `lib/auth/mail-abuse.server.ts`). 콘솔을 꺼도 풀리지 않는다 |
+| 1단계 | Supabase 콘솔 → Authentication → Attack Protection에서 CAPTCHA 끄기 | A와 같음 |
+| 2단계 | GitHub 변수 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`와 secret `TURNSTILE_SECRET_KEY`를 **둘 다** 지운다 | A와 같음 |
+| 3단계 | (없음) | Vercel **Production**의 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`를 지우고 앱을 재배포한다(사이트 키는 빌드에 박혀 있다). Actions 'CI/CD Pipeline'을 수동 실행(workflow_dispatch)해 `production_redeploy`를 켜고 `production_source_run_id`에 **현재 main 커밋의 성공한 push/main 실행 번호**를 넣는다(둘 다 필요하다, 비우면 validate-plan이 거절한다) — Supabase 설정은 건드리지 않는다 |
+| 풀리는 때 | 1단계 직후 | 3단계 재배포가 끝난 직후(위젯·토큰 요구가 앱에서 빠진다) |
+
+**왜 변수와 secret을 함께 지우나.** `scripts/sync-supabase-auth.mjs`는 secret과 사이트 키 중 하나만 있으면 실패하고(`must be set together`), 파이프라인
+(`.github/workflows/pipeline.yml`의 "Activate recovery token-hash template in production")은 secret만 지우면 사이트 키 변수만 넘긴다. 그러면 다음 push/main
+배포가 이 단계에서 실패해 복구 메일 템플릿 동기화와 뒤따르는 작업이 건너뛰어진다(앱 배포 자체는 앞 단계에서 끝난다). 둘 다 비어 있으면 sync는 CAPTCHA
+설정을 켜지도 끄지도 않아 콘솔에서 끈 상태가 그대로 유지되고, "Verify Turnstile site key matches the deployed app" 대조 단계도 변수가 비면 건너뛴다.
+
+**복구 순서**(Cloudflare가 돌아온 뒤, 이 순서를 지킨다 — 앞서 GoTrue CAPTCHA를 켜면 위젯 없는 앱이 모든 로그인을 막는다):
+1. Cloudflare 대시보드에서 위젯이 정상인지 확인하고, 키를 새로 만들었으면 위 '사람 단계' 1번처럼 비밀 키를 채팅·로그에 남기지 않고 받는다.
+2. (B였다면) Vercel Production에 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`를 다시 넣고 앱을 먼저 재배포한다(`production_redeploy` + `production_source_run_id`, 위 3단계와 같다). 위젯만 그려지고 보호는 아직 없다.
+3. GitHub 변수 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`(2번과 **같은** 값)와 secret `TURNSTILE_SECRET_KEY`를 다시 등록한다.
+4. push/main 실행을 돌린다 — 대조 단계가 통과하면 동기화 단계가 Supabase CAPTCHA를 다시 켠다. config-only 재배포는 켜지 못한다.
+5. 위 '확인'(4번)처럼 가입·로그인 통과와 위젯 토큰 없는 `curl` 거절(`captcha_failed`)을 본다. A만 겪어 키를 지우지 않았다면 콘솔에서 CAPTCHA를 켜지 말고 4번의
+   push/main으로 켠다(콘솔에서 직접 켜면 비밀 키를 사람이 다시 넣어야 하고 파이프라인 상태와 어긋난다).
+
+**꺼 둔 동안의 위험:** Supabase CAPTCHA가 꺼지면 공개 키로 `/auth/v1/signup`·`/recover`·`/resend`·`/otp`를 직접 부르는 우회가 열린다(앞 '키가 없는 동안 남는
+위험'). 앱 한도·GoTrue IP 한도가 겹 방어로 남지만 메일 폭주를 완전히 막지 못하므로 장애가 풀리면 지체하지 말고 복구한다. 꺼 둔 시각·복구 시각을 아래 담당자가
+채팅이 아니라 운영 기록(이슈)에 남긴다.
+
+**담당자**(오픈 전에 이름을 채운다 — 판단·실행할 수 있는 사람이 한두 명뿐이므로 둘 이상을 정해 둔다):
+
+| 단계 | 권한 | 담당 | 대리 |
+|---|---|---|---|
+| 장애 판정(A/B 가르기)·결정 | 운영 총괄 | (이름) | (이름) |
+| Supabase 콘솔 CAPTCHA 끄기·켜기 확인 | Supabase 프로젝트 소유자 | (이름) | (이름) |
+| GitHub 변수·secret 지우기·등록, push/main·`production_redeploy` 실행 | GitHub 저장소 관리자 | (이름) | (이름) |
+| Vercel Production 환경 변수 삭제·등록 | Vercel 프로젝트 관리자 | (이름) | (이름) |
+| Cloudflare Turnstile 위젯·키 | Cloudflare 계정 관리자 | (이름) | (이름) |
+
+어드민 로그인도 막히므로 위 담당자 중 로그인 세션이 살아 있는 사람이 없을 수 있다. 콘솔·GitHub·Vercel 작업은 어드민 로그인과 무관하게 각 서비스 계정으로 한다.
 
 ### 개인정보처리방침 고지(2026-11-24 반영)
 

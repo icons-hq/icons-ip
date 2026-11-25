@@ -8,7 +8,7 @@ import 'server-only';
  * 닫혀 있다. 무엇을 언제 볼지는 DB가 정하고(private.virtual_account_refund_watches), 이 모듈은 원장 결제 키로 결제를 조회해 결과를
  * 분류만 한다. 조회 응답 원문·계좌 정보는 남기지 않는다(refundStatus 표지만).
  *
- *  - completed: 이 결제가 전액 취소됐고 은행 송금이 끝났다(COMPLETED).
+ *  - completed: 이 결제가 원장대로 취소됐고(전액 취소, 또는 부분 환불 뒤 원장 잔액 — 2026-11-25) 은행 송금이 끝났다(COMPLETED).
  *  - failed: 은행 송금이 실패했다(FAILED·PARTIAL_FAILED).
  *  - pending: 아직 송금 전(PENDING·NONE·그 밖) — DB가 7일을 넘기면 지연으로 올린다.
  *  - mismatch: 원장의 결제가 아니거나(키·주문·금액) 전액 취소 상태가 아니다 — 운영자가 결제를 확인해야 한다.
@@ -38,6 +38,11 @@ export interface VirtualAccountRefundWatch {
   readonly paymentKey: string;
   readonly providerOrderId: string;
   readonly amount: number;
+  /**
+   * 결제사에 남아야 할 잔액(2026-11-25 — 입금된 가상계좌의 부분 취소·부분 반품). 0(없음)이면 전액 환불이라 CANCELED·잔액 0이어야 하고,
+   * 0보다 크면 부분 환불 뒤라 PARTIAL_CANCELED·그 잔액이어야 한다. DB(service_claim_virtual_account_refund_watches)가 원장에서 계산한다.
+   */
+  readonly expectedBalance?: number;
 }
 
 export interface VirtualAccountRefundClassification {
@@ -70,8 +75,10 @@ export function classifyVirtualAccountRefund(watch: VirtualAccountRefundWatch, p
   ) {
     return { outcome: 'mismatch', refundStatus };
   }
-  // 우리 원장은 환불 완료인데 결제사가 전액 취소 상태가 아니면(DONE·부분 취소) 송금 상태와 별개로 운영자가 봐야 한다.
-  if (payment.status !== 'CANCELED' || payment.balanceAmount !== 0) return { outcome: 'mismatch', refundStatus };
+  // 우리 원장의 환불(전액 또는 부분)과 결제사 잔액이 다르면(DONE·다른 잔액) 송금 상태와 별개로 운영자가 봐야 한다.
+  const expected = watch.expectedBalance ?? 0;
+  if (expected === 0 ? payment.status !== 'CANCELED' || payment.balanceAmount !== 0
+    : payment.status !== 'PARTIAL_CANCELED' || payment.balanceAmount !== expected) return { outcome: 'mismatch', refundStatus };
   if (refundStatus === 'COMPLETED') return { outcome: 'completed', refundStatus };
   if (refundStatus === 'FAILED' || refundStatus === 'PARTIAL_FAILED') return { outcome: 'failed', refundStatus };
   return { outcome: 'pending', refundStatus };

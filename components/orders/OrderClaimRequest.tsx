@@ -23,7 +23,7 @@ import {
   type OrderClaimEligibility,
   type OrderClaimType,
 } from '@/lib/orders/claims';
-import { TOSS_REFUND_BANKS } from '@/lib/payments/toss-bank-codes';
+import { isVirtualAccountRefundNumber, RefundAccountFieldset, VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE } from './RefundAccountFieldset';
 import {
   DISABLED_PARTIAL_RETURN,
   partialReturnItemBlockerLabel,
@@ -53,9 +53,9 @@ export const CLAIM_DEADLINE_MESSAGE = '신청 기한이 지난 주문입니다. 
 export const CLAIM_NOT_AVAILABLE_MESSAGE = '지금은 신청할 수 없는 주문입니다. 최신 상태를 확인해주세요.';
 export const PARTIAL_RETURN_BLOCKED_MESSAGE = '고른 상품 가운데 지금 반품할 수 없는 상품이 있습니다. 최신 상태를 확인한 뒤 다시 골라주세요.';
 export const PARTIAL_RETURN_SELECTION_REQUIRED = '반품할 상품과 수량을 1개 이상 골라주세요.';
-/* 가상계좌 환불은 결제대행사에 은행 코드와 숫자 6~20자리 계좌번호를 보낸다(DB 판정 private.virtual_account_refund_account_usable과 같다). */
-export const VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE = '은행은 목록에서 고르고, 계좌번호는 숫자 6~20자리(하이픈 제외)로 입력해주세요.';
-const VIRTUAL_ACCOUNT_REFUND_NUMBER = /^[0-9]{6,20}$/;
+/* 가상계좌 환불은 결제대행사에 은행 코드와 숫자 6~20자리 계좌번호를 보낸다(DB 판정 private.virtual_account_refund_account_usable과 같다).
+   환불계좌 칸은 주문 취소 화면과 같은 부품(RefundAccountFieldset)이다. */
+export { VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE };
 
 type ClaimFetch = (
   input: string,
@@ -255,8 +255,7 @@ export function OrderClaimRequest({
       setAccountError(account.error);
       return;
     }
-    if (virtualAccountRefund && account.value
-      && !VIRTUAL_ACCOUNT_REFUND_NUMBER.test(account.value.accountNumber.replace(/-/g, ''))) {
+    if (virtualAccountRefund && account.value && !isVirtualAccountRefundNumber(account.value.accountNumber)) {
       setAccountError(VIRTUAL_ACCOUNT_REFUND_ACCOUNT_MESSAGE);
       return;
     }
@@ -446,69 +445,17 @@ export function OrderClaimRequest({
             </fieldset>
 
             {claimType === 'return' ? (
-              <fieldset className="order-cancellation-reason">
-                <legend>{virtualAccountRefund ? '환급 계좌' : '환불계좌 (선택)'}</legend>
-                {virtualAccountRefund ? (
-                  <p className="money-caption">
-                    가상계좌로 결제한 주문은 이 계좌로 결제대행사가 환불해요. 비워 두면 결제 화면에서 입력한 계좌로
-                    환불하고, 그 계좌도 없으면 주문 상세에서 계좌를 받아요. 입력하신 계좌는 마스킹해 보관하고, 환급 완료
-                    30일 뒤 원문을 파기합니다.
-                  </p>
-                ) : (
-                  <p className="money-caption">
-                    결제수단으로 환급하지 못하는 경우에만 사용합니다. 입력하신 계좌는 마스킹해
-                    보관하고, 환급 완료 30일 뒤 원문을 파기합니다.
-                  </p>
-                )}
-                <label htmlFor="order-claim-bank">
-                  <span>은행</span>
-                  {virtualAccountRefund ? (
-                    /* 결제대행사에 은행 코드를 보낸다 — 목록에서 골라 이름 → 코드 변환이 추측이 되지 않게 한다. */
-                    <select
-                      id="order-claim-bank"
-                      onChange={(event) => setBankName(event.target.value)}
-                      value={bankName}
-                    >
-                      <option value="">은행 선택</option>
-                      {TOSS_REFUND_BANKS.map((bank) => <option key={bank.code} value={bank.name}>{bank.name}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      id="order-claim-bank"
-                      maxLength={40}
-                      onChange={(event) => setBankName(event.target.value)}
-                      type="text"
-                      value={bankName}
-                    />
-                  )}
-                </label>
-                <label htmlFor="order-claim-account">
-                  <span>계좌번호</span>
-                  <input
-                    id="order-claim-account"
-                    inputMode="numeric"
-                    maxLength={30}
-                    onChange={(event) => setAccountNumber(event.target.value)}
-                    type="text"
-                    value={accountNumber}
-                  />
-                </label>
-                <label htmlFor="order-claim-holder">
-                  <span>예금주</span>
-                  <input
-                    id="order-claim-holder"
-                    maxLength={40}
-                    onChange={(event) => setAccountHolder(event.target.value)}
-                    type="text"
-                    value={accountHolder}
-                  />
-                </label>
-                {accountError ? (
-                  <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">
-                    {accountError}
-                  </p>
-                ) : null}
-              </fieldset>
+              <RefundAccountFieldset
+                error={accountError}
+                idPrefix="order-claim"
+                intro={virtualAccountRefund
+                  ? '가상계좌로 결제한 주문은 이 계좌로 결제대행사가 환불해요. 비워 두면 결제 화면에서 입력한 계좌로 환불하고, 그 계좌도 없으면 주문 상세에서 계좌를 받아요. 입력하신 계좌는 마스킹해 보관하고, 환급 완료 30일 뒤 원문을 파기합니다.'
+                  : '결제수단으로 환급하지 못하는 경우에만 사용합니다. 입력하신 계좌는 마스킹해 보관하고, 환급 완료 30일 뒤 원문을 파기합니다.'}
+                legend={virtualAccountRefund ? '환급 계좌' : '환불계좌 (선택)'}
+                onChange={(next) => { setBankName(next.bankName); setAccountNumber(next.accountNumber); setAccountHolder(next.accountHolder); }}
+                value={{ bankName, accountNumber, accountHolder }}
+                virtualAccount={virtualAccountRefund}
+              />
             ) : null}
 
             <div>

@@ -1,7 +1,9 @@
 import 'server-only';
 
-import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type PaymentBalanceInspection, type PaymentRefundRequest, type RefundOutcome } from '../payments/gateway';
+import { PARTIAL_CANCEL_UNAVAILABLE_REASON, type PaymentAttempt, type PaymentBalanceInspection, type PaymentRefundReceiveAccount, type PaymentRefundRequest, type RefundOutcome } from '../payments/gateway';
 import { getPaymentGateway } from '../payments/runtime-gateway';
+import { isVirtualAccountRefundAccountReviewCode } from '../payments/virtual-account-refund-account';
+import { loadVirtualAccountRefundAccount } from '../payments/virtual-account-refund-account.server';
 import { createServiceClient } from '../supabase/service';
 import { createRuntimeAttemptPaymentGateway } from '../subscriptions/payment-dispatch.server';
 import { parseOrderPartialCancellationServiceRow, type OrderPartialCancellationServiceRow } from './partial-cancellation';
@@ -44,10 +46,23 @@ export interface OrderPartialCancellationDependencies {
     expectedBalanceBefore: number;
     /** 부분 반품이면 'return'(결제사 취소 사유 문구만 다르다). */
     reasonCode?: 'out_of_stock' | 'return';
+    /** 부분 반품의 반품 요청 id — 입금된 가상계좌 환불이 이 요청에서 구매자가 입력한 환급 계좌를 먼저 쓴다(재고 부족 부분 취소는 없음). */
+    claimId?: string | null;
   }): Promise<RefundOutcome>;
+  /**
+   * 결제확인필요(needs_review) 원장을 다시 확인하기 전에 처리 중으로 옮긴다(2026-11-25 — 부분 반품 계좌 변경과 동시 재시도를 막는다).
+   * 'processing'이면 결제사를 부른다. 그 밖은 지금 원장 상태다.
+   */
+  beginRetry(input: { id: string; actorId: string }): Promise<string>;
   complete(input: { id: string; actorId: string; refundedAmount: number; paymentKey: string; transactionKey: string }): Promise<void>;
   reject(input: { id: string; actorId: string }): Promise<void>;
   markNeedsReview(input: { id: string; actorId: string; code: OrderPartialCancellationCode }): Promise<void>;
+  /**
+   * 부분 반품 환불이 환급 계좌 때문에 결제확인필요로 멈춘 직후 구매자에게 계좌 입력 요청 메일을 보낸다(2026-11-25 — 앱 알림은 반품 요청의
+   * 상태 동기화에서 DB가 남긴다). 보낼지는 DB가 다시 판정하고, 실패해도 결과는 바뀌지 않는다. 재고 부족 부분 취소는 구매자가 계좌를 넣을
+   * 요청이 없어 보내지 않는다(운영자가 처리 — 결제확인필요 안내). 없으면(시험) 보내지 않는다.
+   */
+  notifyRefundAccountNeeded?: (claimId: string) => Promise<void>;
 }
 
 const PROVIDER_REVIEW_CODE = /^provider_[a-z0-9_]{1,55}$/;
@@ -68,6 +83,8 @@ export function orderPartialCancellationIdempotencyKey(attemptId: string, partia
 /** 결제사 부분 취소 요청 조립(기본 의존성이 쓰는 순수 함수 — 시험이 같은 조립을 쓴다). */
 export function orderPartialCancellationRefundRequest(attempt: PaymentAttempt, input: {
   partialCancellationId: string; paymentKey: string; refundAmount: number; expectedBalanceBefore: number; reasonCode?: 'out_of_stock' | 'return';
+  /** 입금된 가상계좌(에스크로 아님) 결제의 환불 계좌(2026-11-25 보강). 어댑터가 부분 취소마다의 키에 계좌 접미를 붙인다. */
+  refundReceiveAccount?: PaymentRefundReceiveAccount;
 }): PaymentRefundRequest {
   return {
     attempt,
@@ -76,6 +93,7 @@ export function orderPartialCancellationRefundRequest(attempt: PaymentAttempt, i
     reason: input.reasonCode === 'return' ? ORDER_PARTIAL_RETURN_REFUND_REASON : ORDER_PARTIAL_CANCEL_REFUND_REASON,
     providerPaymentKey: input.paymentKey,
     partial: { expectedBalanceBefore: input.expectedBalanceBefore },
+    ...(input.refundReceiveAccount ? { refundReceiveAccount: input.refundReceiveAccount } : {}),
   };
 }
 
@@ -129,10 +147,24 @@ function createDefaultDependencies(): OrderPartialCancellationDependencies {
   const service = createServiceClient();
   return {
     load: (id) => loadServiceRow(service, id),
-    async refund({ partialCancellationId, paymentId, paymentAmount, paymentKey, refundAmount, expectedBalanceBefore, reasonCode }) {
+    async refund({ partialCancellationId, paymentId, paymentAmount, paymentKey, refundAmount, expectedBalanceBefore, reasonCode, claimId }) {
       const attempt = await loadTossAttempt(service, paymentId, paymentAmount);
       const gateway = createRuntimeAttemptPaymentGateway(service, 'toss', getPaymentGateway('toss'));
-      return gateway.refund(orderPartialCancellationRefundRequest(attempt, { partialCancellationId, paymentKey, refundAmount, expectedBalanceBefore, reasonCode }));
+      // 입금된 가상계좌(에스크로 아님)는 부분 취소에도 환불 계좌가 필요하다 — 전액 환불과 같은 고르기(반품 요청 계좌 → 결제 UI 계좌).
+      // 가상계좌가 아니면 RPC가 null이고 계좌 없이 지금처럼 취소한다. 조회가 실패하면 던져 결제사를 부르지 않는다(결제사 응답 없음).
+      const refundReceiveAccount = await loadVirtualAccountRefundAccount(service, attempt.id, paymentKey, claimId);
+      return gateway.refund(orderPartialCancellationRefundRequest(attempt, {
+        partialCancellationId, paymentKey, refundAmount, expectedBalanceBefore, reasonCode, refundReceiveAccount,
+      }));
+    },
+    async notifyRefundAccountNeeded(claimId) {
+      const { sendVirtualAccountRefundAccountEmail } = await import('../email/transactional.server');
+      await sendVirtualAccountRefundAccountEmail(claimId);
+    },
+    async beginRetry({ id, actorId }) {
+      const { data, error } = await service.rpc('service_begin_order_partial_cancellation_retry', { p_id: id, p_actor_id: actorId });
+      if (error || typeof data !== 'string') throw new Error('partial cancellation retry start failed');
+      return data;
     },
     async complete({ id, actorId, refundedAmount, paymentKey, transactionKey }) {
       const { error } = await service.rpc('service_complete_order_partial_cancellation', {
@@ -165,15 +197,22 @@ function createDefaultDependencies(): OrderPartialCancellationDependencies {
 
 async function needsReview(
   dependencies: OrderPartialCancellationDependencies,
-  input: { id: string; actorId: string },
+  input: { id: string; actorId: string; claimId?: string | null },
   code: OrderPartialCancellationCode,
 ): Promise<OrderPartialCancellationResult> {
   try {
-    await dependencies.markNeedsReview({ ...input, code });
-    return { ok: false, code };
+    await dependencies.markNeedsReview({ id: input.id, actorId: input.actorId, code });
   } catch {
     return { ok: false, code: 'local_finalize_failed' };
   }
+  if (input.claimId && isVirtualAccountRefundAccountReviewCode(code) && dependencies.notifyRefundAccountNeeded) {
+    try {
+      await dependencies.notifyRefundAccountNeeded(input.claimId);
+    } catch {
+      console.error('[orders/partial-cancellation] refund account notice failed');
+    }
+  }
+  return { ok: false, code };
 }
 
 /**
@@ -206,7 +245,7 @@ export async function reconcileOrderPartialCancellation(
   if (row.state === 'rejected') return { ok: false, code: 'partial_cancel_rejected' };
   if (row.provider !== 'toss' || (row.state !== 'processing' && row.state !== 'needs_review')) return { ok: false, code: 'not_ready' };
 
-  const target = { id: row.id, actorId: input.actorId };
+  const target = { id: row.id, actorId: input.actorId, claimId: row.claimId };
   if (
     typeof row.paymentKey !== 'string'
     || !row.paymentKey
@@ -219,6 +258,23 @@ export async function reconcileOrderPartialCancellation(
     return needsReview(dependencies, target, 'payment_evidence_invalid');
   }
 
+  /*
+   * 결제확인필요에서 다시 확인할 때는 결제사를 부르기 전에 원장을 처리 중으로 옮긴다(반품 요청도 처리 중이 된다). 그동안 구매자·운영자가
+   * 환급 계좌를 바꾸지 못한다 — 가상계좌 부분 취소의 멱등키는 계좌마다 달라, 계좌가 바뀐 재시도는 결제사 멱등성으로 걸러지지 않는다.
+   * 옮기지 못하면 결제사를 부르지 않는다.
+   */
+  if (row.state === 'needs_review') {
+    let begun: string;
+    try {
+      begun = await dependencies.beginRetry({ id: target.id, actorId: target.actorId });
+    } catch {
+      return { ok: false, code: 'local_state_unavailable' };
+    }
+    if (begun === 'completed') return { ok: true, status: 'already_completed' };
+    if (begun === 'rejected') return { ok: false, code: 'partial_cancel_rejected' };
+    if (begun !== 'processing') return { ok: false, code: 'not_ready' };
+  }
+
   let refund: RefundOutcome;
   try {
     refund = await dependencies.refund({
@@ -229,6 +285,7 @@ export async function reconcileOrderPartialCancellation(
       refundAmount: row.refundAmount,
       expectedBalanceBefore: row.balanceBefore,
       reasonCode: row.reasonCode,
+      claimId: row.claimId,
     });
   } catch {
     return needsReview(dependencies, target, 'provider_unavailable');
@@ -250,7 +307,7 @@ export async function reconcileOrderPartialCancellation(
   }
   if (refund.outcome === 'declined' && refund.reasonCode === PARTIAL_CANCEL_UNAVAILABLE_REASON) {
     try {
-      await dependencies.reject(target);
+      await dependencies.reject({ id: target.id, actorId: target.actorId });
     } catch {
       return needsReview(dependencies, target, 'local_finalize_failed');
     }
