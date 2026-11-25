@@ -388,7 +388,7 @@ describe('개인정보처리방침', () => {
     const rows = consignment.table!.rows;
     const names = rows.map((row) => row[0]);
     expect(names[names.indexOf('한진택배') + 1]).toBe('우체국택배');
-    expect(rows.find((row) => row[0] === '우체국택배')![1]).toContain('남양주 물류창고에서 출고하는 굿즈의 배송');
+    expect(rows.find((row) => row[0] === '우체국택배')![1]).toContain('남양주 물류창고에서 출고하는 상품의 배송');
     const warehouses = rows.filter((row) => row[0] === PENDING_PROCESSOR_LABEL).map((row) => row[1]);
     expect(warehouses).toEqual(['김포 물류창고 보관·출고 관리(WMS) 운영', '남양주 물류창고 보관·포장·출고(출고 요청 파일 처리)']);
     expect(consignment.closing!.join('\n')).toContain('김포·남양주 물류창고 운영 수탁자의 법인명은 확정되는 대로');
@@ -401,7 +401,7 @@ describe('개인정보처리방침', () => {
     expect(retention.paragraphs!.join('\n')).toContain('회원 탈퇴를 처리하면 회원의 개인정보를 지체 없이 파기합니다');
     const rows = retention.table!.rows.map((row) => row[0]);
     expect(rows[0]).toContain('주문 배송지');
-    expect(rows[2]).toBe('소비자의 불만 또는 분쟁처리에 관한 기록(1:1 문의·굿즈 문의와 답변, 상담 기록)');
+    expect(rows[2]).toBe('소비자의 불만 또는 분쟁처리에 관한 기록(1:1 문의·상품 문의와 답변, 상담 기록)');
     const closing = retention.closing!.join('\n');
     for (const item of ['위시리스트', '장바구니', '알림함', 'IP 팔로우', '쓰지 않은 쿠폰', '출석 코인', '소셜 로그인 연결 정보', '성인 인증 기록']) {
       expect(closing, item).toContain(item);
