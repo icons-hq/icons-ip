@@ -90,10 +90,12 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
    - 문의 번호가 그 회원이 쓴 1:1 문의인지 확인한다.
    - §3 진행 중 의무(`private.account_deletion_blockers` — 탈퇴 신청과 같은 판정)와 운영 권한(프로필 staff/admin·매니저 소속)이 남아 있으면 아무것도 바꾸지 않고 남은 항목·건수를 돌려준다. 해당 거래를 끝내거나 권한을 회수한 뒤 다시 처리한다.
    - 계정을 정지한다(`admin_suspend_user`, 정지 감사 포함). 주소록, 인증한 휴대폰 번호와 인증 요청·이력, 마케팅 정보 수신 동의(동의 중인 모든 수단 철회 — 원장 출처 `member_withdrawal`, 파생값 `consents.marketing=false`), 성별(고객 통계 동의), 활동 기록과 그 동의, 진행 중인 이메일 변경 요청, 대기 중인 재입고 알림 신청을 지우고, 프로필의 닉네임은 '탈퇴한 회원 <구분 번호>'로 바꾸며 생년월일과 프로필 사진 경로는 비우고 성인 인증 기록(`private.adult_verifications`·`adult_verification_sessions` — 공개 처리방침 제3조가 탈퇴 시 파기를 약속하고 법정 snapshot이 보존하지 않는다)과 프로필 사진 후보 기록을 지운다(2026-11-19 사용자 결정, 아래 처리 기록의 사진 파일 삭제 참고). 처리 뒤에는 그 회원의 프로필 닉네임·생년월일·사진·동의 쓰기를 DB가 거절한다(`member_withdrawn`, 마케팅 철회만 허용)(탈퇴 봉인 트리거의 삭제 범위와 같고, 재입고 알림은 정지와 무관하게 알림·메일을 보내므로 더한다). 모든 로그인 세션(`auth.sessions`, refresh token)을 지운다.
+   - 보존 근거가 없는 나머지 개인정보도 지운다(2026-11-25, migration `20261125233000`): 위시리스트, 장바구니(쿠폰 선택·주문서 초안 포함), 알림함, IP 팔로우(팬 수 캐시는 `unfollow_ip`와 같은 규칙으로 줄인다), 재입고 알림(이미 알린 기록 포함), 좋아요·내가 한 차단·리뷰 도움돼요, 등급 변경 기록, 쓰지 않은 쿠폰(주문 할인에 쓴 쿠폰은 사용 원장과 함께 거래 기록으로 남는다), 출석 코인 원장·잔액·출석 기록(원장의 추가 전용 가드는 이 처리의 트랜잭션 로컬 표시로만 통과), 마케팅 발송 대상 기록의 회원 연결. Auth 쪽은 모든 로그인 연결(`auth.identities` — 소셜 회원번호·이름·사진 주소·이메일), user metadata, 전화·변경 대기 이메일·비밀번호 해시, 로그인 진행 기록(`auth.flow_state`·`auth.one_time_tokens`)을 지운다. 로그인 연결을 지우기 전에 이메일과 소셜 로그인 계정(공급자:회원번호)을 DB 안 비밀키 HMAC으로 바꾼 값을 `private.withdrawn_signin_blocks`에 처리 시각부터 1년 남기고, `auth.users` 새 사용자 생성 트리거(`private.reject_withdrawn_member_signup`)가 같은 값의 가입을 거절한다(같은 이메일·소셜 계정 재가입 차단 — 판정 오류 시에는 가입을 막지 않는다). 감사·결과 `erased`에 `wishlistItems`·`cartItems`·`notifications`·`follows`·`coupons`·`loginIdentities` 개수가 더해진다.
    - 처리 기록 `private.member_withdrawal_processings`와 감사 로그 `admin.member.withdrawal_processed`(문의 번호·처리자·시각·지운 개수와 익명화한 프로필 칸 이름 `profileFields` — 메모·개인정보 원문·값 없음)를 남긴다. 다시 처리해도 처음 기록을 돌려주고(멱등) 그 사이 생긴 세션만 다시 끊는다.
 3. 이어서 앱 서버가 프로필 사진 파일을 지운다(`user-uploads` 버킷의 객체는 SQL로 지울 수 없어, 처리 기록의 `avatar_erase_pending`이 켜진 회원의 `<id>/profile/` 접두 아래 객체 전체 — 현재 사진뿐 아니라 교체 때 정리에 실패한 이전 파일·저장하지 않은 후보 포함 — 를 Storage API로 삭제하고, `admin_confirm_member_withdrawal_avatar_erased`가 `storage.objects`에 그 접두 객체가 0개인지 직접 확인해 감사 `admin.member.withdrawal_avatar_erased`를 남긴다). 사진 파일이 없던 회원은 이 단계가 없다. 실패하면 고객 상세의 '다시 적용'으로 재시도한다. 같은 방식으로 앱 서버가 Supabase Auth 관리 API로 재로그인을 막는다(`ban_duration` 876000h — 로그인·토큰 갱신 거절). 관리 API에는 사용자 id로 세션을 끊는 호출이 없어(`signOut`은 그 사용자의 JWT가 필요하다) 세션 삭제는 2의 RPC가 한다. `admin_confirm_member_withdrawal_signin_block`이 `auth.users.banned_until`을 직접 읽어 장기 차단을 확인한 뒤 감사 로그 `admin.member.withdrawal_signin_blocked`를 남긴다. 차단이 실패하면 정지·삭제는 이미 끝난 상태로 고객 상세에 '재로그인 차단 다시 적용'이 보인다.
 4. 처리한 계정은 정지를 해제할 수 없다(`member_withdrawn`). 이미 발급된 access token은 만료(기본 1시간)까지 PostgREST에서 유효하다. 그동안 정지를 확인하는 쓰기 — 구매·예매·작성·카드팩 개봉·게임, 마케팅 정보 수신 새 동의(직접 `consents.marketing` 쓰기 포함, 철회는 언제나 허용), 재입고 알림 신청, '계정' 유형이 아닌 문의 — 는 거절되지만, 위시처럼 정지를 확인하지 않는 본인 행 쓰기는 만료 전까지 될 수 있다.
-5. 문의에 처리 결과를 답변하고 문의를 닫는다.
+5. 처리한 뒤 바로 문의에 처리 결과를 답변하고 문의를 닫는다. 답변 메일은 프로필 이메일로 가는데, 이메일 원문은 처리 3일 뒤 지워지므로 그 뒤 답변은 메일로 가지 않는다.
+6. DB 정리 잡 `member-withdrawal-retention`(pg_cron, 매시 41분, `private.run_member_withdrawal_retention`)이 처리 3일이 지난 회원의 Auth·프로필 이메일을 비우고(`private.erase_withdrawn_member_email`, 처리 기록 `email_erased_at`, 감사 `admin.member.withdrawal_email_erased`), 기한이 지난 재가입 차단 값을 지우며, 처리 1년이 지난 회원의 마케팅 수신 동의·철회 원장과 성별·활동 기록 동의 행을 지운다(`retention_purged_at`, 감사 `admin.member.withdrawal_retention_purged`). 메일 발송 기록(`email_deliveries`)은 2026-08-13부터 수신 주소 원문을 남기지 않는다.
 
 카카오로만 가입한 회원이 카카오계정을 탈퇴해(카카오 사유 `ACCOUNT_DELETE`·`FORCED_ACCOUNT_DELETE`) 로그인 수단이 영구히 없어진 경우는
 1:1 문의를 쓸 수 없으므로, 카카오 계정 상태 변경 웹훅의 해제 알림을 근거로 같은 처리를 한다(2026-11-19 결정,
@@ -104,20 +106,28 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
 
 2026-11-19 이전에 이미 처리한 회원은 migration `20261119109500`이 같은 익명화·파기로 백필하고, 재처리 요청(`already_processed`)도 아직 익명화되지 않은 프로필이면 같은 규칙을 한 번 적용한다(감사 `admin.member.withdrawal_profile_anonymized`).
 
-이 처리는 hard delete가 아니다. §1·§2의 완전한 탈퇴(법정 snapshot 분리 → 메일 fence → hard delete → compliance tombstone)의 선행 조건이 아직 없어서 다음은 남긴다.
+2026-11-25 이전에 처리한 회원은 migration `20261125233000`이 같은 재가입 차단 값(처리 시각 기준 1년)·로그인 연결·개인화 데이터 삭제를 백필하고(감사 `admin.member.withdrawal_personal_data_erased`), 처리 3일이 지난 회원의 이메일은 같은 migration 끝의 정리 잡 한 번이 지운다.
 
-| 남는 항목 | 이유 |
+이 처리는 hard delete가 아니다. 보존 근거가 없는 개인정보는 위 2·6에서 지우고, 법정 보존 기록과 그 기록을 잇는 정지된 계정 껍데기만 남긴다. 공개 약관 제7조·개인정보처리방침 제3조(2026-11-25 최초 판)가 이 범위를 그대로 적는다. §1·§2의 완전한 탈퇴(법정 snapshot 분리 → 메일 fence → hard delete → compliance tombstone)의 선행 조건이 아직 없어 남는 것은 다음과 같다.
+
+| 남는 항목 | 이유·기간 |
 |---|---|
-| 프로필 이메일(닉네임은 '탈퇴한 회원 <구분 번호>'로 익명화, 생년월일·프로필 사진은 처리 때 삭제), Auth 사용자(정지·재로그인 차단 상태) | Auth hard delete는 법정 snapshot 분리·Storage 정리·compliance tombstone 뒤에만 한다(§2 4~5단계). 주문이 있는 회원은 `orders.user_id` 제약으로 Auth 삭제가 막힌다. 같은 이메일로 다시 가입할 수 없다. 이메일은 재가입 차단과 거래 조회 때문에 남긴다 |
-| 주문·결제·환불·티켓·클레임 기록과 주문 배송지 사본 | 법정 거래 기록(위 매트릭스). 분리 보존 원장이 활성화되기 전에는 운영 DB에 그대로 둔다 |
-| 1:1 문의·리뷰·커뮤니티 작성물·업로드 이미지 | 작성자 연결 해제·이미지 삭제는 hard delete 단계(§4) |
-| 보유 카드·카드팩·코인, 위시·알림함·팔로우, 알린 재입고 알림 기록 등 | 개인화 데이터 삭제는 hard delete 단계(§1 3항) |
+| 주문·결제·환불·티켓·클레임·적립금·쿠폰 사용 기록과 주문 배송지 사본 | 전자상거래법 계약·청약철회·대금결제·재화 공급 기록(5년). 분리 보존 원장이 활성화되기 전에는 운영 DB에 그대로 둔다 |
+| 1:1 문의·상품 문의(답변 포함)·상담 메모 | 전자상거래법 소비자 불만·분쟁처리 기록(3년) |
+| 리뷰·커뮤니티 작성물과 그 이미지 | 게시물은 지우지 않고 작성자를 익명화한 닉네임('탈퇴한 회원 <구분 번호>')으로 표시한다. 약관 제7조가 탈퇴 전 직접 삭제를 안내한다. 작성자 연결 해제·이미지 삭제는 hard delete 단계(§4) |
+| 프로필 행·Auth 사용자(정지·재로그인 차단, 이메일·로그인 연결·metadata 없음) | 위 기록의 `user_id` 외래키(`orders.user_id` 등)가 가리키는 번호. 이메일 원문은 처리 3일 뒤 지운다(처리 결과 답변 메일) |
+| 재가입 차단 값(이메일·소셜 계정 HMAC, 회원 연결 없음) | 같은 이메일·소셜 계정의 즉시 재가입 부정 이용 방지 — 처리 시각부터 1년 뒤 정리 잡이 지운다 |
+| 마케팅 수신 동의·철회 원장, 성별·활동 기록 동의 행(철회 상태) | 동의 철회 사실 확인(정보통신망법 제50조) — 처리 1년 뒤 정리 잡이 지운다 |
 | 처리 기록·감사 로그 | 처리 근거(개인정보 원문 없음). 처리 기록은 프로필이 hard delete될 때 함께 지워진다 |
+| ADR-0052로 지운 카드·카드팩·게임 기록(`user_cards`·`card_grants`·`draw_tickets`·`game_plays`) | 2026-11-24 이후 새로 쌓이지 않는 보존 유물이라 이 처리에서 건드리지 않는다. 정리는 별도 migration과 사용자 승인 범위(AGENTS.md) |
+| GoTrue 접속 기록(`auth.audit_log_entries`, 이메일 포함) | 서비스 접속 기록(통신비밀보호법 3개월). 아직 자동 삭제 잡이 없다 — 별도 과제 |
 
-배포 전 확인(운영 Supabase, 사람): 처리 RPC는 함수 소유자 `postgres`로 `auth.sessions`·`auth.refresh_tokens` 행을 지운다. 로컬 이미지는 이 권한이 있지만 운영 프로젝트에서 SQL 편집기로 다음이 둘 다 `true`인지 먼저 확인한다. `false`면 처리 RPC가 실패해 아무것도 바뀌지 않는다.
+배포 전 확인(운영 Supabase, 사람): 처리 RPC와 정리 잡은 함수 소유자 `postgres`로 `auth.sessions`·`auth.refresh_tokens`·`auth.identities`·`auth.flow_state`·`auth.one_time_tokens` 행을 지우고 `auth.users`를 고치며, migration은 `auth.users`에 트리거를 만든다. 로컬 이미지는 이 권한이 있지만 운영 프로젝트에서 SQL 편집기로 다음이 모두 `true`인지 먼저 확인한다. `false`면 처리 RPC가 실패해 아무것도 바뀌지 않는다(트리거 권한이 없으면 migration이 실패한다).
 
 ```sql
-select has_table_privilege('postgres','auth.sessions','delete'), has_table_privilege('postgres','auth.refresh_tokens','delete');
+select has_table_privilege('postgres','auth.sessions','delete'), has_table_privilege('postgres','auth.refresh_tokens','delete'),
+  has_table_privilege('postgres','auth.identities','delete'), has_table_privilege('postgres','auth.users','update,trigger'),
+  has_table_privilege('postgres','auth.flow_state','delete'), has_table_privilege('postgres','auth.one_time_tokens','delete');
 ```
 
 남은 일(hard delete로 가기 위한 선행 조건):
@@ -126,7 +136,8 @@ select has_table_privilege('postgres','auth.sessions','delete'), has_table_privi
 - Phase 1 readiness 값 4종(§2 끝): 거래 lookup 연락처 HMAC/key version, legacy 승인·환급·공급의 검증된 시각, immutable 티켓 계약 snapshot, 승인된 커뮤니티·권리사건 보존 seam.
 - #191 이메일 fence(durable outbox·Send Email Hook)와 탈퇴 notice producer·실수신 증거.
 - 삭제 worker(커뮤니티 연결 해제·Storage 전 bucket 인벤토리와 잔여 0건 확인·일반 DB 개인정보 삭제·전역 sign-out·Auth hard delete)와 restore replay.
-- 탈퇴 후 권리행사 창구(§7)와 개인정보처리방침·이용약관 개정(새 시행일·개정 이력). 지금 약관 제7조는 "탈퇴를 처리하면 개인정보를 지체 없이 파기"라고 적지만 이 임시 처리는 위 표의 항목을 남긴다. 카카오계정 탈퇴 알림으로 하는 처리(회원의 요청이 아닌 경우)도 이 개정 때 명시를 검토한다.
+- 탈퇴 후 권리행사 창구(§7). 약관 제7조·방침 제3조는 2026-11-25 최초 판에서 이 임시 처리의 실제 범위(즉시 파기·이메일 3일·재가입 차단 1년·게시물 익명 표시·법정 보존 기간)로 맞췄다. 카카오계정 탈퇴 알림으로 하는 처리도 약관 제7조에 적었다.
+- 법정 보존 기간(5년·3년)이 끝난 거래·문의 기록의 파기 잡. 지금은 운영 DB에 남고 자동 파기가 없다(가장 이른 기한 2029년).
 - 이 절차로 처리한 회원의 hard delete 백필 순서. 대상 목록은 `private.member_withdrawal_processings`다(문의·카카오 알림 근거 모두).
 
 ## 6. Secondary Supabase compliance ledger

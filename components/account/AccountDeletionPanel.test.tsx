@@ -81,18 +81,20 @@ describe('AccountDeletionPanel · 탈퇴 신청 기능이 꺼져 있을 때(원�
     expect(html).toContain('지금은 1:1 문의로 탈퇴 요청을 받고 있어요');
     expect(html).toContain('href="/my/inquiries/new?category=account"');
     expect(html).toContain('1:1 문의로 탈퇴 요청하기');
-    expect(html).toContain('배송지·인증한 휴대폰 번호·마케팅 정보 수신 동의·성별·활동 기록·재입고 알림 신청·생년월일·프로필 사진·성인 인증 기록은 바로 지워지고, 닉네임은 ‘탈퇴한 회원’에 구분 번호가 붙은 이름으로 바뀌어요');
-    expect(html).toContain('거래 기록은 관련 법에 따라 정해진 기간(최대 5년) 보관한 뒤 파기해요');
+    expect(html).toContain('배송지·인증한 휴대폰 번호·마케팅 정보 수신 동의·성별·활동 기록·재입고 알림 신청·생년월일·프로필 사진·성인 인증 기록·위시리스트·장바구니·알림함·IP 팔로우·쓰지 않은 쿠폰·출석 코인·소셜 로그인 연결은 바로 지워지고, 닉네임은 ‘탈퇴한 회원’에 구분 번호가 붙은 이름으로 바뀌어요');
+    expect(html).toContain('관련 법에 따라 주문·결제·환불·티켓 거래 기록은 5년, 1:1 문의·상품 문의 기록은 3년 동안 보관한 뒤 파기해요');
     expect(html).toContain('진행 중인 주문·배송·취소·환불, 이용 전 티켓, 정기배송이 있으면 그 일이 끝난 뒤 처리돼요');
   });
 
-  /* 처리는 완전 삭제가 아니다 — 남는 정보와 재가입 불가를 어드민 처리 화면과 같은 목록으로 알린다(리뷰 2). */
-  it('처리 뒤에도 남는 정보와 같은 이메일 재가입 불가를 알린다', () => {
+  /* 보존 근거가 없는 정보는 처리 때 지운다(20261125233000). 이메일 보관 기간·게시물·재가입 차단 기간을 어드민 처리 화면과 같은 원천으로 알린다. */
+  it('이메일 보관 기간, 남는 게시물, 1년 재가입 차단을 알린다', () => {
     const html = renderUnavailable();
 
-    for (const item of INQUIRY_WITHDRAWAL_SCOPE.retained) expect(html).toContain(item);
-    expect(html).toContain('완전 삭제 절차가 준비될 때까지 이용할 수 없는 상태로 남아요');
-    expect(html).toContain('같은 이메일로는 다시 가입할 수 없어요');
+    expect(html).toContain(`이메일 주소는 처리 결과를 문의 답변으로 알려드리기 위해 ${INQUIRY_WITHDRAWAL_SCOPE.emailRetentionDays}일 동안 보관한 뒤 지워요`);
+    expect(html).toContain(`${INQUIRY_WITHDRAWAL_SCOPE.posts}은 지워지지 않고 작성자가 ‘탈퇴한 회원’으로 보여요`);
+    expect(html).toContain('탈퇴 처리 뒤 1년 동안은 같은 이메일이나 같은 소셜 계정으로 다시 가입할 수 없어요');
+    expect(html).toContain('쓰지 않은 적립금도 더 이상 쓸 수 없어요');
+    expect(html).not.toContain('완전 삭제 절차가 준비될 때까지');
   });
 
   it('화면 신청 폼과 Phase 1 신청 설명·차단 목록은 그리지 않는다', () => {
