@@ -275,6 +275,19 @@ select pg_temp.adult_gate_expect_error(
 select 1 / case when (
   public.prepare_goods_payment_attempt('a0190000-0000-4000-8000-000000000002'::uuid, :'adult_order'::uuid, 'toss'::public.payment_provider) ->> 'provider' = 'toss'
 ) then 1 else 0 end as assert_adult_order_prepares_toss;
+-- 성인 인증이 유효한 결제자의 19금 주문은 캡처 직전 재확인(ADR-0053)을 통과한다.
+select public.bind_goods_payment_callback_nonce(
+  (select id from public.payment_attempts where purpose = 'order' and ref_id = :'adult_order'::uuid),
+  repeat('a', 64)
+);
+select 1 / case when (
+  public.claim_goods_payment_attempt(
+    'toss'::public.payment_provider,
+    (select provider_order_id from public.payment_attempts where purpose = 'order' and ref_id = :'adult_order'::uuid),
+    repeat('a', 64),
+    'a0190000-0000-4000-8000-0000000001c1'::uuid
+  ) ->> 'claim_status' = 'claimed'
+) then 1 else 0 end as assert_verified_adult_toss_claim_proceeds;
 
 select pg_temp.adult_gate_expect_error(
   $sql$select public.place_order('a0190000-0000-4000-8000-000000000003'::uuid,

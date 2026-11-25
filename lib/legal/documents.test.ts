@@ -151,13 +151,14 @@ describe('법정 문서 레지스트리', () => {
     expect(koreanLegalDate('2026-11-06')).toBe('2026년 11월 6일');
   });
 
-  /* 결제대행사는 서버가 주문 단위로 정한다(ADR-0013) — 기본 토스페이먼츠, 19금 굿즈 주문의 카드 결제만 나이스페이. */
-  it('지급방법과 처리위탁이 실제 결제대행사(토스페이먼츠 기본, 19금 굿즈 주문은 나이스정보통신)를 밝힌다', () => {
+  /* 결제대행사는 서버가 주문 단위로 정한다(ADR-0013) — 2026-11-25부터 19금 굿즈 주문도 토스페이먼츠(ADR-0053). */
+  it('지급방법과 처리위탁이 실제 결제대행사(19금 굿즈 주문도 토스페이먼츠)를 밝힌다', () => {
     const termsPayment = LEGAL_DOCUMENTS.terms.articles
       .find((article) => article.heading.includes('지급방법'))!
       .paragraphs!.join('\n');
     expect(termsPayment).toMatch(/굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해/);
-    expect(termsPayment).toMatch(/19금 굿즈가 담긴 주문의 카드 대금은 결제대행사인 나이스정보통신 주식회사를 통해/);
+    expect(termsPayment).not.toMatch(/나이스정보통신/);
+    expect(termsPayment).not.toMatch(/19금 굿즈가 담긴 주문에는 제공하지 않습니다/);
 
     const processorRows = LEGAL_DOCUMENTS.privacy.articles
       .find((article) => article.heading.includes('위탁'))!
@@ -165,9 +166,8 @@ describe('법정 문서 레지스트리', () => {
     const processors = new Map(processorRows.map((row) => [row[0], row.join(' ')]));
     for (const operation of ['결제 처리', '취소', '환급']) {
       expect(processors.get('토스페이먼츠 주식회사'), operation).toContain(operation);
-      expect(processors.get('나이스정보통신 주식회사'), operation).toContain(operation);
     }
-    expect(processors.get('나이스정보통신 주식회사')).toContain('19금 굿즈');
+    expect(processors.has('나이스정보통신 주식회사')).toBe(false);
     expect([...processors.keys()].join(' ')).not.toMatch(/코페이/);
   });
 
@@ -370,7 +370,7 @@ describe('개인정보처리방침', () => {
     const processors = consignment!.table!.rows.map((row) => row[0]);
     expect(processors).toEqual(
       expect.arrayContaining([
-        'Supabase, Inc.', 'Vercel, Inc.', '토스페이먼츠 주식회사', '나이스정보통신 주식회사', '엔에이치엔케이씨피 주식회사', '한진택배', 'Resend',
+        'Supabase, Inc.', 'Vercel, Inc.', '토스페이먼츠 주식회사', '엔에이치엔케이씨피 주식회사', '한진택배', 'Resend',
       ]),
     );
   });
