@@ -479,7 +479,7 @@ App Store 심사 가이드라인 4.8(로그인 서비스는 이메일을 숨길 
 CAPTCHA 키를 넣기 전에는 공개 publishable 키로 `/auth/v1/signup`·`/recover`·`/resend`·`/otp`를 직접 부르는 우회가 **그대로 남는다**. 앱 한도는 이 직접
 호출을 세지 못한다. 그 사이에는 Supabase의 시간당 한도(10,000통)와 `over_request_rate_limit`(IP별 가입·로그인·메일 요청 한도)만 방어선이다.
 한도를 10,000으로 올린 뒤로는 봇이 한 시간에 Resend 월 한도(50,000통)의 1/5을 쓸 수 있어, 남으면 주문 메일까지 막힌다.
-키는 오픈 전에 넣는 것을 전제로 한다.
+키는 오픈 전에 넣는 것을 전제로 한다. 운영은 2026-11-25에 켰다(아래 '진행 기록') — 이 절은 키를 빼거나 콘솔에서 CAPTCHA를 끈 동안에 해당한다.
 
 ### GoTrue IP 한도(2026-11-24, 오픈 몰림 대비)
 
@@ -543,10 +543,10 @@ forwarding')상 이 헤더는 **secret 키 요청만** 받는다 — publishable
    사용 48통), 하루 한도 없음, 초당 10건(팀 전체·SMTP 포함, 넘으면 429), 초과 발송(pay-as-you-go, 1,000통당 $0.90) **꺼짐**. 오픈 전 사람 단계:
    - 초당 10건은 요금제를 올려도 그대로라, 오픈 첫 몇 분 가입이 초당 10명을 넘을 것 같으면 Resend 지원팀에 예상 발송량을 적어 상향을 요청한다.
    - 월 50,000통을 넘으면 그 달 남은 기간 모든 메일(주문 확인 포함)이 멈춘다. Settings → Usage → Pay-as-you-go의 Transactional을 켜 둔다.
-6. **로그 경보**: Vercel 로그 경보에 태그 `[auth-mail-limit]`(Supabase Auth 시간당 메일 한도 도달, `over_email_send_rate_limit`)를 등록한다.
-   `[auth-mail-abuse] rejected`는 한도 거절 추세 확인용이다.
-   같은 신호는 운영 알림(분류 시스템, '가입·재설정 메일 시간당 한도에 도달했습니다', 시간당 한 줄)으로도 남아 시스템 상태 화면·알림·요약 메일에 잡힌다
-   (`service_record_auth_mail_limit_alert`, 개인정보 없음).
+6. **한도 도달 경보**: 로그 태그 `[auth-mail-limit]`(Supabase Auth 시간당 메일 한도 도달, `over_email_send_rate_limit`)는 운영 알림(분류 시스템,
+   '가입·재설정 메일 시간당 한도에 도달했습니다', 시간당 한 줄)으로 남아 시스템 상태 화면·알림·요약 메일에 잡힌다
+   (`service_record_auth_mail_limit_alert`, 개인정보 없음). Vercel 경보(Alerts) 만들기 화면에는 로그 문구로 거는 조건이 없어(2026-11-24 확인)
+   Vercel 쪽 경보는 걸지 않는다 — 로그 문구로 경보가 필요해지면 로그 드레인으로 외부 도구에 보내야 한다. `[auth-mail-abuse] rejected`는 한도 거절 추세 확인용이다.
 7. 운영 중 위젯이 안 뜨는 환경(광고 차단 등)에서는 가입·로그인이 막힌다 — 안내 문구가 새로고침을 권한다. 문의가 늘면 한도 로그부터 보고, 급하면
    Supabase 콘솔에서 CAPTCHA를 끈다.
 
@@ -560,8 +560,16 @@ Turnstile을 켜면 Cloudflare, Inc.가 접속 정보를 처리하고, 앱 한�
 ### 진행 기록
 
 - 2026-11-24 1번: 위젯 `xsquare-auth`(관리형, 호스트 `iconsip.com`·`xsquare.kr`, 사전 승인 꺼짐) 생성. 사이트 키(공개값) `0x4AAAAAAGQXwZ4SUyxYQzjP`.
-  2번: Vercel Production `NEXT_PUBLIC_TURNSTILE_SITE_KEY`에 그 사이트 키, Preview에 항상 통과 테스트 키를 넣고 위 처리방침 개정 배포로 위젯을 켠다.
-  3번 이후의 결과는 이 목록에 이어 적는다.
+  2번: Vercel Production `NEXT_PUBLIC_TURNSTILE_SITE_KEY`에 그 사이트 키(비민감 — 대조 단계가 `vercel env pull`로 읽는다), Preview에 항상 통과 테스트 키를 넣고
+  위 처리방침 개정(#740) 배포로 위젯을 켰다. `iconsip.com`·`www.iconsip.com`의 로그인·설정 화면에서 운영 토큰 발급, Preview에서 테스트 토큰을 확인했다.
+- 2026-11-25 3번: 위젯 설정에서 비밀 키를 순환하고 새 비밀 키를 GitHub secret `TURNSTILE_SECRET_KEY`, 사이트 키를 변수 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`로
+  사용자가 등록했다. 그 뒤 push/main 실행(#739 머지)의 `deploy-vercel`에서 대조 단계가 통과(지문 `e8af46df`)하고 동기화 단계가 CAPTCHA를 켠 뒤
+  read-back으로 반영을 확인했다(09:53 KST).
+- 2026-11-25 4번: publishable 키로 토큰 없이 부른 `/signup`·`/token?grant_type=password`·`/recover`·`/resend`·`/otp`가 모두 400 `captcha_failed`로
+  거절됐다(켜기 전 같은 호출은 `weak_password`·`invalid_credentials`까지 처리됐다). 가짜 토큰은 `invalid-input-response`로 거절된다 — GoTrue가 등록된
+  비밀 키로 Cloudflare 검증을 거친다는 뜻이다. 세션 갱신(`refresh_token`)은 CAPTCHA 대상이 아니라 그대로 통과한다. 위젯 경로는 `www.iconsip.com`
+  비밀번호 재설정 화면에서 없는 `example.com` 주소로 요청해 앱 성공 안내와 Auth 로그 `/recover` 200을 확인했다. 켠 뒤 Auth 로그의 `captcha_failed`는
+  이 확인 호출뿐이었다(실회원 거절 없음). 실제 계정의 가입·로그인·코드 확인 → 자동 로그인은 운영 비밀번호가 필요해 사람이 확인한다.
 
 ### 시험
 
