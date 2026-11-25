@@ -37,6 +37,7 @@ import { ClaimWithdrawal } from '@/components/orders/ClaimWithdrawal';
 import { ClaimTypeConversion } from '@/components/admin/ClaimTypeConversion';
 import { ClaimReasonChange } from '@/components/admin/ClaimReasonChange';
 import { ClaimActionPanel } from './ClaimActionPanel';
+import { VirtualAccountRefundAccountEntry } from '@/components/admin/VirtualAccountRefundAccountEntry';
 import { ClaimPartialReturnPanel } from './ClaimPartialReturnPanel';
 import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
 import type { ClaimDefectiveStock } from '@/lib/admin/defective-stock';
@@ -66,6 +67,7 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_intake_created': '판매자 대리 접수',
   'order.claim_withdrawn': '고객 요청 철회',
   'order.claim_refund_account_confirmed': '고객 환불계좌 등록',
+  'admin.order.claim_refund_account_entered': '운영자 환불계좌 대신 입력',
   'admin.order.bank_refund_confirm_cancellation': '무통장 취소 확정 · 송금대기',
   'admin.order.bank_refund_file_transfer': '계좌 송금 접수',
   'admin.order.bank_refund_complete_transfer': '실제 송금 완료 확인',
@@ -454,6 +456,8 @@ export function ClaimDetailScreen({
                 {claim.reshippedItems?.map((item) => <Row key={item.orderItemId} label="재출고 상품"
                   value={`${item.name} · ${item.variantName} · ${item.variantCode} · ${item.qty}개`} />)}
               </div> : null}
+              {claim.stage === 'needs_review' ? <VirtualAccountRefundAccountEntry claimId={claim.id} claimType={claim.claimType}
+                lastErrorCode={claim.lastErrorCode} orderId={claim.orderId} /> : null}
               {detail.sellerIntake ? <SellerClaimIntakeEvidence intake={detail.sellerIntake} /> : null}
 
               <h4 className="font-medium">타임라인</h4>

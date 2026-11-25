@@ -20,6 +20,7 @@ import {
   restockAlertEmailDedupeKey,
   virtualAccountEmailDedupeKey,
   depositReversalEmailDedupeKey,
+  refundAccountEmailDedupeKey,
   type EmailTemplateName,
   type OrderEmailTemplateName,
   type OrderEmailAudience,
@@ -34,6 +35,7 @@ import {
   renderVirtualAccountIssuedEmail,
   renderDepositReversalEmail,
   renderDepositReversalCanceledEmail,
+  renderRefundAccountRequestEmail,
   type OrderEmailItem,
   type RenderedEmail,
 } from './templates';
@@ -516,6 +518,51 @@ export function sendDepositReversalCanceledEmail(orderId: string): Promise<Trans
       rendered: renderDepositReversalCanceledEmail({
         orderId: order.id, orderNumber: order.order_number ?? null, amount: account.amount,
         orderUrl: `${siteUrl()}/orders/${order.id}`,
+      }),
+    });
+  });
+}
+
+const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** service_virtual_account_refund_account_notice 응답을 좁힌다. 대상이 아니거나 모양이 어긋나면 null. */
+export function parseRefundAccountNotice(value: unknown): {
+  claimId: string; orderId: string; orderNumber: string | null; userId: string; claimType: 'cancel' | 'return'; code: 'required' | 'invalid';
+} | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  if (typeof row.claimId !== 'string' || !UUID_TEXT.test(row.claimId) || typeof row.orderId !== 'string' || !UUID_TEXT.test(row.orderId)
+    || typeof row.userId !== 'string' || !UUID_TEXT.test(row.userId)
+    || (row.claimType !== 'cancel' && row.claimType !== 'return') || (row.code !== 'required' && row.code !== 'invalid')
+    || (row.orderNumber !== null && row.orderNumber !== undefined && typeof row.orderNumber !== 'string')) return null;
+  return { claimId: row.claimId, orderId: row.orderId, orderNumber: typeof row.orderNumber === 'string' ? row.orderNumber : null,
+    userId: row.userId, claimType: row.claimType, code: row.code };
+}
+
+/**
+ * 가상계좌 환불 계좌 요청 메일(ADR-0049 결정 5 보강, 2026-11-25). 입금된 가상계좌 주문의 취소·반품 환불이 환급 계좌 때문에 결제확인필요
+ * (provider_refund_account_required·provider_refund_account_invalid)로 멈춘 직후 그 전이를 만든 실행이 부른다. 앱 알림은 DB가 같은 전이에서
+ * 이미 남겼다. 보낼지는 DB(service_virtual_account_refund_account_notice)가 지금 상태로 다시 판정한다 — 그 사이 계좌가 입력돼 환불이
+ * 다시 진행됐으면 보내지 않는다. 클레임·사유마다 한 통(같은 사유로 다시 멈춰도 다시 보내지 않는다). 절대 throw하지 않는다.
+ */
+export function sendVirtualAccountRefundAccountEmail(requestId: string): Promise<TransactionalEmailResult> {
+  return safely('virtual account refund account', `claim:${requestId}`, async () => {
+    const blocked = guardedEnvironment();
+    if (blocked) return blocked;
+    const service = createServiceClient();
+    const { data, error } = await service.rpc('service_virtual_account_refund_account_notice', { p_request_id: requestId });
+    if (error) throw new Error('refund_account_email_notice_load_failed');
+    const notice = parseRefundAccountNotice(data);
+    if (!notice || notice.claimId !== requestId) return { status: 'skipped', reason: 'refund_account_not_needed' };
+    const email = await loadOrderRecipient(service, notice.userId);
+    if (!email) return { status: 'skipped', reason: 'recipient_missing' };
+    return deliver(service, {
+      dedupeKey: refundAccountEmailDedupeKey(notice.claimId, notice.code),
+      template: 'order_refund_account',
+      recipient: email,
+      rendered: renderRefundAccountRequestEmail({
+        orderId: notice.orderId, orderNumber: notice.orderNumber, code: notice.code, claimType: notice.claimType,
+        orderUrl: `${siteUrl()}/orders/${notice.orderId}`,
       }),
     });
   });

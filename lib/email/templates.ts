@@ -605,3 +605,52 @@ export function renderDepositReversalCanceledEmail(input: DepositReversalCancele
   ].join(''));
   return { subject, text, html };
 }
+
+export interface RefundAccountRequestEmailInput {
+  orderId: string;
+  orderNumber?: string | null;
+  /** required = 환불할 계좌가 없다 / invalid = 결제대행사가 입력된 계좌를 받지 않았다. */
+  code: 'required' | 'invalid';
+  claimType: 'cancel' | 'return';
+  orderUrl: string;
+}
+
+/**
+ * 가상계좌 환불 계좌 요청(ADR-0049 결정 5 보강, 2026-11-25). 입금된 가상계좌 주문의 취소·반품 환불은 결제대행사가 구매자 계좌로 송금하는데,
+ * 쓸 계좌가 없거나 결제대행사가 계좌를 받지 않아 환불이 멈췄다. 주문 상세에서 계좌를 입력하면 그 계좌로 다시 환불한다.
+ * 계좌 원문·일부도 싣지 않는다(메일은 다른 사람이 볼 수 있다).
+ */
+export function renderRefundAccountRequestEmail(input: RefundAccountRequestEmailInput): RenderedEmail {
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber);
+  const claimLabel = input.claimType === 'return' ? '반품' : '주문 취소';
+  const invalid = input.code === 'invalid';
+  const subject = invalid
+    ? `[엑스스퀘어] 환불 계좌를 다시 확인해 주세요 (주문번호 ${reference})`
+    : `[엑스스퀘어] 환불받을 계좌를 입력해 주세요 (주문번호 ${reference})`;
+  const lead = invalid
+    ? `${claimLabel} 환불을 입력하신 계좌로 보내지 못했어요. 은행·계좌번호·예금주가 맞는지 확인해 다시 입력해 주세요.`
+    : `${claimLabel} 환불을 보낼 계좌가 없어 환불이 멈춰 있어요. 환불받을 계좌를 입력해 주세요.`;
+  const notices = [
+    '가상계좌로 결제하신 주문은 결제대행사가 입력하신 계좌로 환불해요. 결제한 분 명의의 계좌를 입력해 주세요.',
+    '주문 상세의 환불계좌 확인 칸에서 은행을 고르고 계좌번호(숫자만)와 예금주를 입력하면 그 계좌로 환불을 다시 진행해요.',
+    '은행 처리에 영업일 기준 2일 정도 걸려요. 궁금한 점은 1:1 문의로 알려 주세요.',
+  ];
+  const text = textBlock([
+    lead,
+    '',
+    `주문번호: ${reference}`,
+    '',
+    '[안내]',
+    ...notices.map((line) => `- ${line}`),
+    '',
+    `주문 상세: ${input.orderUrl}`,
+  ]);
+  const html = htmlDocument(reference, [
+    htmlHeading(invalid ? '환불 계좌를 다시 확인해 주세요' : '환불받을 계좌를 입력해 주세요'),
+    htmlParagraph(lead),
+    htmlSectionTitle('안내'),
+    ...notices.map((line) => htmlParagraph(line)),
+    htmlButton(input.orderUrl, '주문 상세에서 계좌 입력하기'),
+  ].join(''));
+  return { subject, text, html };
+}

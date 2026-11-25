@@ -94,6 +94,7 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.order.claim_intake_created': '판매자 대리 접수',
   'order.claim_withdrawn': '고객 요청 철회',
   'order.claim_refund_account_confirmed': '고객 환불계좌 등록',
+  'admin.order.claim_refund_account_entered': '운영자 환불계좌 대신 입력',
   'admin.order.bank_refund_confirm_cancellation': '무통장 취소 확정 · 재고 복원',
   'admin.order.bank_refund_file_transfer': '계좌 송금 접수',
   'admin.order.bank_refund_complete_transfer': '계좌 송금 완료',

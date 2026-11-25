@@ -379,6 +379,42 @@ describe('reconcileOrderCancellation', () => {
     }));
   });
 
+  // 2026-11-25(VAC-041·VAC-042): 환불이 환급 계좌 때문에 멈추면 구매자에게 계좌 입력 요청 메일을 보낸다(앱 알림은 DB 트리거).
+  it('환불이 계좌 때문에 결제확인필요로 멈추면 그 전이 뒤에 계좌 요청을 보내고, 다른 사유·전이 실패에는 보내지 않는다', async () => {
+    for (const code of ['provider_refund_account_required', 'provider_refund_account_invalid'] as const) {
+      const notify = vi.fn(async () => undefined);
+      const deps = dependencies({
+        refundProviderPayment: vi.fn(async () => ({ ...approvedRefund(), outcome: 'needs_review', reasonCode: code, refundedAmount: undefined } as unknown as RefundOutcome)),
+        notifyRefundAccountNeeded: notify,
+      });
+      await expect(reconcileOrderCancellation({ requestId: REQUEST_ID, actorId: null }, deps)).resolves.toEqual({ ok: false, code });
+      expect(deps.markNeedsReview).toHaveBeenCalledWith({ requestId: REQUEST_ID, actorId: null, code });
+      expect(notify).toHaveBeenCalledWith(REQUEST_ID);
+    }
+
+    const other = vi.fn(async () => undefined);
+    await reconcileOrderCancellation({ requestId: REQUEST_ID, actorId: null }, dependencies({
+      refundProviderPayment: vi.fn(async () => ({ ...approvedRefund(), outcome: 'unknown', reasonCode: 'provider_unavailable' } as unknown as RefundOutcome)),
+      notifyRefundAccountNeeded: other,
+    }));
+    expect(other).not.toHaveBeenCalled();
+
+    // 결제확인필요 전이가 실패하면(DB가 받지 않음) 알리지 않는다 — 알림의 근거가 되는 상태가 없다.
+    const failed = vi.fn(async () => undefined);
+    await expect(reconcileOrderCancellation({ requestId: REQUEST_ID, actorId: null }, dependencies({
+      refundProviderPayment: vi.fn(async () => ({ ...approvedRefund(), outcome: 'needs_review', reasonCode: 'provider_refund_account_required' } as unknown as RefundOutcome)),
+      markNeedsReview: vi.fn(async () => { throw new Error('db'); }),
+      notifyRefundAccountNeeded: failed,
+    }))).resolves.toEqual({ ok: false, code: 'local_finalize_failed' });
+    expect(failed).not.toHaveBeenCalled();
+
+    // 메일이 실패해도 정합화 결과는 그대로다.
+    await expect(reconcileOrderCancellation({ requestId: REQUEST_ID, actorId: null }, dependencies({
+      refundProviderPayment: vi.fn(async () => ({ ...approvedRefund(), outcome: 'needs_review', reasonCode: 'provider_refund_account_invalid' } as unknown as RefundOutcome)),
+      notifyRefundAccountNeeded: vi.fn(async () => { throw new Error('mail'); }),
+    }))).resolves.toEqual({ ok: false, code: 'provider_refund_account_invalid' });
+  });
+
   it('fresh prepared 세션은 in_progress로 유지하고 완료나 needs_review를 호출하지 않는다', async () => {
     const deps = dependencies({
       reconcileExpiredPreparedGoods: vi.fn(async () => 'in_progress' as const),

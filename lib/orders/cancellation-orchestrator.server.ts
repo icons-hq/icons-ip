@@ -8,7 +8,7 @@ import {
 import { getPaymentGateway, type PaymentCheckoutProvider } from '../payments/runtime-gateway';
 import { depositReversalRefundOutcome } from '../payments/goods-deposit-reversal.server';
 import { createRuntimeDepositReversal, loadOpenDepositReversal } from '../payments/goods-deposit-reversal.runtime.server';
-import { parseVirtualAccountRefundAccountCandidates, selectVirtualAccountRefundAccount } from '../payments/virtual-account-refund-account';
+import { isVirtualAccountRefundAccountReviewCode, parseVirtualAccountRefundAccountCandidates, selectVirtualAccountRefundAccount } from '../payments/virtual-account-refund-account';
 import { createServiceClient } from '../supabase/service';
 import { createRuntimeAttemptPaymentGateway } from '../subscriptions/payment-dispatch.server';
 
@@ -282,6 +282,12 @@ export interface CancellationReconciliationDependencies {
   }): Promise<void>;
   /** 반품배송비 차감 결정(ADR-0031). 없으면 차감 없이 지금처럼 전액 취소한다. */
   refundDeduction?: CancellationRefundDeductionDependencies;
+  /**
+   * 환불이 환급 계좌 때문에 결제확인필요(provider_refund_account_required·provider_refund_account_invalid)로 멈춘 직후 구매자에게 계좌 입력
+   * 요청 메일을 보낸다(ADR-0049 결정 5 보강, 2026-11-25 — 앱 알림은 DB가 같은 전이에서 남긴다). 보낼지는 DB가 다시 판정하고, 실패해도
+   * 정합화 결과는 바뀌지 않는다. 없으면(시험) 보내지 않는다.
+   */
+  notifyRefundAccountNeeded?: (requestId: string) => Promise<void>;
   /**
    * 재고 부족 부분 취소(ADR-0032)로 결제마다 이미 돌려준 금액. 없거나 비어 있으면 지금처럼 결제 금액 전액이 기준이다.
    * 있으면 이 요청은 남은 잔액만 결제사 부분 취소로 돌려준다(잔액 기대값 = 남은 잔액).
@@ -560,6 +566,11 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
       });
       if (error) throw new Error('cancellation review transition failed');
     },
+    async notifyRefundAccountNeeded(requestId) {
+      // 메일 모듈은 무겁고 주문 모듈을 넓게 읽는다 — 필요할 때만 불러 순환을 만들지 않는다. 보내는 함수는 던지지 않는다.
+      const { sendVirtualAccountRefundAccountEmail } = await import('../email/transactional.server');
+      await sendVirtualAccountRefundAccountEmail(requestId);
+    },
     partialRefunds: {
       async load(orderId) {
         const { data, error } = await service.rpc('service_order_payment_partial_refunds', { p_order_id: orderId });
@@ -605,10 +616,17 @@ async function markNeedsReview(
 ): Promise<CancellationReconciliationResult> {
   try {
     await dependencies.markNeedsReview({ ...input, code });
-    return { ok: false, code };
   } catch {
     return { ok: false, code: 'local_finalize_failed' };
   }
+  if (isVirtualAccountRefundAccountReviewCode(code) && dependencies.notifyRefundAccountNeeded) {
+    try {
+      await dependencies.notifyRefundAccountNeeded(input.requestId);
+    } catch {
+      console.error('[orders/cancellation] refund account notice failed');
+    }
+  }
+  return { ok: false, code };
 }
 
 /**
