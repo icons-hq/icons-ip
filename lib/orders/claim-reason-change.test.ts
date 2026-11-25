@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { claimReasonConfirmMessage, claimReasonError, claimReasonReceiptMatches, claimReasonReturnFeeNote, claimReasonSavedMessage, normalizeClaimReasonRequest, parseClaimReasonContext, parseClaimReasonHistory, parseClaimReasonReceipt } from './claim-reason-change';
+import { CLAIM_REASON_RETURN_REFUND_FILED_MESSAGE, claimReasonBlockedMessage, claimReasonConfirmMessage, claimReasonError, claimReasonReceiptMatches, claimReasonReturnFeeNote, claimReasonSavedMessage, normalizeClaimReasonRequest, parseClaimReasonContext, parseClaimReasonHistory, parseClaimReasonReceipt } from './claim-reason-change';
 import { reasonContext as context, reasonReceipt as receipt, reasonRequest as request, returnReasonContext, returnReasonReceipt } from './claim-reason-change.fixture';
 it('최초 actor·행 버전·분류·고객 설명·협의·비용 확인만 받는다', () => {
   expect(normalizeClaimReasonRequest(request)).toEqual(request);
@@ -73,4 +73,15 @@ it('반품배송비 안내와 저장 결과 문장', () => {
   expect(claimReasonSavedMessage({ ...receipt, changed: false })).toContain('고객 알림을 추가하지 않았습니다');
   expect(claimReasonError(undefined, 'claim_reason_finance_started')).toContain('환불 접수');
   expect(claimReasonError(undefined, 'claim_reason_stage_unavailable')).toContain('[환불 접수] 전까지');
+});
+it('반품이 환불 접수 뒤라 막히면 다음 할 일(결제 담당 요청)을 말하고, 그 밖의 막힘은 원래 이유를 말한다', () => {
+  for (const blocked of [{ stage: 'processing', blocker: 'claim_reason_stage_unavailable' }, { stage: 'needs_review', blocker: 'claim_reason_stage_unavailable' },
+    { stage: 'completed', blocker: 'claim_reason_stage_unavailable' }, { stage: 'on_hold', blocker: 'claim_reason_stage_unavailable' },
+    { stage: 'collected', blocker: 'claim_reason_finance_started' }] as const) {
+    expect(claimReasonBlockedMessage({ claimType: 'return', ...blocked })).toBe(CLAIM_REASON_RETURN_REFUND_FILED_MESSAGE);
+  }
+  expect(CLAIM_REASON_RETURN_REFUND_FILED_MESSAGE).toContain('결제 담당에게 요청해주세요');
+  expect(claimReasonBlockedMessage({ claimType: 'return', stage: 'rejected', blocker: 'claim_reason_stage_unavailable' })).toBe(claimReasonError(undefined, 'claim_reason_stage_unavailable'));
+  expect(claimReasonBlockedMessage({ claimType: 'exchange', stage: 'processing', blocker: 'claim_reason_finance_started' })).toBe(claimReasonError(undefined, 'claim_reason_finance_started'));
+  expect(claimReasonBlockedMessage({ claimType: 'exchange', stage: 'collected', blocker: 'claim_reason_reshipped' })).toContain('재출고');
 });

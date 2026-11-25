@@ -6,6 +6,7 @@
 --  3. 최초 무료배송 주문: 왕복 6,000원 → 하자 정정으로 0원.
 --  4. 부분 반품: 일괄 확인창이 남은 결제 금액(40,000원)이 아니라 고른 몫(9,500원 − 반품배송비 3,000원)을 보이고, 정정이 그 금액을 다시
 --     계산한다. 환불 접수 뒤에는 원장 금액을 보이되 일괄 환불에서는 빼고(상세에서 처리), 사유 정정은 막힌다.
+--  5. 선물 주문: 정정 알림은 선물 클레임 알림 규칙(보낸 분·받는 분 모두, 일반 문구·/gifts/ 링크)이고 운영자 설명 원문은 알림에 없다.
 begin;
 update public.shipping_carriers set tracking_number_pattern=null,tracking_number_rule=null where tracking_number_pattern is not null;
 create function pg_temp.rf_id(kind text, n integer) returns uuid language sql immutable as $$select md5('claim-reason-return:'||kind||':'||n)::uuid$$;
@@ -21,12 +22,12 @@ create function pg_temp.rf_auth(actor integer) returns void language plpgsql as 
 end $$;
 
 insert into auth.users(id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
- select pg_temp.rf_id('user', n), 'authenticated', 'authenticated', 'claim-reason-return-'||n||'@example.test', clock_timestamp(), '{}', '{}' from generate_series(1, 2) n;
+ select pg_temp.rf_id('user', n), 'authenticated', 'authenticated', 'claim-reason-return-'||n||'@example.test', clock_timestamp(), '{}', '{}' from generate_series(1, 3) n;
 insert into auth.sessions(id, user_id, created_at, updated_at, not_after)
- select pg_temp.rf_id('session', n), pg_temp.rf_id('user', n), clock_timestamp(), clock_timestamp(), clock_timestamp() + interval '1 hour' from generate_series(1, 2) n;
+ select pg_temp.rf_id('session', n), pg_temp.rf_id('user', n), clock_timestamp(), clock_timestamp(), clock_timestamp() + interval '1 hour' from generate_series(1, 3) n;
 update public.profiles set nickname = 'TEST 반품사유 '||right(id::text, 6),
  role = case when id = pg_temp.rf_id('user', 1) then 'admin'::public.user_role else 'user'::public.user_role end
- where id in (select pg_temp.rf_id('user', n) from generate_series(1, 2) n);
+ where id in (select pg_temp.rf_id('user', n) from generate_series(1, 3) n);
 insert into private.operator_memberships(profile_id, manager_role) values (pg_temp.rf_id('user', 1), 'primary');
 insert into public.fulfillment_origins(id, code, name, default_carrier, base_fee, return_address, is_active)
  select pg_temp.rf_id('origin', n), 'claim-reason-return-origin-'||n, 'TEST 반품사유 출고지 '||n, 'hanjin', 3000, 'TEST 반품 주소 '||n, true from generate_series(1, 2) n;
@@ -72,9 +73,17 @@ begin
  update public.order_shipments set status = 'delivered', delivered_at = clock_timestamp() - interval '2 days'
  where order_id = pg_temp.rf_id('order', n) and status = 'shipping';
 end $$;
-select pg_temp.rf_order(1), pg_temp.rf_order(2), pg_temp.rf_order(3, 0), pg_temp.rf_order(4);
-select pg_temp.rf_assert((select count(*) = 4 from public.orders where id in (select pg_temp.rf_id('order', n) from generate_series(1, 4) n) and status = 'delivered'),
+select pg_temp.rf_order(1), pg_temp.rf_order(2), pg_temp.rf_order(3, 0), pg_temp.rf_order(4), pg_temp.rf_order(5);
+select pg_temp.rf_assert((select count(*) = 5 from public.orders where id in (select pg_temp.rf_id('order', n) from generate_series(1, 5) n) and status = 'delivered'),
  'fixture_orders_delivered');
+-- 주문 5는 선물 주문(결제한 분 user 2 → 받는 분 user 3). 받는 분이 낸 단순 변심 반품(선물 신청의 설명은 일반 분류 문구).
+insert into private.gift_intents(id, sender_id, recipient_id, state, sender_label, recipient_label, expires_at, order_id, ordered_source_revision)
+ values (pg_temp.rf_id('gift', 5), pg_temp.rf_id('user', 2), pg_temp.rf_id('user', 3), 'ordered', 'TEST 보낸 분', 'TEST 받는 분',
+  clock_timestamp() + interval '1 day', pg_temp.rf_id('order', 5), 'test');
+insert into public.order_cancellation_requests(id, order_id, requested_by, reason, reason_type, claim_type, stage, requested_at)
+ values (pg_temp.rf_id('claim', 5), pg_temp.rf_id('order', 5), pg_temp.rf_id('user', 3), '단순 변심', 'change_of_mind', 'return', 'requested', now());
+insert into private.gift_claim_parties(claim_id, gift_id, payer_id, recipient_id, actual_requester)
+ values (pg_temp.rf_id('claim', 5), pg_temp.rf_id('gift', 5), pg_temp.rf_id('user', 2), pg_temp.rf_id('user', 3), pg_temp.rf_id('user', 3));
 
 create function pg_temp.rf_claim(n integer) returns public.order_cancellation_requests language sql security definer as $$
  select * from public.order_cancellation_requests where order_id = pg_temp.rf_id('order', n) order by requested_at desc, reference desc limit 1$$;
@@ -215,10 +224,27 @@ select pg_temp.rf_assert((select r->>'refundAmount' = '9500' and r->>'refundBloc
  'partial_filed_blocks');
 select pg_temp.rf_error('select pg_temp.rf_correct(4, 44, ''change_of_mind'', ''다시 단순 변심'')', 'claim_reason_stage_unavailable');
 
--- 5. 합계: 실제 정정 4건, 감사·알림 각 4건(같은 내용 재요청은 이력을 늘리지 않는다).
-select pg_temp.rf_assert((select count(*) = 4 from private.order_claim_reason_operations
-  where order_id in (select pg_temp.rf_id('order', n) from generate_series(1, 4) n) and changed)
- and (select count(*) = 4 from public.audit_log where action = 'admin.order.claim_reason_changed'
-  and target in (select 'order:'||pg_temp.rf_id('order', n) from generate_series(1, 4) n))
+-- 5. 선물 주문 반품 정정: 보낸 분·받는 분 모두 선물 알림(일반 문구·/gifts/ 링크), 운영자 설명 원문·/orders/ 알림은 없다.
+select pg_temp.rf_auth(1);
+select pg_temp.rf_assert(pg_temp.rf_correct(5, 5, 'defect', '받는 분 사진으로 박스 파손 확인(수령인 통화)')
+ @> '{"changed": true, "claimType": "return", "fromReturnFeeDeduction": 0, "toReturnFeeDeduction": 0}', 'gift_return_corrected');
+select pg_temp.rf_assert(not exists(select 1 from public.notifications where dedupe_key = 'claim:reason_changed:'||pg_temp.rf_id('op', 5))
+ and (select count(*) = 2 and count(distinct user_id) = 2
+   and bool_and(user_id in (pg_temp.rf_id('user', 2), pg_temp.rf_id('user', 3)))
+   and bool_and(link_path = '/gifts/'||pg_temp.rf_id('gift', 5) and type = 'claim_updated' and source_id = pg_temp.rf_id('claim', 5)::text)
+   and bool_and(body not like '%박스 파손%' and title not like '%박스 파손%')
+  from public.notifications where source_id = pg_temp.rf_id('claim', 5)::text and dedupe_key like 'gift-claim:reason_changed:%')
+ and not exists(select 1 from public.notifications where body like '%박스 파손%'), 'gift_correction_uses_gift_notice');
+-- 보낸 분의 고객 이력도 선물 주문 설명을 일반 분류로 가린다(알림과 같은 규칙).
+select pg_temp.rf_auth(2);
+select pg_temp.rf_assert((select h->0->>'toReason' = '상품 하자' and h::text not like '%박스 파손%'
+ from (select public.get_my_order_claim_reason_changes(pg_temp.rf_id('order', 5)) h) s), 'gift_history_masked');
+select pg_temp.rf_auth(1);
+
+-- 6. 합계: 실제 정정 5건, 감사 5건, 선물 아닌 주문의 정정 알림 4건(같은 내용 재요청은 이력을 늘리지 않는다).
+select pg_temp.rf_assert((select count(*) = 5 from private.order_claim_reason_operations
+  where order_id in (select pg_temp.rf_id('order', n) from generate_series(1, 5) n) and changed)
+ and (select count(*) = 5 from public.audit_log where action = 'admin.order.claim_reason_changed'
+  and target in (select 'order:'||pg_temp.rf_id('order', n) from generate_series(1, 5) n))
  and (select count(*) = 4 from public.notifications where user_id = pg_temp.rf_id('user', 2) and dedupe_key like 'claim:reason_changed:%'), 'totals');
 rollback;
