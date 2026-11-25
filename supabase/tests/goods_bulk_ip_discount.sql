@@ -66,11 +66,16 @@ select pg_temp.bulk_assert(public.admin_commit_goods_bulk(md5('bulk-ip-test:pric
 -- The list projection explains why inline price edit is closed.
 select pg_temp.bulk_assert((select jsonb_object_agg(r->>'id',r->'activeDiscountEndsAt' is distinct from 'null'::jsonb) from jsonb_array_elements(public.admin_goods_list_price_states(array['bulk-ip-050','bulk-ip-002'])) r)
  ='{"bulk-ip-050":true,"bulk-ip-002":false}'::jsonb,'list price state shows active discounts');
--- A changed option price still rejects the whole batch.
+-- A changed price or discount on a good to be changed still rejects the whole batch. A good the preview skipped
+-- (bulk-ip-002 has no discount to stop) is neither locked nor compared, so its own price change is not the reason
+-- (20261126120000; goods_bulk_skip_blocked.sql pins that a skipped good alone never blocks the save).
 reset role;
 update public.goods_variants set price=price+1 where good_id='bulk-ip-002';
 set local role authenticated;
-select pg_temp.bulk_assert(pg_temp.ip_commit(2)->>'error'='goods_bulk_changed','price change rejects');
+-- Someone adds another discount to a good whose discounts the reviewed stop would turn off.
+select public.admin_save_goods_price_period('bulk-ip-050',(select id from public.goods_variants where good_id='bulk-ip-050'),null,
+ jsonb_build_object('state','active','discountPrice',8000,'startsAt',now()+interval '10 days','endsAt',now()+interval '11 days'),null);
+select pg_temp.bulk_assert(pg_temp.ip_commit(2)->>'error'='goods_bulk_changed','a change to a good to be changed rejects');
 -- Stop for real: goods without discounts are skipped and reported, the rest lose every active period.
 select pg_temp.ip_preview(6,'discount_stop','{}');
 select pg_temp.ip_commit(6) as stop_receipt \gset
