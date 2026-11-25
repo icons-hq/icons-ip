@@ -6,8 +6,8 @@ afterEach(() => {
 });
 
 describe('로그인·메일 링크 허용 출처', () => {
-  it('정규 출처는 아직 iconsip.com이다(도메인 전환 1단계)', () => {
-    expect(CANONICAL_AUTH_ORIGIN).toBe('https://iconsip.com');
+  it('정규 출처는 xsquare.kr이다(도메인 전환 3단계)', () => {
+    expect(CANONICAL_AUTH_ORIGIN).toBe('https://xsquare.kr');
   });
 
   it('두 운영 도메인의 루트·www를 받고 경로는 origin으로 줄인다', () => {

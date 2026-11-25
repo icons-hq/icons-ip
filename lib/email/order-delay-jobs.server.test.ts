@@ -34,7 +34,7 @@ describe('지연 주문 이메일 작업',()=>{
 
  it.each([
    ['preview', 'https://icons-ip-staging.vercel.app/', 'icons-random.vercel.app', 'https://icons-ip-staging.vercel.app'],
-   ['production', '', 'icons-random.vercel.app', 'https://iconsip.com'],
+   ['production', '', 'icons-random.vercel.app', 'https://xsquare.kr'],
  ])('SITE_URL 미설정 배포도 환경별 주문 링크를 유지한다: %s %s', async (environment, configured, deployment, expected) => {
    vi.stubEnv('VERCEL_ENV', environment);vi.stubEnv('VERCEL_URL', deployment);vi.stubEnv('SITE_URL', configured);
    const s=setup();await processOrderDelayEmails({repository:s.jobs,dispatcher:s.dispatcher});
@@ -45,8 +45,8 @@ describe('지연 주문 이메일 작업',()=>{
  it.each([
    [' https://preview.example.test/// ', 'https://preview.example.test'],
    ['https://staging.example.test', 'https://staging.example.test'],
-   ['https://iconsip.com/', 'https://iconsip.com'],
-   ['', 'https://iconsip.com'],
+   ['https://xsquare.kr/', 'https://xsquare.kr'],
+   ['', 'https://xsquare.kr'],
  ])('사이트 설정 %s를 거래 메일과 같은 주문 주소로 사용한다', async (configured, expected) => {
    vi.stubEnv('SITE_URL', configured);
    const s = setup();

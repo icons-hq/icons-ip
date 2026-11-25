@@ -102,7 +102,7 @@ paymentKey, transactionKey, 승인번호, 원문 응답, 키 fingerprint는 문�
 
 | 변수 | Production | Preview / CI |
 |---|---|---|
-| `SITE_URL` | `https://iconsip.com`; 일반 server config, 필수 | 환경별 일반 server origin을 둘 수 있음 |
+| `SITE_URL` | `https://xsquare.kr`(2026-11-25 전환 전 `https://iconsip.com`); 일반 server config, 필수 | 환경별 일반 server origin을 둘 수 있음 |
 | `NEXT_PUBLIC_TOSS_CLIENT_KEY` | sensitive; `(test\|live)_gck_…` | 두지 않음(구 v1 키 잔존은 빌드를 막지 않음) |
 | `TOSS_SECRET_KEY` | sensitive, 서버 전용; `(test\|live)_gsk_…` | 두지 않음 |
 | `TOSS_ORDER_CHECKOUT_ENABLED` | 기본 `false`; 심사 창(테스트 키)과 라이브 공개에서만 `true` | unset 또는 `false` |
@@ -308,7 +308,7 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    개발자센터 API 키 메뉴의 (주)아이콘스 계정 주문서형 테스트 키를 등록한다 — 주문서형 키는 계정
    단위라 MID를 골라 받지 않고(공식문서 122), 결제의 MID는 결제 UI `ICONS`의 연결이 정한다. 상점
    테스트 키가 아직 없으면 8번(전자결제 신청)을 먼저 밟는다.
-2. (human) 개발자센터에 **웹훅 URL**(`https://iconsip.com/api/webhooks/tosspayments`)과
+2. (human) 개발자센터에 **웹훅 URL**(`https://xsquare.kr/api/webhooks/tosspayments` — 2026-11-25 도메인 전환 때 옛 `iconsip.com` 주소에서 바꿨다)과
    이벤트를 등록한다. 구독 이벤트는 **`PAYMENT_STATUS_CHANGED`만**이다. 10초 안에 200을
    돌려주고, 200이 아니면 최대 7회(1·4·16·64·256·1024·4096분) 재전송된다는 전제로 멱등
    처리한다. 웹훅은 상점아이디(MID)별로 설정하고 각 MID에 따로 전송되므로(`/guides/v2/webhook`)
@@ -568,7 +568,8 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
    고객센터(1544-7772)·영업 담당자에게 문의한다. **필수가 아니라 발생을 줄이는 보조 수단이다** — 2분이 넘게 늦은 취소 통보는 막지
    못하고, 신청 전이나 신청이 안 돼도 입금 오류 되돌림은 시스템이 출고 보류 → 재입금 확인 또는 자동 취소로 처리한다. 자동 발주확인은
    가상계좌 주문을 입금 확인 1시간 뒤부터 확정하므로(ADR-0025 2026-11-24 보강) 늦은 취소 통보도 대개 창고 전달 전에 잡힌다.
-4. 개발자센터 > 웹훅: MID `iconsi0xvd`(테스트 `ticonsi0xvd`)의 `https://iconsip.com/api/webhooks/tosspayments`에
+4. 개발자센터 > 웹훅: MID `iconsi0xvd`(테스트 `ticonsi0xvd`)의 `https://xsquare.kr/api/webhooks/tosspayments`(2026-11-25부터
+   웹훅 `xsquare-ICONS` 하나가 두 이벤트를 함께 받는다)에
    **`DEPOSIT_CALLBACK`**을 더한다(기존 `PAYMENT_STATUS_CHANGED`는 그대로).
 5. 개발자센터 > API 키: 라이브·테스트 키의 **API 버전**이 같은지 확인한다(1.4 이하면 입금 오류 되돌림이 `CANCELED`로 온다).
 5-1. 개발자센터 > API 키 > MID `iconsi0xvd`(테스트 모드면 `ticonsi0xvd`)의 **API 개별 연동 키 → 시크릿 키**(`live_sk_…`/`test_sk_…`)를

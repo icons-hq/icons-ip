@@ -62,7 +62,7 @@ ADR-0053(사용자 결정): 운영에 나이스페이 MID·키가 없어 19금 �
 | `NICEPAY_MERCHANT_KEY` | Production 전용, sensitive | 가맹점관리자 "가맹점정보 > KEY관리"의 MerchantKey |
 | `NICEPAY_ORDER_CHECKOUT_ENABLED` | Production | `true`·`false`·미설정(기본 닫힘) |
 | `NICEPAY_ORDER_CANARY_USER_ID` | Production | 심사용 회원 계정의 UUID 하나. 미설정이 기본 |
-| `SITE_URL` | Production | 정확히 `https://iconsip.com` |
+| `SITE_URL` | Production | 정확히 `https://xsquare.kr`(2026-11-25 도메인 전환. 나이스페이에 등록하는 가맹점 사이트·결제 복귀 도메인도 `xsquare.kr`) |
 | `PAYMENT_RECONCILIATION_SECRET` | Production | 내부 재정합 라우트 bearer(16~128자 URL-safe) |
 
 - 자격 증명은 `VERCEL_ENV=production`에서만 읽는다(fail closed). Preview 빌드는 두 값의 존재
