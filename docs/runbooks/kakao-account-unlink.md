@@ -180,8 +180,8 @@ order by q.event_at;
 - 알림으로 처리하면 문의 탈퇴([account-deletion-retention-policy.md](../account-deletion-retention-policy.md) §5)와 같은
   범위(진행 중 의무 확인, 정지, 비법정 개인정보 삭제, 세션 종료, 재로그인 차단)에 **카카오 identity 삭제**를 더한다(§2.1과 같은
   정리 — identity·공급자 목록·카카오 값 user metadata). 카카오 로그인 목적이 영구히 끝났고 카카오 문서상 회원번호도 파기 대상이다.
-  2026-11-25부터 문의 탈퇴와 같이 모든 로그인 연결(identity)·user metadata를 지우고, 계정 이메일 원문은 처리 3일 뒤
-  `member-withdrawal-retention` 잡이 지운다(재가입 차단은 이메일·소셜 계정 HMAC 1년). 거래 기록은 법정 보존 기간 동안 남는다.
+  2026-11-25부터 문의 탈퇴와 같이 모든 로그인 연결(identity)·user metadata를 지우고, 카카오 근거 처리는 답변할 문의가 없어
+  계정 이메일 원문도 처리 때 바로 지운다(문의 근거만 3일 보관). 재가입 차단은 이메일·소셜 계정 HMAC 1년이고, 거래 기록은 법정 보존 기간 동안 남는다.
 - DB가 처리 직전에 그 회원이 지금 대기 목록에 있고 마지막 해제가 위 두 사유인지 다시 본다. 아니면 `kakao_unlink_member_request_required`
   (회원 확인 필요)·`kakao_unlink_withdrawal_not_queued`(다시 로그인했거나 해제 기록 없음)로 거절하고 아무것도 바꾸지 않는다.
 - 처리 기록 `private.member_withdrawal_processings`에 근거(`basis` = `kakao_unlink`)와 근거 해제 행(`kakao_unlink_event_id`)이 남는다.
