@@ -605,7 +605,7 @@ export function goodsWorkbookLiveDiscountError(discount: GoodsImportLivePriceDis
 }
 export function goodsWorkbookLiveDiscountOptionAddError(discount: GoodsImportLivePriceDiscount): string {
   const ends = Number.isFinite(Date.parse(discount.endsAt)) ? KST_DATE_TIME.format(new Date(discount.endsAt)) : '종료 시각 확인 필요';
-  return `진행 중이거나 예정된 기간 할인(${discount.count.toLocaleString('ko-KR')}건, ${ends}까지)이 있는 상품이라 엑셀로 옵션을 추가·복원할 수 없습니다. `
+  return `진행 중이거나 예정된 기간 할인(${discount.count.toLocaleString('ko-KR')}건, ${ends}까지)이 있는 상품이라 엑셀로 옵션을 추가하거나 다시 사용할 수 없습니다. `
     + '새 옵션은 기간 중에도 할인 없이 팔리게 됩니다. 이 상품 행은 반영하지 않으니, 상품 수정에서 바꿔 주세요.';
 }
 export function planGoodsWorkbookImport(
@@ -986,7 +986,7 @@ export function planGoodsWorkbookImport(
       );
       if (removed.length)
         group.warnings.push(
-          `기존 옵션 ${removed.length}개가 삭제 또는 보관됩니다.`,
+          `기존 옵션 ${removed.length}개가 삭제되거나 사용 중지됩니다.`,
         );
       if (record.livePriceDiscount) {
         const storedCompare = record.good.compare_at_price == null ? null : Number(record.good.compare_at_price);

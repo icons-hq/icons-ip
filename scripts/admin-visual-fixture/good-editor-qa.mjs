@@ -13,12 +13,11 @@ export async function verifyGoodEditor(page, origin, output) {
  await page.locator('input[name="regularPrice"]').fill('2000');
  await page.locator('input[name="discountEnabled"][value="true"]').check();
  await page.locator('input[name="discountValue"]').fill('1000');
- await page.getByRole('spinbutton',{name:'재고수량',exact:true}).fill('4');
- await page.getByText('옵션 상세 정보 · ERP 품명·ERP 코드·바코드·안전재고',{exact:true}).click();
- await page.getByRole('textbox',{name:'기본 옵션명',exact:true}).fill('수정 기본 옵션');
+ // '옵션 없음' 상품은 옵션이 한 가지뿐이라 이름 칸 없이 재고수량 한 칸만 있다(옵션 이름·ERP 칸은 '옵션 있음'의 옵션목록에서 고친다).
+ await page.locator('#goods-single-stock').fill('4');
  await page.getByText('공개 화면 미리보기',{exact:true}).click();
  await check('sale price, discount, option, preview and dirty state agree',async()=>{
-  await page.waitForFunction(()=>JSON.parse(document.querySelector('input[name="variants"]').value)[0].name==='수정 기본 옵션');
+  await page.waitForFunction(()=>JSON.parse(document.querySelector('input[name="variants"]').value)[0].stockQty===4);
   assert.equal(await page.locator('input[name="price"]').inputValue(),'1000');
   assert.equal(await page.locator('input[name="compareAtPrice"]').inputValue(),'2000');
   await page.getByText('(1,000원, 50% 할인)').waitFor();
@@ -33,12 +32,16 @@ export async function verifyGoodEditor(page, origin, output) {
   assert.equal(await page.locator('input[name="discountValue"]').evaluate(input=>input.validity.customError),true);
  });
  await page.locator('input[name="discountValue"]').fill('1000');
- await page.getByRole('button',{name:'최근 저장된 상품에서 복사'}).click();
+ // [다른 상품에서 복사]는 공용 선택창에서 상품을 고른다(합성 목록의 첫 상품). 적어 둔 고시정보가 없으니 바꾸기 전 확인은 뜨지 않는다.
+ await page.getByRole('button',{name:'다른 상품에서 복사',exact:true}).click();
+ await page.getByRole('dialog').getByRole('listitem').first().getByRole('button',{name:'선택',exact:true}).click();
  await check('notice copy follows the same observation',async()=>{assert.equal(await page.locator('input[name="noticeMaker"]').inputValue(),'합성 제조사');});
  await page.locator('input[name="optionUsage"][value="on"]').check();
  await page.locator('input[name="optionAxisName0"]').fill('색상');
  await page.locator('input[name="optionAxisValues0"]').fill('빨강, 파랑');
- await page.getByRole('button',{name:'옵션목록으로 적용',exact:true}).click();
+ // 옵션 없이 넣어 둔 재고수량(4)은 새 옵션으로 넘어가지 않아, 만들기 전에 사라지는 값을 묻는다. 확인 버튼 이름도 같다.
+ await page.getByRole('button',{name:'옵션 2개 만들기',exact:true}).click();
+ await page.getByRole('alertdialog').getByRole('button',{name:'옵션 2개 만들기',exact:true}).click();
  await page.getByRole('textbox',{name:'옵션 2 이름',exact:true}).fill('파랑 수정');
  await page.getByRole('spinbutton',{name:'옵션 2 옵션가',exact:true}).fill('700');
  await page.getByRole('spinbutton',{name:'옵션 2 재고수량',exact:true}).fill('6');

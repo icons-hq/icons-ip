@@ -500,14 +500,14 @@ describe('goods Excel planning', () => {
     // 옵션 추가: 새 코드의 옵션 행.
     const added = plan((r) => [...r, { ...r[1], variantCode: 'GO-001-03', variantName: '파랑', axis1: '색상', value1: '파랑' }]);
     expect(added.kind).toBe('error');
-    expect(added.errors.join()).toContain('엑셀로 옵션을 추가·복원할 수 없습니다');
+    expect(added.errors.join()).toContain('엑셀로 옵션을 추가하거나 다시 사용할 수 없습니다');
     // 옵션 복원: 보관된 옵션을 사용으로 되돌린다.
     const archived = withB('2026-09-10T00:00:00Z');
     const archivedCtx = { ...context, existing: [archived] };
     // 보관된 옵션은 내보내지 않으니, 보관 전 행을 사용으로 다시 올리는 경우다.
     const restore = planGoodsWorkbookImport(rows.map((values, index) => ({ row: 5 + index, values })), archivedCtx)[0];
     expect(restore.kind).toBe('error');
-    expect(restore.errors.join()).toContain('엑셀로 옵션을 추가·복원할 수 없습니다');
+    expect(restore.errors.join()).toContain('엑셀로 옵션을 추가하거나 다시 사용할 수 없습니다');
     expect(goodsWorkbookLiveDiscountOptionAddError(live)).toContain('상품 수정에서 바꿔 주세요');
   });
   it('QA2: 공개를 유지하는 행이 상품명·고시(KC 대상)를 바꾸면 적용 전에 원인을 알리고, 초안으로 바꾸는 행은 통과한다', () => {

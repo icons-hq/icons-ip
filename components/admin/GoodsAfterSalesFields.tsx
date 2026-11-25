@@ -32,8 +32,10 @@ function AfterSalesPhonePrefill({ phone, onFill }: { phone: string; onFill: (pho
     decided.current = true;
     if (suggestion && !phone.trim()) onFill(suggestion);
   });
+  /* 이 칸은 고시의 A/S 연락처와 따로 저장된다. 고시 번호로 미리 채웠을 때는 그 사실을 같은 줄에서 말한다. */
+  const same = Boolean(suggestion) && phone.trim() === suggestion;
   return <span className="contents" ref={marker}>
-    {suggestion && phone.trim() === suggestion ? <small className="text-xs text-muted-foreground" data-goods-after-sales-prefill="">상품정보고시의 A/S 연락처와 같은 번호입니다. 바꾸려면 직접 고친 뒤 안내 저장을 누릅니다.</small> : null}
+    <small className="text-xs text-muted-foreground" data-goods-after-sales-prefill={same ? '' : undefined}>{same ? '상품정보고시의 A/S 연락처와 같은 번호입니다. 이 칸은 따로 저장됩니다.' : '상품정보고시의 A/S 전화번호와는 따로 저장됩니다.'}</small>
   </span>;
 }
 
@@ -42,9 +44,8 @@ export function GoodsAfterSalesFields({ values, onChange }: { values: GoodsAfter
   return <>
     <label className={`${FIELD_CLASS} sm:max-w-xs`} data-goods-after-sales-field="phone"><span className="font-medium">A/S 전화번호 (필수)</span><input className={GOOD_INPUT_CLASS} data-slot="input" type="tel" value={values.phone} maxLength={40} required onChange={event => update('phone', event.target.value, 20)} /><small className={COUNT_CLASS}>{Array.from(values.phone).length}/20</small></label>
     <AfterSalesPhonePrefill phone={values.phone} onFill={(phone) => update('phone', phone, 20)} />
-    <p className="text-sm text-muted-foreground">구매 후 A/S 문의에 사용할 연락처입니다. 상품정보고시의 A/S 책임자·전화번호와 별도로 저장합니다.</p>
-    <label className={FIELD_CLASS} data-goods-after-sales-field="guide"><span className="font-medium">A/S 안내 (필수)</span><textarea className={TEXTAREA_CLASS} data-slot="textarea" value={values.guide} maxLength={2600} rows={6} required onChange={event => update('guide', event.target.value, 1300)} /><small className={COUNT_CLASS}>{Array.from(values.guide).length}/1,300</small></label>
-    <label className={FIELD_CLASS} data-goods-after-sales-field="seller-notes"><span className="font-medium">판매자 특이사항</span><textarea className={TEXTAREA_CLASS} data-slot="textarea" value={values.sellerSpecialNotes} maxLength={2600} rows={6} onChange={event => update('sellerSpecialNotes', event.target.value, 1300)} /><small className={COUNT_CLASS}>{Array.from(values.sellerSpecialNotes).length}/1,300</small></label>
-    <p className="text-sm text-muted-foreground">배송 기간·방법, 교환·반품 추가 비용, 판매 지역·수량 등 구매 전에 확인할 특이사항을 적어주세요. 상품 상세 하단에 표시합니다.</p>
+    <label className={FIELD_CLASS} data-goods-after-sales-field="guide"><span className="font-medium">A/S 안내 (필수)</span><textarea className={TEXTAREA_CLASS} data-slot="textarea" value={values.guide} maxLength={2600} rows={6} required placeholder="예: 접수 방법, 처리 기간, 무상 수리 범위" onChange={event => update('guide', event.target.value, 1300)} /><small className={COUNT_CLASS}>{Array.from(values.guide).length}/1,300</small></label>
+    <label className={FIELD_CLASS} data-goods-after-sales-field="seller-notes"><span className="font-medium">판매자 특이사항 (선택)</span><textarea className={TEXTAREA_CLASS} data-slot="textarea" value={values.sellerSpecialNotes} maxLength={2600} rows={6} placeholder="예: 배송 기간·방법, 교환·반품 추가 비용, 판매 지역·수량" onChange={event => update('sellerSpecialNotes', event.target.value, 1300)} /><small className={COUNT_CLASS}>{Array.from(values.sellerSpecialNotes).length}/1,300</small></label>
+    <p className="text-xs text-muted-foreground">A/S 안내와 판매자 특이사항은 상품 상세 하단에 보입니다.</p>
   </>;
 }

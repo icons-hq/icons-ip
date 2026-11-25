@@ -93,6 +93,9 @@ it('초기 조회는 현재 상품·세션에 결속되고 조회가 끝날 때�
   expect(mocks.get).toHaveBeenCalledExactlyOnceWith('good-a', identity); expect(mocks.busy).toHaveBeenLastCalledWith(true); expect(button('배정 미리보기').props.disabled).toBe(true);
   pending.resolve({ data: goodData() }); await flush(); expect(mocks.busy).toHaveBeenLastCalledWith(false); expect(picker().props.value).toBeNull(); expect(mocks.preview).not.toHaveBeenCalled();
 });
+it('섹션 제목이 말하는 "별도로 저장합니다"를 본문에서 되풀이하지 않는다', async () => {
+  await mount(); const shown = text(node()); expect(shown).not.toContain('별도로 저장합니다'); expect(shown).toContain('출고지를 바꾸려면 배정을 먼저 해제하거나');
+});
 it('명시 선택 후 fresh preview의 full guard·공유 범위를 한 번만 전송한다', async () => {
   const { preview, guard, origin } = chargeAdminFixtures(), familyGoodIds = ['good-a', 'child'];
   mocks.preview.mockResolvedValueOnce({ data: { ...preview, goods: [{ ...preview.goods[0], familyGoodIds, effectiveCount: 2 }] } });

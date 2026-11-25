@@ -5,17 +5,33 @@ import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { imageUrlFromBg, publicMediaUrl } from '@/lib/media';
 import { createClient } from '@/lib/supabase/server';
 import {
-  parseAdditionalGoodCandidates, parseAdditionalGoodIds, parseAdminAdditionalGoods,
-  type AdminAdditionalGood, type AdminAdditionalGoods,
+  additionalCandidateVerdict, parseAdditionalGoodCandidates, parseAdditionalGoodIds, parseAdminAdditionalGoods,
+  type AdditionalCandidateVerdict, type AdminAdditionalGood, type AdminAdditionalGoods,
 } from '@/lib/admin/goods-additional';
 
 type Failure = { ok: false; error: string };
 const STAFF_REQUIRED = adminGoodsCopy('추가상품 설정은 운영자만 변경할 수 있습니다.');
+/* 후보 검색 RPC는 검색어를 100자까지만 받는다. 상품 URL이 그보다 길면 이 방법으로는 가릴 수 없다. */
+const SEARCH_QUERY_MAX = 100;
 function goodId(value: unknown) {
   const id = typeof value === 'string' ? value.trim() : '';
   return id && id.length <= 200 ? id : null;
+}
+/** 연결한 상품에 상품 자동코드와 사진을 덧붙인다. 덧붙이지 못해도 연결 정보는 그대로 돌려준다. */
+async function withDisplay(client: Awaited<ReturnType<typeof createClient>>, items: AdminAdditionalGood[]): Promise<AdminAdditionalGood[]> {
+  if (!items.length) return items;
+  try {
+    const { data, error } = await client.from('goods').select('id,code,image_path,bg').in('id', items.map((item) => item.goodId));
+    if (error || !Array.isArray(data)) return items;
+    const rows = new Map((data as { id: string; code: string | null; image_path: string | null; bg: string | null }[]).map((row) => [row.id, row]));
+    return items.map((item) => {
+      const row = rows.get(item.goodId);
+      return row ? { ...item, code: row.code, imageUrl: row.image_path ? publicMediaUrl(row.image_path) : imageUrlFromBg(row.bg) } : item;
+    });
+  } catch (cause) { unstable_rethrow(cause); return items; }
 }
 export async function readGoodsAdditionalAction(goodIdValue: unknown): Promise<{ ok: true; configuration: AdminAdditionalGoods } | Failure> {
   if (!await requireAdminActionAccess('/admin/catalog/goods')) return { ok: false, error: STAFF_REQUIRED };
@@ -25,21 +41,28 @@ export async function readGoodsAdditionalAction(goodIdValue: unknown): Promise<{
     const client = await createClient();
     const { data, error } = await client.rpc('admin_read_goods_additional', { p_good_id: id });
     const configuration = error ? null : parseAdminAdditionalGoods(data);
-    return configuration ? { ok: true, configuration } : { ok: false, error: adminGoodsCopy('추가상품 설정을 불러오지 못했습니다.') };
+    return configuration ? { ok: true, configuration: { ...configuration, items: await withDisplay(client, configuration.items) } }
+      : { ok: false, error: adminGoodsCopy('추가상품 설정을 불러오지 못했습니다.') };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: adminGoodsCopy('추가상품 설정을 불러오지 못했습니다.') }; }
 }
-export async function searchGoodsAdditionalAction(goodIdValue: unknown, queryValue: unknown): Promise<{ ok: true; items: AdminAdditionalGood[] } | Failure> {
+/**
+ * 상품 선택창에서 고른 상품을 새로 연결할 수 있는지 저장 전에 가린다.
+ * 선택창의 상품 조회는 보관하지 않은 모든 상품을 보여 주므로, 후보 검색(`admin_search_goods_additional` — 공개 중·재고 있음·판매 제한 없음처럼
+ * 저장 함수와 같은 조건으로 고객이 지금 살 수 있는 상품만 돌려준다)에 상품 URL로 물어 그 결과에 있는지 본다.
+ * 저장 전인 새 상품은 기준 상품이 없다(null). 저장된 상품은 자기 자신을 후보에서 뺀다.
+ */
+export async function checkGoodsAdditionalCandidateAction(baseGoodIdValue: unknown, candidateValue: unknown): Promise<{ ok: true; verdict: AdditionalCandidateVerdict } | Failure> {
   if (!await requireAdminActionAccess('/admin/catalog/goods')) return { ok: false, error: STAFF_REQUIRED };
-  /* T15b: 등록 화면(아직 저장 전인 새 상품)은 기준 상품이 없다(null). 저장된 상품은 자기 자신을 결과에서 뺀다. */
-  const id = goodIdValue === null ? '' : goodId(goodIdValue);
-  const query = typeof queryValue === 'string' ? queryValue.trim() : '';
-  if (id === null || !query || query.length > 100) return { ok: false, error: '검색할 상품명이나 상품 자동코드를 입력해주세요.' };
+  const base = baseGoodIdValue === null ? '' : goodId(baseGoodIdValue);
+  const candidate = goodId(candidateValue);
+  if (base === null || !candidate) return { ok: false, error: '상품을 다시 선택해주세요.' };
+  if (candidate.length > SEARCH_QUERY_MAX) return { ok: true, verdict: 'unknown' };
   try {
     const client = await createClient();
-    const { data, error } = await client.rpc('admin_search_goods_additional', { p_base_good_id: id, p_query: query });
+    const { data, error } = await client.rpc('admin_search_goods_additional', { p_base_good_id: base, p_query: candidate });
     const items = error ? null : parseAdditionalGoodCandidates(data);
-    return items ? { ok: true, items } : { ok: false, error: adminGoodsCopy('추가상품을 검색하지 못했습니다.') };
-  } catch (error) { unstable_rethrow(error); return { ok: false, error: adminGoodsCopy('추가상품을 검색하지 못했습니다.') }; }
+    return items ? { ok: true, verdict: additionalCandidateVerdict(items, candidate) } : { ok: false, error: '연결할 수 있는 상품인지 확인하지 못했습니다. 잠시 뒤 다시 골라주세요.' };
+  } catch (error) { unstable_rethrow(error); return { ok: false, error: '연결할 수 있는 상품인지 확인하지 못했습니다. 잠시 뒤 다시 골라주세요.' }; }
 }
 export async function saveGoodsAdditionalAction(goodIdValue: unknown, idsValue: unknown, revisionValue: unknown): Promise<{ ok: true; message: string } | Failure> {
   if (!await requireAdminActionAccess('/admin/catalog/goods')) return { ok: false, error: STAFF_REQUIRED };

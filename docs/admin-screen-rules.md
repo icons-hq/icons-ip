@@ -42,7 +42,9 @@
 ## 검사
 
 - `lib/admin/help/help-contract.test.ts`: 도움말 형식(마침표·길이), 쓰지 않는 표현·개발 용어·내부 값 이름.
-- `lib/admin/screen-rules-contract.test.ts`: 규칙 1의 전환 현황. 아직 공용 선택창으로 옮기지 않은 화면은 허용 목록에 있고, 목록은 줄어들기만 한다(새 화면이 옛 방식을 쓰면 실패).
+- `lib/admin/screen-rules-contract.test.ts`: 규칙 1의 전환 현황과 규칙 8의 옛 이름.
+  - 자체 선택창(`components/admin`에서 `CustomerServiceDialog`와 `ConsolePagination`을 함께 쓰거나, 검색칸과 `ConsolePagination`을 함께 가진 파일)은 허용 목록 `LEGACY_PICKERS`에 있는 화면뿐이다. 새 화면이 옛 방식을 쓰면 실패하고, 공용 선택창으로 옮긴 화면은 목록에서 지우지 않으면 실패한다(목록은 줄어들기만 한다). 검색칸과 페이지가 있는 목록·관리 화면도 걸려서 주석에 '목록 화면'이라 적어 두었다.
+  - `components/admin`·`app/admin`·`lib/admin`의 코드(주석 제외)에 '확장 배송비'·'저장 버전'이 없다.
 
 ## 적용 순서
 

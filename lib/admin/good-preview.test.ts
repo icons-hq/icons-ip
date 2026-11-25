@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Ip } from '@/lib/data';
-import { buildGoodPreview, goodFormValues } from './good-preview';
+import { buildGoodPreview, goodFormValues, goodPreviewPeriodNote, goodPreviewPeriodState } from './good-preview';
+import { pdpPriceView } from '@/components/shop/PdpPrice';
 import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
 import { goodOptionPurchaseNotices } from '@/lib/goods-options';
 import { RANDOM_OPTION_LABEL, RANDOM_OPTION_NOTICE } from '@/lib/goods-option-sale-mode';
@@ -115,6 +116,9 @@ describe('어드민 굿즈 미리보기', () => {
       ip: 'hong-sil-quest',
       price: 12000,
       catalogPrice: 12000,
+      catalogCompareAtPrice: null,
+      compareAtPrice: null,
+      showDiscountRate: true,
       badge: 'EXCLUSIVE',
       badges: ['EXCLUSIVE', 'NEW'],
       stock: 'low',
@@ -179,6 +183,100 @@ describe('어드민 굿즈 미리보기', () => {
     formData.set('artwork', new File(['x'], 'x.png', { type: 'image/png' }));
 
     expect(goodFormValues(formData)).toEqual({ name: '아크릴 블록' });
+  });
+
+  /*
+   * 2026-11-25 — 저장 전 미리보기에 할인 표기가 나와야 한다. 즉시할인(기간 없음)은 폼의 price=할인가·compareAtPrice=판매가로 정해지고,
+   * 고객 화면(PdpPrice·PriceBlock)이 그 값으로 취소선 정가·할인율을 그린다. 미리보기가 같은 값을 싣는지 고객 화면의 판정 함수로 확인한다.
+   */
+  describe('할인 표기', () => {
+    const discounted = { ...values, price: '9000', compareAtPrice: '10000' };
+    const build = (changes: Record<string, string> = {}, extra: Partial<Parameters<typeof buildGoodPreview>[0]> = {}) =>
+      buildGoodPreview({ values: { ...discounted, ...changes }, imageUrls: {}, ip, fallbackBg: null, stockQty: 0, ...extra }).good;
+    const shown = (good: ReturnType<typeof build>) => pdpPriceView({ compareAtPrice: good.compareAtPrice, price: good.price, priceMax: good.priceMax, showDiscountRate: good.showDiscountRate });
+
+    it('즉시할인은 판매가를 정가로 싣고 고객 화면처럼 취소선 정가와 할인율을 보인다', () => {
+      const good = build();
+      expect(good).toMatchObject({ price: 9000, catalogPrice: 9000, compareAtPrice: 10000, catalogCompareAtPrice: 10000, showDiscountRate: true });
+      expect(shown(good)).toMatchObject({ original: '₩10,000', rate: '10%', amount: '₩9,000' });
+    });
+
+    it('할인율 표시를 끄면 정가와 할인율을 숨기고 할인가만 보인다', () => {
+      const good = build({ showDiscountRate: 'false' });
+      expect(good.showDiscountRate).toBe(false);
+      expect(shown(good)).toMatchObject({ original: null, rate: null, amount: '₩9,000' });
+    });
+
+    it('정가가 비었거나 할인가보다 크지 않으면 할인으로 보지 않는다', () => {
+      for (const compareAtPrice of ['', '9000', '8000', 'abc']) {
+        const good = build({ compareAtPrice });
+        expect(good, compareAtPrice).toMatchObject({ compareAtPrice: null, catalogCompareAtPrice: null });
+        expect(shown(good).original, compareAtPrice).toBeNull();
+      }
+    });
+
+    it('옵션이 있으면 가장 싼 옵션의 정가를 취소선으로 보이고, 옵션가는 할인하지 않는다', () => {
+      const variants = JSON.stringify([
+        { name: 'M', code: 'M', attributes: {}, extraPrice: 500, stockQty: 2 },
+        { name: 'S', code: 'S', attributes: {}, extraPrice: 0, stockQty: 3 },
+      ]);
+      const good = build({ variants });
+      /* 가장 싼 옵션 S는 9,000원이고 정가는 그 옵션 금액에 상품 할인 금액 1,000원을 더한 10,000원이다. */
+      expect(good).toMatchObject({ price: 9000, priceMax: 9500, compareAtPrice: 10000, catalogCompareAtPrice: 10000 });
+    });
+
+    describe('특정기간만 할인', () => {
+      /* 폼의 price는 판매가 그대로이고 compareAtPrice는 비어 있다. 기간과 금액은 따로 받는다. */
+      const period = { amount: 1000, startsAt: '2026-11-30T15:00:00.000Z', endsAt: '2026-12-07T15:00:00.000Z' };
+      const regular = { price: '10000', compareAtPrice: '' };
+      const at = (iso: string) => Date.parse(iso);
+
+      it('기간 안이면 옵션마다 같은 금액을 빼고 정가를 취소선으로 보인다', () => {
+        const good = build(regular, { pricePeriod: period, now: at('2026-12-03T00:00:00+09:00') });
+        expect(good).toMatchObject({ price: 9000, compareAtPrice: 10000, catalogPrice: 10000, catalogCompareAtPrice: null });
+        expect(shown(good)).toMatchObject({ original: '₩10,000', rate: '10%', amount: '₩9,000' });
+        const variants = JSON.stringify([
+          { name: 'M', code: 'M', attributes: {}, extraPrice: 500, stockQty: 2 },
+          { name: 'S', code: 'S', attributes: {}, extraPrice: 0, stockQty: 3 },
+        ]);
+        const options = build({ ...regular, variants }, { pricePeriod: period, now: at('2026-12-03T00:00:00+09:00') });
+        expect(options.options?.map((option) => [option.name, option.price, option.pricing?.regularPrice])).toEqual([['M', 9500, 10500], ['S', 9000, 10000]]);
+        expect(options).toMatchObject({ price: 9000, priceMax: 9500, compareAtPrice: 10000 });
+      });
+
+      it('시작 전과 종료 뒤에는 판매가이고 할인 표기가 없다', () => {
+        for (const now of ['2026-11-25T00:00:00+09:00', '2026-12-08T00:00:00+09:00']) {
+          const good = build(regular, { pricePeriod: period, now: at(now) });
+          expect(good, now).toMatchObject({ price: 10000, compareAtPrice: null });
+          expect(shown(good).original, now).toBeNull();
+        }
+      });
+
+      it('시작 시각에는 할인이 시작되고 종료 시각부터는 판매가로 돌아간다', () => {
+        expect(build(regular, { pricePeriod: period, now: Date.parse(period.startsAt) }).price).toBe(9000);
+        expect(build(regular, { pricePeriod: period, now: Date.parse(period.endsAt) - 1 }).price).toBe(9000);
+        expect(build(regular, { pricePeriod: period, now: Date.parse(period.endsAt) }).price).toBe(10000);
+      });
+
+      it('기간 할인이 어긋나 판매 금액보다 크면 0원 밑으로 내리지 않는다', () => {
+        const good = build(regular, { pricePeriod: { ...period, amount: 50000 }, now: at('2026-12-03T00:00:00+09:00') });
+        expect(good.price).toBe(0);
+      });
+
+      it('기간 판정은 시작 전·기간 중·종료 뒤 셋이다', () => {
+        expect(goodPreviewPeriodState(period, Date.parse(period.startsAt) - 1)).toBe('before');
+        expect(goodPreviewPeriodState(period, Date.parse(period.startsAt))).toBe('active');
+        expect(goodPreviewPeriodState(period, Date.parse(period.endsAt))).toBe('ended');
+      });
+
+      /* 시작 전이면 미리보기에 할인이 없는 까닭을 한 줄로 알린다. 기간 중에는 할인이 보이고 기간이 없으면 말할 것이 없다. */
+      it('시작 전에만 할인이 아직 나오지 않는 까닭을 알린다', () => {
+        expect(goodPreviewPeriodNote(period, Date.parse(period.startsAt) - 1)).toBe('할인 시작 전이라 미리보기에는 아직 할인이 나오지 않습니다.');
+        expect(goodPreviewPeriodNote(period, Date.parse(period.startsAt))).toBeUndefined();
+        expect(goodPreviewPeriodNote(period, Date.parse(period.endsAt))).toBeUndefined();
+        expect(goodPreviewPeriodNote(null)).toBeUndefined();
+      });
+    });
   });
 
   it('아트워크가 없으면 레거시 배경 값으로 떨어진다', () => {

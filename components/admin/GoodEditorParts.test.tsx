@@ -5,7 +5,6 @@ import { describe, expect, it, vi } from 'vitest';
 import { resolveGoodsPrice } from '@/lib/admin/goods-price-editor';
 import { GoodChoiceGroup, GoodChoiceOption } from './GoodEditorParts';
 import { GoodsPriceFields } from './GoodsPriceFields';
-import { GoodsSalePeriodFields } from './GoodsSalePeriodFields';
 import { GoodsPurchaseLimitFields } from './GoodsSalePolicyFields';
 
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
@@ -39,13 +38,13 @@ describe('편집기 하나 고르기(설정함/설정안함)', () => {
     }
   });
 
-  it('판매가·판매기간과 구매 제한의 설정함/설정안함 묶음 모두 같은 부품으로 그린다', () => {
+  /* 판매기간은 '판매 시기' 선택 카드로 옮겨 가 설정함/설정안함 묶음이 아니다(GoodSaleTiming). */
+  it('판매가와 구매 제한의 설정함/설정안함 묶음 모두 같은 부품으로 그린다', () => {
     const draft = { regularPrice: '10000', discountEnabled: false, discountValue: '', discountUnit: 'won' as const };
     const price = renderToStaticMarkup(<GoodsPriceFields draft={draft} onDraftChange={() => {}} result={resolveGoodsPrice(draft)} errors={{}} />);
-    const period = renderToStaticMarkup(<GoodsSalePeriodFields values={{ salePeriodEnabled: 'false' }} onChange={() => {}} />);
     const limits = renderToStaticMarkup(<GoodsPurchaseLimitFields values={{ orderQuantityLimitEnabled: 'true', memberPurchaseLimitEnabled: 'false' }} rows={[]} onRowsChange={() => {}} />);
-    const groups = [...choiceGroups(price), ...choiceGroups(period), ...choiceGroups(limits)];
-    expect(groups.map((group) => group.legend?.[2])).toEqual(['즉시할인', '판매기간 설정', '최소/최대 구매수량', '1인 최대 구매수량']);
+    const groups = [...choiceGroups(price), ...choiceGroups(limits)];
+    expect(groups.map((group) => group.legend?.[2])).toEqual(['즉시할인', '최소/최대 구매수량', '1인 최대 구매수량']);
     for (const group of groups) {
       expect(group.labels.map(([, , , text]) => text)).toEqual(['설정함', '설정안함']);
       expect(group.labels.every(([, , input]) => input.includes('type="radio"'))).toBe(true);

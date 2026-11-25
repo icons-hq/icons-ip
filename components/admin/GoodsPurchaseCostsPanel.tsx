@@ -11,13 +11,17 @@ import {
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import { Button } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { GOOD_PICKERS_B_HELP } from '@/lib/admin/help/good-pickers-b';
+import { AdminLabelWithHelp } from './console/AdminHelpTip';
 import { GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
 
 /* 템플릿 룩(ADR-0028). 운영 섹션 안의 묶음 상자 하나에 옵션별 공급가(매입단가)를 차례로 둔다(S36-013 — 이름은 '공급가(매입단가)', 뜻·권한은 그대로). */
 const FIELD_LABEL_CLASS = 'flex min-w-0 flex-col gap-1.5 text-sm font-medium text-foreground';
 
-function CostEditor({ cost, variant, onSaved }: {
+export function CostEditor({ cost, variant, onSaved, taxHelp = false }: {
   cost: AdminGoodsPurchaseCost; variant: AdminGoodsVariant; onSaved: (message: string) => void;
+  /** 옵션마다 "?"를 달면 어수선하다 — 등록 화면(GoodWorkspacePurchaseCostsSection)처럼 첫 옵션에만 단다. */
+  taxHelp?: boolean;
 }) {
   const [amount, setAmount] = useState(String(cost.unitCostKrw ?? ''));
   const [basis, setBasis] = useState(cost.taxBasis ?? '');
@@ -42,8 +46,8 @@ function CostEditor({ cost, variant, onSaved }: {
           value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="비우면 정하지 않음" disabled={pending} />
       </label>
       <div className={FIELD_LABEL_CLASS}>
-        <label htmlFor={basisId}>세금 구분</label>
-        <NativeSelect className="w-full" id={basisId} name="taxBasis" aria-label={`${variant.name} 공급가(매입단가) 세금 구분`} value={basis}
+        <AdminLabelWithHelp help={taxHelp ? GOOD_PICKERS_B_HELP.purchaseTaxBasis : undefined} label="세금 처리"><label htmlFor={basisId}>세금 처리</label></AdminLabelWithHelp>
+        <NativeSelect className="w-full" id={basisId} name="taxBasis" aria-label={`${variant.name} 공급가(매입단가) 세금 처리`} value={basis}
           onChange={(event) => setBasis(event.target.value)} disabled={pending}>
           <option value="">선택 안 함</option>
           {Object.entries(PURCHASE_TAX_BASIS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -107,27 +111,24 @@ export function GoodsPurchaseCostsPanel({ goodId, variants }: { goodId: string; 
     return () => { canceled = true; };
   }, [goodId, refresh]);
   const visible = loaded?.goodId === goodId ? loaded : null;
+  const rows = (visible?.costs ?? []).flatMap((cost) => {
+    const variant = variants.find((item) => item.id === cost.variantId && item.goodId === goodId);
+    return variant ? [{ cost, variant }] : [];
+  });
   const reload = () => setRefresh((value) => value + 1);
   const saved = (message: string) => { setNotice({ goodId, message }); reload(); };
   return <section className="flex min-w-0 flex-col gap-4 rounded-lg border p-4 text-sm" aria-labelledby={`purchase-costs-${goodId}`} data-good-purchase-costs="">
-    <div className="flex flex-col gap-1">
-      <h2 id={`purchase-costs-${goodId}`} className="text-base leading-snug font-medium">공급가(매입단가) · 관리자 전용</h2>
-      <p className="text-sm text-muted-foreground">공급처에서 사오는 옵션 1개의 공급가(매입단가)를 원 단위로 입력합니다.
-        금액과 세금 구분을 함께 저장하며, 실제 0원도 기록할 수 있습니다. 금액을 정하지 않은 옵션은 금액과 세금 구분을 모두 비워 두세요.</p>
-    </div>
+    <h2 id={`purchase-costs-${goodId}`} className="sr-only">공급가(매입단가)</h2>
+    <p className="text-xs text-muted-foreground">금액과 세금 처리는 함께 넣거나 함께 비웁니다. 0원도 넣을 수 있습니다.</p>
     {notice?.goodId === goodId && <p className="text-sm text-[var(--wc-success)]" role="status">{notice.message}</p>}
     {!visible ? <p className="text-sm text-muted-foreground" role="status">공급가(매입단가)를 불러오는 중입니다…</p> : visible.error ? <div className="flex flex-col items-start gap-2">
       <p className="text-sm text-destructive" role="alert">{visible.error}</p><Button size="sm" type="button" variant="outline" onClick={reload}>다시 불러오기</Button>
     </div> : <>
-      {visible.costs?.map((cost) => {
-        const variant = variants.find((item) => item.id === cost.variantId && item.goodId === goodId);
-        if (!variant) return null;
-        return <article key={`${cost.variantId}:${cost.revision ?? 'unset'}`} className="flex min-w-0 flex-col gap-3 border-t pt-4">
-          <div className="min-w-0 wrap-anywhere"><strong className="font-medium">{variant.name}{variant.archivedAt ? ' · 사용 중지' : ''}</strong><small className="block text-xs text-muted-foreground">{variant.code}</small></div>
-          <CostEditor cost={cost} variant={variant} onSaved={saved} />
-          <CostHistory goodId={goodId} variantId={cost.variantId} />
-        </article>;
-      })}
+      {rows.map(({ cost, variant }, index) => <article key={`${cost.variantId}:${cost.revision ?? 'unset'}`} className="flex min-w-0 flex-col gap-3 border-t pt-4">
+        <div className="min-w-0 wrap-anywhere"><strong className="font-medium">{variant.name}{variant.archivedAt ? ' · 사용 중지' : ''}</strong><small className="block text-xs text-muted-foreground">{variant.code}</small></div>
+        <CostEditor cost={cost} variant={variant} onSaved={saved} taxHelp={index === 0} />
+        <CostHistory goodId={goodId} variantId={cost.variantId} />
+      </article>)}
       {!visible.costs?.length && <p className="text-sm text-muted-foreground">공급가(매입단가)를 입력할 옵션이 없습니다.</p>}
       <Button className="self-start" type="button" variant="outline" onClick={reload}>공급가(매입단가) 목록 새로고침</Button>
     </>}

@@ -480,7 +480,7 @@ async function saveAdminGood(
     if (/goods_aggregation_policy_owned_by_root|goods_aggregation_policy_owned/.test(error.message)) return { errors: { form: '합산 배송·구매수량 조건은 합산 기준 상품에서 수정해주세요. 최신 상품 상태를 다시 확인해주세요.' } };
     if (/shipping_charge_group_origin_mismatch/.test(error.message)) return { errors: { originId: '현재 배송비 묶음그룹과 출고지가 다릅니다. 묶음그룹 배정을 먼저 해제하거나 배송정보 템플릿에서 출고지와 그룹을 함께 적용해주세요. 입력은 유지됩니다.' } };
     if (/goods_sale_period_changed/.test(error.message)) return { errors: { saleStartsAt: '다른 작업에서 판매기간이 바뀌었습니다. 입력은 유지됩니다. 새로고침 후 최신 기간을 확인해주세요.' } };
-    if (/goods_sale_period_preorder_conflict/.test(error.message)) return { errors: { saleStartsAt: '예약판매 옵션은 일반 판매기간과 함께 사용할 수 없습니다. 예약판매를 일반재고로 전환하거나 판매기간을 설정안함으로 변경해주세요.' } };
+    if (/goods_sale_period_preorder_conflict/.test(error.message)) return { errors: { saleStartsAt: '예약을 건 옵션이 있어 판매기간을 저장할 수 없습니다. 판매 시기의 예약 조건에서 [일반 재고 판매로 전환]을 누른 뒤 다시 저장해주세요.' } };
     if (/invalid_goods_sale_period/.test(error.message)) return { errors: { saleStartsAt: '판매 시작·종료 시각을 확인해주세요.' } };
     if (/goods_attributes_changed|goods_attribute_schema_changed/.test(error.message)) return { errors: { productAttributes: '다른 작업에서 이 카테고리의 상품속성 항목이나 이 상품의 속성 값이 바뀌었습니다. 입력은 유지됩니다. 지금 입력을 따로 적어 둔 뒤 새로고침해 바뀐 속성을 확인하고 다시 저장해주세요.' } };
     if (/goods_attribute_required/.test(error.message)) return { errors: { productAttributes: '현재 대표 카테고리의 필수 상품속성을 입력해주세요.' } };

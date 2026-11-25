@@ -13,7 +13,7 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 vi.mock('@/app/admin/goods-transaction-terms-actions', () => ({ readGoodsTransactionTermsAction: mocks.read, saveGoodsTransactionTermsAction: mocks.save }));
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: true }) }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe: mocks.unsubscribe } } }; } } }) }));
-import { GoodsDeliveryPricingFields, GoodsTransactionTermsPanel, GoodsVolumeDiscountFields } from './GoodsTransactionTermsPanel';
+import { GoodsDeliveryRuleFields, GoodsTransactionTermsPanel, GoodsVolumeDiscountFields } from './GoodsTransactionTermsPanel';
 import { goodsTermsDraft } from '@/lib/admin/goods-transaction-terms';
 import type { GoodsTransactionAdminTerms } from '@/lib/goods-transaction';
 type Element = ReactElement<Record<string, unknown>>;
@@ -29,7 +29,7 @@ async function flush() { for (let i = 0; i < 6; i++) { await Promise.resolve(); 
 function button(label: string) { return all(render()).find(item => item.type === 'button' && text(item) === label)!; }
 function click(label: string) { const item = button(label); expect(item).toBeDefined(); expect(item.props.disabled).not.toBe(true); (item.props.onClick as () => void)(); }
 function change(kind: 'volume' | 'delivery', field: string, value: string) {
-  const type = kind === 'volume' ? GoodsVolumeDiscountFields : GoodsDeliveryPricingFields;
+  const type = kind === 'volume' ? GoodsVolumeDiscountFields : GoodsDeliveryRuleFields;
   const item = all(render()).find(node => node.type === type)!, draft = item.props.value as { status: string; fields: Record<string, string> };
   (item.props.onChange as (value: unknown) => void)({ ...draft, fields: { ...draft.fields, [field]: value } });
 }
@@ -59,27 +59,27 @@ it('같은 callback을 두 번 눌러도 한 요청이며 응답 불명은 원 U
   expect(mocks.busy).toHaveBeenLastCalledWith(true); expect(data.size).toBe(1); const original = mocks.save.mock.calls[0][0];
   expect(JSON.parse([...data.values()][0]).values.policyDraft).toContain(original.operationId);
   pending.resolve({ ok: false, uncertain: true, error: '결과 불명확' }); await flush();
-  expect(button('확장 배송비 저장').props.disabled).toBe(true); click('같은 요청으로 결과 확인'); await flush(); expect(mocks.save.mock.calls[1][0]).toBe(original);
+  expect(button('배송비 규칙 저장').props.disabled).toBe(true); click('같은 요청으로 결과 확인'); await flush(); expect(mocks.save.mock.calls[1][0]).toBe(original);
 });
 it('다른 정책의 미저장 입력을 한쪽 저장의 readback이 덮어쓰지 않는다', async () => {
   change('volume', 'threshold', '3'); change('delivery', 'baseFee', '7777');
   const volume = { id: session, goodId: base.goodId, revision: 1, status: 'draft' as const, terms: null, draftValues: { ...goodsTermsDraft(base).volume.fields, threshold: '3' } };
   mocks.save.mockResolvedValueOnce({ ok: true, value: { ...base, revision: 1, volume } }); click('복수구매 할인 저장'); await flush();
-  const delivery = all(render()).find(node => node.type === GoodsDeliveryPricingFields)!;
+  const delivery = all(render()).find(node => node.type === GoodsDeliveryRuleFields)!;
   expect(delivery.props.value).toMatchObject({ fields: { baseFee: '7777' } }); expect(text(render())).toContain('미저장 입력');
 });
 it('CAS 충돌은 입력을 유지하고 최신본 채택을 명시적으로 분리한다', async () => {
   change('volume', 'threshold', '3'); mocks.save.mockResolvedValueOnce({ ok: false, conflict: true, error: '충돌' }); click('복수구매 할인 저장'); await flush();
   mocks.read.mockResolvedValueOnce({ ok: true, value: { ...base, revision: 4 } }); click('최신 저장본 비교'); await flush();
   expect(all(render()).find(node => node.type === GoodsVolumeDiscountFields)!.props.value).toMatchObject({ fields: { threshold: '3' } });
-  click('내 입력 유지 · 최신 버전을 저장 기준으로'); click('복수구매 할인 저장'); await flush(); expect(mocks.save.mock.calls[1][0].expectedRevision).toBe(4);
+  click('내 입력 유지하고 최신 저장본 기준으로 바꾸기'); click('복수구매 할인 저장'); await flush(); expect(mocks.save.mock.calls[1][0].expectedRevision).toBe(4);
 });
 it.each(['account', 'session', 'signout', 'unmount'])('%s 이후 늦은 저장 응답과 임시 입력을 다른 세션에 노출하지 않는다', async kind => {
   change('volume', 'threshold', '3'); const pending = deferred<unknown>(); mocks.save.mockReturnValueOnce(pending.promise); click('복수구매 할인 저장'); await flush();
   if (kind === 'account') authenticate(session); if (kind === 'session') authenticate(actor, '91000000-0000-4000-8000-000000000003');
   if (kind === 'signout') window.dispatchEvent(new Event('icons:inquiry-drafts:signed-out'));
   if (kind === 'unmount') for (const effect of hooks.effects) { effect.cleanup?.(); effect.cleanup = undefined; }
-  pending.resolve({ ok: true, value: { ...base, revision: 99 } }); await flush(); expect(text(render())).not.toContain('설정을 저장하고 다시 확인했습니다');
+  pending.resolve({ ok: true, value: { ...base, revision: 99 } }); await flush(); expect(text(render())).not.toContain('을 저장했습니다');
   if (kind !== 'unmount') expect(data.size).toBe(0);
 });
 it('미저장 입력은 새로고침 전에 flush하며 경고한다', async () => {

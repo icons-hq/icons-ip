@@ -18,8 +18,8 @@ function PendingAssignment({ context, identity, scope, disabled, onReceipt }: {
   const operation = useShippingChargeGroupOperation({ identity, scope, groupId: context.groupId, command: context.command, onReceipt });
   /* 결과를 확인해야 하는 요청이라 경고 톤으로 둔다. */
   return <div className="flex min-w-0 flex-col items-start gap-2 rounded-lg border border-[color-mix(in_oklab,var(--wc-warning)_40%,transparent)] bg-[color-mix(in_oklab,var(--wc-warning)_8%,transparent)] px-3 py-2.5 text-sm" data-shipping-charge-pending="">
-    <strong className="font-medium">미확정 묶음배송 요청</strong>
-    <p className="text-muted-foreground">이 계정으로 이번 로그인 중에 보낸 요청의 결과를 먼저 확인해주세요. 조회 결과가 없으면 요청을 종료한 뒤 최신 상태로 다시 미리보기합니다.</p>
+    <strong className="font-medium">저장됐는지 확인이 필요한 요청</strong>
+    <p className="text-muted-foreground">이번 로그인에서 보낸 요청의 저장 결과를 아직 모릅니다. [저장 결과 확인]을 먼저 눌러주세요. 결과가 없으면 [미처리 요청 종료]를 누른 뒤 미리보기를 다시 만들어주세요.</p>
     <div className="flex flex-wrap gap-2">
       <button className={buttonVariants({ size: 'sm' })} data-slot="button" type="button" disabled={disabled || operation.busy} onClick={() => { if (!disabled && !operation.busy) void operation.recover(); }}>저장 결과 확인</button>
       <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={disabled || operation.busy} onClick={() => { if (!disabled && !operation.busy) void operation.recover(true); }}>미처리 요청 종료</button>
@@ -103,15 +103,15 @@ export function GoodShippingChargeGroupAssignmentEditor({ goodId, identity, scop
       <ShippingChargeGroupField identity={identity} originId={data.good.originId} value={targetId} selectedGroup={target}
         onChange={(id, group) => { if (!locked && canEdit) { setTargetId(id); setTarget(group); setPreview(null); setRequest(null); setMessage(''); } }}
         disabled={locked || !canEdit} readOnly={!data.good.editable} ownerGoodId={data.good.ownerGoodId} />
-      {data.good.familyGoodIds.length > 1 ? <p className="text-sm text-muted-foreground">원상품의 배정을 합산군 {data.good.familyGoodIds.length}개 상품이 공유합니다. 구매 할인·한도와 전시 그룹 구성은 변경하지 않습니다.</p> : null}
-      {!data.runtimeEnabled ? <p className="text-sm text-[var(--wc-warning)]">현재 상품 거래 경로에서 묶음배송을 적용할 수 없습니다. 운영 설정을 확인해주세요.</p> : null}
-      <p className="text-sm text-muted-foreground">배정은 이 영역에서 별도로 저장합니다. 출고지를 바꾸려면 기존 배정을 먼저 해제하거나 배송정보 템플릿에서 출고지와 그룹을 함께 적용해주세요.</p>
+      {data.good.familyGoodIds.length > 1 ? <p className="text-sm text-muted-foreground">합산군 {data.good.familyGoodIds.length}개 상품이 원상품의 배정을 함께 씁니다. 구매 할인·한도와 전시 그룹 구성은 바뀌지 않습니다.</p> : null}
+      {!data.runtimeEnabled ? <p className="text-sm text-[var(--wc-warning)]">지금 쇼핑몰 설정에서는 묶음배송을 쓸 수 없습니다. 운영 설정을 확인해주세요.</p> : null}
+      <p className="text-sm text-muted-foreground">출고지를 바꾸려면 배정을 먼저 해제하거나, 배송정보 템플릿에서 출고지와 그룹을 함께 적용해주세요.</p>
       {preview ? <div className={GOOD_SUBPANEL_CLASS} data-shipping-charge-preview=""><strong className="text-sm font-medium">상품 배정 변경 전후</strong>
         {preview.goods.map(good => <div className="flex min-w-0 flex-col gap-2" key={good.id}><p className="text-sm font-medium wrap-anywhere">{good.name}</p>
           <div className="grid min-w-0 gap-3 md:grid-cols-2"><div className="flex min-w-0 flex-col gap-1.5"><span className="text-xs font-medium text-muted-foreground">변경 전</span><ShippingChargeGroupSummary group={good.beforeGroup} /></div>
           <div className="flex min-w-0 flex-col gap-1.5"><span className="text-xs font-medium text-muted-foreground">변경 후</span><ShippingChargeGroupSummary group={good.afterGroup} /></div></div>
-          {good.blocker ? <p className="text-sm text-destructive" role="alert">현재 출고지·권한·거래 준비 상태에서 적용할 수 없습니다. 최신 상품과 그룹 설정을 확인해주세요.</p> : null}</div>)}
-        <p className="text-sm text-muted-foreground">묶음 기본료는 같은 주문의 대상 상품 수량·금액으로 계산합니다. 기존 확정 주문은 바뀌지 않습니다.</p>
+          {good.blocker ? <p className="text-sm text-destructive" role="alert">지금 출고지·권한·거래 준비 상태로는 적용할 수 없습니다. 최신 상품과 그룹 설정을 확인해주세요.</p> : null}</div>)}
+        <p className="text-sm text-muted-foreground">이미 확정된 주문은 바뀌지 않습니다.</p>
         <button className={`${buttonVariants()} self-start`} data-slot="button" type="button" disabled={locked || !request || !preview.canAssign} onClick={() => { if (!locked && canEdit && request && preview.canAssign) void operation.send(request); }}>이 배정으로 저장</button>
       </div> : null}
     </> : null}

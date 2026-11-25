@@ -88,10 +88,10 @@ export function ShippingSettingsTemplateForm({ template, newId, origins, regions
         <label className={FIELD_LABEL} htmlFor="shipping-settings-individualFee">개별 배송비 (원)<Input {...props('individualFee')} type="number" min={0} max={1000000} step={1} defaultValue={template?.settings.individualFee ?? 0} required /><small className={FIELD_HINT}>{feeType === 'individual' ? '같은 상품의 수량·옵션과 관계없이 한 번 부과합니다.' : '입력값은 보관하고, 개별 배송비 유형일 때만 계산합니다.'}</small>{error('individualFee')}</label>
         <div className="flex min-w-0 flex-col gap-2 sm:col-span-2">
           <label className={FIELD_LABEL} htmlFor="shipping-settings-deliveryMode">수량별·착불 설정 적용 방식<NativeSelect className="w-full" id="shipping-settings-deliveryMode" value={deliveryMode} onChange={event => setDeliveryMode(event.target.value as typeof deliveryMode)}>
-            <option value="preserve">상품에 저장된 확장 배송비 유지</option><option value="replace">이 템플릿의 확장 배송비로 변경</option>
+            <option value="preserve">상품에 저장된 수량별·착불 설정 유지</option><option value="replace">이 템플릿의 수량별·착불 설정으로 변경</option>
           </NativeSelect></label>
           {deliveryMode === 'preserve' ? <p className={NOTE}>기존 템플릿도 이 방식으로 동작합니다. 상품의 수량별·착불 설정은 유지되며, 사용 중인 수량별 배송비가 있으면 위 기본 배송비보다 우선합니다.</p>
-            : <><GoodsDeliveryPricingFields value={deliveryDraft} onChange={setDeliveryDraft} /><p className={NOTE}>‘사용 안 함’으로 적용하면 상품에 있던 확장 배송비(수량별·착불)를 끄고, 기본 배송비 설정과 선결제로 계산합니다. ‘대기’ 상태도 실제 배송비 계산에는 쓰지 않습니다.</p></>}
+            : <><GoodsDeliveryPricingFields value={deliveryDraft} onChange={setDeliveryDraft} /><p className={NOTE}>‘사용 안 함’으로 적용하면 상품에 있던 수량별·착불 설정을 끄고, 기본 배송비 설정과 선결제로 계산합니다.</p></>}
           {error('delivery')}
         </div>
         <div className="flex min-w-0 flex-col gap-2 sm:col-span-2">
@@ -117,7 +117,7 @@ export function ShippingSettingsTemplateForm({ template, newId, origins, regions
       {latest !== undefined ? <div className={INFO_PANEL}><strong className="font-medium">최신 저장본</strong>
         {latest ? <><p>{latest.name} · 버전 {latest.revision} · {latest.enabled ? '사용' : '사용 안 함'} · {origins.find(item => item.id === latest.settings.originId)?.name ?? '출고지 확인 필요'}</p>
           <ShippingSettingsDeliverySummary effective={{ ...latest.settings, chargeGroup: undefined, fulfillment: undefined, delivery: latest.settings.delivery?.mode === 'replace' ? latest.settings.delivery.policy : null }} />
-          <p>{latest.settings.delivery?.mode === 'replace' ? '이 템플릿의 확장 배송비로 변경' : '상품의 기존 확장 배송비 유지'}</p>
+          <p>{latest.settings.delivery?.mode === 'replace' ? '이 템플릿의 수량별·착불 설정으로 변경' : '상품의 기존 수량별·착불 설정 유지'}</p>
           <ShippingSettingsFulfillmentDirective value={latest.settings.fulfillment} />
           <p>묶음그룹: {latest.settings.chargeGroup?.mode === 'assign' ? '지정 그룹으로 변경' : latest.settings.chargeGroup?.mode === 'clear' ? '배정 해제' : '현재 배정 유지'}</p>
           {latest.settings.chargeGroup?.mode === 'assign' ? <ShippingChargeGroupField identity={identity} originId={latest.settings.originId} value={latest.settings.chargeGroup.groupId} onChange={() => {}} readOnly /> : null}

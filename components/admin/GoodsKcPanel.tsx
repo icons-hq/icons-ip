@@ -346,7 +346,7 @@ export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied,refreshK
   }, [goodId, refresh, refreshKey]);
   const visible = loaded?.goodId === goodId ? loaded : null;
   return <section className={`${GOOD_SUBPANEL_CLASS} text-sm`} aria-labelledby={`kc-review-${goodId}`} data-kc-panel="">
-    <div className="flex flex-col gap-1"><h2 id={`kc-review-${goodId}`} className="text-base leading-snug font-medium">KC 정보</h2>
+    <div className="flex flex-col gap-1"><h2 id={`kc-review-${goodId}`} className="sr-only">KC 정보</h2>
       <p className="text-sm text-muted-foreground">KC 인증 대상 여부를 고릅니다. 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토를 끝내고, 대상이면 인증 종류·번호와 모델·사업자·적용 옵션을 입력합니다(내부 검토 근거는 선택).
         새로 공개하거나 비공개했다가 다시 공개하려면 검토 완료가 필요합니다. 예전에 KC 기록 없이 공개된 상품은 그대로 두며, 자동으로 검토 완료하거나 판매를 멈추지 않습니다.</p>
     </div>

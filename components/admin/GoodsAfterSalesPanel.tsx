@@ -47,7 +47,6 @@ export function GoodsAfterSalesPanel({ goodId }: { goodId: string }) {
     else { setError(true); setMessage(result.error); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) request.current = null; if (result.conflict) setConflict(true); }
   }
   return <div className="flex min-w-0 flex-col gap-4 text-sm" data-goods-after-sales="">
-    <p className="text-muted-foreground">상품별 A/S 안내입니다. 전화번호와 안내를 입력하고 상품에 맞는 템플릿을 불러올 수 있습니다.</p>
     <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
       <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={!snapshot || pending || uncertain || conflict}>
         <GoodsAfterSalesFields values={values} onChange={setValues} />

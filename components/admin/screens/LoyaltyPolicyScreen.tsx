@@ -134,7 +134,7 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
   }
 
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="loyalty-policy">
-    <AdminPageHeader title="고객등급 관리" description="WELCOME은 조건 없이 받는 기본 등급입니다. SILVER·GOLD·PLATINUM은 최근 90일 동안 결제가 확정된 주문(취소 제외) 실적으로 정합니다." actions={<p className="text-xs text-muted-foreground tabular-nums">저장 버전 {base.revision} · {formatOrderDateTime(base.updatedAt)}</p>} />
+    <AdminPageHeader title="고객등급 관리" description="WELCOME은 조건 없이 받는 기본 등급입니다. SILVER·GOLD·PLATINUM은 최근 90일 동안 결제가 확정된 주문(취소 제외) 실적으로 정합니다." actions={<p className="text-xs text-muted-foreground tabular-nums">마지막 저장 {formatOrderDateTime(base.updatedAt)}</p>} />
     <form onSubmit={save} className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-5">
       <div className="flex flex-col gap-1"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-base font-semibold">등급별 승급 조건</h3><Link className={`${buttonVariants({ variant: 'ghost', size: 'xs' })} font-normal text-muted-foreground`} data-slot="button" href="/admin/settings/store-credits#customer-rewards">적립률 설정<ArrowUpRight aria-hidden="true" /></Link></div>
         {/* 줄의 수정은 초안만 바꾼다 — 어떤 순서로 눌러야 저장되는지를 표 앞에서 말한다. */}
@@ -197,7 +197,7 @@ export function LoyaltyPolicyScreen({ data, rewards }: { data: LoyaltyPolicyData
       </form>
     </CustomerServiceDialog> : null}
     {latest ? <section aria-label="최신 저장 정책 비교" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground sm:p-5">
-      <h3 className="text-base font-medium">최신 저장 정책 · 버전 {latest.policy.revision}</h3><p className={NOTE}>작성 중인 입력은 그대로 유지했습니다. {formatOrderDateTime(latest.policy.updatedAt)} 저장 기준입니다.</p>
+      <h3 className="text-base font-medium">최신으로 저장된 정책</h3><p className={NOTE}>작성 중인 입력은 그대로 유지했습니다. {formatOrderDateTime(latest.policy.updatedAt)} 저장 기준입니다.</p>
       <dl className="grid gap-2">{latest.policy.tiers.map(tier => <div className="grid gap-1 sm:grid-cols-[6rem_minmax(0,1fr)] sm:gap-3" key={tier.grade}><dt className="font-medium">{tier.grade.toUpperCase()}</dt><dd className="text-muted-foreground">{criterionText(tier)}</dd></div>)}</dl>
       <div className={ACTIONS}><Button disabled={locked} onClick={() => applyLatest(false)} type="button">내 입력 유지하고 최신 버전으로 저장 준비</Button><Button disabled={locked} onClick={() => applyLatest(true)} type="button" variant="outline">최신 정책으로 입력 교체</Button></div>
     </section> : null}

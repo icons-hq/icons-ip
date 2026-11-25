@@ -13,9 +13,10 @@ describe('상품 자동코드와 고객 화면 주소',()=>{
     expect(inputOf(html,'code')).toContain('value="HW-0001"');
     expect(html.match(/자동 생성 · 입력할 필요 없음/g)).toHaveLength(2);
     expect(html.match(/>직접 바꾸기<\/button>/g)).toHaveLength(2);
-    expect(html).toContain('바코드·ERP 코드는 여기에 넣지 않습니다.');
-    expect(html).toContain('출고지시 엑셀(기본 양식)의 &#x27;상품코드&#x27; 열에 찍힙니다.');
-    for (const old of ['판매자상품코드','관리코드']) expect(html).not.toContain(old);
+    /* 잠겨 있을 때는 입력할 것이 없다 — 어디에 쓰이는지 한 줄만 말하고, 바코드·ERP 코드 안내는 칸을 열 때만 보인다. */
+    expect(html).toContain('출고지시 엑셀의 &#x27;상품코드&#x27; 열에 찍히고 고객 화면 주소 끝에도 쓰입니다.');
+    expect(html).not.toContain('바코드·ERP 코드는');
+    for (const old of ['판매자상품코드','관리코드','기본 양식']) expect(html).not.toContain(old);
   });
   /* MD-0051·ADR-0050 — 예전 'URL' 칸의 로마자 값(내부 id)은 주소가 아니다. 고객 화면 주소는 상품 자동코드로 정해져 읽기 전용으로 보이고,
      내부 id는 숨은 값으로 지금 그대로 보내 저장 계약을 지킨다. */
@@ -28,8 +29,9 @@ describe('상품 자동코드와 고객 화면 주소',()=>{
     expect(address).toContain('value="iconsip.com/shop/hsq-0059"');
     expect(address).not.toContain('name=');
     expect(html.match(/hongsilkweseuteu/g)).toHaveLength(1);
-    expect(html).toContain('상품 자동코드를 직접 바꾸면 이 주소도 새 코드로 바뀌고, 바꾸기 전 주소로 들어온 고객은 상품을 찾지 못합니다.');
-    expect(html).toContain('고객 화면 주소 끝에도 쓰입니다.');
+    /* 주소가 바뀐다는 경고는 상품 자동코드를 직접 바꿀 때만 보인다(잠겨 있으면 입력할 것이 없다). */
+    expect(html).not.toContain('바꾸기 전 주소로 들어온 고객');
+    expect(html).not.toContain('id="id-help"');
     for (const old of ['한 번 공개한 URL은 변경할 수 없습니다.','비워두면 상품명에서 자동 생성합니다.']) expect(html).not.toContain(old);
   });
   it('신규 상품은 예상 코드와 함께 저장 시 자동 생성을 보이고 주소도 저장할 때 정해진다고 알린다',()=>{
@@ -43,12 +45,12 @@ describe('상품 자동코드와 고객 화면 주소',()=>{
   it('상품 자동코드가 옛 값(내부 id의 대문자)이어도 코드 주소로 보고 쓸 수 없다고 하지 않는다',()=>{
     const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" code="G13" slug="g13" errors={{}} />);
     expect(html).toContain('value="iconsip.com/shop/g13"');
-    expect(html).not.toContain('주소에 쓸 수 없는 글자');
+    expect(html).not.toContain('주소로 쓸 수 없는 글자');
   });
   it('주소에 쓸 수 없는 글자가 든 상품 자동코드면 처음 저장한 영문 값 주소를 보이고 이유를 알린다',()=>{
     const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" code="창고 A-1" slug="keyring" errors={{}} />);
     expect(html).toContain('value="iconsip.com/shop/keyring"');
-    expect(html).toContain('이 상품 자동코드에는 주소에 쓸 수 없는 글자(공백·한글·기호)가 있어');
+    expect(html).toContain('상품 자동코드에 주소로 쓸 수 없는 글자(공백·한글·기호)가 있어, 처음 저장할 때 정해진 영문 값으로 열립니다.');
   });
   it('잠긴 자동코드 칸에 바코드 형식 값이 들어 있으면 막지 않고 바코드 칸과 직접 바꾸기를 안내한다',()=>{
     const html=renderToStaticMarkup(<GoodIdentifierFields ipId="hwasan" name="키링" code="8800353088562" defaultVariantCode="8800353086155" errors={{}} />);
@@ -71,5 +73,9 @@ describe('상품 자동코드와 고객 화면 주소',()=>{
     expect(html).toContain('직접 바꾸는 중');
     expect(html).toContain('>자동코드로 두기</button>');
     expect(html).toContain('창고 품번처럼 정해진 코드가 있거나 잘못 들어간 값을 고칠 때만 바꿉니다.');
+    /* 칸을 열면 바코드·ERP 코드를 넣을 곳과, 코드를 바꾸면 고객 화면 주소도 바뀐다는 결과를 말한다. */
+    expect(html).toContain('바코드·ERP 코드는 여기에 넣지 않고, 옵션 상세 정보의 바코드·ERP 코드 칸에 넣습니다.');
+    expect(html).toContain('상품 자동코드를 바꾸면 이 주소도 바뀌어, 바꾸기 전 주소로 들어온 고객은 상품을 찾지 못합니다.');
+    expect(html).toContain('id="id-help"');
   });
 });

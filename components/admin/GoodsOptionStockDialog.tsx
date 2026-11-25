@@ -149,7 +149,8 @@ export function GoodsOptionStockDialog({ flow }: {
   return <CustomerServiceDialog title="옵션별 재고수량" busy={pending} onClose={flow.close}>
     <form ref={formRef} className="flex min-w-0 flex-col gap-4" data-option-stock-dialog="" aria-busy={pending} onSubmit={event => { event.preventDefault(); flow.save(); }}>
       <p className="text-sm"><strong className="font-semibold">{target.goodName}</strong>{target.goodCode ? <small className="ml-1.5 text-xs text-muted-foreground">{target.goodCode}</small> : null}</p>
-      <p className="text-sm text-muted-foreground">옵션마다 새 수량을 입력하고 저장합니다. 이 창을 연 때의 수량을 기준으로 저장해서, 그사이 판매나 다른 수정으로 수량이 바뀐 옵션은 저장하지 않고 다시 확인을 요청합니다. 저장한 옵션마다 실재고 조정 기록과 사유가 남습니다(사유를 비우면 바뀐 수량이 사유로 남습니다).</p>
+      {/* 화면에 보이지 않는 결과만 한 줄로 남긴다. 그사이 수량이 바뀐 옵션은 저장 뒤 그 줄에 '다시 확인'과 이유가 뜨고, 사유를 비웠을 때의 기록은 사유 칸 예시가 말한다. */}
+      <p className="text-sm text-muted-foreground">저장하면 옵션마다 실재고 조정 기록이 남습니다.</p>
       <fieldset className="m-0 min-w-0 border-0 p-0" disabled={pending}><legend className="sr-only">옵션별 재고수량</legend>
         <GroupTable label="옵션별 재고수량" layout="fixed" className={NARROW_TABLE}>
           <TableHeader className="max-sm:hidden"><TableRow><TableHead className="w-[36%]">옵션</TableHead><TableHead className="w-[18%] text-right">현재</TableHead><TableHead className="w-[18%]">새 수량</TableHead><TableHead>사유 (선택)</TableHead></TableRow></TableHeader>

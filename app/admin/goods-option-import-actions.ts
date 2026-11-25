@@ -2,12 +2,17 @@
 
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
-import { GOODS_OPTION_IMPORT_PATH, parseGoodsOptionImportFilters, validOptionImportGoodId, type GoodsOptionImportPage, type GoodsOptionImportSource } from '@/lib/admin/goods-option-import';
+import { GOODS_OPTION_IMPORT_PATH, GoodsOptionImportError, parseGoodsOptionImportFilters, validOptionImportGoodId, type GoodsOptionImportPage, type GoodsOptionImportSource } from '@/lib/admin/goods-option-import';
 import { readGoodsOptionImportSource, searchGoodsOptionImportSources } from '@/lib/admin/goods-option-import.server';
 
+/** 원인과 고칠 방법을 담아 던진 불러오기 오류(GoodsOptionImportError)만 그대로 보인다. 그 밖의 예외(서버 진단)는 일반 문구로 바꾼다. */
 function errorMessage(error: unknown): string {
-  return error instanceof Error && /^(상품과 옵션을|옵션을 불러올 상품이|이 상품에는)/.test(error.message) ? error.message : '상품과 옵션을 불러오지 못했습니다. 현재 입력은 유지됩니다.';
+  return error instanceof GoodsOptionImportError ? error.message : '상품과 옵션을 불러오지 못했습니다. 현재 입력은 유지됩니다.';
 }
+/**
+ * 상품 검색(공용 상품 선택창·복사등록·옵션 불러오기가 함께 쓴다). 입력은 `{ query, field, categoryId, page }`이고,
+ * 옵션 불러오기 선택창만 선택 조건 `optionSourcesOnly`·`excludeGoodId`를 더한다 — 주지 않으면 결과는 지금까지와 같다.
+ */
 export async function searchGoodsOptionImportAction(input: unknown): Promise<{ ok: true; accountId: string; data: GoodsOptionImportPage } | { ok: false; error: string }> {
   const auth = await requireAdminActionAccess(GOODS_OPTION_IMPORT_PATH);
   if (!auth?.user) return { ok: false, error: '상품을 편집할 권한이 필요합니다.' };

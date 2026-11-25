@@ -138,7 +138,7 @@ it('적용 화면은 공유 원상품 guard와 착불 버전을 미리보기 그
   expect(mocks.apply).toHaveBeenCalledTimes(1); expect(mocks.apply.mock.calls[0][0]).toMatchObject({ command: 'apply', ...identity,
     collectRevision: 1, collectVersionId: ids.collect, goods: [{ ...guard, familyGoodIds }] });
   expect(text(node())).toContain('기존 수량별·착불 설정은 유지'); expect(text(node())).not.toContain('배송 설정 전체');
-  expect(text(node())).toContain('원상품의 출고지·기본 배송비와 확장 배송 정책은 합산군 전체의 배송비 계산에 사용됩니다.');
+  expect(text(node())).toContain('원상품의 출고지·기본 배송비와 수량별·착불 설정은 합산군 전체의 배송비 계산에 사용됩니다.');
   expect(text(node())).toContain('수령 방식·반품 및 교환 안내·템플릿 연결은 직접 선택한 상품에 저장합니다.');
   expect(button('같은 입력으로 재시도')).toBeDefined();
 });

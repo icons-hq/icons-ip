@@ -9,7 +9,8 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import {
-  ADMIN_PREORDER_RESERVATION_PAGE_SIZE, parseAdminGoodsPreorders, parseAdminPreorderReservations, parseGoodsPreorderInput, parseRandomPreorderRequest, preorderMutationError,
+  ADMIN_PREORDER_RESERVATION_PAGE_SIZE, parseAdminGoodsPreorders, parseAdminPreorderReservations, parseGoodsPreorderBulkRequest, parseGoodsPreorderInput,
+  parseRandomPreorderRequest, preorderMutationError,
   type AdminGoodsPreorder, type AdminPreorderReservationPage,
 } from '@/lib/admin/goods-preorders';
 
@@ -23,16 +24,25 @@ const ALLOCATE_UNKNOWN = "입고 확인이 처리됐는지 확인하지 못했�
 function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function id(value: unknown) { const key = typeof value === 'string' ? value.trim() : ''; return key && key.length <= 200 ? key : null; }
 function integer(value: unknown, minimum = 0): value is number { return typeof value === 'number' && Number.isInteger(value) && value >= minimum && value <= 2147483647; }
-export async function listGoodsPreordersAction(goodIdValue: unknown): Promise<{ ok: true; policies: AdminGoodsPreorder[] } | Failure> {
+const LIST_FAILED = '예약 조건을 불러오지 못했습니다. [저장된 예약 조건 새로고침]을 눌러 다시 불러와주세요.';
+/**
+ * 예약 조건과 함께 지금 저장돼 있는 판매기간이 있는지(`salePeriodSaved`)를 읽는다. 판매기간과 예약은 함께 저장할 수 없어
+ * (DB goods_sale_period_preorder_conflict), 화면이 판매기간이 켜진 채 예약 저장을 누르지 않게 먼저 막는다.
+ */
+export async function listGoodsPreordersAction(goodIdValue: unknown): Promise<{ ok: true; policies: AdminGoodsPreorder[]; salePeriodSaved: boolean } | Failure> {
   if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' })) return { ok: false, error: STAFF_REQUIRED };
   const goodId = id(goodIdValue);
   if (!goodId) return { ok: false, error: '상품 정보를 읽지 못했습니다. 상품 목록에서 상품을 다시 열어주세요.' };
   try {
     const client = await createClient();
-    const { data, error } = await client.rpc('admin_list_goods_preorders', { p_good_id: goodId });
+    const [{ data, error }, period] = await Promise.all([
+      client.rpc('admin_list_goods_preorders', { p_good_id: goodId }),
+      client.from('goods').select('sale_starts_at').eq('id', goodId).maybeSingle(),
+    ]);
     const policies = error ? null : parseAdminGoodsPreorders(data);
-    return policies ? { ok: true, policies } : { ok: false, error: '예약 조건을 불러오지 못했습니다.' };
-  } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 조건을 불러오지 못했습니다.' }; }
+    if (!policies || period.error || !period.data) return { ok: false, error: LIST_FAILED };
+    return { ok: true, policies, salePeriodSaved: (period.data as { sale_starts_at?: unknown }).sale_starts_at != null };
+  } catch (error) { unstable_rethrow(error); return { ok: false, error: LIST_FAILED }; }
 }
 export async function saveGoodsPreorderAction(formData: FormData): Promise<Saved | Failure> {
   const auth = await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' });
@@ -62,6 +72,34 @@ export async function saveGoodsPreorderAction(formData: FormData): Promise<Saved
     revalidateGoodsSurfaces();
     return { ok: true, message: policy.state === 'active' ? '예약판매를 저장했습니다. 접수 기간 동안 예약 물량으로 판매합니다.'
       : '새 예약 접수를 중지했습니다. 이미 받은 예약 주문의 발송 예정일은 그대로입니다.' };
+  } catch (error) { unstable_rethrow(error); return { ok: false, error: SAVE_FAILED }; }
+}
+/**
+ * 옵션 선택 판매 상품: 여러 옵션의 예약을 한 번에 저장한다(한 트랜잭션 — 하나라도 거절되면 아무것도 저장하지 않는다).
+ * 이미 예약판매 중인 옵션은 DB가 건너뛰고(`skippedVariantIds`) 그대로 둔다 — 중지하고 새로 만들면 남은 예약 물량이 처음부터 다시 계산된다.
+ */
+export async function saveGoodsPreordersBulkAction(goodIdValue: unknown, optionsValue: unknown):
+  Promise<{ ok: true; savedVariantIds: string[]; skippedVariantIds: string[] } | Failure> {
+  const auth = await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' });
+  if (!auth) return { ok: false, error: STAFF_REQUIRED };
+  const goodId = id(goodIdValue);
+  const options = parseGoodsPreorderBulkRequest(optionsValue);
+  if (!goodId || !options) {
+    return { ok: false, error: '예약 물량(1 이상의 정수)·접수 기간(종료가 시작보다 뒤)·발송 예정일(접수 종료일과 같거나 뒤)을 확인한 뒤 다시 저장해주세요. 그래도 안 되면 화면을 새로고침해주세요.' };
+  }
+  try {
+    const client = await createClient();
+    const { data, error } = await client.rpc('admin_save_goods_preorders_bulk', { p_good_id: goodId, p_options: options });
+    if (error) return { ok: false, error: preorderMutationError(error.message) };
+    const variantIds = (rows: unknown) => Array.isArray(rows) && rows.every((row) => record(row) && isUuid(row.variantId)) ? rows.map((row) => (row as { variantId: string }).variantId) : null;
+    const savedVariantIds = record(data) ? variantIds(data.saved) : null, skippedVariantIds = record(data) ? variantIds(data.skipped) : null;
+    const requested = new Set(options.map((option) => option.variantId));
+    if (!record(data) || data.goodId !== goodId || !savedVariantIds || !skippedVariantIds || savedVariantIds.length + skippedVariantIds.length !== options.length
+      || [...savedVariantIds, ...skippedVariantIds].some((variantId) => !requested.delete(variantId))) {
+      return { ok: false, error: SAVE_UNKNOWN };
+    }
+    revalidateGoodsSurfaces();
+    return { ok: true, savedVariantIds, skippedVariantIds };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: SAVE_FAILED }; }
 }
 const RANDOM_PREORDER_SAVED = {

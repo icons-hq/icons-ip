@@ -25,6 +25,7 @@ import { chargeAdminFixtures, chargeIdentity as identity, chargeIds as ids } fro
 import { ShippingChargeGroupField, ShippingChargeGroupSummary, type ShippingChargeGroupFieldProps } from '../ShippingChargeGroupField';
 import { GroupsWorkspace, ShippingChargeGroupEditor } from '../screens/ShippingChargeGroupsPanel';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
+import { AdminPickerDialog } from '@/components/admin/console/AdminPickerDialog';
 import { ShippingChargeGroupAssignmentDialog } from './ShippingChargeGroupAssignmentDialog';
 import { useShippingChargeGroupOperation, useShippingChargeGroupPending, useShippingChargeGroupSession } from './useShippingChargeGroupOperation';
 import { Button } from '@/components/admin/kit/ui/button';
@@ -150,43 +151,135 @@ it('명시적 배정 해제도 nullable group UUID로 복구하고 상품 식별
   expect([...storageValues.values()][0]).not.toContain('good-a'); expect(mocks.assign).toHaveBeenCalledExactlyOnceWith(request);
 });
 
-it('그룹 선택은 같은 출고지의 활성 그룹만 보이며 기본 그룹을 자동 배정하지 않는다', async () => {
-  mode = 'field'; const { group } = chargeAdminFixtures(); mocks.list.mockResolvedValueOnce({ data: { ...listData(), groups: [
-    { ...group, isDefault: true }, { ...group, id: ids.other, originId: ids.other }, { ...group, id: ids.version, enabled: false },
-  ] } }); render(); effects(); click('배송비 묶음그룹 선택'); await flush();
-  expect(mocks.list).toHaveBeenCalledExactlyOnceWith({ originId: ids.origin, query: '', status: 'active', page: 1 }, identity);
-  expect(all(node()).filter(item => item.type === 'li')).toHaveLength(1); expect(mocks.change).not.toHaveBeenCalled();
-  click('선택'); expect(mocks.change).toHaveBeenCalledExactlyOnceWith(ids.group, { ...group, isDefault: true });
+/* 그룹 고르기는 공용 선택창(AdminPickerDialog)이다. 얕은 렌더는 부품을 펼치지 않으므로 그 요소의 조회(load)·선택(onSelect) 등을 직접 부른다. */
+type GroupPicker = { load: (request: { query: string; field: string; filter: string; page: number }) => Promise<{ rows?: unknown[]; total?: number; page?: number; pageSize?: number; error?: string }>;
+  onSelect: (group: unknown) => unknown; rowBlocked: (group: unknown) => string | null; rowView: (group: unknown) => { title: ReactNode; meta: ReactNode }; blockedReason: string | null; onClose: () => void;
+  excludedNote: string; title: string; emptyText: string };
+const groupPicker = () => all(node()).find(item => item.type === AdminPickerDialog) as unknown as ReactElement<GroupPicker> | undefined;
+const open = () => { click('배송비 묶음그룹 선택'); return groupPicker()!.props; };
+const firstRequest = { query: '', field: '', filter: '', page: 1 };
+
+it('그룹 선택은 선택창이 지금 출고지의 사용 중인 그룹을 서버에 묻고, 열기만 해서는 기본 그룹을 배정하지 않는다', async () => {
+  mode = 'field'; const { group } = chargeAdminFixtures(); mocks.list.mockResolvedValueOnce({ data: { ...listData(), total: 41, page: 1, groups: [{ ...group, isDefault: true }] } });
+  render(); effects(); expect(groupPicker()).toBeUndefined();
+  const picker = open();
+  const loaded = await picker.load({ ...firstRequest, query: '  묶음 ' });
+  expect(mocks.list).toHaveBeenCalledExactlyOnceWith({ originId: ids.origin, query: '묶음', status: 'active', page: 1 }, identity);
+  expect(loaded).toEqual({ rows: [{ ...group, isDefault: true }], total: 41, page: 1, pageSize: 20 });
+  expect(picker.excludedNote).toBe('다른 출고지의 그룹과 사용하지 않는 그룹은 목록에서 뺐습니다.');
+  expect(mocks.change).not.toHaveBeenCalled();
+  picker.onSelect({ ...group, isDefault: true });
+  expect(mocks.change).toHaveBeenCalledExactlyOnceWith(ids.group, { ...group, isDefault: true });
 });
-it('QA2: 저장 충돌 뒤 같은 그룹도 최신 버전으로 다시 고를 수 있다(저장해 둔 버전이 낡았을 때만)', async () => {
+it('선택창은 쪽을 넘겨 다음 쪽을 묻고, 조회가 실패하면 그 이유를 창 안에 보이게 돌려준다', async () => {
+  mode = 'field'; mocks.list.mockResolvedValueOnce({ data: { ...listData(), page: 2, total: 41 } }).mockResolvedValueOnce({ error: '로그인 상태나 상품관리 권한이 바뀌었습니다.', authChanged: true });
+  render(); effects(); const picker = open();
+  expect(await picker.load({ ...firstRequest, page: 2 })).toMatchObject({ page: 2, total: 41 });
+  expect(mocks.list).toHaveBeenLastCalledWith({ originId: ids.origin, query: '', status: 'active', page: 2 }, identity);
+  expect(await picker.load(firstRequest)).toEqual({ error: '로그인 상태나 상품관리 권한이 바뀌었습니다.' });
+});
+it('선택창에 새어 든 다른 출고지·사용 안 함·보관 그룹은 고르지 않는다(창은 그대로 둔다)', () => {
+  mode = 'field'; const { group } = chargeAdminFixtures(); render(); effects(); const picker = open();
+  expect(picker.onSelect({ ...group, originId: ids.other })).toBe(false);
+  expect(picker.onSelect({ ...group, enabled: false })).toBe(false);
+  expect(picker.onSelect({ ...group, archived: true })).toBe(false);
+  expect(mocks.change).not.toHaveBeenCalled();
+});
+it('줄에는 그룹 이름과 가장 싼(비싼) 배송비 한 번·지역 추가 배송비 방식을 말하고 내부 값은 보이지 않는다', () => {
+  mode = 'field'; const { group } = chargeAdminFixtures(); render(); effects(); const picker = open();
+  const min = picker.rowView({ ...group, name: '기본 묶음', calculationMode: 'min', isDefault: true, regional: { mode: 'inherit', policy: null } });
+  expect(text(min.title)).toBe('기본 묶음 기본');
+  expect(text(min.meta)).toBe('가장 싼 배송비 한 번 · 지역 추가 배송비는 출고지 설정 그대로');
+  const max = picker.rowView({ ...group, calculationMode: 'max', isDefault: false, regional: { mode: 'override', policy: chargeAdminFixtures().region } });
+  expect(text(max.meta)).toBe('가장 비싼 배송비 한 번 · 지역 추가 배송비는 이 그룹의 지역표대로');
+  for (const view of [min, max]) expect(`${text(view.title)}${text(view.meta)}`).not.toMatch(/버전|최소 부과|최대 부과|무료 우선|[0-9a-f]{8}-[0-9a-f]{4}/);
+});
+it('QA2: 저장 충돌 뒤 같은 그룹도 다시 고를 수 있고, 줄에 그룹 설정이 바뀌었다고 알린다(저장해 둔 설정이 낡았을 때만)', () => {
   mode = 'field'; const { group } = chargeAdminFixtures();
   fieldProps = { ...fieldProps, value: group.id, selectedGroup: { ...group, revision: group.revision - 1 } };
-  mocks.list.mockResolvedValueOnce({ data: { ...listData(), groups: [group] } }); render(); effects(); click('배송비 묶음그룹 선택'); await flush();
-  expect(button('최신 버전으로 다시 선택').props.disabled).toBeFalsy();
-  click('최신 버전으로 다시 선택'); expect(mocks.change).toHaveBeenCalledExactlyOnceWith(group.id, group);
+  render(); effects(); const picker = open();
+  expect(picker.rowBlocked(group)).toBeNull();
+  expect(text(picker.rowView(group).meta)).toContain('그룹 설정이 바뀌었습니다. 다시 선택해 최신 설정을 적용해주세요.');
+  picker.onSelect(group); expect(mocks.change).toHaveBeenCalledExactlyOnceWith(group.id, group);
 });
-it('QA2: 이미 최신 버전으로 고른 그룹은 선택됨으로 잠긴다', async () => {
+it('QA2: 이미 최신 설정으로 고른 그룹은 선택됨으로 잠기고 바뀌었다는 안내도 없다', () => {
   mode = 'field'; const { group } = chargeAdminFixtures();
   fieldProps = { ...fieldProps, value: group.id, selectedGroup: group };
-  mocks.list.mockResolvedValueOnce({ data: { ...listData(), groups: [group] } }); render(); effects(); click('배송비 묶음그룹 선택'); await flush();
-  expect(button('선택됨').props.disabled).toBe(true);
+  render(); effects(); const picker = open();
+  expect(picker.rowBlocked(group)).toBe('선택됨');
+  expect(text(picker.rowView(group).meta)).not.toContain('바뀌었습니다');
+});
+it('아직 고른 그룹을 읽는 중이면 같은 그룹에 바뀌었다는 안내를 붙이지 않는다', () => {
+  mode = 'field'; const { group } = chargeAdminFixtures(); fieldProps = { ...fieldProps, value: group.id };
+  render(); effects(); const picker = open();
+  expect(picker.rowBlocked(group)).toBeNull(); expect(text(picker.rowView(group).meta)).not.toContain('바뀌었습니다');
+});
+it('다른 작업을 처리하는 중이면 열려 있는 선택창도 잠근다', () => {
+  mode = 'field'; render(); effects(); expect(open().blockedReason).toBeNull();
+  fieldProps = { ...fieldProps, disabled: true }; render(); expect(groupPicker()!.props.blockedReason).toContain('다른 작업을 처리하는 중');
+  expect(button('배송비 묶음그룹 선택').props.disabled).toBe(true);
+});
+it('출고지를 고르기 전에는 선택 버튼이 잠기고 먼저 고르라고 말한다', () => {
+  mode = 'field'; fieldProps = { ...fieldProps, originId: null }; render(); effects();
+  expect(button('배송비 묶음그룹 선택').props.disabled).toBe(true); expect(text(node())).toContain('출고지를 먼저 고르면 그 출고지의 그룹을 고를 수 있습니다.');
+});
+it('고른 그룹을 풀 수 있고, 풀면 열려 있던 선택창도 닫는다', () => {
+  mode = 'field'; const { group } = chargeAdminFixtures(); fieldProps = { ...fieldProps, value: group.id, selectedGroup: group };
+  render(); effects(); open(); expect(groupPicker()).toBeDefined(); click('묶음그룹 배정 해제');
+  expect(mocks.change).toHaveBeenCalledExactlyOnceWith(null, null); expect(groupPicker()).toBeUndefined();
 });
 it('읽기 전용 자식 필드는 선택·해제·이름 조회로 쓰기를 유도하지 않는다', async () => {
   mode = 'field'; fieldProps = { ...fieldProps, value: ids.group, selectedGroup: chargeAdminFixtures().group, readOnly: true, ownerGoodId: 'owner' };
-  render(); effects(); await flush(); expect(all(node()).filter(item => item.type === 'button')).toHaveLength(0); expect(mocks.list).not.toHaveBeenCalled(); expect(mocks.change).not.toHaveBeenCalled();
+  render(); effects(); await flush(); expect(all(node()).filter(item => item.type === 'button')).toHaveLength(0); expect(groupPicker()).toBeUndefined(); expect(mocks.list).not.toHaveBeenCalled(); expect(mocks.change).not.toHaveBeenCalled();
   expect(text(ShippingChargeGroupSummary({ group: chargeAdminFixtures().group, inherited: true, ownerGoodId: 'owner' }))).toContain('원상품의 묶음그룹 배정');
 });
-it('출고지나 세션이 바뀌면 이전 검색 결과와 늦은 응답을 격리한다', async () => {
-  mode = 'field'; const pending = deferred<unknown>(); mocks.list.mockReturnValueOnce(pending.promise); render(); effects(); click('배송비 묶음그룹 선택');
+it('출고지나 세션이 바뀌면 열려 있던 선택창을 닫고 이전 조건의 늦은 응답은 아무것도 고르지 않는다', async () => {
+  mode = 'field'; const pending = deferred<unknown>(); mocks.list.mockReturnValueOnce(pending.promise); render(); effects();
+  const stale = open().load(firstRequest);
   fieldProps = { ...fieldProps, identity: { ...identity, expectedSessionId: ids.other }, originId: ids.other }; render(); effects();
-  pending.resolve({ data: listData() }); await flush(); expect(all(node()).filter(item => item.type === 'li')).toHaveLength(0); expect(mocks.change).not.toHaveBeenCalled();
-  expect(button('배송비 묶음그룹 선택').props['aria-expanded']).toBe(false);
+  pending.resolve({ data: listData() }); await stale; await flush();
+  expect(groupPicker()).toBeUndefined(); expect(mocks.change).not.toHaveBeenCalled();
 });
 it('조회 실패는 선택을 해제하거나 무료배송으로 바꾸지 않는다', async () => {
   mode = 'field'; fieldProps = { ...fieldProps, value: ids.group }; mocks.latest.mockResolvedValueOnce({ error: '조회 실패' });
   render(); effects(); await flush(); const summary = all(node()).find(item => item.type === ShippingChargeGroupSummary)!;
   expect(summary.props.group).toBeUndefined(); expect(text(node())).toContain('조회 실패'); expect(mocks.change).not.toHaveBeenCalled();
-  expect(text(ShippingChargeGroupSummary({ group: undefined }))).toContain('미확인 상태를 미지정이나 무료배송으로 처리하지 않습니다');
+  expect(text(ShippingChargeGroupSummary({ group: undefined }))).toContain('묶음그룹을 확인하고 있습니다. 확인이 끝나기 전에는 배송비를 바꾸지 않습니다.');
+});
+it('출고지와 다른 그룹이 골라져 있으면 알리고 다시 고르거나 해제하게 한다', () => {
+  mode = 'field'; const { group } = chargeAdminFixtures(); fieldProps = { ...fieldProps, value: group.id, selectedGroup: { ...group, originId: ids.other } };
+  render(); effects(); expect(text(node())).toContain('고른 그룹의 출고지가 지금 출고지와 다릅니다. 같은 출고지의 그룹을 다시 고르거나 배정을 해제해주세요.');
+});
+
+/* 요약 상자는 고른 그룹의 뜻을 말과 예시 금액으로 보이고, 저장 버전·내부 번호는 보이지 않는다(화면 규칙 8). */
+const summaryText = (props: Parameters<typeof ShippingChargeGroupSummary>[0]) => text(ShippingChargeGroupSummary(props));
+it('요약: 가장 싼 배송비 한 번이면 예시도 가장 싼 금액이다', () => {
+  const { group } = chargeAdminFixtures(); const shown = summaryText({ group: { ...group, calculationMode: 'min', regional: { mode: 'inherit', policy: null } }, example: true });
+  expect(shown).toContain('같은 그룹 상품을 함께 주문하면 가장 싼 배송비 한 번만 받습니다.');
+  expect(shown).toContain('예) 배송비가 3,000원과 2,500원인 상품을 함께 주문하면 2,500원을 받습니다. 무료배송이 되는 상품이 하나라도 있으면 0원입니다.');
+  expect(shown).toContain('지역 추가 배송비는 출고지 설정을 그대로 따릅니다.');
+});
+it('요약: 가장 비싼 배송비 한 번이면 예시도 가장 비싼 금액이고 그룹 지역표를 말한다', () => {
+  const { group } = chargeAdminFixtures(); const shown = summaryText({ group: { ...group, calculationMode: 'max', regional: { mode: 'override', policy: chargeAdminFixtures().region } }, example: true });
+  expect(shown).toContain('가장 비싼 배송비 한 번만 받습니다.'); expect(shown).toContain('3,000원을 받습니다.');
+  expect(shown).toContain('지역 추가 배송비는 이 그룹의 지역표대로 그룹당 한 번 받습니다.');
+});
+it('요약: 표 안처럼 좁은 자리에서는 예시를 빼고, 상태·출고지는 보인다', () => {
+  const { group } = chargeAdminFixtures(); const shown = summaryText({ group, originName: '김포 창고' });
+  expect(shown).not.toContain('예)'); expect(shown).toContain('출고지 · 김포 창고'); expect(shown).toContain(group.name);
+});
+it('요약: 저장 버전·최소 부과 같은 내부 표현과 긴 안내 문단을 쓰지 않는다', () => {
+  const { group } = chargeAdminFixtures(); const shown = [summaryText({ group: { ...group, revision: 7 }, example: true, manageLink: true }), summaryText({ group: null }), summaryText({ group: undefined })].join('\n');
+  expect(shown).not.toMatch(/저장 버전|버전|최소 부과|최대 부과|무료 우선|미지정|미확인|처리하지 않습니다|기본 그룹 표시|묶음 기본료/);
+  expect(shown).not.toContain(String(7));
+});
+it('요약: 지정하지 않은 상태는 기존 배송비 규칙을 따르고 기본 그룹도 자동으로 붙지 않는다고 말한다', () => {
+  expect(summaryText({ group: null })).toBe('묶음그룹 지정 안 함상품과 출고지의 배송비 규칙을 그대로 따릅니다. 출고지의 기본 그룹도 자동으로 붙지 않습니다.');
+});
+it('필드는 요약에 예시와 관리 링크를 켠다(표 안의 요약은 켜지 않는다)', () => {
+  mode = 'field'; render(); effects();
+  const summary = all(node()).find(item => item.type === ShippingChargeGroupSummary)!;
+  expect(summary.props).toMatchObject({ example: true, manageLink: true });
 });
 
 it('그룹 편집은 기본 그룹 CAS와 출고지 저장 기준을 함께 전송한다', async () => {

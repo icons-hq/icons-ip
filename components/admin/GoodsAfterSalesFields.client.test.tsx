@@ -58,3 +58,27 @@ describe('A/S 전화번호 미리 채움', () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 });
+
+const textOf = (node: ReactNode): string => Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? textOf(value.props.children as ReactNode) : String(value)).join('');
+
+describe('A/S 전화번호 칸 아래 한 줄', () => {
+  it('고시의 A/S 전화번호와 따로 저장된다는 사실을 말하고, 같은 번호로 미리 채웠으면 그렇게 말한다', () => {
+    hooks.context = '02-000-0000';
+    expect(textOf(renderPrefill({ ...empty, phone: '070-1234-5678' }, false))).toBe('상품정보고시의 A/S 전화번호와는 따로 저장됩니다.');
+    hooks.refs = [];
+    expect(textOf(renderPrefill({ ...empty, phone: '02-000-0000' }, false))).toBe('상품정보고시의 A/S 연락처와 같은 번호입니다. 이 칸은 따로 저장됩니다.');
+    hooks.refs = [];
+    hooks.context = '';
+    expect(textOf(renderPrefill({ ...empty, phone: '070-1234-5678' }, false))).toBe('상품정보고시의 A/S 전화번호와는 따로 저장됩니다.');
+  });
+
+  it('긴 설명 문단 대신 칸 이름에 필수·선택을 밝히고 예시 글을 두며, 보이는 곳은 한 줄로 말한다', () => {
+    const tree = nodes(GoodsAfterSalesFields({ values: empty, onChange }));
+    const label = (field: string) => textOf(tree.find(node => node.props['data-goods-after-sales-field'] === field)!);
+    expect(label('phone')).toContain('A/S 전화번호 (필수)');
+    expect(label('guide')).toContain('A/S 안내 (필수)');
+    expect(label('seller-notes')).toContain('판매자 특이사항 (선택)');
+    expect(tree.find(node => node.type === 'textarea' && String(node.props.placeholder).startsWith('예: 접수 방법'))).toBeDefined();
+    expect(tree.filter(node => node.type === 'p').map(node => textOf(node))).toEqual(['A/S 안내와 판매자 특이사항은 상품 상세 하단에 보입니다.']);
+  });
+});

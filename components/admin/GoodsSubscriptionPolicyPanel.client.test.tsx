@@ -70,7 +70,7 @@ it('주기 선택이 없는 임시 입력은 보관하되 서버에 보내지 �
 it('CAS 충돌은 입력을 유지하고 최신본 채택을 명시적으로 분리한다', async () => {
   change({ message: '내 입력' }); mocks.save.mockResolvedValueOnce({ ok: false, conflict: true, error: '충돌', latest: { ...base, revision: 4, message: '동료 입력' } });
   click('정기배송 설정 저장'); await flush(); expect(all(render()).find(node => node.type === GoodsSubscriptionPolicyFields)!.props.value).toMatchObject({ message: '내 입력' });
-  click('내 입력 유지 · 최신 버전을 저장 기준으로'); click('정기배송 설정 저장'); await flush();
+  click('내 입력 유지하고 최신 저장본 기준으로 바꾸기'); click('정기배송 설정 저장'); await flush();
   expect(mocks.save.mock.calls[1][0]).toMatchObject({ expectedRevision: 4, message: '내 입력' });
 });
 it('저장은 확인되고 readback이 실패하면 새 저장을 잠그고 최신본 확인을 요구한다', async () => {

@@ -96,7 +96,7 @@ export function parseShippingSettingsTemplateForm(form: FormData) {
   let delivery: ShippingSettingsDelivery | null = { mode: 'preserve' };
   if (form.has('delivery')) {
     try { delivery = parseShippingSettingsDelivery(JSON.parse(String(form.get('delivery')))); } catch { delivery = null; }
-    if (!delivery) errors.delivery = '확장 배송비의 유지 또는 적용 설정을 확인해주세요.';
+    if (!delivery) errors.delivery = '수량별·착불 설정의 적용 방식(유지·변경)을 확인해주세요.';
   }
   let chargeGroup: ShippingSettingsChargeGroup | undefined;
   if (form.has('chargeGroup')) {

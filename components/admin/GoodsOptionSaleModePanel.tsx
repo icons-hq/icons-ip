@@ -108,16 +108,9 @@ export function GoodsOptionSaleModePanel({ goodId, revision, disabled = false }:
 
   const randomBlocked = Boolean(current && current.optionSaleMode !== 'random' && current.randomProblem);
 
+  /* 선택지마다 이름과 한 줄 설명을 카드로 보여 고르기 전에 차이를 알게 한다('글보다 화면' 2단계). 라디오·버튼·폼은 네이티브 그대로다. */
   return (
     <section className="flex min-w-0 flex-col gap-3 rounded-lg border p-4 text-sm" aria-label="판매 방식" data-good-option-sale-mode="">
-      <div className="flex flex-col gap-1">
-        <strong className="text-base leading-snug font-medium">판매 방식</strong>
-        <p className="text-sm text-muted-foreground">
-          랜덤 판매는 고객이 옵션을 고르지 않고 &apos;랜덤&apos;으로 주문합니다. 주문할 때 남은 재고에 비례해 옵션이 무작위로 정해지고,
-          주문 상세와 출고 파일에는 정해진 옵션이 보입니다. 고객의 상품·장바구니·주문·메일·리뷰에는 &apos;랜덤&apos;으로 보이고
-          옵션별 재고도 보이지 않습니다. 교환으로 다시 보내는 상품은 보내는 옵션이 고객에게 안내됩니다.
-        </p>
-      </div>
       {loadError && <p className="text-sm text-destructive" role="alert">{loadError}</p>}
       {!current && !loadError && <p className="text-sm text-muted-foreground" role="status">판매 방식을 불러오는 중입니다.</p>}
       {current && (
@@ -132,7 +125,10 @@ export function GoodsOptionSaleModePanel({ goodId, revision, disabled = false }:
                 checked={selected === 'select'}
                 onChange={() => setSelected('select')}
               />{' '}
-              옵션 선택 판매
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="font-medium">옵션 선택 판매</span>
+                <span className="text-xs text-muted-foreground">고객이 옵션을 직접 고릅니다.</span>
+              </span>
             </label>
             <label className={MODE_LABEL_CLASS}>
               <input
@@ -143,10 +139,19 @@ export function GoodsOptionSaleModePanel({ goodId, revision, disabled = false }:
                 disabled={randomBlocked}
                 onChange={() => setSelected('random')}
               />{' '}
-              랜덤 판매 (판매 중인 옵션 {current.activeOptionCount}개)
+              <span className="flex min-w-0 flex-col gap-0.5">
+                <span className="font-medium">랜덤 판매 (판매 중인 옵션 {current.activeOptionCount}개)</span>
+                <span className="text-xs text-muted-foreground">고객은 옵션을 고르지 않고, 주문할 때 남은 재고에 비례해 옵션이 무작위로 정해집니다.</span>
+              </span>
             </label>
             {randomBlocked && current.randomProblem && (
               <p className="text-sm text-[var(--wc-warning)]">{goodsOptionSaleModeErrorMessage(current.randomProblem)}</p>
+            )}
+            {selected === 'random' && (
+              <p className="text-xs text-muted-foreground" data-good-random-customer-view="">
+                주문 상세와 출고 파일에는 정해진 옵션이 보입니다. 고객의 상품·장바구니·주문·메일·리뷰에는 &apos;랜덤&apos;으로 보이고
+                옵션별 재고도 보이지 않습니다. 교환으로 다시 보내는 상품은 보내는 옵션이 고객에게 안내됩니다.
+              </p>
             )}
             <button type="submit" className={`${buttonVariants({ variant: 'outline' })} mt-1 self-start`} data-slot="button" disabled={!selected || selected === current.optionSaleMode}>
               {pending ? '바꾸는 중' : '판매 방식 저장'}

@@ -47,6 +47,7 @@ const BACKGROUND_READ_EXEMPT: Record<string, string> = {
   'app/admin/cs-draft-actions.ts:readCsReplySourceAction': '답변 초안 편집 중 현재 저장본을 읽는 백그라운드 읽기. 입력 중인 초안을 두고 오류만 보인다.',
   'app/admin/cs-draft-actions.ts:readCsReplyOperationAction': '답변 초안 편집 중 저장 결과를 읽는 백그라운드 읽기. 입력 중인 초안을 두고 오류만 보인다.',
   'app/admin/inquiry-file-actions.ts:loadInquiryFileLibraryAction': '상담 파일 보관함을 마운트 때 읽는 백그라운드 읽기. 상담 입력을 두고 오류만 보인다.',
+  'app/admin/goods-display-order-actions.ts:readGoodsDisplayOrderSlotAction': '진열 순서 칸에 번호를 적는 동안 useEffect로 부르는 번호 중복 확인(읽기 전용). 실패는 안내 생략(null)이고, 입력은 저장 액션의 가드가 이동시킨다.',
 };
 
 const sources = scanSources(['app/admin', 'lib/admin']).filter(({ text }) => isServerActionSource(text));

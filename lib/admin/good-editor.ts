@@ -4,14 +4,13 @@ import type { AdminGoodRecord } from './catalog.server';
 import type { AdminFormValuesState } from './form-state';
 import { preservedFormValues } from './form-state';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
-import { goodCompareAtPrice } from '@/lib/goods-options';
 import { GOODS_DETAIL_IMAGE_FIELD_NAMES, GOODS_GALLERY_MAX } from './catalog';
 import { DEFAULT_FULFILLMENT_ORIGIN_ID } from './fulfillment-origins';
 import { GOODS_CLAIM_POLICY_FIELDS } from './goods-claim-policy';
 import { GOODS_SALE_POLICY_FIELDS } from './goods-sale-policy';
 import type { AdminGoodsVariant } from './goods-variants';
 import { initialGoodsOptionRows, restoreGoodsOptionRows } from './goods-option-editor';
-import { GOODS_PRICE_DRAFT_FIELDS } from './goods-price-editor';
+import { GOODS_PRICE_DRAFT_FIELDS, goodsPriceDraftFromValues, resolveGoodsPrice, type GoodsPriceDraft } from './goods-price-editor';
 import { publicMediaUrl } from '@/lib/media';
 import { buildGoodPreview } from './good-preview';
 import type { Ip } from '@/lib/data';
@@ -116,11 +115,18 @@ export function goodEditorFingerprint(data: FormData): string {
 }
 
 /** All public projections use the same unsaved values, including delivery and comparison price. */
-export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps, origins, returnAddresses = [], shippingNoticeOptions }: {
+export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps, origins, returnAddresses = [], shippingNoticeOptions, priceDraft, now }: {
   values: Record<string, string>; imageUrls: Record<string, string | null>; selected: AdminGoodRecord | null;
   catalogIps: Ip[]; origins: GoodsFulfillmentOrigin[]; shippingNoticeOptions: Omit<ShippingNoticeSnapshot, 'templateId'>[];
   /** 반품/교환지 주소록(S36-040). 고른 반품지가 있으면 공개 상세처럼 그 주소를 회수 주소로 보인다. */
   returnAddresses?: readonly ReturnAddressOption[];
+  /**
+   * 화면의 판매가·할인 입력. 특정기간만 할인은 폼의 `price`가 판매가 그대로라 `values`만으로는 보이지 않으므로 여기서 기간을 읽는다.
+   * 없으면 `values`에 화면 입력 칸이 있을 때 그 값으로 읽는다.
+   */
+  priceDraft?: GoodsPriceDraft;
+  /** 기간 할인이 지금 걸려 있는지 가릴 때 쓰는 현재 시각(ms). 시험에서 고정한다. */
+  now?: number;
 }) {
   const origin = origins.find(origin => origin.id === values.originId);
   const savedNotice = selected?.shippingNoticeSnapshot;
@@ -140,21 +146,21 @@ export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps
       cs: { name: notice.csName, phone: notice.csPhone, email: notice.csEmail } } : {}),
   } : null;
   const ip = catalogIps.find(ip => ip.id === values.ipId) ?? null;
+  /* 즉시할인은 폼의 price·compareAtPrice로 이미 정해진다. 특정기간만 할인만 화면 입력에서 기간·금액을 따로 읽는다. */
+  const draft = priceDraft ?? (values.regularPrice === undefined ? null : goodsPriceDraftFromValues(values));
+  const pricePeriod = draft ? resolveGoodsPrice(draft, now).period : null;
   /* S36-051: 랜덤 판매 상품은 공개 상세처럼 옵션을 '랜덤' 한 줄로 접고 랜덤 안내를 보인다. 판매 방식은 저장된 값이다(별도 저장 패널). */
   const preview = buildGoodPreview({ fallbackBg: selected?.bg ?? null, imageUrls, ip, stockQty: selected?.stockQty ?? 0, values, kcDisclosures:selected?.kcDisclosures,
     /* 기타 인증(SHEET-014)도 고객 상세처럼 저장된 공개 사본을 싣는다(KC 고지와 같은 규칙 — 저장 전 입력은 싣지 않는다). */
     otherCertifications: selected?.otherCertifications,
-    optionSaleMode: selected?.optionSaleMode === 'random' ? 'random' : 'select' });
-  const basePrice = preview.good.catalogPrice ?? preview.good.price;
-  const compare = Number(values.compareAtPrice);
-  const compareAtPrice = Number.isInteger(compare) && compare > basePrice ? compare : null;
+    optionSaleMode: selected?.optionSaleMode === 'random' ? 'random' : 'select',
+    pricePeriod, ...(now === undefined ? {} : { now }) });
   const customInputDraft = readAdminGoodsCustomInputs(form);
   const customInputs = customInputDraft.ok ? parseGoodsCustomInputConfig({
     ...(customInputDraft.fields.custom_inputs as object | undefined),
     revision: Math.max(1, Number(values.customInputsExpectedRevision) || 0),
   }) : null;
-  const detail = { ...preview, good: { ...preview.good, showDiscountRate: values.showDiscountRate !== 'false',
-    customInputs: customInputs ?? EMPTY_GOODS_CUSTOM_INPUTS, salePeriod: goodsSalePeriodPreview(values),
-    catalogCompareAtPrice: compareAtPrice, compareAtPrice: goodCompareAtPrice({ price: basePrice, compareAtPrice }, preview.good.options) } };
+  const detail = { ...preview, good: { ...preview.good,
+    customInputs: customInputs ?? EMPTY_GOODS_CUSTOM_INPUTS, salePeriod: goodsSalePeriodPreview(values) } };
   return { origin, ip, detail, shippingPolicy };
 }

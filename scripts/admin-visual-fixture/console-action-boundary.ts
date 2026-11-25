@@ -22,7 +22,17 @@ export async function setGoodsDraftArchivedAction() { return { error }; }
 
 // New client surfaces must fail locally instead of importing their server graph.
 async function unavailableAction() { return { ok: false as const, error, errors: { form: error }, uncertain: false }; }
-export const searchGoodsOptionImportAction = unavailableAction;
+/** 공용 상품 선택창(고시 복사·복사등록·옵션 불러오기)의 합성 목록. 검색어가 상품명·상품 자동코드에 든 줄만 돌려준다. */
+const fixturePickerGoods = [
+  { id: 'fixture-picker-keyring', code: 'FIX-0001', name: '합성 키링', categoryName: '문구', imageUrl: null, published: true },
+  { id: 'fixture-picker-sticker', code: 'FIX-0002', name: '합성 스티커', categoryName: '선물', imageUrl: null, published: false },
+];
+export async function searchGoodsOptionImportAction(input: unknown) {
+  const query = input && typeof input === 'object' && typeof (input as { query?: unknown }).query === 'string' ? (input as { query: string }).query.trim() : '';
+  const rows = fixturePickerGoods.filter((good) => !query || good.name.includes(query) || good.code.includes(query));
+  /* 편집기 fixture의 accountId('fixture-operator')와 같아야 선택창이 응답을 받는다. */
+  return { ok: true as const, accountId: 'fixture-operator', data: { rows, total: rows.length, page: 1, pageSize: 20 as const } };
+}
 export const readGoodsOptionImportAction = unavailableAction;
 export async function readGoodsAttributesAction(categoryId: string | null, goodId: string | null = null) {
   if (categoryId !== null && !/^00000000-0000-4000-8000-00000005112[0-2]$/.test(categoryId)

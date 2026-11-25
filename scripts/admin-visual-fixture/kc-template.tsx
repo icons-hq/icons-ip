@@ -61,7 +61,7 @@ function KcTemplateFixtureForm({ selected, onNavigate }: {
     <GoodEditor accountId="fixture-kc-509" action={action} pending={pending} state={state} selected={selected} initialIpId={ip.id}
       onApplyKcTemplate={template.apply} catalogIps={[ip]} ipOptions={[{ id: ip.id, title: ip.title, archivedAt: null }]}
       variants={[]} origins={[]} categories={[]} shippingNoticeOptions={[]} regionSummaries={[]} />
-    {selected ? <section aria-label="합성 KC 검토 영역"><h3>KC 자료·검토</h3><GoodsKcPanel key={selected.id} goodId={selected.id}
+    {selected ? <section aria-label="합성 KC 검토 영역"><h3>KC 정보</h3><GoodsKcPanel key={selected.id} goodId={selected.id}
       templateRequest={template.request} onTemplateApplied={template.consume}/></section> : null}
   </section>;
 }

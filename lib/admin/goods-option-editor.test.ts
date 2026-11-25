@@ -4,6 +4,8 @@ import {
   initialGoodsOptionRows, isSingleGoodsOption, parseGoodsOptionBulkEdit, parseGoodsOptionRows, removeGoodsOptionRows, restoreGoodsOptionRows,
   inheritRandomOptionLimits, predictGoodsOptionCodes, selectErpItemForGoodsOption, type GoodsOptionRow,
   emptyNewGoodsOptionStock, goodsOptionRowsForImport, goodsOptionStockMissing, shouldAutoFillErpSalePrice, GOODS_OPTION_STOCK_REQUIRED,
+  goodsOptionGenerationLabel, goodsOptionGenerationNotice, goodsOptionGenerationSummary, goodsOptionPreviousSingleStock, goodsOptionRemovalNotice,
+  previewGoodsOptionGeneration, GOODS_OPTION_REMOVAL_NOTE, GOODS_OPTION_STOP_PANEL_TITLE,
 } from './goods-option-editor';
 import { planGoodsOptionImport } from './goods-option-import';
 describe('goods option editing', () => {
@@ -161,23 +163,40 @@ describe('옵션목록 선택·일괄수정·재고 합계', () => {
     expect(parseGoodsOptionBulkEdit({ extraPrice: '', stockQty: '1.5', isActive: '' })).toMatchObject({ ok: false });
   });
 
-  it('선택삭제는 한 개 이상 남기고, 옵션 사용 해제는 첫 행의 식별자를 유지한다', () => {
+  it('선택삭제는 한 개 이상 남기고, 옵션 없음으로 바꾸면 첫 행의 식별자를 유지한다', () => {
     expect(removeGoodsOptionRows(rows, new Set([goodsOptionRowKey(fresh)]))).toEqual({ ok: true, rows: [saved, stopped] });
-    expect(removeGoodsOptionRows(rows, new Set(rows.map(goodsOptionRowKey)))).toMatchObject({ ok: false });
+    /* 모두 빼려는 운영자에게는 옵션 없이 파는 방법을 화면에 적힌 이름('옵션 없음')으로 알린다. */
+    expect(removeGoodsOptionRows(rows, new Set(rows.map(goodsOptionRowKey)))).toEqual({ ok: false, error: "옵션은 1개 이상 남아야 합니다. 옵션 없이 팔려면 위에서 '옵션 없음'을 골라주세요." });
     expect(removeGoodsOptionRows(rows, new Set())).toMatchObject({ ok: false });
     expect(collapseGoodsOptionRows(rows)).toEqual([{ ...saved, attributes: {} }]);
   });
 
   /* 2026-10-07 리뷰: 옵션 미사용 화면에는 옵션목록의 사용여부 칸이 없어, 중지된 첫 옵션을 남기면 되돌릴 수 없었다. */
-  it('옵션 사용 해제는 남는 첫 옵션을 사용으로 바꾸고, 확인 문구에 그 사실과 빠지는 옵션 수를 적는다', () => {
+  it('옵션 없음으로 바꾸면 남는 첫 옵션을 사용으로 바꾸고, 확인 문구에 그 사실과 빠지는 옵션의 수·이름을 적는다', () => {
     expect(collapseGoodsOptionRows([stopped, saved])).toEqual([{ ...stopped, attributes: {}, isActive: true }]);
     const stoppedNotice = goodsOptionCollapseNotice([stopped, saved, fresh]);
-    expect(stoppedNotice).toContain('첫 옵션(노랑)');
-    expect(stoppedNotice).toContain('사용 중지 상태라 사용으로 바꿉니다');
-    expect(stoppedNotice).toContain('나머지 옵션 2개');
+    expect(stoppedNotice).toContain("'옵션 없음'으로 바꾸면 첫 옵션(노랑)만 옵션값 없이 남습니다.");
+    expect(stoppedNotice).toContain('첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 추가 설정의 판매상태를 판매 중지로 바꿔주세요.');
+    expect(stoppedNotice).toContain('나머지 옵션 2개(빨강, 파랑)는 목록에서 빠지고 재고 입력도 사라집니다.');
+    /* 저장된 옵션이 빠지면 상품을 저장할 때 일어나는 일(사용 중지로 남거나 지워짐)까지 말한다. */
+    expect(stoppedNotice).toContain(GOODS_OPTION_REMOVAL_NOTE);
     const activeNotice = goodsOptionCollapseNotice([saved, fresh]);
-    expect(activeNotice).not.toContain('사용 중지');
-    expect(activeNotice).toContain('나머지 옵션 1개');
+    expect(activeNotice).not.toContain('사용 중지 상태라');
+    expect(activeNotice).toContain('나머지 옵션 1개(파랑)');
+    /* 아직 저장한 적 없는 줄만 빠지면 저장 때 달라지는 것이 없어 그 설명은 붙이지 않는다. */
+    expect(activeNotice).not.toContain(GOODS_OPTION_REMOVAL_NOTE);
+    /* 같은 상태·같은 대상은 한 이름이다(규칙 4): 설정안함·보관·기본 옵션으로 부르지 않는다. */
+    for (const mixed of ['설정안함', '보관', '기본 옵션']) expect(stoppedNotice, mixed).not.toContain(mixed);
+  });
+
+  /* 규칙 7: 저장된 옵션을 뺄 때만 무엇이 일어나는지 말하고 확인받는다. 새 줄은 묻지 않는다. */
+  it('삭제 확인 문구는 저장된 옵션을 뺄 때만 있고, 빠지는 옵션의 이름과 저장 때 일어나는 일을 말한다', () => {
+    expect(goodsOptionRemovalNotice([fresh])).toBeNull();
+    expect(goodsOptionRemovalNotice([])).toBeNull();
+    expect(goodsOptionRemovalNotice([saved])).toBe(`옵션(빨강)을 목록에서 뺍니다. ${GOODS_OPTION_REMOVAL_NOTE}`);
+    expect(goodsOptionRemovalNotice([saved, fresh, stopped])).toBe(`옵션 3개(빨강, 파랑, 노랑)를 목록에서 뺍니다. ${GOODS_OPTION_REMOVAL_NOTE}`);
+    expect(GOODS_OPTION_REMOVAL_NOTE).toBe('주문·장바구니에 쓰인 옵션은 지워지지 않고 사용 중지로 남고, 한 번도 주문되지 않은 옵션은 재고와 함께 지워집니다. 상품을 저장해야 반영됩니다.');
+    expect(GOODS_OPTION_STOP_PANEL_TITLE).toBe('옵션 사용 중지·다시 사용');
   });
 
   it('ERP 품목 선택은 품명·품번을 덮어쓰고 비어 있는 바코드만 채운다', () => {
@@ -217,6 +236,107 @@ describe('옵션목록 선택·일괄수정·재고 합계', () => {
         .toEqual({ ok: true, row: applyErpItemToGoodsOption(blue, item) });
       expect(selectErpItemForGoodsOption([red], 'missing', item)).toMatchObject({ ok: false });
     });
+  });
+});
+
+/*
+ * 2026-11-25 상품등록 UX: 재고 1000을 넣고 옵션을 만들면 옵션 없이 넣은 재고 한 줄이 경고 없이 빠졌고, [옵션목록으로 적용]은
+ * 옵션명을 한 글자만 고쳐도 모든 줄을 새로 만들면서 확인하지 않았다. 적는 동안 결과를 보이고, 빠지는 것이 있을 때만 확인한다.
+ */
+describe('옵션 만들기 미리보기와 확인', () => {
+  const RED = '11111111-1111-4111-8111-111111111111';
+  const single = (changes: Partial<GoodsOptionRow> = {}): GoodsOptionRow => ({ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: Number.NaN, ...changes });
+  const option = (color: string, changes: Partial<GoodsOptionRow> = {}): GoodsOptionRow => ({ name: color, code: '', attributes: { 색상: color }, extraPrice: 0, stockQty: 3, ...changes });
+  const axes = (...pairs: [string, string][]) => Array.from({ length: 3 }, (_, index) => ({ name: pairs[index]?.[0] ?? '', values: pairs[index]?.[1] ?? '' }));
+  const ready = (preview: ReturnType<typeof previewGoodsOptionGeneration>) => { if (preview.state !== 'ready') throw new Error(`not ready: ${preview.state}`); return preview; };
+
+  it('옵션값을 적는 동안 몇 개가 만들어지는지 보이고 버튼 이름이 그 결과다', () => {
+    const preview = ready(previewGoodsOptionGeneration(axes(['색상', '빨강, 파랑, 빨강'], ['사이즈', 'S, M, L']), [single()]));
+    expect(preview).toMatchObject({ count: 6, formula: '색상 2 × 사이즈 3', kept: 0, added: 6, fromSingle: true });
+    expect(preview.rows.map((row) => row.name)).toEqual(['빨강 / S', '빨강 / M', '빨강 / L', '파랑 / S', '파랑 / M', '파랑 / L']);
+    expect(goodsOptionGenerationSummary(preview)).toBe('옵션 6개가 만들어집니다(색상 2 × 사이즈 3).');
+    expect(goodsOptionGenerationLabel(preview)).toBe('옵션 6개 만들기');
+  });
+
+  it('아직 적지 않았거나 덜 적었으면 만들 수 없고 무엇을 더 적을지 알린다', () => {
+    const empty = previewGoodsOptionGeneration(axes(), [single()]);
+    expect(empty).toEqual({ state: 'empty' });
+    expect(goodsOptionGenerationSummary(empty)).toBeNull();
+    expect(goodsOptionGenerationLabel(empty)).toBe('옵션 만들기');
+    const reason = (...pairs: [string, string][]) => goodsOptionGenerationSummary(previewGoodsOptionGeneration(axes(...pairs), [single()]));
+    expect(reason(['색상', ''])).toBe('옵션값 1을 적어 주세요.');
+    expect(reason(['', '빨강'])).toBe('옵션명 1을 적어 주세요.');
+    expect(reason(['색상', '빨강'], ['사이즈', ''])).toBe('옵션값 2를 적어 주세요.');
+    expect(reason(['색상', '빨강'], ['', ''], ['', '기본'])).toBe('옵션명 3을 적어 주세요.');
+    expect(reason(['색상', '빨강'], ['색상', 'S'])).toBe('옵션명이 겹칩니다. 서로 다른 이름으로 적어 주세요.');
+    expect(reason(['가'.repeat(41), '빨강'])).toBe('옵션명 1은 40자까지 적을 수 있습니다.');
+    expect(reason(['색상', '나'.repeat(81)])).toBe('옵션값 1은 하나에 80자까지 적을 수 있습니다.');
+    expect(goodsOptionGenerationLabel(previewGoodsOptionGeneration(axes(['색상', '']), [single()]))).toBe('옵션 만들기');
+  });
+
+  it('100개를 넘으면 지금 개수를 알리고 만들 수 없다', () => {
+    const values = Array.from({ length: 11 }, (_, index) => `값${index}`).join(',');
+    const over = previewGoodsOptionGeneration(axes(['색상', values], ['사이즈', values]), [single()]);
+    expect(over).toEqual({ state: 'over', count: 121, formula: '색상 11 × 사이즈 11' });
+    expect(goodsOptionGenerationSummary(over)).toBe('옵션은 100개까지 만들 수 있습니다. 지금 121개입니다(색상 11 × 사이즈 11).');
+    expect(goodsOptionGenerationLabel(over)).toBe('옵션 만들기');
+    expect(goodsOptionGenerationNotice(over)).toBeNull();
+    const limit = Array.from({ length: 100 }, (_, index) => `값${index}`).join(',');
+    expect(previewGoodsOptionGeneration(axes(['색상', limit]), [single()])).toMatchObject({ state: 'ready', count: 100 });
+  });
+
+  it('지금 옵션목록과 같으면 바뀐 내용 없음이고, 순서만 다른 목록도 다시 만들지 않는다', () => {
+    const rows = [option('빨강', { id: RED, expectedStockQty: 3 }), option('파랑')];
+    const same = previewGoodsOptionGeneration(axes(['색상', '파랑, 빨강']), rows);
+    expect(same).toEqual({ state: 'same', count: 2, formula: '색상 2' });
+    expect(goodsOptionGenerationLabel(same)).toBe('바뀐 내용 없음');
+    expect(goodsOptionGenerationSummary(same)).toBe('지금 옵션목록과 같습니다(색상 2).');
+  });
+
+  it('옵션 없음에서 재고를 넣어 둔 채 옵션을 만들면 그 재고가 나눠지지 않는다고 확인하고 이전 수량을 남긴다', () => {
+    const preview = ready(previewGoodsOptionGeneration(axes(['색상', '빨강, 파랑']), [single({ stockQty: 1000 })]));
+    expect(goodsOptionGenerationNotice(preview)).toBe('입력한 재고수량 1,000개는 옵션별 재고로 나눠지지 않습니다. 옵션마다 재고를 다시 넣어야 합니다.');
+    expect(goodsOptionPreviousSingleStock(preview)).toBe(1000);
+    /* 새 옵션의 재고 칸은 비어 있다 — 조용히 0으로 저장되지 않는다(0901-015). */
+    expect(preview.rows.every((row) => Number.isNaN(row.stockQty))).toBe(true);
+    const withCodes = ready(previewGoodsOptionGeneration(axes(['색상', '빨강']), [single({ stockQty: 5, erpCode: '000123', barcode: '0880', lowStockThreshold: 0 })]));
+    expect(goodsOptionGenerationNotice(withCodes)).toBe('입력한 재고수량 5개는 옵션별 재고로 나눠지지 않습니다. 옵션마다 재고를 다시 넣어야 합니다. 적어 둔 ERP 코드·바코드·안전재고도 새 옵션으로 넘어가지 않습니다. 옵션마다 다시 넣어야 합니다.');
+    const codesOnly = ready(previewGoodsOptionGeneration(axes(['색상', '빨강']), [single({ stockQty: 0, erpName: 'ERP 품명' })]));
+    expect(goodsOptionGenerationNotice(codesOnly)).toBe('적어 둔 ERP 품명도 새 옵션으로 넘어가지 않습니다. 옵션마다 다시 넣어야 합니다.');
+    expect(goodsOptionPreviousSingleStock(codesOnly)).toBeNull();
+  });
+
+  it('잃을 입력이 없으면 묻지 않는다(브레이크를 늘리지 않는다)', () => {
+    for (const stockQty of [Number.NaN, 0]) {
+      const preview = ready(previewGoodsOptionGeneration(axes(['색상', '빨강, 파랑']), [single({ stockQty })]));
+      expect(goodsOptionGenerationNotice(preview)).toBeNull();
+      expect(goodsOptionPreviousSingleStock(preview)).toBeNull();
+    }
+    /* 옵션값을 더하기만 하면 지금 옵션은 모두 남는다. */
+    const rows = [option('빨강', { id: RED, expectedStockQty: 3 }), option('파랑')];
+    const added = ready(previewGoodsOptionGeneration(axes(['색상', '빨강, 파랑, 초록']), rows));
+    expect(added).toMatchObject({ kept: 2, added: 1, removed: [], fromSingle: false });
+    expect(added.rows[0]).toBe(rows[0]);
+    expect(goodsOptionGenerationNotice(added)).toBeNull();
+    expect(goodsOptionGenerationSummary(added)).toBe('옵션이 3개가 됩니다(색상 3) · 그대로 2개 · 새로 1개');
+    expect(goodsOptionGenerationLabel(added)).toBe('옵션 3개로 바꾸기');
+    expect(goodsOptionPreviousSingleStock(added)).toBeNull();
+  });
+
+  it('지금 옵션이 목록에서 빠지면 몇 개가 빠지고 생기는지와 빠지는 옵션의 이름을 확인받는다', () => {
+    const unsaved = [option('빨강'), option('파랑')];
+    const dropped = ready(previewGoodsOptionGeneration(axes(['색상', '빨강, 초록']), unsaved));
+    expect(dropped).toMatchObject({ kept: 1, added: 1, removed: [unsaved[1]] });
+    expect(goodsOptionGenerationSummary(dropped)).toBe('옵션이 2개가 됩니다(색상 2) · 그대로 1개 · 새로 1개 · 빠짐 1개');
+    expect(goodsOptionGenerationNotice(dropped)).toBe('지금 옵션 2개 중 1개가 목록에서 빠지고 새 옵션 1개가 생깁니다. 빠지는 옵션의 재고 입력도 사라집니다. 빠지는 옵션: 파랑.');
+    /* 옵션값을 줄이기만 하면 새 옵션은 없다. */
+    const fewer = ready(previewGoodsOptionGeneration(axes(['색상', '빨강']), unsaved));
+    expect(goodsOptionGenerationNotice(fewer)).toBe('지금 옵션 2개 중 1개가 목록에서 빠집니다. 빠지는 옵션의 재고 입력도 사라집니다. 빠지는 옵션: 파랑.');
+    /* 옵션명을 한 글자만 고쳐도 옵션값 조합이 달라져 모두 새 옵션이다. 저장된 옵션이 빠지면 저장 때 일어나는 일까지 말한다. */
+    const saved = [option('빨강', { id: RED, expectedStockQty: 3 }), option('파랑'), option('초록'), option('노랑'), option('보라')];
+    const renamed = ready(previewGoodsOptionGeneration(axes(['색', '빨강, 파랑']), saved));
+    expect(renamed).toMatchObject({ kept: 0, added: 2 });
+    expect(goodsOptionGenerationNotice(renamed)).toBe(`지금 옵션 5개 중 5개가 목록에서 빠지고 새 옵션 2개가 생깁니다. 빠지는 옵션의 재고 입력도 사라집니다. 빠지는 옵션: 빨강, 파랑, 초록 외 2개. ${GOODS_OPTION_REMOVAL_NOTE}`);
   });
 });
 

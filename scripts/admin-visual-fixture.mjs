@@ -185,7 +185,7 @@ const server = await createServer({
       { find: /^@\/app\/admin\/curation-actions$/, replacement: `${fixtureRoot}/store-actions.ts` },
       { find: /^@\/app\/login\/actions$/, replacement: `${fixtureRoot}/login-actions.ts` },
       { find: /^\.\.\/\.\.\/lib\/admin\/artwork-upload\.client$/, replacement: `${fixtureRoot}/artwork-upload.ts` },
-      { find: /^@\/app\/admin\/(goods-identifier|good-notice|artwork)-actions$/, replacement: `${fixtureRoot}/editor-actions.ts` },
+      { find: /^@\/app\/admin\/(goods-identifier|good-notice|artwork|goods-display-order)-actions$/, replacement: `${fixtureRoot}/editor-actions.ts` },
       { find: /^@\/app\/admin\/store-settings-actions$/, replacement: `${fixtureRoot}/store-settings-actions.ts` },
       { find: /^@\/app\/admin\/(qna|review|inquiry|customer|inquiry-reply-template)-actions$/, replacement: `${fixtureRoot}/cs-actions.ts` },
       { find: /^@\/app\/shipments\/receipt-actions$/, replacement: `${fixtureRoot}/cs-actions.ts` },

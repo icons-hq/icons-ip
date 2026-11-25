@@ -3,6 +3,7 @@ const mocks = vi.hoisted(() => ({ access: vi.fn(), search: vi.fn(), read: vi.fn(
 vi.mock('@/lib/admin/action-access.server', () => ({ requireAdminActionAccess: mocks.access }));
 vi.mock('@/lib/admin/goods-option-import.server', () => ({ searchGoodsOptionImportSources: mocks.search, readGoodsOptionImportSource: mocks.read }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
+import { GoodsOptionImportError } from '@/lib/admin/goods-option-import';
 import { readGoodsOptionImportAction, searchGoodsOptionImportAction } from './goods-option-import-actions';
 beforeEach(() => { vi.clearAllMocks(); mocks.access.mockResolvedValue({ user: { id: 'operator' } }); });
 it('쓰기 권한 경계를 통과한 뒤 읽으며 잘못된 대상과 자기 자신을 거부한다', async () => {
@@ -18,4 +19,23 @@ it('응답을 현재 계정과 선택한 원본/대상에 묶고 서버 진단�
   expect(mocks.read).toHaveBeenCalledWith('source', null);
   mocks.read.mockRejectedValueOnce(new Error('internal secret token'));
   expect(await readGoodsOptionImportAction({ sourceId: 'source', targetId: 'target' })).toEqual({ ok: false, error: '상품과 옵션을 불러오지 못했습니다. 현재 입력은 유지됩니다.' });
+  /* 같은 문구라도 일반 오류로 오면 내보내지 않는다. 원인을 담아 던진 불러오기 오류만 그대로 보인다. */
+  mocks.read.mockRejectedValueOnce(new Error('이 상품에는 내부 진단'));
+  expect(await readGoodsOptionImportAction({ sourceId: 'source', targetId: null })).toEqual({ ok: false, error: '상품과 옵션을 불러오지 못했습니다. 현재 입력은 유지됩니다.' });
+  const reason = '이 상품은 옵션 없이 파는 상품이라 불러올 옵션이 없습니다. 다른 상품을 골라 주세요.';
+  mocks.read.mockRejectedValueOnce(new GoodsOptionImportError(reason));
+  expect(await readGoodsOptionImportAction({ sourceId: 'source', targetId: null })).toEqual({ ok: false, error: reason });
+});
+/* 이 검색은 공용 상품 선택창·복사등록도 쓴다. 기존 입력({ query, field, categoryId, page })은 그대로 받고, 옵션 원본 조건은 선택 인자다. */
+it('기존 검색 입력은 그대로 넘기고, 옵션 원본 조건은 줄 때만 더한다', async () => {
+  mocks.search.mockResolvedValue({ rows: [], total: 0, page: 1, pageSize: 20 });
+  expect(await searchGoodsOptionImportAction({ query: ' 키링 ', field: 'code', categoryId: '', page: 2 })).toEqual({ ok: true, accountId: 'operator', data: { rows: [], total: 0, page: 1, pageSize: 20 } });
+  expect(mocks.search).toHaveBeenLastCalledWith({ query: '키링', field: 'code', categoryId: '', page: 2 });
+  expect(Object.keys(mocks.search.mock.calls[0][0]).sort()).toEqual(['categoryId', 'field', 'page', 'query']);
+  await searchGoodsOptionImportAction({ query: '', field: 'name', categoryId: '', page: 1, optionSourcesOnly: true, excludeGoodId: 'target' });
+  expect(mocks.search).toHaveBeenLastCalledWith({ query: '', field: 'name', categoryId: '', page: 1, optionSourcesOnly: true, excludeGoodId: 'target' });
+  for (const invalid of [{ optionSourcesOnly: 'yes' }, { optionSourcesOnly: true, excludeGoodId: '../etc' }]) {
+    expect(await searchGoodsOptionImportAction({ query: '', field: 'name', categoryId: '', page: 1, ...invalid })).toEqual({ ok: false, error: '상품 검색 조건을 확인해주세요.' });
+  }
+  expect(mocks.search).toHaveBeenCalledTimes(2);
 });

@@ -3,9 +3,9 @@
 import { useEffect, useId, useMemo, useState, useSyncExternalStore } from 'react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { useAdminLeaveGuard } from './useAdminLeaveGuard';
-import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
-import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TABLE_FRAME_CLASS } from './GoodEditorParts';
+import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TABLE_FRAME_CLASS, GoodChoiceGroup, GoodChoiceOption } from './GoodEditorParts';
+import { GOOD_FIELDS_B_HELP } from '@/lib/admin/help/good-fields-b';
 import { readGoodsSubscriptionPolicyAction, saveGoodsSubscriptionPolicyAction } from '@/app/admin/goods-subscription-policy-actions';
 import { createAdminLocalAutosave, EMPTY_LOCAL_AUTOSAVE_SNAPSHOT } from '@/lib/admin/local-autosave';
 import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-tools';
@@ -26,25 +26,26 @@ const RETRY_NOTE_CLASS = 'flex flex-col items-start gap-2 rounded-lg border bord
 const COMPARE_CELL_CLASS = 'px-3 py-2 align-top whitespace-normal wrap-anywhere';
 
 export function GoodsSubscriptionPolicyFields({ value, onChange }: { value: GoodsSubscriptionDraft; onChange: (next: GoodsSubscriptionDraft) => void }) {
-  const enabledId = useId();
+  const name = useId();
+  /* 사용 안 함이면 주기·안내 입력은 닫는다. 주기를 모두 지운 입력은 저장 때 막히므로 그때는 닫지 않아 막힌 칸이 보이게 한다. */
+  const open = value.enabled || !value.intervals.length;
   return <div className="flex min-w-0 flex-col gap-4">
-    {/* NativeSelect는 div로 감싸므로 라벨로 감싸지 않고 htmlFor로 잇는다. */}
-    <div className="flex min-w-0 flex-col gap-2 sm:max-w-xs">
-      <label className="text-sm font-medium text-foreground" htmlFor={enabledId}>정기배송 판매 설정</label>
-      <NativeSelect className="w-full" id={enabledId} value={value.enabled ? 'enabled' : 'disabled'} onChange={event => onChange({ ...value, enabled: event.target.value === 'enabled' })}>
-        <option value="disabled">사용 안 함</option><option value="enabled">사용</option>
-      </NativeSelect>
-    </div>
-    <fieldset className="m-0 min-w-0 border-0 p-0"><legend className="float-left mb-2 w-full p-0 text-sm font-medium text-foreground">고객이 선택할 수 있는 주기</legend>
-      <div className="clear-both flex flex-wrap gap-x-5 gap-y-1">{GOODS_SUBSCRIPTION_INTERVALS.map(interval => <label key={interval} className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm">
-        <input type="checkbox" checked={value.intervals.includes(interval)} onChange={event => onChange({ ...value,
-          intervals: event.target.checked ? [...value.intervals, interval] : value.intervals.filter(item => item !== interval) })} />
-        {GOODS_SUBSCRIPTION_INTERVAL_LABELS[interval]}
-      </label>)}</div>
-    </fieldset>
-    <label className="flex min-w-0 flex-col gap-2 text-sm font-medium text-foreground">정기배송 안내 문구<input className={GOOD_INPUT_CLASS} data-slot="input" value={value.message} maxLength={500} onChange={event => onChange({ ...value, message: event.target.value })}
-      placeholder="예: 선택한 주기에 맞춰 정기적으로 배송해 드려요." /></label>
-    <p className="text-sm text-muted-foreground">첫 회차와 다음 회차의 결제 금액·주기를 신청 화면에서 구분해 안내합니다. 이후 가격이나 배송 조건이 바뀌면 고객이 다시 확인한 뒤 결제합니다.</p>
+    <GoodChoiceGroup legend="정기배송 판매" help={GOOD_FIELDS_B_HELP.subscription}>
+      <GoodChoiceOption name={`${name}-enabled`} checked={!value.enabled} onChange={() => onChange({ ...value, enabled: false })}>사용 안 함</GoodChoiceOption>
+      <GoodChoiceOption name={`${name}-enabled`} checked={value.enabled} onChange={() => onChange({ ...value, enabled: true })}>사용</GoodChoiceOption>
+    </GoodChoiceGroup>
+    {value.enabled ? <p className="-mt-2 text-xs text-muted-foreground" data-good-subscription-gate="">켜도 카드 자동결제 연결과 서비스 공개 준비가 끝나기 전에는 고객 화면에 신청 버튼이 보이지 않습니다.</p> : null}
+    {open ? <>
+      <fieldset className="m-0 min-w-0 border-0 p-0"><legend className="float-left mb-2 w-full p-0 text-sm font-medium text-foreground">고객이 고를 수 있는 주기</legend>
+        <div className="clear-both flex flex-wrap gap-x-5 gap-y-1">{GOODS_SUBSCRIPTION_INTERVALS.map(interval => <label key={interval} className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm">
+          <input type="checkbox" checked={value.intervals.includes(interval)} onChange={event => onChange({ ...value,
+            intervals: event.target.checked ? [...value.intervals, interval] : value.intervals.filter(item => item !== interval) })} />
+          {GOODS_SUBSCRIPTION_INTERVAL_LABELS[interval]}
+        </label>)}</div>
+      </fieldset>
+      <label className="flex min-w-0 flex-col gap-2 text-sm font-medium text-foreground">정기배송 안내 문구 (선택)<input className={GOOD_INPUT_CLASS} data-slot="input" value={value.message} maxLength={500} onChange={event => onChange({ ...value, message: event.target.value })}
+        placeholder="예: 선택한 주기에 맞춰 정기적으로 배송해 드려요." /></label>
+    </> : null}
   </div>;
 }
 
@@ -169,7 +170,6 @@ export function GoodsSubscriptionPolicyPanel({ goodId, accountId, disabledReason
   return <div className="flex min-w-0 flex-col gap-4" data-goods-subscription-policy="" onKeyDown={event => {
     if (event.key === 'Enter' && event.target instanceof HTMLInputElement && event.target.type !== 'checkbox') event.preventDefault();
   }}>
-    <p className="text-sm text-muted-foreground">상품별 정기배송 주기와 안내를 저장합니다. 카드 자동결제 연결과 서비스 공개 준비가 완료된 상품만 고객에게 신청 버튼이 표시됩니다.</p>
     {!auth.ready ? <p className="text-sm text-muted-foreground" role="status">로그인 상태를 확인하는 중입니다…</p> : auth.blocked ? <p className="text-sm text-destructive" role="alert">로그인한 계정이 바뀌었거나 다시 로그인했습니다. 지금 계정으로 상품 화면을 새로고침해주세요.</p> : <>
       {ui?.error && <p className="text-sm text-destructive" role="alert">{ui.error}</p>}{ui?.message && <p className="text-sm font-medium" role="status">{ui.message}</p>}
       {stored.unavailable && <p className="text-sm text-muted-foreground" role="status">입력 임시저장을 사용할 수 없습니다. 화면을 나가기 전에 저장해주세요.</p>}
@@ -183,13 +183,13 @@ export function GoodsSubscriptionPolicyPanel({ goodId, accountId, disabledReason
         {workspace.retry && <div className={RETRY_NOTE_CLASS} role="alert"><p>직전 저장이 처리됐는지 아직 모릅니다. 입력은 그대로 두었습니다. 아래 버튼을 누르면 같은 요청의 결과를 확인하며, 두 번 저장되지 않습니다.</p>
           <button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" disabled={busy || Boolean(disabledReason)} onClick={() => void save(workspace.retry!)}>같은 요청으로 결과 확인</button></div>}
         {workspace.latest && <section className={GOOD_SUBPANEL_CLASS} aria-label="정기배송 최신 저장본 비교">
-          <strong className="text-sm font-medium">최신 저장본 · 버전 {workspace.latest.revision}</strong>
+          <strong className="text-sm font-medium">최신 저장본</strong>
           <div className={GOOD_TABLE_FRAME_CLASS}><Table className="min-w-[30rem]"><TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead className="px-3">항목</TableHead><TableHead className="px-3">내 입력</TableHead><TableHead className="px-3">최신 저장본</TableHead></TableRow></TableHeader><TableBody>
             <TableRow><TableHead scope="row" className="h-auto px-3 py-2 align-top text-muted-foreground">판매 설정</TableHead><TableCell className={COMPARE_CELL_CLASS}>{workspace.draft.enabled ? '사용' : '사용 안 함'}</TableCell><TableCell className={COMPARE_CELL_CLASS}>{workspace.latest.enabled ? '사용' : '사용 안 함'}</TableCell></TableRow>
             <TableRow><TableHead scope="row" className="h-auto px-3 py-2 align-top text-muted-foreground">주기</TableHead><TableCell className={COMPARE_CELL_CLASS}>{description(workspace.draft)}</TableCell><TableCell className={COMPARE_CELL_CLASS}>{description(workspace.latest)}</TableCell></TableRow>
             <TableRow><TableHead scope="row" className="h-auto px-3 py-2 align-top text-muted-foreground">안내 문구</TableHead><TableCell className={COMPARE_CELL_CLASS}>{workspace.draft.message || '없음'}</TableCell><TableCell className={COMPARE_CELL_CLASS}>{workspace.latest.message || '없음'}</TableCell></TableRow>
           </TableBody></Table></div>
-          <div className="flex flex-wrap gap-2"><button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" disabled={busy || Boolean(workspace.retry)} onClick={() => applyLatest(true)}>내 입력 유지 · 최신 버전을 저장 기준으로</button>
+          <div className="flex flex-wrap gap-2"><button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" disabled={busy || Boolean(workspace.retry)} onClick={() => applyLatest(true)}>내 입력 유지하고 최신 저장본 기준으로 바꾸기</button>
           <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={busy || Boolean(workspace.retry)} onClick={() => applyLatest(false)}>내 입력 버리고 최신 저장본 불러오기</button></div>
         </section>}
         <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0"><GoodsSubscriptionPolicyFields value={workspace.draft} onChange={edit} /></fieldset>

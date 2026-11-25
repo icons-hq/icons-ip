@@ -7,7 +7,8 @@ import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import { ChevronRight } from 'lucide-react';
 import { Button } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
-import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
+import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GoodReadback } from './GoodEditorParts';
+import { goodsPricePeriodReadback } from '@/lib/admin/goods-transaction-readback';
 
 /* 템플릿 룩(ADR-0028). 새 기간 할인은 접는 묶음(details)이라 펼치기 전에는 입력을 그리지 않은 것처럼 보인다.
    2026-11-19: 기간 할인도 저장하면 바로 적용된다(초안 선택 없음). 예전에 남은 초안은 같은 편집기로 열어 저장하면 적용된다. */
@@ -29,6 +30,8 @@ function PeriodEditor({ goodId, variants, period, onSaved }: {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const variant = variants.find((item) => item.id === variantId);
+  /* 입력한 값이 어떻게 팔리는지 되읽는다. 할인가·기간이 규칙에 맞을 때만 말한다. */
+  const readback = variant ? goodsPricePeriodReadback({ optionName: variant.name, price: variant.price, discountPrice, startsAt, endsAt }) : null;
   function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
@@ -63,7 +66,8 @@ function PeriodEditor({ goodId, variants, period, onSaved }: {
         <input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} required disabled={pending} />
       </label>
     </div>
-    <p className="text-xs text-muted-foreground">저장하면 시작~종료 동안 기간 할인가로 판매하고, 종료 시각부터 현재 옵션 판매가로 돌아갑니다. 같은 옵션의 할인 기간은 겹칠 수 없습니다.</p>
+    {readback ? <GoodReadback>{readback}</GoodReadback> : null}
+    <p className="text-xs text-muted-foreground">같은 옵션의 할인 기간은 겹칠 수 없습니다.</p>
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
     <Button className="self-start" type="submit" disabled={pending || !variantId}>{pending ? '저장 중…' : '기간 할인 저장'}</Button>
   </form>;
@@ -115,11 +119,7 @@ export function GoodsPricePeriodsPanel({ goodId, variants }: { goodId: string; v
   const reload = () => setRefresh((value) => value + 1);
   const saved = (message: string) => { setNotice({ goodId, message }); reload(); };
   return <section className="flex min-w-0 flex-col gap-4 rounded-lg border p-4 text-sm" aria-labelledby={`price-periods-${goodId}`} data-good-price-periods="">
-    <div className="flex flex-col gap-1">
-      <h2 id={`price-periods-${goodId}`} className="text-base leading-snug font-medium">기간 할인</h2>
-      <p className="text-sm text-muted-foreground">저장된 옵션에 기간 할인을 설정합니다. 저장하면 바로 적용됩니다.
-        저장한 할인은 중지 후 새로 등록해 변경합니다. 옵션 판매가 변경 전에도 남은 할인 기간을 먼저 중지해주세요.</p>
-    </div>
+    <h2 id={`price-periods-${goodId}`} className="sr-only">기간 할인</h2>
     {notice?.goodId === goodId && <p className="text-sm text-[var(--wc-success)]" role="status">{notice.message}</p>}
     {!visible ? <p className="text-sm text-muted-foreground" role="status">기간 할인을 불러오는 중입니다…</p> : visible.error ? <div className="flex flex-col items-start gap-2">
       <p className="text-sm text-destructive" role="alert">{visible.error}</p><Button size="sm" type="button" variant="outline" onClick={reload}>다시 불러오기</Button>
@@ -130,7 +130,8 @@ export function GoodsPricePeriodsPanel({ goodId, variants }: { goodId: string; v
             <div className="border-t p-3"><PeriodEditor goodId={goodId} variants={selectedVariants} period={period} onSaved={saved} /></div></details>
           : <PeriodReceipt period={period} variant={selectedVariants.find((variant) => variant.id === period.variantId)} onSaved={saved} />}
       </div>)}
-      {!visible.periods?.length && <p className="text-sm text-muted-foreground">등록된 기간 할인이 없습니다.</p>}
+      {visible.periods?.length ? <p className="text-xs text-muted-foreground" data-good-price-period-rule="">저장한 할인은 고칠 수 없고, 중지한 뒤 새로 등록합니다. 옵션 판매가를 바꾸기 전에도 남은 기간 할인을 먼저 중지해야 합니다.</p>
+        : <p className="text-sm text-muted-foreground">등록된 기간 할인이 없습니다.</p>}
       <details className={DISCLOSURE_CLASS}><summary className={DISCLOSURE_SUMMARY_CLASS}>{DISCLOSURE_CHEVRON}새 기간 할인</summary>
         <div className="border-t p-3"><PeriodEditor key={`${goodId}:${refresh}`} goodId={goodId} variants={selectedVariants} onSaved={saved} /></div>
       </details>

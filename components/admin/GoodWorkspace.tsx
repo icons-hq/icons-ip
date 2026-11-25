@@ -315,8 +315,8 @@ export function GoodOptionalFields({ id, title, summary, children, hasErrors = f
   </GoodWorkspaceDetails>;
 }
 
-/** 등록 화면 '저장한 뒤' 항목(재고 조정·옵션 사용·복사·보관)의 이유 문구. 카드에 한 번만 보인다(T15b). */
-export const GOOD_OPERATION_PLACEHOLDER_COPY = '재고 조정·옵션 사용·복사·보관은 상품의 상태를 바꾸는 일이라, 상품을 저장한 뒤 이 자리에서 합니다.';
+/** 등록 화면 '저장한 뒤' 항목(재고 조정·옵션 사용 중지·다시 사용·상품 복사·상품 보관·복원)의 이유 문구. 이름은 바로 위 목록이 보이므로 문장에 다시 적지 않는다. 카드에 한 번만 보인다(T15b). */
+export const GOOD_OPERATION_PLACEHOLDER_COPY = '위 항목은 상품의 상태를 바꾸는 일이라, 상품을 저장한 뒤 이 자리에서 합니다.';
 export const GOOD_UNSAVED_BASE_COPY = '위 기본 정보에 저장하지 않은 변경이 있습니다. 먼저 저장하세요.';
 
 /** 고정 저장 영역에서 공개 없이 저장하는 버튼(초안은 [임시저장], 공개 중인 상품은 [실제 등록])으로 포커스를 옮긴다(Enter로 바로 저장할 수 있게). */

@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { goodEditorValues, createGoodEditorDraft, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS } from './good-editor';
 import { createAdminLocalAutosave, withLocalRecoveryValues } from './local-autosave';
 /* 배송 안내 템플릿의 선택 칸 '도서산간 안내'(T19)를 미리보기 배송 정책에도 싣는다 — 공개 상세(GoodAdditionalInfo)와 같은 자리. */
@@ -111,6 +111,52 @@ it('defaults discount display on and carries a recovered off setting into the pu
   const values = goodEditorValues(null, { values: { previousId: '', showDiscountRate: 'false' } });
   const preview = buildGoodEditorPreview({ values, imageUrls: {}, selected: null, catalogIps: [], origins: [], shippingNoticeOptions: [] });
   expect(preview.detail.good.showDiscountRate).toBe(false);
+});
+/*
+ * 2026-11-25 — 저장 전 미리보기에 할인 표기가 고객 화면과 같게 나온다. 즉시할인은 폼의 price·compareAtPrice로, 특정기간만 할인은
+ * 화면 입력(판매가·할인·기간)에서 읽어 지금 기간 안일 때만 반영한다.
+ */
+describe('저장 전 미리보기의 할인 표기', () => {
+  const build = (values: Record<string, string>, extra: Partial<Parameters<typeof buildGoodEditorPreview>[0]> = {}) =>
+    buildGoodEditorPreview({ values, imageUrls: {}, selected: null, catalogIps: [], origins: [], shippingNoticeOptions: [], ...extra }).detail.good;
+  const start = createGoodEditorDraft(null, {}, []).values;
+  const instant = { ...start, price: '9000', compareAtPrice: '10000', regularPrice: '10000', discountEnabled: 'true', discountValue: '1000', discountUnit: 'won' };
+  const draft = { regularPrice: '10000', discountEnabled: true, discountValue: '1000', discountUnit: 'won' as const, periodEnabled: true, periodStartsAt: '2026-12-01T00:00', periodEndsAt: '2026-12-08T00:00' };
+  const periodValues = { ...start, price: '10000', compareAtPrice: '', regularPrice: '10000', discountEnabled: 'true', discountValue: '1000', discountUnit: 'won', discountPeriodEnabled: 'true', discountStartsAt: '2026-12-01T00:00', discountEndsAt: '2026-12-08T00:00' };
+  const inPeriod = Date.parse('2026-12-03T00:00:00+09:00');
+
+  it('즉시할인은 판매가를 취소선 정가로, 할인가를 판매 금액으로 싣고 할인율 표시 설정을 따른다', () => {
+    expect(build(instant)).toMatchObject({ price: 9000, compareAtPrice: 10000, catalogCompareAtPrice: 10000, showDiscountRate: true });
+    expect(build({ ...instant, showDiscountRate: 'false' })).toMatchObject({ price: 9000, compareAtPrice: 10000, showDiscountRate: false });
+    expect(build({ ...start, price: '10000', compareAtPrice: '' })).toMatchObject({ price: 10000, compareAtPrice: null });
+  });
+
+  it('특정기간만 할인은 지금이 기간 안일 때만 할인가와 정가를 싣는다', () => {
+    for (const source of [{ priceDraft: draft }, {}]) {
+      const label = Object.keys(source).length ? '화면 입력(priceDraft)' : '폼 값만';
+      expect(build(periodValues, { ...source, now: inPeriod }), label).toMatchObject({ price: 9000, compareAtPrice: 10000, catalogPrice: 10000, catalogCompareAtPrice: null });
+      expect(build(periodValues, { ...source, now: Date.parse('2026-11-25T00:00:00+09:00') }), label).toMatchObject({ price: 10000, compareAtPrice: null });
+    }
+    /* 이미 끝난 기간은 저장도 막히는 입력이라 할인으로 보지 않는다. */
+    expect(build(periodValues, { priceDraft: draft, now: Date.parse('2026-12-09T00:00:00+09:00') })).toMatchObject({ price: 10000, compareAtPrice: null });
+  });
+
+  it('특정기간만 할인을 껐거나 판매가·할인이 잘못되면 판매가 그대로다', () => {
+    expect(build(periodValues, { priceDraft: { ...draft, periodEnabled: false }, now: inPeriod })).toMatchObject({ price: 10000, compareAtPrice: null });
+    expect(build(periodValues, { priceDraft: { ...draft, discountEnabled: false }, now: inPeriod })).toMatchObject({ price: 10000, compareAtPrice: null });
+    expect(build(periodValues, { priceDraft: { ...draft, discountValue: '' }, now: inPeriod })).toMatchObject({ price: 10000, compareAtPrice: null });
+    expect(build(periodValues, { priceDraft: { ...draft, regularPrice: '' }, now: inPeriod })).toMatchObject({ price: 10000, compareAtPrice: null });
+  });
+
+  it('옵션마다 같은 금액을 빼고 옵션가는 정가에 그대로 얹는다', () => {
+    const variants = JSON.stringify([
+      { name: '기본', code: '', attributes: {}, extraPrice: 0, stockQty: 3 },
+      { name: '확장', code: '', attributes: {}, extraPrice: 500, stockQty: 2 },
+    ]);
+    const good = build({ ...periodValues, variants }, { priceDraft: draft, now: inPeriod });
+    expect(good.options?.map((option) => [option.name, option.price, option.pricing?.regularPrice])).toEqual([['기본', 9000, 10000], ['확장', 9500, 10500]]);
+    expect(good).toMatchObject({ price: 9000, priceMax: 9500, compareAtPrice: 10000 });
+  });
 });
 it('restores failed option edits and their optimistic baseline into the same preview and submission values', () => {
   const records = new Map<string, string>();

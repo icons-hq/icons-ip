@@ -87,7 +87,7 @@ function GoodsOptionLimitTable({ rows, onRowsChange, randomSale, error }: {
     <legend>옵션별 구매 제한 (선택)</legend>
     <p id="goods-option-limits-guidance" className="text-sm text-muted-foreground">
       {randomSale ? GOODS_RANDOM_OPTION_LIMIT_GUIDANCE
-        : '옵션마다 주문 1건의 최대 구매수량과 1인 최대 구매수량을 따로 정합니다. 비워 두면 그 옵션은 제한하지 않으며, 위 상품 전체 제한과 함께 적용됩니다.'}
+        : '옵션마다 따로 정합니다. 비워 두면 그 옵션은 제한이 없고, 위 상품 전체 제한은 그대로 적용됩니다.'}
     </p>
     {randomSale ? <RandomOptionLimitRow rows={rows} onRowsChange={onRowsChange} /> : <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="옵션별 구매 제한 표" tabIndex={0}>
       <Table className="min-w-[30rem]">
@@ -148,15 +148,15 @@ export function GoodsPurchaseLimitFields({ values, current, errors, quantityRead
           <QuantityInput name="minOrderQty" label="최소 구매수량" value={values.minOrderQty} error={errors?.minOrderQty} />
           <QuantityInput name="maxOrderQty" label="최대 구매수량" value={values.maxOrderQty} error={errors?.maxOrderQty} />
         </div>
-        <p className="-mt-2 text-sm text-muted-foreground">주문 1건에 담을 수 있는 수량입니다. 설정하면 최소·최대 구매수량을 모두 입력해야 저장됩니다(한쪽만 설정할 수 없어 최소 1개부터 입력합니다).{orderLimit ? '' : ' 설정안함이어도 입력한 수량은 보존됩니다.'}</p>
+        <p className="-mt-2 text-sm text-muted-foreground">주문 1건에 담을 수 있는 수량입니다. 설정하면 최소·최대 구매수량을 모두 입력해야 저장됩니다.</p>
         <LimitChoice name="memberPurchaseLimitEnabled" legend="1인 최대 구매수량" enabled={memberLimit} onChange={setMemberLimit} />
         <div hidden={!memberLimit && !errors?.memberLifetimeQtyLimit} className="grid min-w-0 gap-x-6 gap-y-5 sm:grid-cols-2">
           <QuantityInput name="memberLifetimeQtyLimit" label="1인 최대 구매수량" value={values.memberLifetimeQtyLimit} error={errors?.memberLifetimeQtyLimit} />
         </div>
-        <p className="-mt-2 text-sm text-muted-foreground">회원 1명이 이 상품을 누적으로 살 수 있는 수량입니다. 과거 구매와 결제 대기 주문을 포함하고, 전액 취소·환불이 끝난 주문은 빼고 셉니다.{memberLimit ? '' : ' 설정안함이어도 입력한 한도는 보존됩니다.'}</p>
+        <p className="-mt-2 text-sm text-muted-foreground">회원 1명이 이 상품을 누적으로 살 수 있는 수량입니다. 지난 구매와 결제 대기 주문까지 세고, 전액 취소·환불이 끝난 주문은 뺍니다.</p>
       </fieldset>
       {quantityReadOnly ? QUANTITY_FIELDS.map((name) => <input key={name} type="hidden" name={name} value={values[name] ?? ''} />) : null}
-      <p className="text-sm text-muted-foreground">수량은 같은 상품의 모든 옵션을 합산합니다.</p>
+      <p className="text-sm text-muted-foreground">수량은 같은 상품의 모든 옵션을 합쳐 셉니다.</p>
       <GoodsOptionLimitTable rows={rows} onRowsChange={onRowsChange} randomSale={randomSale} error={errors?.[GOOD_OPTION_LIMIT_ERROR_FIELD]} />
     </div>
   </GoodEditorSubsection>;
@@ -182,7 +182,7 @@ export function GoodsPaymentMethodFields({ values, current, errors }: {
       {choice('allowCardPayment', '카드 결제', '허용', '받지 않음')}
       {choice('allowBankTransfer', '무통장 입금', '허용', '받지 않음')}
     </AdminFormGrid>
-    <p className="text-sm text-muted-foreground">함께 주문한 모든 상품이 허용하는 결제수단만 사용할 수 있습니다. 두 수단을 모두 닫으면 새 주문을 받지 않습니다. 실제 결제는 결제사·계좌 준비 상태도 확인합니다.</p>
+    <p className="text-sm text-muted-foreground">함께 주문한 상품이 모두 허용하는 결제수단만 쓸 수 있습니다. 둘 다 받지 않으면 새 주문을 받지 않고, 허용해도 결제사·계좌가 준비돼 있어야 결제됩니다.</p>
   </GoodFoldedRow>;
 }
 
@@ -205,6 +205,6 @@ export function GoodsSaleRestrictionFields({ values, current, errors }: {
       <GoodChoiceOption name="saleRestriction" value="adult" defaultChecked={adult} aria-invalid={error ? 'true' : undefined}>성인(19금)</GoodChoiceOption>
     </GoodChoiceGroup>
     <ErrorText>{error}</ErrorText>
-    <p className="-mt-2 text-sm text-muted-foreground">성인(19금) 상품은 성인 인증을 마친 회원에게만 공개·판매됩니다. 성인 인증이 열리기 전에는 스토어에 노출되지 않습니다.</p>
+    <p className="-mt-2 text-sm text-muted-foreground">성인(19금) 상품은 성인 인증을 마친 회원에게만 공개·판매됩니다. 성인 인증이 열리기 전에는 스토어에 보이지 않습니다.</p>
   </GoodEditorSubsection>;
 }
