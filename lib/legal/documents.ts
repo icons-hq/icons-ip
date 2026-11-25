@@ -506,7 +506,7 @@ const privacy: LegalDocument = {
       /* 탈퇴 처리(private.process_member_withdrawal, 20261126104000)가 실제로 지우는 것·남기는 것과 같은 말로 적는다.
        * 처리 때 보존 근거 없는 정보·로그인 연결을 지우고, 처리한 회원에게는 앱 알림을 만들지 않는다. 이메일 원문은 문의 근거면 3일 뒤
        * (카카오 근거는 처리 때), 그 사이 생긴 행은 3일 뒤, 재가입 차단 값·동의 원장·처리 중이던 신고는 1년 뒤 DB 정리 잡
-       * (private.run_member_withdrawal_retention)이 지운다. GoTrue 접속 기록(auth.audit_log_entries)은 3개월 뒤 매일 지운다
+       * (private.run_member_withdrawal_retention)이 지운다. GoTrue 접속 기록(auth.audit_log_entries)은 3개월 뒤 매시 정리 잡이 지운다
        * (private.purge_auth_audit_log). 위 표의 기록은 운영 DB에 남는다(분리 보존 원장은 미구현 — docs/account-deletion-retention-policy.md §5).
        * 주소록은 탈퇴 신청 기능이 켜지면 신청 시점(계정 봉인)에 지워진다. */
       closing: [
