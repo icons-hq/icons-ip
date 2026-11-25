@@ -98,9 +98,9 @@ describe('OrderDetail', () => {
     expect(html).toContain('총 결제 금액</dt><dd>₩16,000'); expect(html).toContain('총 부담금액</dt><dd>₩19,000'); expect(html).not.toContain('<dt>온라인 결제금액</dt>');
     expect(html).toContain('홍실 아크릴 블록 · 선결제 ₩0 · 착불 별도 ₩3,000'); expect(html).toContain('주소와 연락처는 받는 분만'); expect(html).not.toContain('배송지 정보를 확인할 수 없습니다.');
   });
-  it('교환 사유의 정정 전후와 원접수를 표시하고 내부 협의 근거는 노출하지 않는다', () => {
+  it('반품·교환 사유의 정정 전후와 원접수를 표시하고 내부 협의 근거는 노출하지 않는다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order()} claimReasonHistory={parseClaimReasonHistory([reasonReceipt])} />);
-    expect(html).toContain('교환 사유 정정 이력'); expect(html).toContain('최초 접수:');
+    expect(html).toContain('반품·교환 사유 정정 이력'); expect(html).toContain('최초 접수:'); expect(html).toContain('반품배송비 차감도 바뀐 사유로');
     expect(html).toContain(reasonReceipt.fromReason); expect(html).toContain(reasonReceipt.toReason);
     expect(html).not.toContain(reasonReceipt.agreement); expect(html).not.toContain(reasonReceipt.actorId);
   });

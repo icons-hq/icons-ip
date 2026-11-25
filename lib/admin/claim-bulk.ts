@@ -362,6 +362,8 @@ export interface AdminClaimBulkContext {
   refundAmount: number | null;
   /** 반품배송비 차감액(ADR-0031). 차감하지 않으면 null — 확인창은 지금 그대로다. */
   refundDeductionAmount?: number | null;
+  /** 고른 상품만 돌려주는 부분 반품(ADR-0047). 환불 금액은 남은 결제 금액이 아니라 고른 몫(차감 뒤)이다(CLM-136). */
+  partialReturn?: boolean;
   /** 환불 일괄에서 뺄 사유 코드. null이면 결제사 취소로 확정할 수 있다. */
   refundBlocker: string | null;
 }
@@ -419,6 +421,7 @@ export function parseAdminClaimBulkContexts(value: unknown): AdminClaimBulkConte
       : null;
     contexts.push({
       ...(deduction !== null ? { refundDeductionAmount: deduction } : {}),
+      ...(row.partialReturn === true ? { partialReturn: true } : {}),
       claimId: row.claimId,
       reference,
       orderId: row.orderId,
@@ -530,6 +533,8 @@ export const ADMIN_CLAIM_BULK_REFUND_BLOCKERS: Record<string, string> = {
   refund_method_bank_transfer: '계좌 송금으로 접수된 환불이라 결제사 취소를 요청하지 않습니다. 상세에서 처리해주세요.',
   refund_ledger_missing: '환불 기록이 없는 요청입니다. 상세에서 결제 내역을 확인해주세요.',
   claim_not_refundable: '환불을 확정할 수 있는 단계가 아닙니다.',
+  partial_return_in_progress: '이미 환불 접수한 부분 반품입니다. 상세의 환불 단계에서 [환불 완료 확정]을 눌러 처리해주세요. 결제사가 부분 취소를 받지 않은 요청도 상세의 "부분 반품" 칸에서 처리합니다.',
+  partial_return_plan_unavailable: '부분 반품 환불 금액을 계산하지 못했습니다. 상세의 "부분 반품" 칸에서 막힌 이유(결제 수단·상품 상태)를 확인한 뒤 처리해주세요.',
 };
 
 export function adminClaimBulkRefundBlockerMessage(code: string) {
@@ -555,6 +560,8 @@ export interface AdminClaimBulkRefundRow {
   amount: number | null;
   /** 반품배송비 차감액(ADR-0031). 금액(amount)은 이미 뺀 값이다. */
   deductionAmount?: number | null;
+  /** 부분 반품(ADR-0047) — 금액은 고른 상품 몫이고 결제사에는 그 금액만 부분 취소한다. */
+  partialReturn?: boolean;
   /** 반품 품목과 재고 처리 선택(QNA-035). 반품이고 처리할 행일 때만 싣는다 — 없으면 확인창은 선택 칸 없이 지금처럼 전부 복원한다. */
   items?: ClaimDefectiveItem[];
   /** null이면 처리, 아니면 결과표에 남길 제외 사유. */

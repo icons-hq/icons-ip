@@ -42,6 +42,22 @@ describe('환불 완료 확정 확인창', () => {
   });
 });
 
+describe('부분 반품 환불 행(CLM-136)', () => {
+  it('부분 반품은 고른 상품 몫을 금액으로 보이고 전액 취소가 아님을 알린다', () => {
+    const rows: AdminClaimBulkRefundRow[] = [
+      { claimId: A, reference: 'C00001', providerLabel: '토스페이먼츠', amount: 6500, deductionAmount: 3000, partialReturn: true, blocker: null },
+      { claimId: B, reference: 'C00002', providerLabel: '토스페이먼츠', amount: 12000, blocker: null },
+    ];
+    const html = renderToStaticMarkup(<RefundStep onRun={noop} preview={{ step: 'refund', rows, totals: adminClaimBulkRefundTotals(rows) }} progress={0} running={false} />);
+    expect(html).toMatch(/환불 합계 <strong[^>]*>₩18,500<\/strong>/);
+    expect(html).toContain('data-claim-bulk-partial-return=""');
+    expect(html).toContain('부분 반품 · 고른 상품 몫');
+    expect(html).toContain('부분 반품은 전액 취소가 아니라 고객이 고른 상품 몫');
+    const whole = renderToStaticMarkup(<RefundStep onRun={noop} preview={{ step: 'refund', rows: rows.slice(1), totals: adminClaimBulkRefundTotals(rows.slice(1)) }} progress={0} running={false} />);
+    expect(whole).not.toContain('부분 반품');
+  });
+});
+
 describe('회수 확인 확인창', () => {
   const rows = [
     { claimId: A, reference: 'C00001', targets: [{ shipmentId: S1, originName: 'TEST 김포' }, { shipmentId: S2, originName: 'TEST 남양주' }], skipped: [], blocker: null },
