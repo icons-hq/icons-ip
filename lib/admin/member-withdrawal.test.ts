@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INQUIRY_WITHDRAWAL_SCOPE } from '@/lib/account-deletion';
 import {
+  KAKAO_UNLINK_WITHDRAWAL_EXTRA_EFFECT,
   kakaoUnlinkWithdrawalConfirmMessage,
   MEMBER_WITHDRAWAL_EFFECTS,
   MEMBER_WITHDRAWAL_RETAINED,
@@ -122,11 +123,49 @@ describe('처리 전 문의 대조', () => {
 });
 
 describe('남는 정보 고지의 원천', () => {
-  it('어드민 처리 화면은 고객 안내와 같은 목록(INQUIRY_WITHDRAWAL_SCOPE)에서 남는 항목을 만든다', () => {
+  it('어드민 처리 화면은 고객 안내와 같은 원천(INQUIRY_WITHDRAWAL_SCOPE)에서 남는 항목과 보관 근거·기간을 만든다', () => {
     const text = MEMBER_WITHDRAWAL_RETAINED.join('\n');
-    for (const item of INQUIRY_WITHDRAWAL_SCOPE.retained) expect(text).toContain(item);
-    expect(text).toContain(INQUIRY_WITHDRAWAL_SCOPE.transactionRecords);
-    expect(text).toContain('같은 이메일로 다시 가입할 수 없습니다');
+    for (const item of [INQUIRY_WITHDRAWAL_SCOPE.transactionRecords, INQUIRY_WITHDRAWAL_SCOPE.inquiries, INQUIRY_WITHDRAWAL_SCOPE.posts]) {
+      expect(text).toContain(item);
+    }
+    expect(text).toContain('전자상거래법에 따라 5년 보관');
+    expect(text).toContain('전자상거래법에 따라 3년 보관');
+    expect(text).toContain('재가입을 막는 값(복원할 수 없게 바꾼 값)을 1년 보관');
+    /* 이메일·로그인 연결은 남는 것이 아니다 — 이메일은 3일 뒤 지워진다. */
+    expect(text).not.toMatch(/이메일\)|회원 프로필\(이메일|완전 삭제 절차/);
+    expect(MEMBER_WITHDRAWAL_EFFECTS.join('\n')).toContain('3일 동안 둔 뒤 자동 삭제');
+    expect(MEMBER_WITHDRAWAL_EFFECTS.join('\n')).toContain('1년 동안 다시 가입할 수 없음');
+  });
+});
+
+describe('보존 근거 없는 개인정보 삭제(20261126104000)', () => {
+  const PERSONAL = { wishlistItems: 2, cartItems: 1, notifications: 3, follows: 1, coupons: 1, loginIdentities: 1 };
+
+  it('처리 결과는 위시·장바구니·알림함·팔로우·쿠폰·로그인 연결 삭제 수를 받고, 옛 응답(칸 없음)도 받는다', () => {
+    const base = { ...STATUS, status: 'processed', suspended: true, revokedSessions: 0 };
+    expect(parseMemberWithdrawalOutcome({ ...base, erased: { ...ERASED, ...PERSONAL } }))
+      .toEqual({ status: 'processed', withdrawal: STATUS, erased: { ...ERASED, ...PERSONAL }, revokedSessions: 0 });
+    expect(parseMemberWithdrawalOutcome({ ...base, erased: ERASED })).toMatchObject({ status: 'processed', erased: ERASED });
+    expect(parseMemberWithdrawalOutcome({ ...base, erased: { ...ERASED, wishlistItems: -1 } })).toBeNull();
+    expect(parseMemberWithdrawalOutcome({ ...base, erased: { ...ERASED, loginIdentities: '1' } })).toBeNull();
+  });
+
+  it('요약은 지운 개인화 데이터와 로그인 연결 수를 말한다', () => {
+    const none = { ...ERASED, addressBookEntries: 0, phoneNumbers: 0, marketingConsents: 0, restockAlerts: 0 };
+    expect(memberWithdrawalErasedSummary({ ...none, ...PERSONAL }, 0))
+      .toBe('위시리스트 2건 · 장바구니 1건 · 알림함 3건 · IP 팔로우 1건 · 쓰지 않은 쿠폰 1건 · 로그인 연결 1건');
+    expect(memberWithdrawalErasedSummary({ ...none, wishlistItems: 0, loginIdentities: 0 }, 0)).toBe('지울 정보가 없었습니다');
+  });
+
+  it('고객 안내는 새로 지우는 항목과 이메일 보관·재가입 차단 기간을 같은 원천에서 말한다', () => {
+    for (const item of ['위시리스트·장바구니', '알림함', 'IP 팔로우', '쓰지 않은 쿠폰', '출석 코인', '소셜 로그인 연결']) {
+      expect(INQUIRY_WITHDRAWAL_SCOPE.erased).toContain(item);
+    }
+    expect(INQUIRY_WITHDRAWAL_SCOPE.emailRetentionDays).toBe(3);
+    expect(INQUIRY_WITHDRAWAL_SCOPE.rejoinBlockYears).toBe(1);
+    expect(INQUIRY_WITHDRAWAL_SCOPE.rejoin).toContain('1년 동안은 같은 이메일이나 같은 소셜 계정');
+    expect(memberWithdrawalConfirmMessage({ reference: 1, category: 'account', title: 't', createdAt: PROCESSED_AT }))
+      .toContain('이메일은 3일 뒤 자동으로 지워지니 처리한 뒤 바로 문의에 답변해주세요');
   });
 });
 
@@ -168,6 +207,10 @@ describe('카카오 알림 근거', () => {
     const message = kakaoUnlinkWithdrawalConfirmMessage(UNLINK);
     expect(message).toMatch(/^카카오 연결 해제 알림 · 카카오계정 탈퇴 · 2026\. 11\. 19\./);
     expect(message).toContain('카카오 로그인 연결');
+    /* 카카오 근거는 답변할 문의가 없어 이메일을 처리 때 바로 지운다(문의 근거만 3일). */
+    expect(message).toContain('답변할 문의가 없어 계정 이메일도 바로 지웁니다');
+    expect(KAKAO_UNLINK_WITHDRAWAL_EXTRA_EFFECT).toContain('계정 이메일 바로 삭제');
+    expect(MEMBER_WITHDRAWAL_EFFECTS.join('\n')).toContain('카카오 알림 처리는 답변할 문의가 없어 처리 때 바로 삭제');
     expect(message).toContain('되돌릴 수 없고');
   });
 
@@ -204,7 +247,7 @@ describe('프로필 익명화 계약(2026-11-19)', () => {
     expect(INQUIRY_WITHDRAWAL_SCOPE.erased.join(' ')).toContain('생년월일·프로필 사진');
     expect(INQUIRY_WITHDRAWAL_SCOPE.erased).toContain('성인 인증 기록');
     expect(MEMBER_WITHDRAWAL_EFFECTS.join('\n')).toContain('성인 인증 기록');
-    expect(INQUIRY_WITHDRAWAL_SCOPE.retained.join(' ')).not.toMatch(/닉네임|생년월일|프로필 사진/);
+    expect([INQUIRY_WITHDRAWAL_SCOPE.inquiries, INQUIRY_WITHDRAWAL_SCOPE.posts].join(' ')).not.toMatch(/닉네임|생년월일|프로필 사진/);
     expect(MEMBER_WITHDRAWAL_EFFECTS.join('\n')).toContain(`닉네임은 '${INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}'과 구분 번호로 바뀌고 생년월일·프로필 사진 파일은 삭제`);
     expect(memberWithdrawalConfirmMessage({ reference: 1, category: 'account', title: 't', createdAt: PROCESSED_AT })).toContain('닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운');
   });

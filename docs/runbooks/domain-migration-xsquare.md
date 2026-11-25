@@ -96,14 +96,47 @@ Cloudflare `xsquare.kr` 존(네임서버 `rick.ns.cloudflare.com`·`wanda.ns.clo
 
 법정·계약(기술 전환을 막지 않음, 사람):
 
-- [ ] **통신판매업 신고**: 인터넷 도메인 변경 신고(경영관리팀).
-- [ ] **토스페이먼츠**: 상점(MID `iconsi0xvd`) 사이트 주소 변경 신청 — 카드사 등록 정보가 `iconsip.com`이다.
-- [ ] **나이스페이**: 계약·심사 정보의 사이트 주소. 아직 결제 전(gate 닫힘)이라 개통 때 `xsquare.kr`로 등록한다.
-- [ ] **코페이**: drain 전용이라 바꾸지 않는다. 브라우저 콜백은 308을 따라오고, `PRODUCTION_SITE_DOMAINS`에 `iconsip.com`을 남긴다.
+- [ ] **통신판매업 신고**(신고번호 `2025-서울마포-1494`, 관할 마포구): 인터넷 도메인 변경 신고. 정부24
+      '통신판매업 변경신고'는 온라인이면 **본인(법인)만, 대리인 불가**라 법인(대표) 공동인증서로 로그인해야 한다.
+      수수료 없음·처리 3일, 신고증 기재사항이 바뀌면 기존 신고증 원본(또는 분실확인서)을 낸다. 지금 신고된 도메인은
+      공정위 사업자정보(`ftc.go.kr/bizCommPop.do?wrkr_no=1098627576`, 보안문자)에서 확인한다. 2026-11-25 사용자 결정으로
+      보류(메모만).
+- [x] **토스페이먼츠 홈페이지 주소**: 상점관리자 › 계약·운영 › 회사정보 › MID 정보 › 기본 정보 '변경'에서
+      `iconsi0xvd`·`iconsi8sr4`를 `https://xsquare.kr/`로 변경 신청(2026-11-25 접수, 심사 2~5 영업일 — 반영 전까지 화면은
+      옛 값). 심사 중인 `icons_usd`는 변경 버튼이 잠겨 있어 **심사가 끝나면** 같은 화면에서 바꾼다.
+- [ ] **나이스페이**: 계약 전(2026-11-25). 계약·개통 때 사이트 주소를 `xsquare.kr`로 등록한다.
+- [x] **코페이**: drain 전용이라 바꾸지 않는다. 2026-11-25 기준 코페이 결제 시도 0건이라 옛 주소로 올 콜백이 없다.
+      브라우저 콜백은 308을 따라오고, `PRODUCTION_SITE_DOMAINS`에 `iconsip.com`을 남긴다.
 - [ ] **Google OAuth 브랜딩**: 홈페이지·개인정보처리방침 칸이 비어 승인 도메인 저장이 막혀 있다. 로그인은 Supabase
       콜백이라 영향 없다 — 브랜딩을 채울 때 `xsquare.kr`로.
-- [ ] **검색엔진**: 전환 뒤 Search Console 주소 변경 도구(`iconsip.com` → `xsquare.kr`), `xsquare.kr` 사이트맵 제출,
-      네이버 서치어드바이저 `xsquare.kr` 등록(회사 네이버 ID, `NAVER_SITE_VERIFICATION`).
+- [x] **Google Search Console**: `iconsip.com` 속성 '주소 변경'으로 `xsquare.kr` 이전 등록(2026-11-25, 유효성 통과 —
+      경고는 두 옛 호스트가 같은 홈으로 가는 '대상 중복'뿐). `xsquare.kr` 속성에 사이트맵 제출 → 상태 '성공', 페이지 61.
+- [ ] **네이버 서치어드바이저**: Claude in Chrome·앱 내장 브라우저 모두 `searchadvisor.naver.com`을 안전 제한으로 막아
+      사람이 한다. 사이트 `https://xsquare.kr` 등록 → 소유확인 'HTML 태그'의 content 값을 Vercel production env
+      `NAVER_SITE_VERIFICATION`에 넣고 재배포(main 배포 또는 `workflow_dispatch` `production_redeploy`) → 소유확인 →
+      사이트맵 `https://xsquare.kr/sitemap.xml` 제출. 소유확인은 계정별이라 회사 네이버 ID가 생기면 그 계정으로 다시
+      등록·확인하고 env 값을 그 계정 값으로 바꾼다.
+
+### 실운영 점검(2026-11-25, 전환 직후)
+
+- 로그인 메일: Supabase 대시보드에서 직원 계정으로 재설정 메일을 보내 `"X SQUARE" <no-reply@xsquare.kr>`·배달 완료를
+  Resend에서 확인했다(전송은 Supabase 기본 메일이 아니라 custom SMTP → Resend). 같은 메일의 `email.sent`·`email.delivered`가
+  `https://xsquare.kr/api/webhooks/resend`에서 200.
+- 비밀번호 재설정 흐름: 로그인 화면 '비밀번호 찾기' → 같은 브라우저에서 메일 링크 → `/update-password` 새 비밀번호 화면까지
+  2026-11-25 실측 통과. **대시보드의 'Send password recovery' 메일은 흐름 시험에 못 쓴다** — 링크가 `{{ .RedirectTo }}`
+  기본값(Site URL 루트)으로 가고, 앱은 요청한 브라우저의 서명 state가 있어야 재설정을 연다. 발신·배달 확인 용도로만 쓴다.
+- 앱 메일(주문 확인 등, 키 `icons-ip-app-transactional-xsquare`)은 시험 발송 기능이 없어 첫 실제 주문 때 Resend에서
+  발신자·배달을 확인한다. 이 과정에서 만든 미사용 키 `icons-ip-supabase-auth-xsquare`는 지웠다.
+- 운영 env에 메일 주소를 덮어쓰는 `RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`·`EMAIL_REPLY_TO`가 없다.
+  Supabase Auth Hooks는 하나도 없다(메일 훅 꺼짐). 운영 DB 콘텐츠·pg_cron에 `iconsip.com`이 없다.
+- 카카오톡 채널 웹훅은 등록돼 있지 않다(비즈니스 채널 미연결). 채널 '엑스 스퀘어' 프로필의 웹사이트·쇼핑몰 링크는
+  `https://www.x-square.kr/`(하이픈, 이 문서 범위 밖)로 연결돼 있다 — 새 몰로 보내려면 채널 관리자 계정으로 바꾼다.
+- 토스 API 키 접근 정책: 토스가 일괄 적용한 라이브 정책은 국가 '대한민국' 허용이다. 운영 함수는 `icn1`(서울)에서 돌아
+  결제 승인·취소·재정합 호출이 허용 범위다. 해외 서버에서 라이브 키로 부르면 `API_KEY_ACCESS_DENIED`.
+- 정기결제(빌링)를 열 때 빌링 MID가 `iconsi0xvd`와 다르면 그 MID에도 `xsquare.kr` 웹훅을 등록한다.
+- 사람이 Bearer로 부르는 내부 라우트(`/api/internal/payments/*/reconcile`)는 `xsquare.kr`로 부른다 — 옛 주소로 부르면
+  308에서 `Authorization`이 빠져 401이다.
+- 외부 가동 감시(UptimeRobot 등)는 아직 없다. 만들 때 `https://xsquare.kr/api/health`를 지정한다.
 
 ## 3단계: 전환
 

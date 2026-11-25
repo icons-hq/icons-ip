@@ -50,7 +50,7 @@ function WithdrawalScope({ kakao = false }: { kakao?: boolean }) {
       {MEMBER_WITHDRAWAL_EFFECTS.map((effect) => <li key={effect}>{effect}</li>)}
       {kakao ? <li>{KAKAO_UNLINK_WITHDRAWAL_EXTRA_EFFECT}</li> : null}
     </ul>
-    <p className="text-muted-foreground">완전 삭제가 아니라 다음은 남습니다.</p>
+    <p className="text-muted-foreground">법에 따라 보관하거나 지우지 않는 다음 항목은 남습니다.</p>
     <ul className="flex list-disc flex-col gap-1 pl-5 text-muted-foreground">{MEMBER_WITHDRAWAL_RETAINED.map((item) => <li key={item}>{item}</li>)}</ul>
   </div>;
 }
@@ -96,8 +96,9 @@ function KakaoUnlinkPending({ customerId, unlink, state, action, processing, not
 
 /**
  * 1:1 문의로 받은 회원 탈퇴의 처리(원장 CUS-036). 탈퇴 신청 기능이 꺼져 있는 동안의 임시 절차를 한 동작으로 묶는다 —
- * DB가 진행 중 의무를 확인하고 정지·비법정 개인정보 삭제·로그인 세션 종료·감사를 한 번에 하며, 뒤이어 재로그인을 막는다.
- * 완전 삭제(hard delete)가 아니므로 남는 정보를 처리 전에 함께 보여준다. 정지와 같은 권한·대상 보호(canModerate)를 따른다.
+ * DB가 진행 중 의무를 확인하고 정지·보존 근거 없는 개인정보와 로그인 연결 삭제·로그인 세션 종료·감사를 한 번에 하며, 뒤이어
+ * 재로그인을 막는다(이메일 원문은 3일 뒤 DB 정리 잡이 지운다). 법정 보관 기록 등 남는 정보를 처리 전에 함께 보여준다.
+ * 정지와 같은 권한·대상 보호(canModerate)를 따른다.
  * 카카오 연결 해제 탈퇴 검토 대기 회원이면 그 안내(카카오계정 탈퇴면 알림으로 처리하는 폼)를 문의 처리 위에 둔다.
  */
 export function CustomerWithdrawalControl({ actor, customer }: { actor: { id: string; role: AdminMemberRole }; customer: AdminMemberDetail }) {

@@ -137,8 +137,9 @@
    생성한다. MKEY는 이 경계 밖으로 내보내지 않는다.
 3. 서버가 만든 일회성 payload를 `@korpay/sdk` 1.1.8에 전달한다. `merchantId`는 provider가
    요구하는 SDK 필드로 이 payload에만 포함되고 `NEXT_PUBLIC_` 환경변수나 정적 번들 설정이
-   아니다. Production `returnUrl`은 `SITE_URL=https://iconsip.com`에서 만들며 굿즈·티켓
-   callback 모두 canonical Production origin을 사용한다.
+   아니다. Production `returnUrl`은 `SITE_URL`(2026-11-25 도메인 전환 뒤 `https://xsquare.kr`)에서 만들며
+   굿즈·티켓 callback 모두 canonical Production origin을 사용한다. 코페이는 drain 전용이라 새 결제를 준비하지
+   않고, 전환 전에 시작된 건의 브라우저 callback은 `iconsip.com`의 308(메서드·본문 유지)을 따라온다.
 4. Korpay는 인증 결과를 `application/x-www-form-urlencoded` POST로 callback한다. 앱은 body
    크기·형식·필수 필드를 제한하고 opaque order+nonce를 DB에서 먼저 원자 claim한다.
    공개 가이드에는 callback signature나 status 조회 API가 없고 nonce는 SDK payload를 받은
@@ -154,7 +155,7 @@
 
 | 변수 | Production | Preview / CI |
 |---|---|---|
-| `SITE_URL` | `https://iconsip.com`; 일반 server config, 필수 | 환경별 일반 server origin을 둘 수 있음; Korpay를 단독 활성화하지 않음 |
+| `SITE_URL` | `https://xsquare.kr`(2026-11-25 전 `https://iconsip.com` — 운영 검사는 두 루트 origin 모두 받는다); 일반 server config, 필수 | 환경별 일반 server origin을 둘 수 있음; Korpay를 단독 활성화하지 않음 |
 | `KORPAY_MID` | sensitive, 필수 | 없어야 함 |
 | `KORPAY_KEY` | sensitive, 필수; MKEY 서버 전용 | 없어야 함 |
 | `KORPAY_ORDER_CHECKOUT_ENABLED` | 기본 `false`; 공개 굿즈 판매 승인 뒤에만 `true` | unset 또는 `false` |
@@ -162,8 +163,8 @@
 | `KORPAY_ORDER_CANARY_USER_ID` | 선택적 단일 인증 사용자 UUID; 기본 미설정 | 없어야 함 |
 | `KORPAY_TICKET_CANARY_USER_ID` | 선택적 단일 인증 사용자 UUID; 기본 미설정 | 없어야 함 |
 
-`SITE_URL`은 secret이 아닌 일반 server config다. Production에서는 정확히
-`https://iconsip.com`으로 등록해 Korpay callback origin을 고정한다. Preview/CI에 `SITE_URL`
+`SITE_URL`은 secret이 아닌 일반 server config다. Production에서는 운영 도메인 루트(`lib/site-domains.mjs`,
+지금은 `https://xsquare.kr`)로 등록해 Korpay callback origin을 고정한다. Preview/CI에 `SITE_URL`
 자체가 있어도 괜찮지만 Korpay 실자격 증명과 canary user ID는 없어야 하고 public gate는
 닫혀 있어야 한다.
 
@@ -191,7 +192,7 @@ gate와 canary allowlist를 모두 내려도 이미 DB에 durable하게 준비�
 
 ## Dark deploy
 
-1. Production의 일반 server config `SITE_URL`을 정확히 `https://iconsip.com`으로 등록하거나
+1. Production의 일반 server config `SITE_URL`을 운영 도메인 루트(지금 `https://xsquare.kr`)로 등록하거나
    exact-value metadata로 readback한다.
 2. Production에 `KORPAY_MID`·`KORPAY_KEY`를 sensitive 값으로 등록한다. 출력에는 값이나
    fingerprint가 아니라 변수명, 대상 환경, 존재 여부만 남긴다.
@@ -202,7 +203,7 @@ gate와 canary allowlist를 모두 내려도 이미 DB에 durable하게 준비�
    log에 secret, hash 입력, paymentKey 또는 provider 원문이 없는지 확인한다.
 6. 새 deployment가 Ready이고 canonical production alias가 같은 deployment와 exact SHA를
    가리키는지 확인한다.
-7. 새 deployment에서 `SITE_URL=https://iconsip.com`, provider readiness는 true, 목적별 public
+7. 새 deployment에서 `SITE_URL`이 운영 도메인 루트, provider readiness는 true, 목적별 public
    readiness와 canary configured는 모두 false인지 안전한 metadata로 readback한다. 식별자 없는
    malformed callback POST가 readiness `503`이 아니라 parser `400`에서 끝나는지도 확인한다.
    이 probe는 provider·DB를 호출하지 않으며, SITE_URL·gate 값은 build log와 Vercel metadata로

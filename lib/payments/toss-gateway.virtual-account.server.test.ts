@@ -451,8 +451,10 @@ describe('토스 가상계좌(ADR-0049)', () => {
       expect(outcome.reasonCode).toBe('provider_refund_failed');
     });
 
-    it('부분 취소는 가상계좌에 열지 않는다(돈을 움직이지 않고 전액 환불로 돌릴 사유를 돌려준다)', async () => {
-      const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse(200, deposited()));
+    // 2026-11-25: 입금된 가상계좌는 에스크로가 아님이 확인되면 부분 취소를 연다(toss-gateway.partial-refund 시험). 에스크로 결제는 구매확정
+    // 전 부분 취소를 받지 않아 지금처럼 돈을 움직이지 않고 전액 환불로 돌릴 사유를 돌려준다.
+    it('부분 취소는 에스크로 가상계좌에 열지 않는다(돈을 움직이지 않고 전액 환불로 돌릴 사유를 돌려준다)', async () => {
+      const fetchImpl = vi.fn().mockResolvedValueOnce(jsonResponse(200, deposited({ useEscrow: true, isPartialCancelable: true })));
       const tossGateway = gateway(fetchImpl);
 
       const outcome = await tossGateway.refund(refundRequest({

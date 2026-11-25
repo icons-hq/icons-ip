@@ -27,6 +27,21 @@ describe('classifyVirtualAccountRefund', () => {
     expect(classifyVirtualAccountRefund(watch, canceled('COMPLETED', { virtualAccount: null })).outcome).toBe('mismatch');
   });
 
+  // 2026-11-25: 입금된 가상계좌의 부분 취소·부분 반품 뒤에도 은행 송금을 감시한다 — 결제사 잔액이 원장이 기대한 잔액이어야 한다.
+  it('부분 환불 감시는 원장이 기대한 잔액의 부분 취소 상태일 때 송금 상태로 나눈다', () => {
+    const partial = { ...watch, expectedBalance: 3000 };
+    const partiallyCanceled = (refundStatus: string, extra: Record<string, unknown> = {}) =>
+      canceled(refundStatus, { status: 'PARTIAL_CANCELED', balanceAmount: 3000, ...extra });
+    expect(classifyVirtualAccountRefund(partial, partiallyCanceled('COMPLETED'))).toEqual({ outcome: 'completed', refundStatus: 'COMPLETED' });
+    expect(classifyVirtualAccountRefund(partial, partiallyCanceled('FAILED'))).toEqual({ outcome: 'failed', refundStatus: 'FAILED' });
+    expect(classifyVirtualAccountRefund(partial, partiallyCanceled('PENDING'))).toEqual({ outcome: 'pending', refundStatus: 'PENDING' });
+    // 잔액이 다르거나(다른 취소가 끼었다) 전액 취소됐는데 원장은 부분 환불이면 운영자 확인이다.
+    expect(classifyVirtualAccountRefund(partial, partiallyCanceled('COMPLETED', { balanceAmount: 5000 })).outcome).toBe('mismatch');
+    expect(classifyVirtualAccountRefund(partial, canceled('COMPLETED')).outcome).toBe('mismatch');
+    // 원장은 전액 환불(기대 잔액 0)인데 결제사가 부분 취소 상태면 운영자 확인이다(지금과 같다).
+    expect(classifyVirtualAccountRefund({ ...watch, expectedBalance: 0 }, partiallyCanceled('COMPLETED')).outcome).toBe('mismatch');
+  });
+
   it('형식 밖 상태 표지는 남기지 않는다', () => {
     expect(classifyVirtualAccountRefund(watch, canceled('failed; drop'))).toEqual({ outcome: 'pending', refundStatus: null });
     expect(classifyVirtualAccountRefund(watch, null)).toEqual({ outcome: 'unavailable', refundStatus: null });

@@ -195,7 +195,8 @@ describe('미종결 결제 자동 재확인', () => {
       const response = await GET(request());
       expect(response.status).toBe(200);
       expect(mocks.rpc).toHaveBeenCalledWith('service_claim_virtual_account_refund_watches', { p_limit: 3 });
-      expect(mocks.inspect).toHaveBeenCalledWith(watch);
+      // 기대 잔액이 없으면(예전 응답·전액 환불) 0으로 넘긴다(2026-11-25 — 부분 환불 감시).
+      expect(mocks.inspect).toHaveBeenCalledWith({ ...watch, expectedBalance: 0 });
       expect(mocks.rpc).toHaveBeenCalledWith('service_record_virtual_account_refund_watch', {
         p_attempt_id: watch.attemptId, p_outcome: 'failed', p_refund_status: 'FAILED', p_escrow_buyer_canceled: null });
       const body = await response.json();
@@ -243,6 +244,21 @@ describe('미종결 결제 자동 재확인', () => {
       mocks.secretKey.mockReturnValue(null);
       expect((await GET(request())).status).toBe(200);
       expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('가상계좌 부분 환불 감시는 원장이 기대한 잔액을 조회기에 넘기고, 형식 밖 잔액이면 결제사를 부르지 않는다', async () => {
+      mocks.inspect.mockResolvedValueOnce({ outcome: 'completed', refundStatus: 'COMPLETED', escrowBuyerCanceled: null, escrowLookupFailed: false });
+      mocks.rpc.mockImplementation(async (name: string) => name === 'service_claim_virtual_account_refund_watches'
+        ? { data: [{ ...watch, expectedBalance: 3000 }], error: null } : { data: 'completed', error: null });
+      expect((await GET(request())).status).toBe(200);
+      expect(mocks.inspect).toHaveBeenCalledWith({ ...watch, expectedBalance: 3000 });
+      mocks.inspect.mockClear();
+      for (const expectedBalance of [-1, 31000, 1.5, '3000']) {
+        mocks.rpc.mockImplementation(async (name: string) => name === 'service_claim_virtual_account_refund_watches'
+          ? { data: [{ ...watch, expectedBalance }], error: null } : { data: 'completed', error: null });
+        expect((await GET(request())).status).toBe(503);
+      }
+      expect(mocks.inspect).not.toHaveBeenCalled();
     });
 
     it('감시 목록 모양이 다르면 결제사를 부르지 않고 503이지만, 앞 단계 건수는 버리지 않는다', async () => {

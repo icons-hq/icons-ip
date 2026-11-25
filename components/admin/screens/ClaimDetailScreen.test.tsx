@@ -243,9 +243,11 @@ describe('ClaimDetailScreen', () => {
     expect(html).not.toContain('value="new-variant" selected=""');
   });
 
-  it.each(['exchange', 'return', 'cancel'] as const)('%s 상세의 사유 정정 진입은 교환에만 제공한다', (claimType) => {
+  /* 2026-11-25(CLM-029): 반품도 사유를 정정한다(반품배송비 차감이 사유로 다시 계산된다). 취소는 정정하지 않는다. */
+  it.each(['exchange', 'return', 'cancel'] as const)('%s 상세의 사유 정정 진입은 반품·교환에 제공한다', (claimType) => {
     const html = render({ claim: { ...detail().claim, claimType } });
     expect(html.includes('교환 사유 정정 및 이력')).toBe(claimType === 'exchange');
+    expect(html.includes('반품 사유 정정 및 이력')).toBe(claimType === 'return');
   });
   it('환불 계좌 열람을 경로와 함께 보이고 계좌 원문은 싣지 않는다(QA1 S-T03-04)', () => {
     const html = render({ timeline: [
@@ -286,6 +288,12 @@ describe('ClaimDetailScreen', () => {
     const html = render({ timeline: [{ action: 'admin.order.claim_reason_changed', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: {} }] });
     expect(html).toContain('교환 사유 정정');
     expect(html).not.toContain('admin.order.claim_reason_changed');
+    const returned = render({ timeline: [
+      { action: 'admin.order.claim_reason_changed', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { claimType: 'return', fromReturnFeeDeduction: 3000, toReturnFeeDeduction: 0 } },
+      { action: 'admin.order.claim_reason_changed', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { claimType: 'return', fromReturnFeeDeduction: 0, toReturnFeeDeduction: 0 } },
+    ] });
+    expect(returned).toContain('반품 사유 정정 · 반품배송비 차감 ₩3,000 → ₩0');
+    expect(returned).toMatch(/반품 사유 정정(?! ·)/);
   });
   it('회수 생략 결정·결정 효력 회복으로 끝난 회수 완료를 원인과 함께 업무 용어로 표시한다', () => {
     const at = NOW.toISOString();

@@ -37,6 +37,7 @@ import { ClaimWithdrawal } from '@/components/orders/ClaimWithdrawal';
 import { ClaimTypeConversion } from '@/components/admin/ClaimTypeConversion';
 import { ClaimReasonChange } from '@/components/admin/ClaimReasonChange';
 import { ClaimActionPanel } from './ClaimActionPanel';
+import { VirtualAccountRefundAccountEntry } from '@/components/admin/VirtualAccountRefundAccountEntry';
 import { ClaimPartialReturnPanel } from './ClaimPartialReturnPanel';
 import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
 import type { ClaimDefectiveStock } from '@/lib/admin/defective-stock';
@@ -66,6 +67,7 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_intake_created': '판매자 대리 접수',
   'order.claim_withdrawn': '고객 요청 철회',
   'order.claim_refund_account_confirmed': '고객 환불계좌 등록',
+  'admin.order.claim_refund_account_entered': '운영자 환불계좌 대신 입력',
   'admin.order.bank_refund_confirm_cancellation': '무통장 취소 확정 · 송금대기',
   'admin.order.bank_refund_file_transfer': '계좌 송금 접수',
   'admin.order.bank_refund_complete_transfer': '실제 송금 완료 확인',
@@ -179,6 +181,13 @@ function timelineLabel(entry: AdminClaimDetail['timeline'][number]) {
   if (entry.action === 'admin.order.claim_collection_completed') {
     const cause = typeof entry.diff?.cause === 'string' ? COLLECTION_COMPLETED_CAUSE_LABELS[entry.diff.cause] : undefined;
     return cause ?? TIMELINE_LABELS[entry.action];
+  }
+  /* 사유 정정은 교환만 받다가 2026-11-25부터 반품도 받는다(CLM-029). 이전 기록(유형 없음)은 교환 정정이다. 반품은 바뀐 반품배송비 차감을 함께 보인다. */
+  if (entry.action === 'admin.order.claim_reason_changed' && entry.diff?.claimType === 'return') {
+    const from = entry.diff.fromReturnFeeDeduction; const to = entry.diff.toReturnFeeDeduction;
+    return typeof from === 'number' && typeof to === 'number' && from !== to
+      ? `반품 사유 정정 · 반품배송비 차감 ${krw(from)} → ${krw(to)}`
+      : '반품 사유 정정';
   }
   /* 앞선 재고 부족 부분 취소가 결제액을 모두 돌려준 무통장 취소는 송금대기 없이 환불 0원으로 닫힌다(송금 원장에 '송금 없이 완료'). */
   if (entry.action === 'admin.order.bank_refund_confirm_cancellation' && entry.diff?.transferAmount === 0) return '무통장 취소 확정 · 송금 없이 완료';
@@ -454,6 +463,8 @@ export function ClaimDetailScreen({
                 {claim.reshippedItems?.map((item) => <Row key={item.orderItemId} label="재출고 상품"
                   value={`${item.name} · ${item.variantName} · ${item.variantCode} · ${item.qty}개`} />)}
               </div> : null}
+              {claim.stage === 'needs_review' ? <VirtualAccountRefundAccountEntry claimId={claim.id} claimType={claim.claimType}
+                lastErrorCode={claim.lastErrorCode} orderId={claim.orderId} /> : null}
               {detail.sellerIntake ? <SellerClaimIntakeEvidence intake={detail.sellerIntake} /> : null}
 
               <h4 className="font-medium">타임라인</h4>
@@ -520,13 +531,15 @@ export function ClaimDetailScreen({
                 secondaryActions={claim.claimType === 'exchange' ? <>
                   <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
                   <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} />
-                  <ClaimReasonChange key={`reason-${claim.id}`} claimId={claim.id} />
+                  <ClaimReasonChange key={`reason-${claim.id}`} claimId={claim.id} claimType="exchange" />
                 </> : undefined}
               />
               {claim.claimType !== 'exchange' ? <>
                 <ClaimReshipmentDelivery claim={claim} />
                 <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
                 {claim.claimType !== 'cancel' ? <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} /> : null}
+                {/* 반품 사유 정정(CLM-029): 실제 하자·오배송을 단순 변심으로 고른 반품의 반품배송비 차감을 [환불 접수] 전에 바로잡는다. */}
+                {claim.claimType === 'return' ? <ClaimReasonChange key={`reason-${claim.id}`} claimId={claim.id} claimType="return" /> : null}
               </> : null}
             </CardContent>
           </Card>

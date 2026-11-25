@@ -312,6 +312,8 @@ export function goodsImportView(batch: GoodsImportBatch) {
       kind: group.kind,
       errors: group.errors,
       warnings: group.warnings,
+      // 판매가·할인가 이전 → 새 금액(CAT-108). 이전에 만든 작업에는 없다.
+      ...(group.priceChange ? { priceChange: group.priceChange } : {}),
       // Rows left out of the failure workbook (an existing code from a Sabangnet sheet) are not re-uploadable.
       retryable: group.source.length > 0,
       // Read from the saved prepared images so the note survives retries and reloads.

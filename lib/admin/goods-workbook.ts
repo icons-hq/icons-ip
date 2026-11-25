@@ -12,6 +12,7 @@ import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { formatGoodBadgeText, goodBadgeList } from '@/lib/goods-taxonomy';
 import { parsePurchaseCostInput, type PurchaseTaxBasis } from './goods-purchase-costs';
 import { goodSaveFields } from './good-save';
+import type { GoodsImportPriceChange } from './goods-price-guard';
 import type { AdminGoodsKc } from './goods-kc';
 import { goodsKcWorkbookOrphanErrors, planGoodsKcWorkbookRows, type GoodsKcWorkbookInputRow } from './goods-kc-workbook';
 import { goodsCustomInputWorkbookConfig, goodsCustomInputWorkbookOrphanErrors, planGoodsCustomInputWorkbookRows,
@@ -305,6 +306,8 @@ export type GoodsImportGroup = {
   sizeSource?: GoodsSizeWorkbookInputRow[];
   guidance?: GoodsImportGuidance;
   guidanceOnly?: true;
+  /** 판매가·할인가 이전 → 새 금액(CAT-108). 검증을 통과한 새 상품·수정 상품에만 있고, 이전에 만든 작업에는 없다. */
+  priceChange?: GoodsImportPriceChange;
   /** Set for groups converted from a Sabangnet sheet: drafts only, and an image that fails is left out. */
   format?: 'sabangnet';
 };
@@ -1027,6 +1030,16 @@ export function planGoodsWorkbookImport(
     }
     const value = normalized.value;
     if (value.descriptionFormat === 'html') group.warnings.push(...sanitizeGoodsDescription(description).warnings);
+    group.priceChange = {
+      saved: record
+        ? {
+            regularPrice: record.good.compare_at_price == null ? Number(record.good.price) : Number(record.good.compare_at_price),
+            salePrice: Number(record.good.price),
+          }
+        : null,
+      next: { regularPrice: stored.compareAtPrice ?? stored.price, salePrice: stored.price },
+      publishing: first.publish === '공개' && !publishedNow,
+    };
     group.target = {
       ...(kcPlan.kind === 'save' ? { kc_update: kcPlan.update } : {}),
       ...(customInputPlan.kind === 'save' ? { custom_inputs: customInputPlan.config,

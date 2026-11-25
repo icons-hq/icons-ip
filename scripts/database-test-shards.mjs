@@ -124,6 +124,7 @@ const operators = [
   // 부분 반품(원장 #17·ADR-0047): 스위치 OFF 불변, 고른 품목만 회수, 결제사 확인 뒤 적용·클레임 완료, 배송 건 비움 배송비, 반품배송비
   // 편도·왕복 한 번, 남은 수량 전부 = 주문 전체 반품, 무통장 송금 대기, 결제사 거절 확인 필요, 불량 재고, 대리 접수. 경합은 아래 스크립트.
   sql('order_partial_return'),
+  sql('order_claim_reason_return_fee'),
   script('order_partial_return_concurrency.sh', 'PARTIAL_RETURN_TEST_SCOPE'),
   script('order_partial_cancellation_concurrency.sh', 'PARTIAL_CANCEL_TEST_SCOPE'),
   script('order_address_concurrency.sh', 'ORDER_ADDRESS_TEST_SCOPE'),
@@ -175,7 +176,7 @@ const catalog = [
   sql('goods_preorder_schedule_bulk'),
   // 접수 중 예약 조건 교체와 주문 접수의 잠금 순서(일회용 복제 DB 두 세션).
   script('goods_preorder_schedule_concurrency.sh', 'PREORDER_SCHEDULE_TEST_SCOPE'),
-  // 예약판매 한 번에 저장(옵션 선택 판매 상품, migration 20261126100000): 권한·한 트랜잭션·이미 적용 중인 옵션 건너뛰기·판매기간과의 배타·랜덤 판매 조건.
+  // 예약판매 한 번에 저장(옵션 선택 판매 상품, migration 20261126110000): 권한·한 트랜잭션·이미 적용 중인 옵션 건너뛰기·판매기간과의 배타·랜덤 판매 조건.
   sql('goods_preorder_bulk_save'),
   sql('admin_review_sorting', { admin: true }),
   run(
@@ -214,7 +215,7 @@ const catalog = [
   // 즉시할인 기간(TKT-033·ADR-0040): 기간 즉시할인을 기간 할인 원장에 쓰고 기간 경계·고객 가격·체크아웃 견적·주문이 같고,
   // 할인 프로모션·일괄 즉시할인·목록 할인 중지(기간 없는 즉시할인 포함)와 서로 덮지 않는다.
   sql('goods_instant_discount_period', { kc: true }),
-  // 다른 상품 옵션 불러오기 선택창 조회(migration 20261126101000): 선택형 옵션이 있는 상품만 나오고 총 개수·페이지가 맞는지, 권한·실행 권한 봉인.
+  // 다른 상품 옵션 불러오기 선택창 조회(migration 20261126111000): 선택형 옵션이 있는 상품만 나오고 총 개수·페이지가 맞는지, 권한·실행 권한 봉인.
   sql('admin_goods_option_source_search'),
 ];
 
@@ -289,6 +290,8 @@ const storefront = [
   sql('toss_escrow_key_transfer_partial_cancel'),
   // 가상계좌 환불 후속: 환급 계좌 입력·변경과 취소 재시도, 은행 환불 감시(실패·지연·처리 완료), 계좌이체 에스크로 운영자 조회.
   sql('virtual_account_refund_followups'),
+  sql('virtual_account_refund_account_notice'),
+  sql('virtual_account_partial_cancel'),
   // 가상계좌 입금 오류 되돌림 자동 처리: 감지·재입금 해제·자동 재확인·기한 뒤 반납 취소(환불 없음)·발송 주문 확인 필요·취소 요청 경로.
   sql('toss_virtual_account_deposit_reversal'),
   // 운영 알림 요약 메일: 새 문의·답변 지연·시스템 장애를 한 통으로(커서·지연 1회·범주·전용 dispatcher gate).

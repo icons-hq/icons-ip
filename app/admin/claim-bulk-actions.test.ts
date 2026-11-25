@@ -377,6 +377,20 @@ describe('단계 일괄 확인창(previewOrderClaimBulkStepAction)', () => {
     expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
   });
 
+  /* CLM-136: 부분 반품은 DB가 고른 몫(차감 뒤)을 금액으로 싣는다 — 확인창 행·합계가 그 금액이고 부분 반품 표시가 붙는다. */
+  it('부분 반품 행은 고른 몫과 부분 반품 표시를 그대로 싣는다', async () => {
+    stepRpc(new Map([
+      [ID(1), fact(1, { refundAmount: 6500, partialReturn: true, refundDeduction: { source: 'partial_return', applicable: true, deductionAmount: 3000 } })],
+      [ID(2), fact(2, { stage: 'processing', refundAmount: 9500, partialReturn: true, refundBlocker: 'partial_return_in_progress' })],
+    ]));
+    const state = await previewOrderClaimBulkStepAction({ claimType: 'return', step: 'refund', claimIds: [ID(1), ID(2)] });
+    if (state.preview?.step !== 'refund') throw new Error('refund preview expected');
+    expect(state.preview.rows[0]).toMatchObject({ amount: 6500, deductionAmount: 3000, partialReturn: true, blocker: null });
+    expect(state.preview.rows[1]).toMatchObject({ amount: 9500, partialReturn: true });
+    expect(state.preview.rows[1].blocker).toContain('이미 환불 접수한 부분 반품입니다');
+    expect(state.preview.totals).toEqual({ count: 1, amount: 6500, byProvider: [{ label: '토스페이먼츠', count: 1, amount: 6500 }] });
+  });
+
   it('목록에 없는 단계·권한 없음·잘못된 선택은 사실을 읽지 않는다', async () => {
     expect(await previewOrderClaimBulkStepAction({ claimType: 'cancel', step: 'collect', claimIds: [ID(1)] })).toEqual({ error: '처리할 작업을 선택해주세요.' });
     expect(await previewOrderClaimBulkStepAction({ claimType: 'exchange', step: 'refund', claimIds: [ID(1)] })).toEqual({ error: '처리할 작업을 선택해주세요.' });

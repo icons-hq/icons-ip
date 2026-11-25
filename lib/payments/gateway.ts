@@ -136,15 +136,15 @@ export interface PaymentRefundRequest {
    * 부분 취소(ADR-0031). 없으면 지금 계약 그대로 전액 취소다(amount는 attempt.amount와 같아야 한다).
    * 있으면 amount가 이번에 돌려줄 금액(cancelAmount)이고, 어댑터는 취소 전 조회 잔액이 expectedBalanceBefore일 때만
    * 취소를 발행하며 취소 뒤 조회 잔액이 expectedBalanceBefore − amount일 때만 approved를 돌려준다. 부분 취소를 받지
-   * 않는 결제(카드 부분 취소 불가·가상계좌·과세 제외 금액 등, provider 계약 전)는 돈을 움직이지 않고
+   * 않는 결제(카드 부분 취소 불가·에스크로이거나 에스크로 여부를 모르는 가상계좌·과세 제외 금액 등, provider 계약 전)는 돈을 움직이지 않고
    * declined + reasonCode 'provider_partial_cancel_unavailable'이다. 같은 결제에 부분 취소를 여러 번 하면 취소마다
    * idempotencyKey가 달라야 한다(토스는 같은 키의 첫 응답을 15일간 재생한다). providerPaymentKey가 필요하다.
    */
   readonly partial?: PaymentPartialRefund;
   /**
-   * 입금이 끝난 가상계좌 결제의 전액 취소에만 쓴다(ADR-0049). 토스 취소 API가 환불 계좌를 요구한다 — 없으면 어댑터는
-   * 결제사를 부르지 않고 needs_review(provider_refund_account_required)를 돌려준다. 멱등키는 어댑터가 계좌별로 갈라
-   * 쓴다(틀린 계좌로 거절된 첫 응답이 15일간 재생되지 않게).
+   * 입금이 끝난 가상계좌 결제의 전액 취소·부분 취소(에스크로 아님, 2026-11-25 보강)에 쓴다(ADR-0049). 토스 취소 API가 환불 계좌를
+   * 요구한다 — 없으면 어댑터는 결제사를 부르지 않고 needs_review(provider_refund_account_required)를 돌려준다. 멱등키는 어댑터가
+   * 계좌별로 갈라 쓴다(틀린 계좌로 거절된 첫 응답이 15일간 재생되지 않게). 부분 취소는 호출자가 준 단계별 키에 계좌 접미를 붙인다.
    */
   readonly refundReceiveAccount?: PaymentRefundReceiveAccount;
 }

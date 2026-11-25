@@ -1,5 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { formatGoodsPriceGuardList, goodEditorPriceConfirmation, goodsPriceGuardLine, goodsPriceGuardNotice, goodsPriceGuardReasons, goodsPriceGuardRows } from './goods-price-guard';
+import { formatGoodsPriceGuardList, goodEditorPriceConfirmation, goodsImportPriceChangeText, goodsImportPriceConfirmation, goodsImportPriceNeedsCheck, goodsPriceGuardLine, goodsPriceGuardNotice, goodsPriceGuardReasons, goodsPriceGuardRows } from './goods-price-guard';
+
+describe('상품 엑셀 반입 판매가 확인(CAT-108)', () => {
+  const change = (saved: { regularPrice: number; salePrice: number } | null, next: { regularPrice: number; salePrice: number }, publishing = false) => ({ saved, next, publishing });
+  const same = (price: number) => ({ regularPrice: price, salePrice: price });
+  it('판매가가 바뀌는 행은 이전 → 새 금액을 보이고, 바뀌지 않으면 null이다', () => {
+    expect(goodsImportPriceChangeText(change(same(29000), same(2900)))).toBe('판매가 29,000원 → 2,900원');
+    expect(goodsImportPriceChangeText(change(null, { regularPrice: 12000, salePrice: 10800 }))).toBe('판매가 12,000원 · 할인가 10,800원');
+    expect(goodsImportPriceChangeText(change(same(12000), same(12000)))).toBeNull();
+    expect(goodsImportPriceChangeText(undefined)).toBeNull();
+  });
+  it('0원·자릿수 오타·새 상품의 낮은 금액은 걸리고 흔한 인상은 지나간다', () => {
+    expect(goodsImportPriceNeedsCheck(change(same(29000), same(0)))).toBe(true);
+    expect(goodsImportPriceNeedsCheck(change(same(29000), same(2900)))).toBe(true);
+    expect(goodsImportPriceNeedsCheck(change(same(29000), same(290000)))).toBe(true);
+    expect(goodsImportPriceNeedsCheck(change(null, same(500)))).toBe(true);
+    expect(goodsImportPriceNeedsCheck(change(same(29000), same(32000)))).toBe(false);
+    /* 저장된 낮은 금액을 바꾸지 않은 반입은 다시 묻지 않는다. 그 상품이 이 반입으로 공개되면 묻는다. */
+    expect(goodsImportPriceNeedsCheck(change(same(500), same(500)))).toBe(false);
+    expect(goodsImportPriceNeedsCheck(change(same(500), same(500), true))).toBe(true);
+  });
+  it('적용 확인창은 걸린 상품만 한 번에 모아 보인다', () => {
+    expect(goodsImportPriceConfirmation([{ name: '정상', priceChange: change(same(29000), same(30000)) }, { name: '없음' }])).toBeNull();
+    const confirmation = goodsImportPriceConfirmation([
+      { name: '정상', priceChange: change(same(29000), same(30000)) },
+      { name: '오타', priceChange: change(same(29000), same(2900)) },
+    ]);
+    expect(confirmation?.title).toBe('판매가 확인');
+    expect(confirmation?.message).toContain('· 오타 판매가: 29,000원 → 2,900원 (이전 금액의 절반 이하)');
+    expect(confirmation?.message).not.toContain('정상 판매가');
+    expect(confirmation?.message).toContain('검증한 상품 2개를 적용합니다.');
+  });
+});
 
 describe('판매가 오입력 확인 기준(CAT-007·CAT-008)', () => {
   it('0원·1,000원 미만과 이전 금액의 절반 이하·두 배 이상을 잡고 흔한 인상·인하는 지나간다', () => {

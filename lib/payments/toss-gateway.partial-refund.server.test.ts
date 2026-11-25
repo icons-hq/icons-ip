@@ -149,6 +149,95 @@ describe('토스 부분 취소', () => {
     });
   });
 
+  /*
+   * 입금된 가상계좌(에스크로 아님) 부분 취소(2026-11-25 보강, ADR-0049) — 취소 가이드: "가상계좌 입금 이후에는 부분 취소가 가능합니다".
+   * 전액 환불과 같이 환불 계좌(refundReceiveAccount)를 싣고, 멱등키는 단계별 키(호출자)에 계좌 접미를 붙인다.
+   */
+  describe('입금된 가상계좌(에스크로 아님)', () => {
+    const ACCOUNT = { bankCode: '88', accountNumber: '110123456789', holderName: '김토스' };
+    const va = (overrides: Record<string, unknown> = {}) => payment({
+      method: '가상계좌', useEscrow: false, virtualAccount: { accountNumber: 'X0000', refundStatus: 'NONE' }, ...overrides,
+    });
+    const vaCanceled = (balance: number, refundStatus = 'PENDING') => partiallyCanceled(balance, {
+      method: '가상계좌', useEscrow: false, virtualAccount: { accountNumber: 'X0000', refundStatus },
+    });
+
+    it('환불 계좌를 실어 부분 취소하고, 멱등키를 계좌별로 가른다', async () => {
+      const toss = server([json(200, va()), json(200, vaCanceled(3000)), json(200, vaCanceled(3000))]);
+      await expect(gateway(toss.fetchImpl).refund(request({ refundReceiveAccount: ACCOUNT }))).resolves.toMatchObject({
+        outcome: 'approved', reasonCode: 'provider_partial_cancel_confirmed', refundedAmount: 27_000, balanceAfter: 3000,
+      });
+      expect(toss.calls[1]).toMatchObject({
+        url: CANCEL_URL,
+        body: { cancelReason: '엑스스퀘어 반품 환불(반품배송비 차감)', cancelAmount: 27_000,
+          refundReceiveAccount: { bank: '88', accountNumber: '110123456789', holderName: '김토스' },
+          // 잔액 전제 — 앞 취소가 반영돼 잔액이 움직였으면 결제사가 거절한다(계좌별 키는 계좌가 바뀐 재시도를 걸러 주지 못한다).
+          refundableAmount: 30_000 },
+      });
+      expect(toss.calls[1].idempotencyKey).toMatch(new RegExp(`^${CANCEL_KEY}:va-[0-9a-f]{16}$`));
+      // 계좌가 바뀌면 키도 바뀐다 — 틀린 계좌로 거절된 첫 응답이 재생되지 않는다.
+      const other = server([json(200, va()), json(200, vaCanceled(3000)), json(200, vaCanceled(3000))]);
+      await gateway(other.fetchImpl).refund(request({ refundReceiveAccount: { ...ACCOUNT, accountNumber: '110123456780' } }));
+      expect(other.calls[1].idempotencyKey).not.toBe(toss.calls[1].idempotencyKey);
+    });
+
+    it('쓸 환불 계좌가 없으면 결제사 취소를 부르지 않고 결제확인필요(계좌 없음)다', async () => {
+      const toss = server([json(200, va())]);
+      await expect(gateway(toss.fetchImpl).refund(request())).resolves.toMatchObject({
+        outcome: 'needs_review', reasonCode: 'provider_refund_account_required',
+        evidence: { providerPaymentKey: PAYMENT_KEY, resultCode: 'DONE_refund_account_required', paymentMethod: '가상계좌' },
+      });
+      expect(toss.calls).toHaveLength(1);
+    });
+
+    it('결제사가 환불 계좌를 거절하면 결제확인필요(계좌 거절)다 — 돈은 움직이지 않았다', async () => {
+      const toss = server([json(200, va()), json(400, { code: 'INVALID_REFUND_ACCOUNT_INFO', message: '환불 계좌 정보 오류' })]);
+      await expect(gateway(toss.fetchImpl).refund(request({ refundReceiveAccount: ACCOUNT }))).resolves.toMatchObject({
+        outcome: 'needs_review', reasonCode: 'provider_refund_account_invalid',
+        evidence: { resultCode: 'INVALID_REFUND_ACCOUNT_INFO', paymentMethod: '가상계좌' },
+      });
+      expect(toss.calls).toHaveLength(2);
+    });
+
+    it('계좌를 바꾼 재시도가 잔액 전제로 거절되면 앞 취소의 반영으로 닫거나, 반영이 아니면 운영자 확인이다', async () => {
+      // 앞 재시도(계좌 A)가 이미 반영됐다 — 계좌 B 요청은 잔액이 달라 거절되고, 조회가 이 취소의 반영을 확인한다.
+      const applied = server([json(200, va()), json(400, { code: 'NOT_MATCHES_REFUNDABLE_AMOUNT', message: '잔액 결과가 일치하지 않습니다.' }),
+        json(200, vaCanceled(3000))]);
+      await expect(gateway(applied.fetchImpl).refund(request({ refundReceiveAccount: ACCOUNT }))).resolves.toMatchObject({
+        outcome: 'approved', refundedAmount: 27_000, balanceAfter: 3000,
+      });
+      // 잔액이 다른 이유로 움직였다 — 돈을 더 움직이지 않고 운영자 확인.
+      const moved = server([json(200, va()), json(400, { code: 'NOT_MATCHES_REFUNDABLE_AMOUNT', message: '잔액 결과가 일치하지 않습니다.' }),
+        json(200, vaCanceled(25_000))]);
+      await expect(gateway(moved.fetchImpl).refund(request({ refundReceiveAccount: ACCOUNT }))).resolves.toMatchObject({
+        outcome: 'needs_review', reasonCode: 'provider_balance_mismatch',
+      });
+      expect(moved.calls).toHaveLength(3);
+    });
+
+    it('카드 부분 취소에는 잔액 전제를 싣지 않는다(지금 그대로)', async () => {
+      const toss = server([json(200, payment()), json(200, partiallyCanceled(3000)), json(200, partiallyCanceled(3000))]);
+      await gateway(toss.fetchImpl).refund(request());
+      expect(toss.calls[1].body).toEqual({ cancelReason: '엑스스퀘어 반품 환불(반품배송비 차감)', cancelAmount: 27_000 });
+    });
+
+    it('은행 송금이 이미 실패했으면 부분 환불 완료로 닫지 않는다', async () => {
+      const toss = server([json(200, va()), json(200, vaCanceled(3000, 'FAILED')), json(200, vaCanceled(3000, 'FAILED'))]);
+      await expect(gateway(toss.fetchImpl).refund(request({ refundReceiveAccount: ACCOUNT }))).resolves.toMatchObject({
+        outcome: 'needs_review', reasonCode: 'provider_refund_failed',
+      });
+    });
+
+    it('부분 취소 뒤 남은 잔액 취소(전액 취소 단계)도 같은 규칙이다', async () => {
+      const toss = server([json(200, vaCanceled(3000, 'COMPLETED')), json(200, vaCanceled(0)), json(200, vaCanceled(0))]);
+      await expect(gateway(toss.fetchImpl).refund(request({
+        amount: 3000, idempotencyKey: `refund:${ATTEMPT.id}:remainder:r1`, partial: { expectedBalanceBefore: 3000 }, refundReceiveAccount: ACCOUNT,
+      }))).resolves.toMatchObject({ outcome: 'approved', refundedAmount: 3000, balanceAfter: 0 });
+      expect(toss.calls[1]).toMatchObject({ body: { cancelAmount: 3000, refundReceiveAccount: { bank: '88' }, refundableAmount: 3000 } });
+      expect(toss.calls[1].idempotencyKey).toMatch(new RegExp(`^refund:${ATTEMPT.id}:remainder:r1:va-[0-9a-f]{16}$`));
+    });
+  });
+
   it('취소 응답이 200이어도 사후 조회 잔액이 그대로면 확정하지 않는다', async () => {
     const toss = server([json(200, payment()), json(200, partiallyCanceled(3000)), json(200, payment())]);
     await expect(gateway(toss.fetchImpl).refund(request())).resolves.toMatchObject({
@@ -182,7 +271,9 @@ describe('토스 부분 취소', () => {
     ['isPartialCancelable=false', payment({ isPartialCancelable: false }), 'partial_cancel_not_allowed'],
     ['isPartialCancelable 누락', payment({ isPartialCancelable: undefined }), 'partial_cancel_not_allowed'],
     ['과세 제외 금액', payment({ taxExemptionAmount: 1000 }), 'tax_exemption_amount'],
-    ['가상계좌', payment({ method: '가상계좌', virtualAccount: { accountNumber: 'X0000' } }), 'virtual_account'],
+    // 입금된 가상계좌는 에스크로가 아님이 결제 조회로 확인될 때만 연다(2026-11-25) — 에스크로이거나 값이 없으면 받지 않는다.
+    ['가상계좌(에스크로 여부 모름)', payment({ method: '가상계좌', virtualAccount: { accountNumber: 'X0000' } }), 'virtual_account_escrow'],
+    ['가상계좌(에스크로)', payment({ method: '가상계좌', useEscrow: true, virtualAccount: { accountNumber: 'X0000' } }), 'virtual_account_escrow'],
   ])('부분 취소를 받지 않는 결제(%s)는 취소 API를 부르지 않고 declined다', async (_label, body, blocker) => {
     const toss = server([json(200, body)]);
     await expect(gateway(toss.fetchImpl).refund(request())).resolves.toEqual({

@@ -157,7 +157,7 @@ npm run test:aouad-mobile-browser
 
 Vercel Git 자동 배포는 비활성화되어 있다. 일반 PR의 `validate`·Supabase Preview·Vercel Preview 성공 및 현재 head의 리뷰 결과를 확인한 뒤 승인 범위에서 merge한다. `main` Actions의 production DB·Vercel·shared Preview·staging 결과까지 확인한다. 이 작업은 DB migration을 추가하지 않는다.
 
-배포 후에는 실제 `https://iconsip.com`에서 다음을 확인한다.
+배포 후에는 실제 운영 주소 `https://xsquare.kr`에서 다음을 확인한다.
 
 1. 현재 공개 모드에서는 비로그인 상태에서 `/ip`에 시연 카드가 보이고 `/ip/aouad` 직접 진입이 성공하는지 확인한다. 에셋 직접 URL의 GET·HEAD·Range도 비로그인 상태에서 성공하고, 실제 이미지·Phaser 에셋·오디오·영상 재생 및 seek가 동작하는지 확인한다. `AOUAD_POPUP_PUBLIC=false`인 비공개 배포에서는 이 검증을 비로그인·일반 회원과 `platform.manage`가 없는 운영자 404, `platform.manage` 권한 운영자 성공으로 바꾼다.
 2. 데스크톱·모바일의 첫 방문, 모든 장/존 이동, 상품 옵션·장바구니·주문 체험, 학생증·퀘스트, 세 게임, 네 뽑기 방식, 현장 예약 체험, 뒤로가기·새로고침·초기화를 확인한다.

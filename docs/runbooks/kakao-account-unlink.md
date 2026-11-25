@@ -113,7 +113,7 @@ Editor 계정으로 웹훅 등록과 웹훅 테스트가 된다(2026-11-19 실�
 3. 경로가 열렸는지 확인한다. 404면 env가 반영되지 않은 것이다.
 
    ```bash
-   curl -sS -i -X POST https://iconsip.com/api/webhooks/kakao/account-status --data 'not-a-jwt'
+   curl -sS -i -X POST https://xsquare.kr/api/webhooks/kakao/account-status --data 'not-a-jwt'
    ```
 
    기대값: `400`과 `{"err":"invalid_request",...}`.
@@ -180,15 +180,15 @@ order by q.event_at;
 - 알림으로 처리하면 문의 탈퇴([account-deletion-retention-policy.md](../account-deletion-retention-policy.md) §5)와 같은
   범위(진행 중 의무 확인, 정지, 비법정 개인정보 삭제, 세션 종료, 재로그인 차단)에 **카카오 identity 삭제**를 더한다(§2.1과 같은
   정리 — identity·공급자 목록·카카오 값 user metadata). 카카오 로그인 목적이 영구히 끝났고 카카오 문서상 회원번호도 파기 대상이다.
-  계정 이메일·거래 기록은 문의 탈퇴처럼 남는다.
+  2026-11-25부터 문의 탈퇴와 같이 모든 로그인 연결(identity)·user metadata를 지우고, 카카오 근거 처리는 답변할 문의가 없어
+  계정 이메일 원문도 처리 때 바로 지운다(문의 근거만 3일 보관). 재가입 차단은 이메일·소셜 계정 HMAC 1년이고, 거래 기록은 법정 보존 기간 동안 남는다.
 - DB가 처리 직전에 그 회원이 지금 대기 목록에 있고 마지막 해제가 위 두 사유인지 다시 본다. 아니면 `kakao_unlink_member_request_required`
   (회원 확인 필요)·`kakao_unlink_withdrawal_not_queued`(다시 로그인했거나 해제 기록 없음)로 거절하고 아무것도 바꾸지 않는다.
 - 처리 기록 `private.member_withdrawal_processings`에 근거(`basis` = `kakao_unlink`)와 근거 해제 행(`kakao_unlink_event_id`)이 남는다.
   처리 기록이 있는 동안 그 해제 행은 지울 수 없다. 감사 `admin.member.withdrawal_processed`에는 해제 사유·알림 시각이 남는다(메모·회원번호 없음).
 - 진행 중 주문·환불이 있으면 처리하지 않고 남은 의무를 보인다. 그 처리가 먼저다.
 - 연결만 끊은 회원이 확인 연락에 답하지 않으면 계정은 그대로 둔다(다시 로그인하면 목록에서 빠진다).
-- 약관 제7조·개인정보처리방침에는 '카카오계정 탈퇴로 로그인 수단이 없어진 회원의 처리'가 따로 적혀 있지 않다. 다음 약관·방침
-  개정 때 이 경우를 명시하는 것을 검토한다(사람 결정).
+- 약관 제7조가 '카카오계정 탈퇴로 로그인 수단이 없어진 회원의 처리'를 밝힌다(2026-11-25 최초 판, 오픈 전 본문 정리).
 
 ## 6. 운영 확인
 

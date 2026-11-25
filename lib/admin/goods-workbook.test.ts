@@ -212,6 +212,14 @@ describe('goods Excel planning', () => {
     expect(plan('임의')).toMatchObject({ kind: 'error', errors: expect.arrayContaining([expect.stringContaining('할인율 표시')]) });
     expect(plan('')).toMatchObject({ target: { show_discount_rate: true } });
   });
+  it('판매가가 바뀌는 행은 계획에 이전 → 새 금액을 싣는다(CAT-108)', async () => {
+    const record = { ...existing, good: { ...existing.good, show_discount_rate: false } };
+    const ctx = { ...context, existing: [record] };
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exportGoodsWorkbookRows(record, ctx)));
+    const plan = (salePrice: string) => planGoodsWorkbookImport([{ ...parsed.rows[0], values: { ...parsed.rows[0].values, salePrice } }], ctx)[0];
+    expect(plan('1200').priceChange).toEqual({ saved: { regularPrice: 12000, salePrice: 12000 }, next: { regularPrice: 1200, salePrice: 1200 }, publishing: false });
+    expect(plan('0').priceChange?.next).toEqual({ regularPrice: 0, salePrice: 0 });
+  });
   it('CRLF HTML과 검증 이미지 경로가 실제 XLSX에서 LF로 바뀌어도 무수정으로 계획한다', async () => {
     const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
     const description = `<h2>구성품</h2>\r\n<p>키링 &amp; 스티커</p>\r\n<img src="${path}" alt="구성" loading="lazy" decoding="async" />`;

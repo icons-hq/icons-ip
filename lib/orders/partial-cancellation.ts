@@ -149,6 +149,11 @@ export interface OrderPartialCancellationServiceRow {
   paymentLiveAmount: number;
   /** 부분 반품이면 'return'(결제사 취소 사유 문구가 다르다). 옛 응답은 재고 부족 부분 취소다. */
   reasonCode: OrderPartialCancellationReason;
+  /**
+   * 부분 반품의 반품 요청 id(재고 부족 부분 취소는 null). 입금된 가상계좌 부분 환불이 이 요청에서 구매자·운영자가 입력한 환급 계좌를 찾고,
+   * 계좌 때문에 멈추면 이 요청으로 구매자에게 계좌 입력을 요청한다(2026-11-25).
+   */
+  claimId?: string | null;
 }
 
 export interface OrderPartialCancellationSelection {
@@ -338,7 +343,10 @@ export function parseOrderPartialCancellationServiceRow(value: unknown): OrderPa
     paymentAmount: amount(row.paymentAmount), balanceBefore: amount(row.balanceBefore), refundAmount: amount(row.refundAmount),
     paymentKey: optionalText(row.paymentKey), paymentStatus: text(row.paymentStatus), paymentLiveAmount: amount(row.paymentLiveAmount),
     reasonCode: row.reasonCode === 'return' ? 'return' : 'out_of_stock',
+    claimId: row.claimId === null || row.claimId === undefined ? null : uuid(row.claimId),
   };
+  // 부분 반품 원장은 반품 요청을 가리킨다(DB 원장 검사와 같다). 어긋나면 환급 계좌를 다른 요청에서 찾지 않게 읽지 않는다.
+  if ((parsed.reasonCode === 'return') !== (parsed.claimId !== null)) throw new Error('invalid partial cancellation');
   return parsed;
 }
 
