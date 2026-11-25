@@ -100,7 +100,9 @@ export function GoodSaleTiming({ values, error, errorCount, onChange, preorderSl
   const mode = goodSaleTimingMode({ salePeriodEnabled: values.salePeriodEnabled === 'true', draftPreorder: Boolean(sections?.preorderPlan), saved: kind === 'saved' ? saved : undefined });
   const bridge = useMemo<GoodSaleTimingBridge>(() => ({ mode, report }), [mode, report]);
   const choose = (next: GoodSaleTimingMode) => {
-    void chooseGoodSaleTiming(next, { mode, kind, sections, optionRows: workspace?.optionRows, setSections: workspace?.setSections, saved, onChange });
+    /* 판매기간 값(salePeriodEnabled)이 그대로면 상품 폼에 알리지 않는다 — 카드만 눌러 본 것을 '저장하지 않은 변경'으로 세지 않는다. */
+    const notify = (patch: Record<string, string>) => { if (patch.salePeriodEnabled !== (values.salePeriodEnabled === 'true' ? 'true' : 'false')) onChange(patch); };
+    void chooseGoodSaleTiming(next, { mode, kind, sections, optionRows: workspace?.optionRows, setSections: workspace?.setSections, saved, onChange: notify });
   };
   const { cards } = goodSaleTimingCardStates({ mode, kind, saved, sections });
   const periodPending = kind === 'saved' && mode === 'preorder' && saved?.state === 'ready' && saved.salePeriodSaved;

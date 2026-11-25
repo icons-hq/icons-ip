@@ -398,7 +398,8 @@ describe('GoodSection', () => {
     expect(create).not.toContain('data-good-operation="placeholder"');
     expect(create.slice(create.indexOf('data-good-operation-hub="pending"'))).not.toContain('aria-disabled="true"');
     const card = (html: string, id: string) => { const start = html.indexOf(`id="good-operation-${id}"`); const next = html.indexOf('<details id="good-operation-', start + 1); return html.slice(start, next < 0 ? undefined : next); };
-    expect(card(create, 'kc')).toContain('상품과 함께 저장');
+    /* 등록 화면은 모든 입력을 함께 저장한다. 묶음 머리의 한 문장이 말하므로 섹션마다 저장 방식을 되풀이하지 않는다. */
+    expect(create).not.toContain('data-good-operation-mode');
     expect(card(create, 'kc')).toContain('상품 전체 KC 해당 없음');
     /* 1007-034·SHEET-014: KC 대상 여부를 먼저 고르고(고르기 전에는 모델 입력을 열지 않는다), 기타 인증도 같은 카드에서 함께 저장한다. */
     expect(card(create, 'kc')).toContain('<legend>KC 인증 대상 여부</legend>');
@@ -683,7 +684,7 @@ describe('GoodSection', () => {
     const create = renderGoodSection(null, {}, props);
     /* T15b: 등록 화면도 같은 자리(판매 운영 묶음)에서 판매 방식을 고르고, 상품과 함께 저장한다(서버 저장 버튼·잠금 안내 없음). */
     expect(create).toMatch(/<details id="good-operation-option-sale-mode"[^>]*data-good-operation="inline"/);
-    expect(card(create, 'option-sale-mode')).toContain('상품과 함께 저장');
+    expect(card(create, 'option-sale-mode')).not.toContain('data-good-operation-mode');
     expect(card(create, 'option-sale-mode')).toContain('랜덤 판매');
     expect(card(create, 'option-sale-mode')).not.toContain('판매 방식 저장');
     expect(card(create, 'option-sale-mode')).not.toContain('data-good-operation-notice');

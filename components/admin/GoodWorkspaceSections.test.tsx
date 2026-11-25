@@ -35,7 +35,9 @@ describe('등록 화면 KC 카드 — 자가 신고·기타 인증·KC 틀', () 
     expect(html).toContain('KC 미입력 · KC 인증 대상 여부를 고르세요.');
     expect(chosen(html)).toBeNull();
     expect(html).not.toContain('모델 1 모델명');
-    expect(html).toContain('기타 인증 <span class="font-normal text-muted-foreground">· 상품과 함께 저장</span>');
+    expect(html).toContain('<h3 class="text-sm font-medium">기타 인증</h3>');
+    /* 등록 화면은 모든 입력을 함께 저장한다. 섹션마다 '상품과 함께 저장'을 되풀이하지 않는다. */
+    expect(html).not.toContain('상품과 함께 저장');
     expect(html).toContain('기타 인증 추가');
   });
 

@@ -31,13 +31,38 @@ export interface CategoryPickerRow { category: CategorySearchNode; path: string;
  */
 export function categoryPickerLoader(categories: CategorySearchNode[], hidden: ReadonlySet<string> = NOT_HIDDEN): AdminPickerLoader<CategoryPickerRow> {
   const leaves = categories.filter((category) => usableTemplateCategory(categories, category.id));
+  const order = categoryTreeOrder(categories);
+  const byTree = (left: CategorySearchNode, right: CategorySearchNode) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0);
   return async (request) => {
     const query = request.query.trim();
-    const rows = (query ? searchAssignableCategories(categories, query) : leaves)
+    const rows = [...(query ? searchAssignableCategories(categories, query) : leaves)].sort(byTree)
       .filter((category) => !hidden.has(category.id))
       .map((category) => ({ category, path: categoryPath(categories, category.id).join(' > '), erp: query ? categoryErpMatch(categories, category, query) : null }));
     return adminPickerLocalPage(rows, { ...request, query: '' }, { textOf: () => '' });
   };
+}
+
+/**
+ * 카테고리 관리 화면과 같은 순서(상위 카테고리 아래에 하위, 같은 단계는 노출 순서 → 코드). 선택창이 받은 배열 순서가 아니라 이 순서로 보인다 —
+ * '굿즈 > 인형', '굿즈 > 키링', '굿즈 > 문구 > 스티커'처럼 같은 상위끼리 모여야 찾기 쉽다.
+ */
+export function categoryTreeOrder(categories: readonly CategorySearchNode[]): Map<string, number> {
+  const ids = new Set(categories.map((category) => category.id));
+  const children = new Map<string, CategorySearchNode[]>();
+  for (const category of categories) {
+    const parent = category.parentId && ids.has(category.parentId) ? category.parentId : '';
+    children.set(parent, [...(children.get(parent) ?? []), category]);
+  }
+  const order = new Map<string, number>();
+  const visit = (parent: string) => {
+    for (const category of [...(children.get(parent) ?? [])].sort((left, right) => left.sortOrder - right.sortOrder || left.code.localeCompare(right.code))) {
+      if (order.has(category.id)) continue;
+      order.set(category.id, order.size);
+      visit(category.id);
+    }
+  };
+  visit('');
+  return order;
 }
 
 const categoryRowKey = (row: CategoryPickerRow) => row.category.id;

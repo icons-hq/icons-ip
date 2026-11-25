@@ -140,7 +140,9 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, instant
         <input type="hidden" name="discountStartsAt" value={draft.periodStartsAt ?? ''} />
         <input type="hidden" name="discountEndsAt" value={draft.periodEndsAt ?? ''} />
       </> : null}
+      {/* 할인이 하나도 걸리지 않은 상품에는 고를 것이 없다 — 카드를 감추고 값만 그대로 제출한다('글보다 화면' 1). 숨김으로 저장해 둔 상품은 되돌릴 수 있게 보인다. */}
       <GoodsDiscountRateField value={showDiscountRate} error={errors.showDiscountRate}
+        hidden={!(draft.discountEnabled || locked || Boolean(instant?.summary) || showDiscountRate === 'false' || Boolean(errors.showDiscountRate))}
         {...(lookReady ? { regularPrice: result.regularPrice, salePrice: result.salePrice } : {})} />
     </div>
     <input type="hidden" name="price" value={result.price} />
@@ -164,14 +166,14 @@ function DiscountLook({ regularPrice, salePrice, showRate, sample }: { regularPr
 
 /**
  * 고객 화면 할인 표시(기본: 할인율 표시). 설명 대신 두 모습을 나란히 보이고 고르게 한다(화면 규칙 '글보다 화면').
- * 지금 입력한 판매가·할인으로 그리고, 할인이 없으면 예시 금액으로 그린다. 기간 할인·할인 프로모션에도 쓰이므로
- * 즉시할인 설정과 상관없이 늘 보이고 같은 값(showDiscountRate)을 제출한다(TKT-033).
+ * 지금 입력한 판매가·할인으로 그리고, 금액을 아직 알 수 없으면 예시 금액으로 그린다. 기간 할인·할인 프로모션에도 쓰이는 값이라
+ * 즉시할인 설정과 상관없이 늘 같은 값(showDiscountRate)을 제출한다(TKT-033). `hidden`이면 카드를 감추고 값만 제출한다.
  */
-export function GoodsDiscountRateField({ value, error, regularPrice, salePrice }: { value: string; error?: string; regularPrice?: number | null; salePrice?: number | null }) {
+export function GoodsDiscountRateField({ value, error, regularPrice, salePrice, hidden = false }: { value: string; error?: string; regularPrice?: number | null; salePrice?: number | null; hidden?: boolean }) {
   const sample = regularPrice == null || salePrice == null;
   const regular = sample ? SAMPLE_REGULAR_PRICE : regularPrice, sale = sample ? SAMPLE_SALE_PRICE : salePrice;
   const describedBy = error ? 'goods-show-discount-rate-error' : undefined;
-  return <div className="flex min-w-0 flex-col gap-2" data-good-discount-display="">
+  return <div className="flex min-w-0 flex-col gap-2 [&[hidden]]:hidden" data-good-discount-display="" hidden={hidden}>
     <GoodChoiceCards legend="고객 화면 할인 표시">
       <GoodChoiceCard name="showDiscountRate" value="true" defaultChecked={value !== 'false'} aria-describedby={describedBy} aria-invalid={error ? 'true' : undefined} title="할인율 표시">
         <DiscountLook regularPrice={regular} salePrice={sale} sample={sample} showRate />

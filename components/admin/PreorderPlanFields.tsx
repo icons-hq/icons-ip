@@ -109,8 +109,9 @@ export function PreorderPlanFields({ plan, onChange, targets, table, all = false
       <div className="flex min-w-0 flex-wrap items-end justify-between gap-x-4 gap-y-2">
         <span className="text-sm font-medium text-foreground">옵션별 예약 물량</span>
         <div className="flex min-w-0 flex-wrap items-center gap-2">
-          <input className={`${GOOD_NUMBER_INPUT_CLASS} w-28`} data-slot="input" form={form} type="number" min={1} max={2147483647} step={1} inputMode="numeric" aria-label="모든 옵션에 넣을 예약 물량" placeholder="예: 100"
-            value={fill} disabled={disabled} onChange={(event) => setFill(event.target.value)} />
+          {/* 입력칸 클래스가 w-full이라 폭은 감싼 칸이 정한다(버튼과 한 줄에 놓인다). */}
+          <span className="w-28 shrink-0"><input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" form={form} type="number" min={1} max={2147483647} step={1} inputMode="numeric" aria-label="모든 옵션에 넣을 예약 물량" placeholder="예: 100"
+            value={fill} disabled={disabled} onChange={(event) => setFill(event.target.value)} /></span>
           <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" data-preorder-fill="same" form={form} type="button" disabled={disabled || !fillValid || !included.length}
             onClick={() => { void fillAll(fill.trim()); }}>전체 같은 수량 넣기</button>
           <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" data-preorder-fill="stock" form={form} type="button" disabled={disabled || !included.length}

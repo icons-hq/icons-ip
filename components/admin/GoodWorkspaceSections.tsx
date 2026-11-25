@@ -84,7 +84,7 @@ export function GoodWorkspaceKcCard({ serverError, disabled = false }: { serverE
       </label>
     </div> : null}
     <div className="flex min-w-0 flex-col gap-3 border-t pt-4" data-good-workspace-other-certifications="">
-      <div className="flex flex-col gap-1"><h3 className="text-sm font-medium">기타 인증 <span className="font-normal text-muted-foreground">· 상품과 함께 저장</span></h3>
+      <div className="flex flex-col gap-1"><h3 className="text-sm font-medium">기타 인증</h3>
         <p className="text-sm text-muted-foreground">{GOODS_OTHER_CERTIFICATIONS_GUIDE}</p></div>
       <GoodsOtherCertificationsFields entries={otherCertifications} disabled={disabled}
         onChange={(next) => setSections((current) => ({ ...current, otherCertifications: next }))} />
@@ -127,10 +127,12 @@ export function GoodWorkspacePreorderCard({ serverError, disabled = false }: { s
  * 안의 패널(저장된 상품)이 마운트된 채 예약 상태를 판매 시기에 알린다. 열고 닫을 때 같은 요소를 써서 안의 입력·불러온 값이 다시 만들어지지 않는다.
  */
 function GoodPreorderSlotShell({ title, mode, open, children }: { title: string; mode?: string; open: boolean; children: ReactNode }) {
-  return <section aria-labelledby={open ? 'good-operation-preorders-title' : undefined} className={open ? 'flex min-w-0 scroll-mt-24 flex-col gap-4 border-t pt-5 outline-none' : 'flex min-w-0 scroll-mt-24 flex-col gap-4 outline-none empty:-mt-4'}
+  /* 판매 시기 안에서는 바로 위 카드가 이미 '예약판매'라고 말한다. 제목을 한 번 더 쓰지 않고(읽기 도구용으로만 남긴다), 따로 저장하는 패널만 '예약 조건 · 별도 저장'으로 밝힌다. */
+  const inTiming = Boolean(useGoodSaleTiming());
+  return <section aria-labelledby={open ? 'good-operation-preorders-title' : undefined} className={open ? `flex min-w-0 scroll-mt-24 flex-col gap-4 outline-none${inTiming ? '' : ' border-t pt-5'}` : 'flex min-w-0 scroll-mt-24 flex-col gap-4 outline-none empty:-mt-4'}
     data-good-subsection={open ? '' : undefined} data-good-preorder-open={open ? 'true' : 'false'} id="good-operation-preorders" tabIndex={-1}>
-    {open ? <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-      <h2 className="text-sm font-medium text-foreground" data-good-section-title="" id="good-operation-preorders-title">{title}</h2>
+    {open ? <div className={inTiming && !mode ? 'sr-only' : 'flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1'}>
+      <h2 className="text-sm font-medium text-foreground" data-good-section-title="" id="good-operation-preorders-title">{inTiming && mode ? '예약 조건' : title}</h2>
       {mode ? <span className="text-xs text-muted-foreground" data-good-operation-mode="">{mode}</span> : null}
     </div> : null}
     {children}

@@ -233,7 +233,7 @@ function OptionInputs({ axes, rows, hidden, setAxes, setRows, onCreatedFromSingl
     {summary === null ? null : preview.state === 'ready' || preview.state === 'same'
       ? <GoodReadback>{summary}</GoodReadback>
       : <p className="text-sm text-[var(--wc-warning)]" data-good-option-preview={preview.state} data-tone="warning" role="status">{summary}</p>}
-    <button type="button" className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" data-good-option-create="" disabled={preview.state !== 'ready'} onClick={() => void create()}>{label}</button>
+    <button type="button" className={`${buttonVariants({ variant: preview.state === 'ready' ? 'secondary' : 'outline' })} self-start`} data-slot="button" data-good-option-create="" disabled={preview.state !== 'ready'} onClick={() => void create()}>{label}</button>
   </section>;
 }
 

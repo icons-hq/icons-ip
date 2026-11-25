@@ -371,9 +371,15 @@ describe('카테고리 선택창 조회(categoryPickerLoader)', () => {
     expect(dialogProps().rowKey(row)).toBe('a');
   });
 
-  it('받은 카테고리 순서를 바꾸지 않는다', async () => {
-    const page = await firstPage(categoryPickerLoader([root, node('z', '하'), node('a', '가')])(request()));
-    expect(ids(page.rows)).toEqual(['z', 'a']);
+  it('카테고리 관리와 같은 순서로 보인다: 같은 상위끼리 모으고, 같은 단계는 노출 순서 → 코드', async () => {
+    const other: AdminCategoryNode = { ...root, id: 'other', code: 'aaa-other', name: '리빙', sortOrder: 5 };
+    const page = await firstPage(categoryPickerLoader([
+      node('living', '쿠션', { parentId: 'other' }), root, node('z', '하', { sortOrder: 1 }), other, node('a', '가', { sortOrder: 2 }), node('m', '중', { sortOrder: 1 }),
+    ])(request()));
+    /* 문구(노출 순서 0) 아래: m·z(노출 순서 1, 코드 순) → a(노출 순서 2), 그다음 리빙(노출 순서 5) 아래 쿠션. 받은 배열 순서와 무관하다. */
+    expect(ids(page.rows)).toEqual(['m', 'z', 'a', 'living']);
+    const found = await firstPage(categoryPickerLoader([node('z', '하나', { sortOrder: 2 }), root, node('a', '하루', { sortOrder: 1 })])({ ...request(), query: '하' }));
+    expect(ids(found.rows)).toEqual(['a', 'z']);
   });
 });
 

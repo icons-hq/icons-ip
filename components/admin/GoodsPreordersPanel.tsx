@@ -400,7 +400,10 @@ export function GoodsPreordersPanel({ goodId, variants, canReadOrders = true, ca
   const saved = (message: string, switched = false) => { if (switched) setWanted(false); setNotice({ goodId, message }); reload(); };
   /* 예약 조건을 새 날짜로 저장한 직후 '기존 예약 주문도 이 날짜로' 미리보기 입구(QNA-040). 주문 관리 권한이 있을 때만 보인다. */
   const [scheduleSuggestion, setScheduleSuggestion] = useState<PreorderScheduleSuggestion | null>(null);
-  const activated = (expectedShipDate: string, variantId: string | null) => setScheduleSuggestion({ expectedShipDate, variantId: randomSale ? null : variantId, key: Date.now() });
+  /* 입고 확인 전인 예약 주문이 하나도 없으면 바꿀 일정이 없으므로 묻지 않는다. */
+  const activated = (expectedShipDate: string, variantId: string | null) => {
+    if ([...pendingByVariant.values()].some((qty) => qty > 0)) setScheduleSuggestion((current) => ({ expectedShipDate, variantId: randomSale ? null : variantId, key: (current?.key ?? 0) + 1 }));
+  };
 
   const state = !visible ? 'loading' : visible.error ? 'error' : 'ready';
   /* 예약 연결은 접수를 중지하거나 접수 기간이 끝나도 [일반 재고 판매로 전환] 전까지 남는다. 남아 있는 동안 판매기간을 저장할 수 없다. */
@@ -454,7 +457,7 @@ export function GoodsPreordersPanel({ goodId, variants, canReadOrders = true, ca
     {total && (randomSale ? !randomOpen : available.length > 0)
       ? <GoodWorkspaceDetails stateId={`good-preorder-new-${goodId}`} className={DETAILS_CLASS}><summary className={SUMMARY_CLASS}>{editorSummary}</summary><div className="border-t p-3">{editor}</div></GoodWorkspaceDetails>
       : editor}
-    {orders}
-    {refreshButton}
+    {/* 예약을 한 번도 건 적 없는 상품에는 예약 주문도 바꿀 일정도 없다 — 저장한 예약 조건이 생긴 뒤에 보인다('글보다 화면' 1). */}
+    {total ? <>{orders}{refreshButton}</> : null}
   </div>;
 }

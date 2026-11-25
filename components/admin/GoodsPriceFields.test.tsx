@@ -93,6 +93,23 @@ describe('판매가·할인 입력', () => {
     }
   });
 
+  it('할인이 걸리지 않은 상품에는 카드를 감추고 값만 그대로 제출한다 — 할인을 켜거나 숨김으로 저장해 둔 상품에만 보인다', () => {
+    const fields = (changes: Partial<GoodsPriceDraft>, showDiscountRate: string) => {
+      const draft: GoodsPriceDraft = { regularPrice: '10000', discountEnabled: false, discountValue: '', discountUnit: 'won', ...changes };
+      const html = renderToStaticMarkup(<GoodsPriceFields draft={draft} onDraftChange={() => {}} result={resolveGoodsPrice(draft)} errors={{}} instant={NEW_GOOD_INSTANT_DISCOUNT} showDiscountRate={showDiscountRate} />);
+      return html.slice(html.indexOf('data-good-discount-display'));
+    };
+    const opening = (html: string) => html.split('>')[0];
+    /* 새 상품·할인 없음: 고를 것이 없다. 라디오는 그대로 있어 showDiscountRate가 제출된다. */
+    const none = fields({}, 'true');
+    expect(opening(none)).toContain('hidden=""');
+    expect(radios(none)).toEqual([{ value: 'true', checked: true }, { value: 'false', checked: false }]);
+    /* 즉시할인을 켜면 보인다. */
+    expect(opening(fields({ discountEnabled: true, discountValue: '1000' }, 'true'))).not.toContain('hidden');
+    /* 숨김으로 저장해 둔 상품은 할인이 없어도 되돌릴 수 있게 보인다. */
+    expect(opening(fields({}, 'false'))).not.toContain('hidden');
+  });
+
   it('저장 오류는 카드 아래에 알리고 두 선택지에 연결한다', () => {
     const html = renderToStaticMarkup(<GoodsDiscountRateField value="true" error="할인율 표시 여부를 선택해주세요." />);
     expect(html).toMatch(/id="goods-show-discount-rate-error" role="alert">할인율 표시 여부를 선택해주세요\./);

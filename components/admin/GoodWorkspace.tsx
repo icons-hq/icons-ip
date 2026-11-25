@@ -357,7 +357,8 @@ export function GoodOperationSection({ id, title, description, children, mode = 
   const rememberOpen = mode === 'inline' && defaultOpen;
   /* 등록 화면에서 펼쳐 두고 입력한 KC·예약판매는 저장 뒤 같은 자리의 독립 패널도 펼친 채로 이어 보인다. */
   useEffect(() => { if (rememberOpen) setOpen?.(`good-operation-${id}`, true); }, [rememberOpen, setOpen, id]);
-  const modeLabel = mode === 'inline' ? '상품과 함께 저장' : separateLabel ? '별도 저장' : null;
+  /* 등록 화면(inline)은 모든 입력을 상품과 함께 저장한다 — 묶음 머리의 한 문장이 말하므로 섹션마다 되풀이하지 않는다. 따로 저장하는 패널만 밝힌다. */
+  const modeLabel = mode !== 'inline' && separateLabel ? '별도 저장' : null;
   return <details id={`good-operation-${id}`} className={OPERATION_SECTION_CLASS} data-good-operation={mode} tabIndex={-1} {...openProps}>
     <summary className={OPERATION_SUMMARY_CLASS}>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
