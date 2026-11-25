@@ -26,7 +26,7 @@
 
 Supabase branch 제어 상태에는 `MIGRATIONS_FAILED`가 남아 있지만 프로젝트 상태는 `ACTIVE_HEALTHY`다. 이 표시는 위 성공한 명시적 migration·함수/권한·시드 readback과 구분해 기록하며, 상태 문자열만으로 branch를 재생성하지 않는다. 시드 건수는 2026-09-09 13:24 KST의 첫 검증값이다. 이후 승인된 연습으로 추가·수정되는 행을 초기 시드 오류로 취급하지 않는다.
 
-Production은 `https://iconsip.com` / ref `sbutbsghcxmxmxgrshwq`다. PR #452의 첫 production 배포와 공개 정책·FAQ 게시 후, 최신 `abed200`에서도 post-a2 기준 22테이블 projection 불변과 FAQ 4건 전체 필드 일치를 확인했다. 이는 과거 업그레이드 전 22개 중 19개만 정확히 비교됐던 한계나 shared 환경 사고의 사전 snapshot 부재를 소급 해소한 증거가 아니다.
+Production은 `https://xsquare.kr`(2026-11-25 전 `https://iconsip.com`) / ref `sbutbsghcxmxmxgrshwq`다. PR #452의 첫 production 배포와 공개 정책·FAQ 게시 후, 최신 `abed200`에서도 post-a2 기준 22테이블 projection 불변과 FAQ 4건 전체 필드 일치를 확인했다. 이는 과거 업그레이드 전 22개 중 19개만 정확히 비교됐던 한계나 shared 환경 사고의 사전 snapshot 부재를 소급 해소한 증거가 아니다.
 
 첫 main run `34307232378`은 production 배포 성공 후 staging seed의 세션 표식 오류로 중단됐다. PR #456의 같은 트랜잭션 `SET LOCAL` 보정을 거쳐 위 첫 staging 배포가 성공했다. 이전 실패·격리 rollback 시험은 이력으로 보존한다.
 

@@ -113,7 +113,7 @@ Editor 계정으로 웹훅 등록과 웹훅 테스트가 된다(2026-11-19 실�
 3. 경로가 열렸는지 확인한다. 404면 env가 반영되지 않은 것이다.
 
    ```bash
-   curl -sS -i -X POST https://iconsip.com/api/webhooks/kakao/account-status --data 'not-a-jwt'
+   curl -sS -i -X POST https://xsquare.kr/api/webhooks/kakao/account-status --data 'not-a-jwt'
    ```
 
    기대값: `400`과 `{"err":"invalid_request",...}`.
