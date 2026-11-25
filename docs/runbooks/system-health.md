@@ -9,7 +9,7 @@
 |---|---|---|
 | 판매자 정보 → 시스템 상태(`/admin/settings/system`) | `platform.manage`(통합·주매니저) | 자동 작업 표(실패 중·멈춤·기록 없음·정상·꺼짐), 최근 24시간 실패 50건, 미종결 결제 건수, 메일 발송 실패·반송(24시간) |
 | 같은 화면의 미종결 결제 목록·'결제 상태 다시 확인' | `sales.manage` | 주문번호·결제사·금액·사유·경과·마지막 확인, 건별 재확인 |
-| 운영 알림 '시스템' 분류 | `platform.manage` | 앱 자동 작업 실패, 결제 기한 만료 정리의 건너뛴 주문. 같은 작업은 한 시간에 하나 |
+| 운영 알림 '시스템' 분류 | `platform.manage` | 앱 자동 작업 실패, 결제 기한 만료 정리의 건너뛴 주문. 같은 작업은 한 시간에 하나. 요약 메일에는 출고 보류·발송 지연도 같은 분류로 든다(아래 '외부 알림') |
 | 할 일 '시스템 점검' | `platform.manage` | 지금 문제가 있는 작업 수 + 미종결 결제 수 + 메일 발송 실패(24시간) 수. 반송은 받는 주소 문제라 세지 않는다 |
 | Vercel 로그 | 개발팀 | `[cron] job failed`(실패마다), `[system-alert]`(작업별 그 시간 첫 실패), `[cron] run record failed`(기록 실패) |
 
@@ -62,6 +62,8 @@
 ## 외부 알림: 운영 알림 요약 메일
 
 시스템 장애는 운영 알림 메일로 나간다(설정 화면: 시스템 상태 → 운영 알림 메일, `platform.manage`). 원장 `private.admin_operation_alerts`의 `category='system'` 행에는 원래 앱 cron의 실행 중 실패(`record_system_job_failure`)만 올라왔고, Vercel cron 미호출·시간 초과·401, pg_cron 실패·멈춤, 메일 발송 실패, 미종결 결제는 이 화면의 판정(`system_health_report`)에만 있었다. 그래서 `private.prepare_ops_alert_digest`가 요약을 만들 때(같은 잠금 안) `private.raise_system_health_alerts`로 판정의 실패 중·멈춘 작업, 메일 발송 실패 건수, 미종결 결제 건수를 시간 단위 event_key(`system_job:<작업>:<시각>`·`system_job_stalled:…`·`system_unresolved_payments:<시각>`, 메일 발송 실패는 `system_email_failures:<가장 늦은 실패 시각>`)로 '시스템' 알림 행에 올린 뒤 요약에 담는다(운영 알림 벨에도 보인다). 멈춘·실패한 작업과 미종결 결제는 문제가 이어지는 동안 한 시간에 한 번씩 다시 알린다(돈·정지 상태라 반복이 맞다). 메일 발송 실패는 새 실패가 생겼을 때만 올린다(같은 실패가 24시간 창 동안 매시간 다시 올라오지 않는다). 5분마다 도는 `/api/cron/ops-alert-digest`가 한 통의 요약 메일로 보낸다(10분에 한 통까지). 구현은 `supabase/migrations/20261119107000_ops_alert_digest.sql`, `lib/email/ops-alert-digest*.ts`다.
+
+**출고 보류·발송 지연(2026-11-25, 원장 SHP-107·SHP-135).** 같은 '시스템' 범주에 두 가지가 더 올라간다(`20261125235900_ops_alert_digest_fulfillment.sql`의 `private.raise_fulfillment_digest_alerts`, `prepare_ops_alert_digest`가 `raise_system_health_alerts` 바로 뒤에 부른다). ① 해제되지 않은 출고 보류(`private.order_fulfillment_holds.released_at is null`, 취소된 주문 제외): 이미 창고로 넘어간 출고지시는 시스템이 붙잡지 못하므로 창고 전달 뒤에 걸린 보류(결제사 취소·입금 되돌림·에스크로 취소 요청)는 **사람이 창고에 연락해 출고를 멈춰야 한다.** event_key는 `system_fulfillment_holds:<가장 늦게 생긴 보류 시각>`이라 새 보류가 생길 때만 새 알림이 오르고 제목에 그 시점의 전체 건수가 든다. ② 발송 지연: 관리자 첫 화면 '처리할 업무'·발주·발송 '발송 지연' 탭과 같은 기준(발주확인된 주문의 발송 전 배송 건 중, 처음 약속한 출고 예정일이 있으면 그 날짜가 오늘(KST)보다 앞선 건, 없으면 발주확인 뒤 3일 지난 건). event_key는 `system_shipment_delays:<가장 늦게 늦어진 시각>`이라 새로 늦어진 건이 있을 때만 새 알림이 오른다(건수는 그 시점의 전체). 두 알림 모두 제목에 건수만 있고 주문번호·고객 정보는 없다. '시스템' 범주를 끈 설정에서는 올리지 않고, 켠 시각 이전·6시간 넘은 알림을 세지 않는 규칙은 그대로라서 켠 직후 한 번은 이미 쌓인 보류·지연이 알림 한 건씩으로 나간다.
 
 `lib/system-health/alert-sink.server.ts`의 `notifySystemIncident`는 로그 한 줄만 남기고 **메일을 직접 보내지 않는다.** 서버리스 함수는 응답 뒤 끊겨 즉시 발송이 사라질 수 있고, DB 알림 행과 중복 메일이 나기 때문이다. 메일 말고 다른 채널(메신저 등)을 붙일 때만 이 함수를 바꾼다. 켜는 절차·확인·장애 대응은 [inquiry-realtime.md의 운영 알림 요약 메일](./inquiry-realtime.md)을 따른다.
 

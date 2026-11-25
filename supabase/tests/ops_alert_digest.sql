@@ -14,6 +14,7 @@ begin;
 --   · 답변 지연: 설정 시간을 넘긴 open 문의(기준은 waiting_since — 고객 재촉 메시지가 시계를 되돌리지 않는다)·미답변 상품 문의를
 --     문의당 한 번만, 다시 열려 또 늦으면 다시, 답변되면 빼고, 7일 넘게 묵은 건 세지 않는다
 --   · 범주를 좁히면 고른 범주만 센다(지연 범주를 빼면 지연도 표식 없이 건너뜀)
+--   · 해제되지 않은 출고 보류·발송 지연(처리할 업무와 같은 기준)이 '시스템' 알림으로 올라 요약에 들고, 같은 상태는 다시 올라오지 않으며 새로 늦어진 건이 있을 때만 새 건수로 오른다
 --   · 요약·선점 결과에 문의 제목·본문이 들어가지 않는다
 --   · 선점·결속·완료·만료·재시도와 전용 dispatcher gate(다른 출처 gate와 분리, 꺼지면 선점 없음)
 -- 요약 시각(p_now)은 미래로 줘서 실제 시계와 겹치지 않게 한다(요약 created_at = p_now).
@@ -232,6 +233,54 @@ select 1/case when (select count(*) from private.admin_operation_alerts where ev
 select count(*) as before_rows from private.admin_operation_alerts where event_key like 'system_job%' or event_key like 'system_email%' \gset
 select private.raise_system_health_alerts(now()+interval '5 hours 30 minutes');
 select 1/case when (select count(*) from private.admin_operation_alerts where event_key like 'system_job%' or event_key like 'system_email%')=:'before_rows' then 1 else 0 end as assert_raise_idempotent_within_hour;
+
+-- ---------------------------------------------------------------------------
+-- 출고 보류·발송 지연(SHP-107·SHP-135): '시스템' 범주 알림으로 올라 요약에 들고, 같은 상태는 다시 올라오지 않는다
+-- ---------------------------------------------------------------------------
+-- 발송 지연 기준은 관리자 첫 화면 '처리할 업무'와 같다(발주확인 3일 뒤 미발송). 주문 A: 4일 전 발주확인 + 해제되지 않은 출고 보류. 주문 B는 아래에서 3일 1시간 전 발주확인으로 새로 늦어진다.
+insert into public.fulfillment_origins(id,code,name,base_fee,return_address)
+ values('0a1e0000-0000-4000-8000-0000000000f1','ops-digest-origin','TEST 운영알림 창고',0,'합성 반송 주소');
+insert into public.orders(id,user_id,status,total,address,confirmed_at) values
+ ('0a1e0000-0000-4001-8000-000000000001','0a1e0000-0000-4000-8000-000000000002','confirmed',10000,
+  '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}',now()-interval '4 days');
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot) values
+ ('0a1e0000-0000-4002-8000-000000000001','0a1e0000-0000-4001-8000-000000000001','0a1e0000-0000-4000-8000-0000000000f1','TEST 운영알림 창고',0,'{}');
+insert into public.payments(user_id,purpose,ref_id,provider,amount,status,payment_key,idempotency_key)
+ values('0a1e0000-0000-4000-8000-000000000002','order','0a1e0000-0000-4001-8000-000000000001','toss',10000,'paid','pk-ops-digest-hold','idem-ops-digest-hold');
+insert into public.payment_attempts(provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,expires_at)
+ values('toss','0a1e0000-0000-4000-8000-000000000002','order','0a1e0000-0000-4001-8000-000000000001',10000,'approved','attempt-ops-digest-hold',
+  'order-ops-digest-hold','product-ops-digest-hold',now()+interval '1 day');
+insert into private.order_fulfillment_holds(order_id,reason,evidence_key,payment_attempt_id)
+ select '0a1e0000-0000-4001-8000-000000000001','test_payment','test_payment:'||a.id,a.id from public.payment_attempts a where a.idempotency_key='attempt-ops-digest-hold';
+
+select private.raise_fulfillment_digest_alerts(now()) as raised \gset
+select 1/case when :'raised'::integer>=2
+ and (select count(*)=1 from private.admin_operation_alerts where event_key like 'system_fulfillment_holds:%' and category='system' and title like '출고 보류 1건%')
+ and (select count(*)=1 from private.admin_operation_alerts where event_key like 'system_shipment_delays:%' and category='system' and title like '발송 지연 1건%')
+ then 1 else 0 end as assert_hold_and_delay_alerts_raised;
+-- 같은 상태가 이어져도 다시 올리지 않는다.
+select 1/case when private.raise_fulfillment_digest_alerts(now()+interval '1 hour')=0 then 1 else 0 end as assert_same_fulfillment_state_not_repeated;
+-- 보류를 풀고 새 지연 건이 생기면: 보류 알림은 더 오르지 않고(해제), 지연 알림만 늘어난 건수로 새로 오른다.
+update private.order_fulfillment_holds set released_at=now(),release_kind='operator',release_note='TEST 운영알림 해제 사유' where released_at is null
+ and order_id='0a1e0000-0000-4001-8000-000000000001';
+insert into public.orders(id,user_id,status,total,address,confirmed_at) values
+ ('0a1e0000-0000-4001-8000-000000000002','0a1e0000-0000-4000-8000-000000000002','confirmed',10000,
+  '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}',now()-interval '3 days 1 hour');
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot) values
+ ('0a1e0000-0000-4002-8000-000000000002','0a1e0000-0000-4001-8000-000000000002','0a1e0000-0000-4000-8000-0000000000f1','TEST 운영알림 창고',0,'{}');
+select 1/case when private.raise_fulfillment_digest_alerts(now()+interval '2 hours')=1
+ and (select count(*)=1 from private.admin_operation_alerts where event_key like 'system_fulfillment_holds:%' and title like '출고 보류 1건%')
+ and (select count(*)=1 from private.admin_operation_alerts where event_key like 'system_shipment_delays:%' and title like '발송 지연 2건%')
+ then 1 else 0 end as assert_new_delay_alert_with_total;
+-- 요약에 시스템 알림으로 든다(범주 '시스템'만 켜져 있다). 알림 시각을 요약 시점의 6시간 안으로 옮겨 센다.
+update private.admin_operation_alerts set created_at=now()+interval '9 hours 50 minutes'
+ where event_key like 'system_fulfillment_holds:%' or event_key like 'system_shipment_delays:%';
+select private.prepare_ops_alert_digest(now()+interval '10 hours') as p7 \gset
+select 1/case when :'p7'::jsonb->>'status'='prepared'
+ and (select (counts->>'system')::integer>=3 and system_titles::text like '%출고 보류 1건%' and system_titles::text like '%발송 지연 2건%'
+   and (counts::text||system_titles::text) not like '%0a1e0000-0000-4001%'
+   from private.ops_alert_digest_runs where id=(:'p7'::jsonb->>'runId')::uuid)
+ then 1 else 0 end as assert_fulfillment_alerts_in_digest;
 
 -- ---------------------------------------------------------------------------
 -- 선점·결속·완료·만료·gate
