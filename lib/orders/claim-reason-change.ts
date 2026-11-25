@@ -134,6 +134,21 @@ export function claimReasonError(code?: string, message?: string): string {
   return known[message ?? ''] ?? '저장 결과를 확인하지 못했습니다. 같은 요청의 결과를 확인해주세요.';
 }
 
+/* 반품이 [환불 접수]를 지나 사유 정정 단계를 벗어난 상태(보류는 처리중·결제확인필요에서 걸린 보류만 여기까지 온다). */
+const RETURN_REFUND_FILED_STAGES = new Set<OrderClaimStage>(['processing', 'needs_review', 'completed', 'on_hold']);
+export const CLAIM_REASON_RETURN_REFUND_FILED_MESSAGE = '환불 접수(또는 주문 취소·환급 처리)가 시작되어 사유를 바꿀 수 없습니다. 반품배송비와 환불 금액은 [환불 접수] 때 정해져 바뀌지 않습니다. '
+  + '실제 하자·오배송인데 이미 뺀 반품배송비를 돌려줘야 하면 결제 담당에게 요청해주세요. 결제 담당이 개발 담당과 함께 결제사에서 남은 금액을 취소하고 환불 기록을 맞춥니다.';
+
+/**
+ * 정정 칸이 막힌 이유와 다음 할 일. 반품이 [환불 접수] 뒤라 막혔으면 이미 뺀 반품배송비를 돌려주는 경로(결제 담당·개발 담당,
+ * 반품배송비 차감 런북의 이상 신호 표)를 함께 말한다. 그 밖은 claimReasonError와 같다.
+ */
+export function claimReasonBlockedMessage(context: Pick<ClaimReasonContext, 'claimType' | 'stage' | 'blocker'>): string {
+  if (context.claimType === 'return' && (context.blocker === 'claim_reason_finance_started'
+    || context.blocker === 'claim_reason_stage_unavailable' && RETURN_REFUND_FILED_STAGES.has(context.stage))) return CLAIM_REASON_RETURN_REFUND_FILED_MESSAGE;
+  return claimReasonError(undefined, context.blocker ?? '');
+}
+
 const REASON_LABELS: Record<OrderWithdrawalReasonType, string> = { change_of_mind: '단순 변심', defect: '상품 하자·오배송' };
 
 /**

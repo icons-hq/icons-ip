@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { changeClaimReasonAction, loadClaimReasonContextAction, readClaimReasonChangeAction } from '@/app/admin/claim-reason-change-actions';
 import {
-  claimReasonConfirmMessage, claimReasonError, claimReasonReceiptMatches, claimReasonReturnFeeNote, claimReasonSavedMessage, normalizeClaimReasonRequest,
+  claimReasonBlockedMessage, claimReasonConfirmMessage, claimReasonError, claimReasonReceiptMatches, claimReasonReturnFeeNote, claimReasonSavedMessage, normalizeClaimReasonRequest,
   type ClaimReasonContext, type ClaimReasonReceipt, type ClaimReasonRequest,
 } from '@/lib/orders/claim-reason-change';
 import { formatOrderDateTime, ORDER_WITHDRAWAL_REASON_LABELS, ORDER_WITHDRAWAL_REASON_TYPES, type OrderWithdrawalReasonType } from '@/lib/orders';
@@ -108,7 +108,7 @@ export function ClaimReasonChangePanel({ initial, onClose }: { initial: ClaimRea
       <p>정정 전: {row.fromReason}</p><p>정정 후: {row.toReason}</p><p className="text-muted-foreground">내부 협의 근거: {row.agreement}</p>
     </li>)}</ol></details> : null}
     {receipt ? <p role="status">{claimReasonSavedMessage(receipt)}</p>
-      : !context.allowed ? <p className="text-muted-foreground" role="status">{claimReasonError(undefined, context.blocker ?? '')}</p>
+      : !context.allowed ? <p className="text-muted-foreground" role="status">{claimReasonBlockedMessage(context)}</p>
         : <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); void save(); }}>
           <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0" disabled={locked}><legend className="mb-1 font-medium">정정 내용과 고객 협의</legend>
             <div className={FIELD}><Label htmlFor={`claim-reason-type-${context.claimId}`}>사유 분류</Label>

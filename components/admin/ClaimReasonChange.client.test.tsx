@@ -98,10 +98,12 @@ it('반품 사유 정정은 반품배송비 차감을 보이고 저장 결과에
   expect(mocks.refresh).toHaveBeenCalledOnce();
   expect(text(render())).toContain('반품 사유를 정정하고 고객에게 앱 알림을 남겼습니다. 반품배송비 차감이 3,000원에서 0원으로 바뀌었습니다.');
 });
-it('막힌 반품은 이유와 함께 정정 칸을 열지 않는다', () => {
-  context = { ...structuredClone(returnReasonContext), allowed: false, blocker: 'claim_reason_finance_started', returnFee: { ...returnReasonContext.returnFee!, deductionAmount: null } };
+it('환불 접수 뒤 막힌 반품은 반품배송비를 돌려주는 다음 할 일과 함께 정정 칸을 열지 않는다', () => {
+  context = { ...structuredClone(returnReasonContext), stage: 'processing', allowed: false, blocker: 'claim_reason_stage_unavailable',
+    returnFee: { ...returnReasonContext.returnFee!, deductionAmount: null } };
   const html = text(render());
-  expect(html).toContain('환불 접수나 주문 취소·환급 처리가 시작되어 사유를 정정할 수 없습니다');
+  expect(html).toContain('[환불 접수] 때 정해져 바뀌지 않습니다'); expect(html).toContain('결제 담당에게 요청해주세요');
+  expect(html).not.toContain('지금 사유로는');
   expect(all(render()).some(element => element.type === 'form')).toBe(false);
 });
 /* m27 G4-5: 목록 위 클레임 팝업(R8) 안에서 사유 정정을 기다리는 동안 팝업이 닫히지 않게 알린다. */

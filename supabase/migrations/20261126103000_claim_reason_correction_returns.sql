@@ -15,6 +15,8 @@
 --    이중 청구·차감 판정의 'claim_fee_invoiced'가 정정 뒤 사유로 다시 정해진다.
 --  * 정정 사유(내부 고객 협의 근거)는 보호된 정정 이력(private.order_claim_reason_operations, 처리자·전후 사유 포함)에 남고, 일반 감사
 --    로그(audit_log, id = 작업 ID)에는 기존 계약대로 복사하지 않는다.
+--  * 선물 주문의 정정 알림(교환·반품)은 기존 선물 클레임 알림 규칙(notify_order_claim — 보낸 분·받는 분 모두, 일반 문구·/gifts/ 링크)을
+--    따른다. 이전에는 교환 정정이 보낸 분에게만 운영자 설명 원문과 /orders/ 링크로 갔다(고객 이력 읽기의 선물 가림을 알림이 우회했다).
 -- CLM-136(검증 ADJUST, 낮음): 일괄 환불 확인창 문맥(order_claim_bulk_context_row)이 부분 반품을 구분하지 않아 남은 결제 금액 전체를
 -- 환불액으로 보였다(실제 송금은 고른 몫). 부분 반품이면 접수 뒤에는 부분 환불 원장, 접수 전에는 부분 반품 계산의 환불액·차감액을 싣고,
 -- 계산할 수 없거나 이미 접수된 부분 반품은 일괄 환불에서 이유와 함께 뺀다(상세에서 처리).
@@ -196,14 +198,23 @@ begin
     'descriptionChanged',claim.reason<>reason_text,'customerConfirmed',true,'feeReviewed',p_fee_reviewed)
    ||case when claim.claim_type='return' then jsonb_build_object('partialReturn',private.claim_is_partial_return(p_claim_id),
      'fromReturnFeeDeduction',fee_before,'toReturnFeeDeduction',fee_after) else '{}'::jsonb end);
-  notice:=case when claim.claim_type='return' and fee_before is not null and fee_after is not null and fee_before<>fee_after then
-    case when fee_after=0 then format(' 반품배송비 %s을 빼지 않고 환불합니다.',private.format_krw(fee_before))
-     else format(' 환불 금액에서 반품배송비 %s을 뺍니다.',private.format_krw(fee_after)) end else '' end;
-  insert into public.notifications(user_id,type,title,body,link_path,source_type,source_id,dedupe_key)
-   values(buyer,'claim_updated',case when claim.claim_type='return' then '반품 요청 사유가 정정됐어요' else '교환 요청 사유가 정정됐어요' end,
-    case p_reason_type when 'defect' then '상품 하자·오배송' else '단순 변심' end||': '||reason_text||notice,
-    '/orders/'||order_key,'order_claim',p_claim_id::text,'claim:reason_changed:'||p_operation_id)
-   on conflict(user_id,dedupe_key) do nothing;
+  if exists(select 1 from private.gift_intents g where g.order_id=order_key) then
+   -- 선물 주문(교환·반품 모두): 기존 선물 클레임 알림 규칙을 따른다 — 보낸 분·받는 분 모두에게 일반 문구와 /gifts/ 링크만 보낸다
+   -- (private.notify_order_claim). 운영자가 쓴 설명 원문은 보내지 않는다 — 고객 이력 읽기도 선물 주문 설명을 일반 분류로 가린다.
+   -- 선물 주문은 반품배송비를 자동 차감하지 않아(gift_order) 차감 문장도 없다.
+   perform private.notify_order_claim(p_claim_id,'reason_changed',
+    case when claim.claim_type='return' then '반품 요청 사유가 정정됐어요' else '교환 요청 사유가 정정됐어요' end,
+    case p_reason_type when 'defect' then '상품 하자' else '단순 변심' end);
+  else
+   notice:=case when claim.claim_type='return' and fee_before is not null and fee_after is not null and fee_before<>fee_after then
+     case when fee_after=0 then format(' 반품배송비 %s을 빼지 않고 환불합니다.',private.format_krw(fee_before))
+      else format(' 환불 금액에서 반품배송비 %s을 뺍니다.',private.format_krw(fee_after)) end else '' end;
+   insert into public.notifications(user_id,type,title,body,link_path,source_type,source_id,dedupe_key)
+    values(buyer,'claim_updated',case when claim.claim_type='return' then '반품 요청 사유가 정정됐어요' else '교환 요청 사유가 정정됐어요' end,
+     case p_reason_type when 'defect' then '상품 하자·오배송' else '단순 변심' end||': '||reason_text||notice,
+     '/orders/'||order_key,'order_claim',p_claim_id::text,'claim:reason_changed:'||p_operation_id)
+    on conflict(user_id,dedupe_key) do nothing;
+  end if;
  end if;
  return private.order_claim_reason_receipt(p_operation_id,actor);
 end $$;
