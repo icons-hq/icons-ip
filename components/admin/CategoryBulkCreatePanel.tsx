@@ -17,7 +17,7 @@ import { Textarea } from './kit/ui/textarea';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 
 /**
- * 카테고리 일괄 등록(R9). ERP 분류표처럼 `대>중>소` 경로를 줄마다 붙여넣으면 없는 단계만 만든다.
+ * 카테고리 일괄 등록(R9). ERP 분류표처럼 `대>중>소` 경로를 줄마다 붙여넣으면 없는 단계만 만든다(최대 4단계, 이름의 '/'는 이름 그대로).
  * 응답을 받지 못한 요청은 같은 작업 번호로 다시 보내 DB가 첫 결과를 돌려주게 한다(중복 생성 방지).
  */
 export function CategoryBulkCreatePanel() {
@@ -41,7 +41,7 @@ export function CategoryBulkCreatePanel() {
       setResult(response.result);
       router.refresh();
     } catch {
-      setError('등록 결과를 확인하지 못했습니다. 같은 내용으로 다시 누르면 이미 만든 카테고리는 다시 만들지 않습니다.');
+      setError('등록됐는지 확인하지 못했습니다. [일괄 등록]을 다시 눌러도 이미 만든 카테고리는 다시 만들지 않습니다.');
     } finally {
       running.current = false; setPending(false);
     }
@@ -54,12 +54,11 @@ export function CategoryBulkCreatePanel() {
         placeholder={'문구>노트>스프링노트\n문구>메모/수첩>메모지\n화장품/미용>뷰티소품2'}
         onChange={(event) => { setText(event.target.value); setOperationId(crypto.randomUUID()); }} />
     </label>
-    <p className="text-sm text-muted-foreground">
-      한 줄에 경로 하나를 ‘대&gt;중&gt;소’처럼 ‘&gt;’로 나눠 입력합니다(최대 4단계, 2단계 줄도 됩니다). 같은 부모 아래 같은 이름은 새로 만들지 않고 건너뜁니다. 이름에 든 ‘/’는 이름 그대로 들어갑니다. 한 번에 {CATEGORY_BULK_LINE_LIMIT.toLocaleString('ko-KR')}줄까지 등록할 수 있습니다.
-    </p>
+    {/* 적는 방식은 입력칸의 예시가 보여 준다. 화면에 안 보이는 결과(이미 있는 카테고리는 다시 만들지 않음)만 한 줄로 둔다. */}
+    <p className="text-sm text-muted-foreground">한 줄에 하나씩 ‘대&gt;중&gt;소’로 적습니다. 이미 있는 카테고리는 다시 만들지 않습니다.</p>
     <div className="flex flex-wrap items-center gap-3">
       <Button type="button" disabled={pending || !lineCount} onClick={() => { void submit(); }}>{pending ? '등록 중' : '일괄 등록'}</Button>
-      <span role="status" className="text-sm text-muted-foreground tabular-nums">경로 {lineCount.toLocaleString('ko-KR')}줄</span>
+      <span role="status" className="text-sm text-muted-foreground tabular-nums">경로 {lineCount.toLocaleString('ko-KR')}줄 · 한 번에 {CATEGORY_BULK_LINE_LIMIT.toLocaleString('ko-KR')}줄까지</span>
     </div>
     {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
     {result ? <>

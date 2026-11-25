@@ -59,8 +59,10 @@ select pg_temp.ip_preview(2,'discount_stop','{}') as stop_preview \gset
 select pg_temp.bulk_assert((select r->'discounts'->>'count'='1' and r->'discounts'->>'minPrice'='9500' and r->'skip'='null'::jsonb from jsonb_array_elements(:'stop_preview'::jsonb->'goods') r where r->>'id'='bulk-ip-001')
  and (select r->'discounts'->>'minPrice'='9000' from jsonb_array_elements(:'stop_preview'::jsonb->'goods') r where r->>'id'='bulk-ip-050')
  and (select r->>'skip'='no_active_discount' and r->'discounts'='null'::jsonb from jsonb_array_elements(:'stop_preview'::jsonb->'goods') r where r->>'id'='bulk-ip-002'),'stop preview lists discounts to turn off');
--- A base price change is refused at preview while a current/upcoming discount exists (same rule as the option price guard).
-select pg_temp.bulk_error($q$select public.admin_preview_goods_bulk(md5('bulk-ip-test:price')::uuid,'{"kind":"goods","ids":["bulk-ip-050"],"command":"price","values":{"mode":"set","value":12000}}','b9100000-0000-4000-8000-000000000001','b9100000-0000-4000-8000-000000000011')$q$,'active_price_period_requires_reset');
+-- A base price change skips the good at preview while a current/upcoming discount exists (same rule as the option price guard, 20261126120000).
+select pg_temp.bulk_assert((select r->>'skip'='active_price_period_requires_reset' from jsonb_array_elements(public.admin_preview_goods_bulk(md5('bulk-ip-test:price')::uuid,'{"kind":"goods","ids":["bulk-ip-050"],"command":"price","values":{"mode":"set","value":12000}}','b9100000-0000-4000-8000-000000000001','b9100000-0000-4000-8000-000000000011')->'goods') r),
+ 'price preview names the blocking discount');
+select pg_temp.bulk_assert(public.admin_commit_goods_bulk(md5('bulk-ip-test:price')::uuid,'b9100000-0000-4000-8000-000000000001','b9100000-0000-4000-8000-000000000011')->>'error'='goods_bulk_all_skipped','blocked price change is not saved');
 -- The list projection explains why inline price edit is closed.
 select pg_temp.bulk_assert((select jsonb_object_agg(r->>'id',r->'activeDiscountEndsAt' is distinct from 'null'::jsonb) from jsonb_array_elements(public.admin_goods_list_price_states(array['bulk-ip-050','bulk-ip-002'])) r)
  ='{"bulk-ip-050":true,"bulk-ip-002":false}'::jsonb,'list price state shows active discounts');

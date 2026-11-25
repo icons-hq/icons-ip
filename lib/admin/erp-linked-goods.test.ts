@@ -5,11 +5,14 @@ import {
   erpLinkedGoodsConfirmation,
   erpLinkedGoodsCounts,
   erpLinkedGoodsErrorLabel,
+  erpLinkedGoodsCompanionNote,
   erpLinkedGoodsFailureLabel,
+  erpLinkedGoodsPriceCompanions,
   erpLinkedGoodsReceiptMessage,
   formatErpLinkedGoodsValue,
   parseErpLinkedGoodsPreview,
   parseErpLinkedGoodsReceipt,
+  toggleErpLinkedGoodsRow,
   type ErpLinkedGoodsRow,
 } from './erp-linked-goods';
 
@@ -102,5 +105,81 @@ describe('연결 상품 반영 확정 계약', () => {
     expect(formatErpLinkedGoodsValue('price', 12000)).toBe('12,000원');
     expect(formatErpLinkedGoodsValue('barcode', '0088012345678')).toBe('0088012345678');
     expect(formatErpLinkedGoodsValue('barcode', null)).toBe('없음');
+  });
+});
+
+/* R-03: DB 확정은 고른 판매가 줄만 반영한 뒤 옵션 판매 금액이 상품 판매가(기본 옵션)보다 낮으면 통째로 거절한다. 화면은 고를 때 같은 판정으로 짝을 맞춘다. */
+describe('함께 반영해야 하는 판매가 줄', () => {
+  const price = (id: string, current: number | null, next: number, extra: Partial<ErpLinkedGoodsRow> = {}) =>
+    row('price', { key: `${id}:price`, variantId: id, isDefault: false, optionName: id, current, next, ...extra });
+  const base = (current: number, next: number, extra: Partial<ErpLinkedGoodsRow> = {}) => price('base', current, next, { isDefault: true, optionName: '기본 옵션', ...extra });
+  const pairs = (rows: ErpLinkedGoodsRow[]) => Object.fromEntries(erpLinkedGoodsPriceCompanions(rows));
+
+  it('상품 판매가가 오르면 그보다 싼 옵션 줄이 있어야 기본 옵션 줄을 반영할 수 있다', () => {
+    expect(pairs([base(10000, 12000), price('big', 11000, 13000), price('huge', 12000, 14000)])).toEqual({ 'base:price': ['big:price'] });
+  });
+
+  it('옵션 금액이 지금 상품 판매가보다 낮아지면 기본 옵션 줄이 있어야 그 옵션 줄을 반영할 수 있다', () => {
+    expect(pairs([base(12000, 10000), price('big', 13000, 11000), price('huge', 14000, 12000)])).toEqual({ 'big:price': ['base:price'] });
+  });
+
+  it('기본 옵션 줄이 없거나, 다른 상품이거나, 건너뛰는 줄·바코드 줄·지금 값이 없는 줄이면 짝이 없다', () => {
+    expect(pairs([price('big', 11000, 13000), price('huge', 12000, 14000)])).toEqual({});
+    expect(pairs([base(10000, 12000), price('other', 11000, 13000, { goodId: 'another-good' })])).toEqual({});
+    expect(pairs([base(10000, 12000), price('skipped', 11000, 13000, { status: 'skip', reason: 'zero_price' })])).toEqual({});
+    expect(pairs([base(10000, 12000), row('barcode', { key: 'big:barcode', variantId: 'big', isDefault: false })])).toEqual({});
+    expect(pairs([base(10000, 12000), price('blank', null, 13000)])).toEqual({});
+  });
+
+  it('고르면 필요한 줄을 함께 고르고, 빼면 그 줄이 필요한 줄을 함께 뺀다', () => {
+    const raised = erpLinkedGoodsPriceCompanions([base(10000, 12000), price('big', 11000, 13000), price('huge', 12000, 14000)]);
+    const all = new Set(['base:price', 'big:price', 'huge:price']);
+    const withoutBig = toggleErpLinkedGoodsRow(all, raised, 'big:price', false);
+    expect([...withoutBig.selected]).toEqual(['huge:price']);
+    expect(withoutBig.moved).toEqual(['base:price']);
+    const withBase = toggleErpLinkedGoodsRow(new Set<string>(), raised, 'base:price', true);
+    expect([...withBase.selected]).toEqual(['base:price', 'big:price']);
+    expect(withBase.moved).toEqual(['big:price']);
+    /* 따로 반영해도 되는 줄은 혼자 움직인다. */
+    expect(toggleErpLinkedGoodsRow(all, raised, 'huge:price', false)).toEqual({ selected: new Set(['base:price', 'big:price']), moved: [] });
+    expect(toggleErpLinkedGoodsRow(new Set<string>(), raised, 'big:price', true)).toEqual({ selected: new Set(['big:price']), moved: [] });
+
+    const lowered = erpLinkedGoodsPriceCompanions([base(12000, 10000), price('big', 13000, 11000)]);
+    expect(toggleErpLinkedGoodsRow(new Set<string>(), lowered, 'big:price', true).moved).toEqual(['base:price']);
+    expect(toggleErpLinkedGoodsRow(new Set(['base:price', 'big:price']), lowered, 'base:price', false)).toEqual({ selected: new Set<string>(), moved: ['big:price'] });
+    expect(toggleErpLinkedGoodsRow(new Set(['base:price', 'big:price']), lowered, 'big:price', false).moved).toEqual([]);
+  });
+
+  /* DB의 erp_goods_apply_partial_price 판정(supabase/migrations/20261113040100)을 그대로 옮겨, 짝을 맞춘 선택은 어떤 순서로 눌러도 거절되지 않는지 본다. */
+  it('짝을 맞춘 선택은 DB의 일부 선택 검사를 늘 통과한다', () => {
+    const rejected = (rows: ErpLinkedGoodsRow[], selected: ReadonlySet<string>) => {
+      const chosen = rows.filter((entry) => selected.has(entry.key));
+      if (!chosen.length) return false;
+      const defaultRow = rows.find((entry) => entry.isDefault) as ErpLinkedGoodsRow;
+      const finalBase = (selected.has(defaultRow.key) ? defaultRow.next : defaultRow.current) as number;
+      return rows.some((entry) => ((selected.has(entry.key) ? entry.next : entry.current) as number) < finalBase);
+    };
+    for (const rows of [
+      [base(10000, 12000), price('a', 11000, 13000), price('b', 12000, 14000), price('c', 10000, 12000)],
+      [base(12000, 10000), price('a', 13000, 11000), price('b', 14000, 12000), price('c', 12000, 10000)],
+      [base(10000, 10500), price('a', 10000, 20000), price('b', 30000, 10500)],
+    ]) {
+      const companions = erpLinkedGoodsPriceCompanions(rows);
+      let selected: ReadonlySet<string> = new Set(rows.map((entry) => entry.key));
+      expect(rejected(rows, selected)).toBe(false);
+      /* 모든 줄을 차례로 빼고, 다시 차례로 고르는 동안 한 번도 거절되는 선택이 나오지 않는다. */
+      for (const checked of [false, true]) {
+        for (const entry of rows) {
+          selected = toggleErpLinkedGoodsRow(selected, companions, entry.key, checked).selected;
+          expect(rejected(rows, selected), `${entry.key} ${checked}`).toBe(false);
+        }
+      }
+    }
+  });
+
+  it('따라 바뀐 줄에는 누른 줄의 이름과 이유를 말한다', () => {
+    expect(erpLinkedGoodsCompanionNote({ optionName: '대형', isDefault: false }, false)).toBe('‘대형’ 판매가와 함께 반영해야 해서 같이 뺐습니다. 따로 반영하면 옵션 금액이 상품 판매가보다 낮아집니다.');
+    expect(erpLinkedGoodsCompanionNote({ optionName: '기본 옵션', isDefault: true }, true)).toContain('‘기본 옵션’ 판매가와 함께 반영해야 해서 같이 골랐습니다.');
+    expect(erpLinkedGoodsCompanionNote({ optionName: '빨강', isDefault: true }, true)).toContain('‘빨강(기본 옵션)’ 판매가와');
   });
 });

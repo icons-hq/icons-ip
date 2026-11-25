@@ -8,7 +8,7 @@ const filters: GoodsRelationFilters = { query: '테스트 & 상품', kind: 'toge
 const row = (index = 1): GoodsRelation => ({
   id: `99030000-0000-4000-8000-${String(index).padStart(12, '0')}`, kind: 'together', title: `편성${index}`, representativeGoodId: 'g-2', enabled: true,
   startsAt: '2026-10-13T15:00:00.000Z', endsAt: null, revision: 2, createdAt: '2026-10-12T00:00:00.000Z', updatedAt: '2026-10-13T00:00:00.000Z', state: 'active',
-  goods: [{ id: 'g-1', name: '=1+1', code: '000100', imagePath: null, public: true }, { id: 'g-2', name: '두번째', code: '002', imagePath: null, public: false }], visual: null,
+  goods: [{ id: 'g-1', name: '=1+1', code: '000100', imagePath: null, public: true, visibility: 'public' }, { id: 'g-2', name: '두번째', code: '002', imagePath: null, public: false, visibility: 'draft' }], visual: null,
 });
 function resolveRows(rows: GoodsRelation[]) {
   list.mockImplementation(async (input: GoodsRelationFilters) => ({ filters: input, total: rows.length, rows: rows.slice((input.page - 1) * 100, input.page * 100) }));
@@ -75,7 +75,7 @@ describe('연관상품 XLSX 원문 검증', () => {
     expect(grouping.getCell('A1').font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true }); expect(grouping.getCell('A1').fill).toMatchObject({ fgColor: { argb: 'FFEFF2F0' } });
   });
   it('최대 2,000편성/20,000구성 행을 파일로 다시 읽어 끝 행까지 확인한다', async () => {
-    const rows = Array.from({ length: 2000 }, (_, index) => ({ ...row(index + 1), kind: 'similar' as const, goods: Array.from({ length: 10 }, (_, member) => ({ id: `g-${member + 1}`, code: `00${member}`, name: `상품${member}`, imagePath: null, public: true })) }));
+    const rows = Array.from({ length: 2000 }, (_, index) => ({ ...row(index + 1), kind: 'similar' as const, goods: Array.from({ length: 10 }, (_, member) => ({ id: `g-${member + 1}`, code: `00${member}`, name: `상품${member}`, imagePath: null, public: true, visibility: 'public' as const })) }));
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(await buildGoodsRelationsWorkbook({ filters: { ...filters, kind: 'all' }, rows, startedAt: '2026-10-14T00:00:00Z', verifiedAt: '2026-10-14T00:01:00Z' }) as unknown as Parameters<typeof book.xlsx.load>[0]);
     expect(book.worksheets[0].rowCount).toBe(2001); expect(book.worksheets[1].rowCount).toBe(20001);

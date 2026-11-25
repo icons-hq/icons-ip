@@ -9,6 +9,7 @@ import {
   rememberSabangnetTargets,
   SABANGNET_GALLERY_LIMIT,
   SABANGNET_KC_WARNING,
+  SABANGNET_TARGETS,
   suggestSabangnetBrandIps,
   suggestSabangnetTargets,
   validateSabangnetTargets,
@@ -77,6 +78,43 @@ describe('사방넷 열 이름 인식', () => {
   });
 });
 
+describe('연결할 엑스스퀘어 항목 이름(M-03·M-04)', () => {
+  const label = (key: string) => SABANGNET_TARGETS.find((target) => target.key === key)?.label;
+
+  it('사방넷 판매가는 상품 수정 화면의 할인가, TAG가는 판매가라 부르고 옵션은 옵션명·옵션값이라 부른다', () => {
+    expect(label('price')).toBe('할인가(고객이 내는 금액)');
+    expect(label('compareAtPrice')).toBe('판매가(할인 전 금액)');
+    expect([label('optionTitle1'), label('optionValues1'), label('optionTitle2'), label('optionValues2')]).toEqual(['옵션명 1', '옵션값 1', '옵션명 2', '옵션값 2']);
+    expect(SABANGNET_TARGETS.filter((target) => /옵션 축|고객 결제 금액|할인 전 판매가/.test(target.label))).toEqual([]);
+  });
+
+  it('이름만 바뀌었다: 열 이름 자동 연결·저장 값(판매가=고객이 내는 금액, TAG가=할인 전)은 그대로다', () => {
+    expect(suggestSabangnetTargets(['판매가', 'TAG가']).targets).toEqual(['price', 'compareAtPrice']);
+    const { rows } = convert([sheetRow(5, { 상품명: '머그', 판매가: '15000', TAG가: '18000' })]);
+    expect(rows[0].values).toMatchObject({ salePrice: '18000', instantDiscount: '3000' });
+  });
+
+  it('중복 연결 오류도 새 이름으로 말한다', () => {
+    expect(validateSabangnetTargets(['name', 'price', 'price'], ['상품명', '판매가', '결제금액'])).toBe('할인가(고객이 내는 금액)에 두 개 이상의 열을 연결했습니다: 판매가, 결제금액');
+    expect(validateSabangnetTargets(['name', 'optionTitle1', 'optionTitle1'], ['상품명', '옵션제목(1)', '옵션제목1'])).toContain('옵션명 1에 두 개 이상');
+  });
+
+  it('변환 경고·오류는 옵션 축 대신 옵션명·옵션값, 행 대신 엑셀 줄로 말한다', () => {
+    const { warnings, rows } = convert([
+      sheetRow(5, { 상품명: '키링', '옵션제목(1)': '색상' }),
+      sheetRow(6, { 상품명: '키링2', '옵션상세명칭(1)': '빨강,빨강' }),
+      sheetRow(7, { 상품명: '티셔츠', '옵션제목(1)': '사이즈', '옵션상세명칭(1)': 'M', '옵션제목(2)': '사이즈', '옵션상세명칭(2)': 'L' }),
+      sheetRow(8, { 상품명: '머그', '옵션제목(1)': '색상', '옵션상세명칭(1)': '빨강(-500원)' }),
+    ]);
+    expect(warnings.get(5)).toEqual(['옵션명 1만 있고 옵션값이 없어 이 옵션은 만들지 않았습니다.']);
+    expect(warnings.get(6)).toEqual(expect.arrayContaining(["옵션명 1 칸이 비어 있어 '옵션'(으)로 만들었습니다.", "같은 옵션값은 하나로 합쳤습니다(옵션명 1: '빨강')."]));
+    const errors = (row: number) => rows.filter((item) => item.row === row).flatMap((item) => item.errors ?? []);
+    expect(errors(7)).toEqual(['옵션명 1과 옵션명 2가 같습니다. 서로 다른 이름을 입력해 주세요.']);
+    expect(errors(8)).toEqual(["옵션값 '빨강'에 마이너스 금액이 있습니다. 옵션가는 0원 이상의 추가금액이어야 합니다."]);
+    for (const text of [...warnings.values()].flat().concat([5, 6, 7, 8].flatMap(errors))) expect(text).not.toMatch(/옵션 축|행/);
+  });
+});
+
 describe('사방넷 CSV 읽기', () => {
   it('큰따옴표 안의 쉼표·줄바꿈과 CRLF를 지키고 탭 구분도 읽는다', () => {
     expect(parseSabangnetCsv('상품명,옵션상세명칭(1)\r\n"키링, 대형","빨강,파랑"\r\n"두 줄\n설명","say ""hi"""\n')).toEqual([
@@ -142,7 +180,7 @@ describe('사방넷 행 → 엑스스퀘어 일괄 등록 행 변환', () => {
     expect(warnings.size).toBe(0);
   });
 
-  it('옵션 축 1개는 쉼표로 나누고 (+금액)·중복·^^ 표기를 경고와 함께 해석한다', () => {
+  it('옵션명 1개는 쉼표로 나눈 옵션값이 되고 (+금액)·중복·^^ 표기를 경고와 함께 해석한다', () => {
     const { rows, warnings } = convert([
       sheetRow(7, { 상품명: '아크릴 키링', 판매가: '9000', '옵션제목(1)': '캐릭터', '옵션상세명칭(1)': '핑크빈, 슬라임(+1,000원),핑크빈, 주황버섯^^10' }),
     ]);
@@ -152,11 +190,11 @@ describe('사방넷 행 → 엑스스퀘어 일괄 등록 행 변환', () => {
       ['캐릭터', '주황버섯', '주황버섯', '9000', '0'],
     ]);
     expect(warnings.get(7)).toEqual(expect.arrayContaining([
-      expect.stringContaining('(+금액)'), expect.stringContaining("같은 값 '핑크빈'"), expect.stringContaining('^^'),
+      expect.stringContaining('(+금액)'), expect.stringContaining("같은 옵션값은 하나로 합쳤습니다(옵션명 1: '핑크빈')"), expect.stringContaining('^^'),
     ]));
   });
 
-  it('옵션 축 2개는 조합으로 펼치고 축 이름이 비면 기본 이름을 붙인다', () => {
+  it('옵션명 2개는 조합으로 펼치고 옵션명이 비면 기본 이름을 붙인다', () => {
     const { rows, warnings } = convert([
       sheetRow(8, { 상품명: '티셔츠', 판매가: '20000', '옵션상세명칭(1)': '블랙,화이트', '옵션제목(2)': '사이즈', '옵션상세명칭(2)': 'M,L(+2000)' }),
     ]);
@@ -228,17 +266,17 @@ describe('사방넷 행 → 엑스스퀘어 일괄 등록 행 변환', () => {
       errorRow,
     ]);
     const errorsOf = (row: number) => rows.filter((item) => item.row === row).flatMap((item) => item.errors ?? []);
-    expect(errorsOf(9)).toEqual(expect.arrayContaining(['상품명이 비어 있습니다.', expect.stringContaining('9, 10행')]));
-    expect(errorsOf(10)).toEqual([expect.stringContaining('같은 자체상품코드')]);
+    expect(errorsOf(9)).toEqual(expect.arrayContaining(['상품명이 비어 있습니다.', expect.stringContaining('엑셀 9, 10번째 줄')]));
+    expect(errorsOf(10)).toEqual([expect.stringContaining('같은 자체상품코드가 여러 줄에 있습니다(엑셀 9, 10번째 줄). 줄마다 다른 자체상품코드를 입력해 주세요.')]);
     expect(errorsOf(11)).toEqual([expect.stringContaining('121개')]);
     expect(errorsOf(12)).toEqual(['판매가: 수식은 사용할 수 없습니다.']);
   });
 
-  it('안내 행은 건너뛰고 500행을 넘게 펼치면 파일을 나누게 한다', () => {
-    expect(() => convert([sheetRow(5, { 모델명: '합계' })])).toThrow('상품 정보가 없습니다');
+  it('안내 줄은 건너뛰고 500줄을 넘게 펼치면 파일을 나누게 한다', () => {
+    expect(() => convert([sheetRow(5, { 모델명: '합계' })])).toThrow('열 이름 줄 아래에 상품 정보가 없습니다.');
     const values = Array.from({ length: 51 }, (_, index) => `v${index}`).join(',');
     const rows = Array.from({ length: 10 }, (_, index) => sheetRow(index + 2, { 상품명: `상품${index}`, '옵션상세명칭(1)': values }));
-    expect(() => convert(rows)).toThrow('510행');
+    expect(() => convert(rows)).toThrow('옵션을 펼치면 510줄입니다. 한 번에 500줄까지 올릴 수 있으니 파일을 나누어 올려 주세요.');
   });
 
   it('변환한 행은 기존 엑스스퀘어 검증을 그대로 통과해 신규 초안이 된다', () => {

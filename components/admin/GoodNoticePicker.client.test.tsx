@@ -3,8 +3,9 @@ import { join } from 'node:path';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
-import type { GoodsNoticePresetPageData } from '@/lib/admin/goods-notice-presets';
+import { GOODS_NOTICE_PRESETS_PATH, type GoodsNoticePresetPageData } from '@/lib/admin/goods-notice-presets';
 import { GOOD_EDITOR_HELP } from '@/lib/admin/help/good-editor';
+import { GOOD_EDITOR_B7_HELP } from '@/lib/admin/help/good-editor-b7';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 
 const hooks = vi.hoisted(() => ({ state: [] as unknown[], stateIndex: 0, refs: [] as { current: unknown }[], refIndex: 0, effects: [] as (() => unknown)[] }));
@@ -18,24 +19,29 @@ vi.mock('react', async () => ({
   },
   useRef: (initial: unknown) => { const index = hooks.refIndex++; hooks.refs[index] ??= { current: initial }; return hooks.refs[index]; },
 }));
-const actions = vi.hoisted(() => ({ find: vi.fn(), loadOf: vi.fn() }));
+const actions = vi.hoisted(() => ({ find: vi.fn(), loadOf: vi.fn(), search: vi.fn() }));
 vi.mock('@/app/admin/good-notice-actions', () => ({ findGoodNoticePresets: actions.find, loadGoodNoticeOf: actions.loadOf }));
+vi.mock('@/app/admin/goods-option-import-actions', () => ({ searchGoodsOptionImportAction: actions.search }));
+/* 링크는 함수로 부르지 않고 요소로만 본다(주소·새 탭 여부). */
+vi.mock('next/link', () => ({ default: () => null }));
 /* 상품 선택창은 서버 액션에 닿는 부품이라 시험에서는 자리만 둔다(그 부품의 시험은 따로 있다). */
 vi.mock('./AdminGoodsPicker', () => ({ AdminGoodsPicker: () => null }));
 
+import Link from 'next/link';
 import { AdminHelpTip } from './console/AdminHelpTip';
 import { AdminPickerDialog, type AdminPickerPanelProps } from './console/AdminPickerDialog';
 import { AdminGoodsPicker, type AdminGoodsPickerRow } from './AdminGoodsPicker';
-import { GoodNoticePicker, filledNoticeFields, noticeIsBlank, noticePresetRowView } from './GoodNoticePicker';
+import { GoodNoticePicker, noticeFormValues, noticeIsBlank, noticePresetAppliedMessage, noticePresetRowView, noticeReplaceMessage, noticeSourceLoader, planNoticeApply } from './GoodNoticePicker';
 
 type Preset = GoodsNoticePresetPageData['presets'][number];
 type Fn = (...args: unknown[]) => unknown;
 type Props = {
   children?: ReactNode; className?: string; type?: string; role?: string; disabled?: boolean; help?: unknown; label?: string; ref?: { current: unknown };
-  'aria-haspopup'?: string; 'data-good-notice-picker'?: string; 'data-good-notice-suggestion'?: string; onClick?: Fn;
+  'aria-haspopup'?: string; 'data-good-notice-picker'?: string; 'data-good-notice-suggestion'?: string; onClick?: Fn; href?: string; target?: string; rel?: string;
 };
 type DialogProps = AdminPickerPanelProps<Preset> & { title: string };
-type CopyProps = { title: string; description: string; footer: ReactNode; onSelect: (good: AdminGoodsPickerRow) => Promise<boolean | void>; onClose: () => void };
+type CopyProps = { title: string; description: string; excludedNote: string; footer: ReactNode; load: AdminPickerPanelProps<AdminGoodsPickerRow>['load'];
+  onSelect: (good: AdminGoodsPickerRow) => Promise<boolean | void>; onClose: () => void };
 
 function all(node: ReactNode): ReactElement<Props>[] {
   if (Array.isArray(node)) return node.flatMap(all);
@@ -71,12 +77,15 @@ const templateDialog = () => render().find((item) => item.type === AdminPickerDi
 const copyPicker = () => render().find((item) => item.type === AdminGoodsPicker) as ReactElement<CopyProps> | undefined;
 const band = () => render().find((item) => item.props['data-good-notice-suggestion'] !== undefined);
 const status = () => render().find((item) => item.props.role === 'status');
+/** 선택창 밖(버튼 아래)에 보이는 가져오기 실패 안내. */
+const alertBelow = () => render().find((item) => item.props.role === 'alert');
 const filled = (...names: string[]) => { formValues = Object.fromEntries(names.map((name) => [name, '적어 둔 값'])); };
+const ALL_FORM_NAMES = GOODS_NOTICE_FIELDS.map((field) => field.formName);
 const settle = async () => { render(); for (const effect of hooks.effects) effect(); await new Promise((resolve) => setTimeout(resolve, 0)); };
 
 beforeEach(() => {
   hooks.state = []; hooks.refs = []; hooks.effects = []; props = {}; formValues = {};
-  onApply.mockReset(); actions.find.mockReset(); actions.loadOf.mockReset();
+  onApply.mockReset(); actions.find.mockReset(); actions.loadOf.mockReset(); actions.search.mockReset();
   confirm = stubAdminConfirm(true);
 });
 afterEach(() => confirm.restore());
@@ -88,10 +97,13 @@ describe('고시정보 가져오기 버튼', () => {
     expect(buttons().every((item) => item.props.type === 'button')).toBe(true);
     const helps = tree.filter((item) => item.type === AdminHelpTip);
     expect(helps.map((item) => [item.props.label, item.props.help])).toEqual([
-      ['템플릿에서 가져오기', GOOD_EDITOR_HELP.noticeTemplate],
+      ['템플릿에서 가져오기', GOOD_EDITOR_B7_HELP.noticeTemplate],
       ['다른 상품에서 복사', GOOD_EDITOR_HELP.noticeCopy],
     ]);
     expect(tree.some((item) => item.type === 'p')).toBe(false);
+    /* 템플릿을 만드는 곳은 메뉴 위치를 글로 설명하지 않고 새 탭 링크로 둔다(작성 중인 상품을 떠나지 않는다). */
+    const manage = tree.filter((item) => item.type === Link);
+    expect(manage.map((item) => [item.props.href, item.props.target, texts(item).join('')])).toEqual([[GOODS_NOTICE_PRESETS_PATH, '_blank', '상품정보제공고시 템플릿 관리 ↗']]);
     expect(tree.find((item) => item.props['data-good-notice-picker'] !== undefined)).toBeDefined();
   });
 
@@ -116,8 +128,11 @@ describe('템플릿 선택창', () => {
     expect(templateDialog()).toBeUndefined();
     button('템플릿에서 가져오기').props.onClick!();
     const dialog = templateDialog()!.props;
-    expect(dialog).toMatchObject({ title: '상품정보제공고시 템플릿 선택', selectLabel: '적용', searchPlaceholder: '템플릿 이름으로 찾기', emptyText: '템플릿이 없습니다. 상품관리의 ‘상품정보제공고시 템플릿 관리’에서 만들 수 있습니다.' });
-    expect(dialog.description).toBe('고르면 상품정보제공고시 7개 칸이 템플릿 내용으로 바뀝니다.');
+    expect(dialog).toMatchObject({ title: '상품정보제공고시 템플릿 고르기', searchPlaceholder: '템플릿 이름으로 찾기', emptyText: '맞는 템플릿이 없습니다. 템플릿은 ‘상품정보제공고시 템플릿 관리’에서 만듭니다.' });
+    /* 줄 버튼은 공용 선택창의 기본 이름 [선택]이다. */
+    expect(dialog.selectLabel).toBeUndefined();
+    expect(dialog.description).toBe('고르면 템플릿에 적힌 칸만 그 내용으로 바뀝니다. 템플릿에서 비워 둔 칸은 지금 값 그대로 둡니다.');
+    expect(dialog.footer).toBeNull();
     dialog.onClose();
     expect(templateDialog()).toBeUndefined();
   });
@@ -178,11 +193,18 @@ describe('템플릿 적용', () => {
     expect(texts(status()!).join('')).not.toContain('KC');
   });
 
-  it('적어 둔 값이 하나라도 있으면 어떤 값이 바뀌는지 확인받고, 확인하면 가져온다', async () => {
+  it('적어 둔 값이 바뀌는 칸이 있으면 그 칸을 말하며 확인받고, 확인하면 가져온다', async () => {
     filled('noticeMaker');
     await expect(open().onSelect(preset())).resolves.toBe(true);
-    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 7개 칸이 모두 ‘아크릴 키링’ 내용으로 바뀝니다.');
+    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 제조사 / 수입사 칸이 ‘아크릴 키링’ 내용으로 바뀝니다.');
     expect(onApply).toHaveBeenCalledTimes(1);
+  });
+
+  it('적어 둔 값이 템플릿과 같으면 바뀌는 것이 없어 묻지 않는다', async () => {
+    formValues = { noticeMaker: ' 아이콘스 ', noticeMaterial: '아크릴' };
+    await expect(open().onSelect(preset())).resolves.toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onApply).toHaveBeenCalledExactlyOnceWith(notice(), null);
   });
 
   it('확인에서 취소하면 아무것도 바꾸지 않고 선택창을 그대로 둔다', async () => {
@@ -211,7 +233,7 @@ describe('템플릿 적용', () => {
     const { setAdminConfirmHandler } = await import('@/lib/admin/confirm');
     confirm.restore();
     const restore = setAdminConfirmHandler(async (request) => { requests.push(request); return true; });
-    filled('noticeMaker');
+    filled(...ALL_FORM_NAMES);
     await open().onSelect(preset());
     restore();
     expect(requests).toEqual([{ title: '상품정보제공고시를 바꿀까요?', message: '지금 적어 둔 7개 칸이 모두 ‘아크릴 키링’ 내용으로 바뀝니다.', confirmLabel: '바꾸기' }]);
@@ -219,14 +241,115 @@ describe('템플릿 적용', () => {
   });
 });
 
+/*
+ * 템플릿은 칸을 비워 둘 수 있다(크기 · 중량·제조연월처럼 상품마다 다른 칸). 비워 둔 칸은 상품에 적어 둔 값을 건드리지 않는다.
+ * 부르는 쪽(상품 편집기·그룹 공통정보)은 받은 7칸을 모두 폼에 쓰므로, 그대로 둘 칸에는 지금 값을 실어 넘긴다.
+ */
+describe('비워 둔 칸이 있는 템플릿 적용', () => {
+  const open = () => { button('템플릿에서 가져오기').props.onClick!(); return templateDialog()!.props; };
+  /* 템플릿 쪽 타입이 빈 칸을 null로 주게 바뀌어도, 지금처럼 빈 문자열로 줘도 같다. */
+  const partial = (patch: Record<string, string | null | undefined>) => preset({ notice: { ...notice(), ...patch } as Preset['notice'] });
+
+  it('빈 문자열·null·없는 칸은 건드리지 않고 지금 적어 둔 값을 그대로 넘긴다', async () => {
+    formValues = { noticeMaker: '옛 제조사', noticeSize: ' 80 x 60mm ', noticeMadeOn: '2026-12', noticeAsContact: '' };
+    const target = partial({ size: '', madeOn: null, asContact: undefined });
+    await expect(open().onSelect(target)).resolves.toBe(true);
+    expect(onApply).toHaveBeenCalledExactlyOnceWith({ maker: '아이콘스', origin: '대한민국', material: '아크릴', size: ' 80 x 60mm ', madeOn: '2026-12', asManager: '고객센터', asContact: '' }, null);
+    /* 바뀌는 칸은 제조사뿐이다. 그대로 두는 크기 · 중량·제조연월은 확인창에 나오지 않는다. */
+    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 제조사 / 수입사 칸이 ‘아크릴 키링’ 내용으로 바뀝니다.');
+    expect(texts(status()!).join('')).toBe('‘아크릴 키링’ 템플릿에서 4개 칸을 가져왔습니다. 템플릿에 비어 있는 크기 · 중량, 제조연월, A/S 연락처 칸은 그대로 두었습니다.');
+  });
+
+  it('공백만 적힌 템플릿 칸도 빈 칸이다 — 적어 둔 값만 남으면 묻지 않는다', async () => {
+    formValues = { noticeSize: '50mm', noticeMadeOn: '2026-10' };
+    await expect(open().onSelect(partial({ size: '   ', madeOn: '\n' }))).resolves.toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onApply.mock.calls[0][0]).toMatchObject({ size: '50mm', madeOn: '2026-10', maker: '아이콘스' });
+  });
+
+  it('KC 틀은 칸이 비어 있어도 그대로 넘기고, 결과 문장 뒤에 KC 안내를 붙인다', async () => {
+    const target = { ...partial({ madeOn: '' }), kcTemplate: kc };
+    await open().onSelect(target);
+    expect(onApply.mock.calls[0][1]).toEqual(kc);
+    expect(texts(status()!).join('')).toBe('‘아크릴 키링’ 템플릿에서 6개 칸을 가져왔습니다. 템플릿에 비어 있는 제조연월 칸은 그대로 두었습니다. KC 정보에도 유형 틀이 들어갑니다. 모델·옵션·번호·사업자는 직접 입력해주세요.');
+  });
+
+  it('7칸이 모두 빈 템플릿은 값을 바꾸지 않고 그렇게 알린다', async () => {
+    filled('noticeMaker', 'noticeOrigin');
+    const empty = partial({ maker: '', origin: '', material: '', size: '', madeOn: '', asManager: '', asContact: '' });
+    await expect(open().onSelect(empty)).resolves.toBe(true);
+    expect(confirm).not.toHaveBeenCalled();
+    expect(onApply.mock.calls[0][0]).toEqual({ maker: '적어 둔 값', origin: '적어 둔 값', material: '', size: '', madeOn: '', asManager: '', asContact: '' });
+    expect(texts(status()!).join('')).toBe('‘아크릴 키링’ 템플릿에는 적어 둔 칸이 없어 7개 칸을 그대로 두었습니다.');
+  });
+
+  it('지금 값을 읽지 못하면 비워 둔 칸을 지킬 수 없어 가져오지 않고, 선택창 안에 이유를 보인다', async () => {
+    formValues = null;
+    await expect(open().onSelect(partial({ size: '' }))).resolves.toBe(false);
+    expect(onApply).not.toHaveBeenCalled(); expect(confirm).not.toHaveBeenCalled();
+    const footer = templateDialog()!.props.footer as ReactElement<Props>;
+    expect(footer.props.role).toBe('alert');
+    expect(texts(footer)).toEqual(['지금 적어 둔 값을 읽지 못해 가져오지 않았습니다. 화면을 새로고침한 뒤 다시 가져와 주세요.']);
+    /* 창이 열려 있는 동안에는 창 안(footer)에만 보이고 버튼 아래에는 겹쳐 보이지 않는다. 닫으면 지운다. */
+    expect(alertBelow()).toBeUndefined();
+    templateDialog()!.props.onClose();
+    expect(templateDialog()).toBeUndefined();
+    expect(alertBelow()).toBeUndefined();
+  });
+
+  it('제안 띠에서 적용하다 가져오지 못하면 버튼 아래에 이유를 보인다', async () => {
+    props = { suggestNames: ['키링'] };
+    actions.find.mockResolvedValue(pageOf([partial({ madeOn: '' })]));
+    await settle();
+    formValues = null;
+    all(band()!).find((item) => item.type === 'button')!.props.onClick!();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    expect(onApply).not.toHaveBeenCalled();
+    expect(texts(alertBelow()!)).toEqual(['지금 적어 둔 값을 읽지 못해 가져오지 않았습니다. 화면을 새로고침한 뒤 다시 가져와 주세요.']);
+    expect(band()).toBeDefined();
+  });
+});
+
 describe('다른 상품에서 복사', () => {
   const open = () => { button('다른 상품에서 복사').props.onClick!(); return copyPicker()!.props; };
   const sevenValues: GoodsNoticeInfo = { maker: '메이커', origin: '한국', material: '면', size: 'L', madeOn: '2026-11', asManager: '이름', asContact: '02-000' };
 
+  /* 화면 규칙 2: 고시를 적지 않은 상품과 지금 편집 중인 상품은 조회에서 뺀다(고른 뒤에 거절하지 않는다). */
+  it('목록은 고시를 적어 둔 상품만 찾고, 지금 편집 중인 상품은 뺀다', async () => {
+    props = { excludeGoodId: 'good-editing' };
+    const picker = open();
+    expect(picker.excludedNote).toBe('상품정보제공고시를 적지 않은 상품과 지금 편집 중인 상품은 목록에서 뺐습니다.');
+    const page = { rows: [good()], total: 41, page: 2, pageSize: 20 };
+    actions.search.mockResolvedValue({ ok: true, accountId: 'operator', data: page });
+    await expect(picker.load({ query: ' 볼펜 ', field: 'code', filter: '', page: 2 })).resolves.toEqual(page);
+    expect(actions.search).toHaveBeenCalledExactlyOnceWith({ query: ' 볼펜 ', field: 'code', categoryId: '', page: 2, noticeSourcesOnly: true, excludeGoodId: 'good-editing' });
+    actions.search.mockResolvedValue({ ok: false, error: '상품을 편집할 권한이 필요합니다.' });
+    await expect(picker.load({ query: '', field: '', filter: '', page: 1 })).resolves.toEqual({ error: '상품을 편집할 권한이 필요합니다.' });
+    expect(actions.search).toHaveBeenLastCalledWith({ query: '', field: 'name', categoryId: '', page: 1, noticeSourcesOnly: true, excludeGoodId: 'good-editing' });
+  });
+
+  it('저장 전인 새 상품은 뺄 상품이 없어 고시를 적지 않은 상품만 뺀다고 알린다', async () => {
+    const picker = open();
+    expect(picker.excludedNote).toBe('상품정보제공고시를 적지 않은 상품은 목록에서 뺐습니다.');
+    actions.search.mockResolvedValue({ ok: true, accountId: 'operator', data: { rows: [], total: 0, page: 1, pageSize: 20 } });
+    await noticeSourceLoader(null)({ query: '', field: 'name', filter: '', page: 1 });
+    await picker.load({ query: '', field: 'name', filter: '', page: 1 });
+    for (const call of actions.search.mock.calls) expect(call[0]).toEqual({ query: '', field: 'name', categoryId: '', page: 1, noticeSourcesOnly: true });
+  });
+
+  it('그 상품에 비어 있는 칸은 지금 적어 둔 값이 지워진다고 확인창에 말한다', async () => {
+    formValues = { noticeMaker: '옛 제조사', noticeMadeOn: '2026-12', noticeSize: 'L' };
+    actions.loadOf.mockResolvedValue({ name: '볼펜', notice: { ...sevenValues, madeOn: null } });
+    await expect(open().onSelect(good())).resolves.toBe(true);
+    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 제조사 / 수입사 칸이 ‘볼펜’ 내용으로 바뀝니다. ‘볼펜’에 비어 있는 제조연월 칸은 지금 적어 둔 값이 지워집니다.');
+    /* 복사는 7칸을 그대로 옮긴다(템플릿과 달리 빈 칸도 옮긴다). */
+    expect(onApply).toHaveBeenCalledExactlyOnceWith({ ...sevenValues, madeOn: null });
+  });
+
   it('[다른 상품에서 복사]가 상품 선택창을 열고 닫으면 닫힌다', () => {
     expect(copyPicker()).toBeUndefined();
     const picker = open();
-    expect(picker.title).toBe('상품정보제공고시를 가져올 상품 선택');
+    expect(picker.title).toBe('상품정보제공고시를 복사할 상품 고르기');
     expect(picker.description).toBe('고르면 상품정보제공고시 7개 칸이 그 상품의 내용으로 바뀝니다.');
     expect(picker.footer).toBeNull();
     picker.onClose();
@@ -248,7 +371,7 @@ describe('다른 상품에서 복사', () => {
     expect(onApply).not.toHaveBeenCalled(); expect(confirm).not.toHaveBeenCalled();
     const footer = copyPicker()!.props.footer as ReactElement<Props>;
     expect(footer.props.role).toBe('alert');
-    expect(texts(footer)).toEqual(['이 상품에는 적어 둔 상품정보제공고시가 없습니다.']);
+    expect(texts(footer)).toEqual(['이 상품에는 적어 둔 상품정보제공고시가 없습니다. 다른 상품을 골라 주세요.']);
     expect(status()).toBeUndefined();
   });
 
@@ -279,7 +402,7 @@ describe('다른 상품에서 복사', () => {
     actions.loadOf.mockResolvedValue({ name: '볼펜', notice: sevenValues });
     confirm.restore(); confirm = stubAdminConfirm(false);
     await expect(open().onSelect(good())).resolves.toBe(false);
-    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 7개 칸이 모두 ‘볼펜’ 내용으로 바뀝니다.');
+    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 원산지 칸이 ‘볼펜’ 내용으로 바뀝니다.');
     expect(onApply).not.toHaveBeenCalled();
     expect(copyPicker()!.props.footer).toBeNull();
     confirm.restore(); confirm = stubAdminConfirm(true);
@@ -311,7 +434,7 @@ describe('대표 카테고리에 맞는 템플릿 제안', () => {
     const apply = all(band()!).find((item) => item.type === 'button')!;
     apply.props.onClick!();
     await new Promise((resolve) => setTimeout(resolve, 0));
-    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 7개 칸이 모두 ‘키링 템플릿’ 내용으로 바뀝니다.');
+    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 제조사 / 수입사, 크기 · 중량 칸이 ‘키링 템플릿’ 내용으로 바뀝니다.');
     expect(onApply).toHaveBeenCalledExactlyOnceWith(suggested.notice, kc);
     expect(band()).toBeUndefined();
     await settle();
@@ -353,12 +476,46 @@ describe('도우미', () => {
     expect(noticeIsBlank({ ...empty, asContact: '02-000' })).toBe(false);
   });
 
-  it('폼에서 칸 이름으로 적혀 있는 칸 수를 센다', () => {
+  it('폼에서 칸 이름으로 지금 적혀 있는 7칸을 읽는다', () => {
     const form = (values: Record<string, unknown>) => ({ elements: { namedItem: (name: string) => name in values ? { value: values[name] } : null } });
-    expect(filledNoticeFields(null)).toBeNull();
-    expect(filledNoticeFields(undefined)).toBeNull();
-    expect(filledNoticeFields(form({}))).toBe(0);
-    expect(filledNoticeFields(form(Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.formName, '값']))))).toBe(7);
-    expect(filledNoticeFields(form({ noticeMaker: ' 값 ', noticeOrigin: '   ', noticeSize: 5 }))).toBe(1);
+    expect(noticeFormValues(null)).toBeNull();
+    expect(noticeFormValues(undefined)).toBeNull();
+    const empty = { maker: '', origin: '', material: '', size: '', madeOn: '', asManager: '', asContact: '' };
+    expect(noticeFormValues(form({}))).toEqual(empty);
+    /* 글자가 아닌 값은 빈 칸으로 읽고, 적힌 글자는 다듬지 않고 그대로 읽는다(그대로 두는 칸에 되돌려 넣는다). */
+    expect(noticeFormValues(form({ noticeMaker: ' 값 ', noticeOrigin: '   ', noticeSize: 5, noticeAsContact: '02-000' }))).toEqual({ ...empty, maker: ' 값 ', origin: '   ', asContact: '02-000' });
+  });
+
+  const names = (fields: readonly { label: string }[]) => fields.map((field) => field.label);
+  const now = { maker: '옛 제조사', origin: '대한민국', material: '', size: '80mm', madeOn: '2026-12', asManager: '', asContact: '' };
+
+  it('템플릿 계획: 비어 있는 칸은 그대로 두고, 적어 둔 값이 달라지는 칸만 바뀌는 칸으로 센다', () => {
+    const plan = planNoticeApply({ maker: '아이콘스', origin: ' 대한민국 ', material: '아크릴', size: '', madeOn: null, asManager: '고객센터' }, now, true);
+    expect(plan.notice).toEqual({ maker: '아이콘스', origin: ' 대한민국 ', material: '아크릴', size: '80mm', madeOn: '2026-12', asManager: '고객센터', asContact: '' });
+    expect(names(plan.applied)).toEqual(['제조사 / 수입사', '원산지', '소재', 'A/S 책임자']);
+    expect(names(plan.kept)).toEqual(['크기 · 중량', '제조연월', 'A/S 연락처']);
+    /* 원산지는 앞뒤 공백만 다르고 소재·A/S 책임자는 비어 있던 칸이라 바뀌는 칸이 아니다. */
+    expect(names(plan.replaced)).toEqual(['제조사 / 수입사']);
+    expect(plan.cleared).toEqual([]);
+    expect(noticeReplaceMessage('키링', plan)).toBe('지금 적어 둔 제조사 / 수입사 칸이 ‘키링’ 내용으로 바뀝니다.');
+    expect(noticePresetAppliedMessage('키링', plan)).toBe('‘키링’ 템플릿에서 4개 칸을 가져왔습니다. 템플릿에 비어 있는 크기 · 중량, 제조연월, A/S 연락처 칸은 그대로 두었습니다.');
+  });
+
+  it('복사 계획: 7칸을 그대로 옮기고, 그 상품에 비어 있는 칸은 지워지는 칸으로 센다', () => {
+    const plan = planNoticeApply({ maker: '아이콘스', origin: '대한민국', material: '아크릴', size: '', madeOn: null, asManager: '고객센터', asContact: '02-000' }, now, false);
+    expect(plan.notice).toEqual({ maker: '아이콘스', origin: '대한민국', material: '아크릴', size: '', madeOn: null, asManager: '고객센터', asContact: '02-000' });
+    expect(plan.applied).toHaveLength(7); expect(plan.kept).toEqual([]);
+    expect(names(plan.replaced)).toEqual(['제조사 / 수입사']);
+    expect(names(plan.cleared)).toEqual(['크기 · 중량', '제조연월']);
+    expect(noticeReplaceMessage('볼펜', plan)).toBe('지금 적어 둔 제조사 / 수입사 칸이 ‘볼펜’ 내용으로 바뀝니다. ‘볼펜’에 비어 있는 크기 · 중량, 제조연월 칸은 지금 적어 둔 값이 지워집니다.');
+    const onlyCleared = planNoticeApply({ maker: '옛 제조사', origin: '대한민국', size: '80mm' }, now, false);
+    expect(noticeReplaceMessage('볼펜', onlyCleared)).toBe('‘볼펜’에 비어 있는 제조연월 칸은 지금 적어 둔 값이 지워집니다.');
+  });
+
+  it('결과 문장: 7칸을 모두 가져왔으면 7개 칸, 지금 값을 읽지 못했어도(계획 없음) 7개 칸이다', () => {
+    const full = { maker: '가', origin: '나', material: '다', size: '라', madeOn: '마', asManager: '바', asContact: '사' };
+    expect(noticePresetAppliedMessage('키링', planNoticeApply(full, now, true))).toBe('‘키링’ 템플릿의 7개 칸을 가져왔습니다.');
+    expect(noticePresetAppliedMessage('키링', null)).toBe('‘키링’ 템플릿의 7개 칸을 가져왔습니다.');
+    expect(noticeReplaceMessage('키링', planNoticeApply(full, full, true))).toBe('');
   });
 });

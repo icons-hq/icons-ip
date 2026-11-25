@@ -26,4 +26,20 @@ describe('goods video action boundaries', () => {
     mock.rpc.mockResolvedValueOnce({ data: { revision: 1, values: { priority: 'video', shortclips: true } }, error: null });
     expect(await saveGoodsMediaSettingsAction({ priority: 'image', shortclips: false }, 0, operation)).toHaveProperty('uncertain', true);
   });
+  it('speaks the screen words: 다른 사람이 먼저 바꿨습니다, 저장됐는지 확인 — and keeps the settings screen button name until that screen changes', async () => {
+    mock.rpc.mockResolvedValueOnce({ data: null, error: { code: 'PT409' } });
+    expect(await saveGoodMediaAction('good-1', values, 0, operation)).toEqual({ error: expect.stringContaining('다른 사람이 먼저 바꿨습니다.') });
+    /* 상품 동영상·숏클립 화면의 저장 버튼 이름은 [저장됐는지 확인]이다. */
+    mock.rpc.mockRejectedValueOnce(new Error('transport'));
+    const unknown = await saveGoodMediaAction('good-1', values, 0, operation);
+    expect(unknown).toEqual({ error: '저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.', uncertain: true });
+    /* 대표미디어 전시 설정 화면은 버튼 이름이 아직 [같은 요청 결과 확인]이라 문구도 그대로다(그 화면을 정리할 때 함께 바꾼다). */
+    mock.rpc.mockRejectedValueOnce(new Error('transport'));
+    const settings = await saveGoodsMediaSettingsAction({ priority: 'image', shortclips: false }, 0, operation);
+    expect(settings).toHaveProperty('error', expect.stringContaining('[같은 요청 결과 확인]'));
+    /* 형식이 틀린 입력 문구에 '요청'을 쓰지 않는다. */
+    const invalid = await saveGoodMediaAction('Bad Id', values, 0, operation);
+    expect(invalid).toEqual({ error: expect.stringContaining('저장할 내용을 확인하지 못했습니다.') });
+    expect(JSON.stringify(invalid)).not.toContain('요청');
+  });
 });

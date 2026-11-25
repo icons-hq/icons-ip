@@ -50,7 +50,7 @@ import { GoodsPriceFields } from './GoodsPriceFields';
 import { GoodsErpCategoryNotice } from './GoodsErpCategoryNotice';
 import { GoodsPaymentMethodFields, GoodsPurchaseLimitFields, GoodsSaleRestrictionFields } from './GoodsSalePolicyFields';
 import { GoodNoticePicker } from './GoodNoticePicker';
-import { GOOD_LOCKED_SELECTS_CLASS } from './GoodEditorParts';
+import { GoodIpField } from './GoodIpField';
 import { GoodDraftSwitch } from './GoodPublishControls';
 import { GoodsOriginField } from './CountryNameFinder';
 import type { GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
@@ -664,16 +664,11 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <Field readOnly={locked || groupOwned} defaultValue={initial.name} error={errors.name} label={locked ? '상품명 · 공개 중 잠금' : '상품명 (필수)'} name="name" />
           {selected ? null : <p className="text-xs text-muted-foreground">상품명만 입력해도 등록 중인 상품을 임시저장할 수 있습니다.</p>}
         </div>
-        <div className={locked || groupOwned ? GOOD_LOCKED_SELECTS_CLASS : 'min-w-0'}><AdminFormGrid>
-          <SelectField defaultValue={initial.ipId} error={errors.ipId} label={locked ? "연결 IP · 공개 중 잠금" : "연결 IP (필수)"} disabled={locked || groupOwned} name="ipId"><option value="">선택</option>{ipOptions.map((ip) => <option disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)} key={ip.id} value={ip.id}>{ip.archivedAt ? `[보관] ${ip.title}` : ip.title}</option>)}</SelectField>
-          {(locked || groupOwned) && <input type="hidden" name="ipId" value={initial.ipId} />}
-        </AdminFormGrid></div>
         {/*
-          ADM-004(복잡도 표 190행): 용어 도움말은 고르는 동안(연결 IP·대표 카테고리가 비어 있을 때)만 보인다. 입력칸이 아니라 안내 문구라 ADM-004 "복잡함 줄이기"
-          지시 범위다 — 묶음 10의 "펼친 채로" 원칙은 입력 섹션 대상이라 여기에 걸리지 않는다(오케스트레이터 판단, T15a 리뷰).
+          연결 IP는 공용 선택창으로 고른다(화면 규칙 1). 값은 숨은 칸 name="ipId"가 제출하고, 잠긴 상품(공개 중·그룹 공통정보)은 점선 상자로만 보인다.
+          무엇인지는 칸 이름 옆 "?"가 말한다 — 칸 아래에 늘 보이던 용어 안내와 IP 화면 링크 두 줄은 "?"와 상자 옆 'IP 화면 열기 ↗' 링크로 줄였다.
         */}
-        {!locked && !groupOwned && (!values.ipId || !categoryId) ? <p className="-mt-2 text-xs text-muted-foreground" data-good-identity-help="">연결 IP는 상품이 속한 브랜드·작품입니다. 대표 카테고리를 골라야 공개할 수 있습니다.</p> : null}
-        {canOpenIp && values.ipId && <a className="w-fit text-sm underline underline-offset-4" href={`/admin/catalog/ips/${encodeURIComponent(values.ipId)}`} target="_blank" rel="noreferrer">연결 IP의 공개 상태 확인 (새 탭)</a>}
+        <GoodIpField options={ipOptions} defaultValue={initial.ipId} error={errors.ipId} label={locked ? '연결 IP · 공개 중 잠금' : '연결 IP (필수)'} locked={locked || groupOwned} canOpenIp={canOpenIp} />
         <div className="min-w-0 scroll-mt-24 outline-none" id="good-section-attributes" tabIndex={-1}>
           <OwnedFields locked={groupOwned} fields={[]} values={initial}><GoodsAttributeEditor categoryId={categoryId} goodId={selected?.id ?? null} initialSubmission={initial.productAttributes} initialDraft={initial.productAttributeDraft} error={errors.productAttributes} onChange={onAttributeChange} onRequiredMissing={setMissingAttributes} /></OwnedFields>
         </div>
@@ -743,7 +738,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
 
       {/* 5. 상품정보제공고시 + KC: 고시 입력 바로 아래 KC. KC 입력에는 name이 없어 폼 제출·자동복구·임시저장에 실리지 않는다. */}
       <GoodEditorSection title={`${ADMIN_VOCABULARY.noticeInfo} · KC`} id="good-section-notice" errorCount={errorCount('notice')} summary={`${noticeFilled}/${GOODS_NOTICE_FIELDS.length}개 작성 · ${kcDone ? 'KC 완료' : 'KC 확인 필요'}`}>
-        <OwnedFields locked={groupOwned} fields={GOODS_NOTICE_FIELDS.map(field => field.formName)} values={initial}><GoodNoticePicker onApply={applyNotice} readOnly={locked||Boolean(selected?.archivedAt)} suggestNames={!locked && noticeFilled < GOODS_NOTICE_FIELDS.length ? suggestNames : NO_SUGGEST_NAMES} /><GoodsNoticeFields notice={notice} required={Boolean(selected?.publishedAt)} locked={locked} originFinderDisabled={pending || draftBusy || Boolean(selected?.archivedAt)} state={{ ...state, errors: errors as AdminCatalogActionState['errors'] }} /></OwnedFields>
+        <OwnedFields locked={groupOwned} fields={GOODS_NOTICE_FIELDS.map(field => field.formName)} values={initial}><GoodNoticePicker onApply={applyNotice} readOnly={locked||Boolean(selected?.archivedAt)} suggestNames={!locked && noticeFilled < GOODS_NOTICE_FIELDS.length ? suggestNames : NO_SUGGEST_NAMES} excludeGoodId={selected?.id} /><GoodsNoticeFields notice={notice} required={Boolean(selected?.publishedAt)} locked={locked} originFinderDisabled={pending || draftBusy || Boolean(selected?.archivedAt)} state={{ ...state, errors: errors as AdminCatalogActionState['errors'] }} /></OwnedFields>
         {kcSlot ? <div className="flex min-w-0 flex-col gap-3" data-good-kc-slot="" onKeyDown={(event) => { if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.preventDefault(); }}>
           {restoredFromBrowser && atomicSections && !kcDone ? <AdminNotice tone="warning" title="KC 입력은 복구되지 않았습니다">브라우저 자동복구에는 KC·예약판매 입력이 담기지 않습니다. 아래에서 다시 확인해주세요.</AdminNotice> : null}
           {kcSlot}

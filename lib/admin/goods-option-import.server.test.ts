@@ -96,3 +96,21 @@ it('옵션 원본 조건이 있으면 전용 조회로 걸러 총 개수와 페�
     expect(call[1]).toMatchObject({ p_query: '', p_ip_id: '', p_status: 'active', p_stock: 'all', p_category_id: null, p_readiness: 'all', p_limit: 20, p_offset: 0 });
   }
 });
+/* 화면 규칙 2: 고시 '다른 상품에서 복사' 선택창은 고시를 적어 둔 상품만 찾는 전용 조회를 쓴다. 인자와 응답 모양은 옵션 원본 조회와 같다. */
+it('고시 원본 조건이 있으면 고시 전용 조회로 걸러 총 개수와 페이지가 맞는다', async () => {
+  const category = '11111111-1111-4111-8111-111111111111';
+  mocks.rpc.mockResolvedValueOnce({ data: { rows: [{ id: 'source', code: 'SRC', name: '원본', categoryName: null, imagePath: null, publishedAt: null, archivedAt: null, noticeMaker: '싣지 않는 값' }], total: 41 }, error: null });
+  const result = await searchGoodsOptionImportSources({ query: '키링', field: 'code', categoryId: category, page: 3, noticeSourcesOnly: true, excludeGoodId: 'target' });
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('admin_search_goods_notice_sources',
+    { p_query: '키링', p_field: 'code', p_category_id: category, p_exclude_good_id: 'target', p_limit: 20, p_offset: 40 });
+  expect(result).toEqual({ rows: [{ id: 'source', code: 'SRC', name: '원본', categoryName: null, imageUrl: null, published: false }], total: 41, page: 3, pageSize: 20 });
+  /* 저장 전인 새 상품은 뺄 상품이 없다. 마지막 페이지를 넘긴 요청은 걸러 낸 총 개수로 마지막 페이지를 다시 읽는다. */
+  mocks.rpc.mockReset();
+  mocks.rpc.mockResolvedValueOnce({ data: { rows: [], total: 21 }, error: null }).mockResolvedValueOnce({ data: { rows: [], total: 21 }, error: null });
+  expect(await searchGoodsOptionImportSources({ query: '', field: 'name', categoryId: '', page: 9, noticeSourcesOnly: true })).toMatchObject({ total: 21, page: 2 });
+  expect(mocks.rpc.mock.calls.map(call => [call[0], call[1].p_offset, call[1].p_category_id, call[1].p_exclude_good_id]))
+    .toEqual([['admin_search_goods_notice_sources', 160, null, null], ['admin_search_goods_notice_sources', 20, null, null]]);
+  mocks.rpc.mockReset();
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'permission denied' } });
+  await expect(searchGoodsOptionImportSources({ query: '', field: 'name', categoryId: '', page: 1, noticeSourcesOnly: true })).rejects.toThrow('상품과 옵션을 불러오지 못했습니다.');
+});

@@ -36,7 +36,7 @@ describe('나머지 설정 제출(prepare)', () => {
       transactionTerms: { ...emptyGoodWorkspaceTerms(), volume: { status: 'draft', fields: { ...emptyGoodWorkspaceTerms().volume.fields, threshold: '2' } } },
       shippingChargeGroup: { id: '22222222-2222-4222-8222-222222222222', revision: 3, originId: 'origin' },
       subscriptionPolicy: { enabled: true, intervals: ['month_1'], message: ' 안내 ' },
-      production: { ...emptyGoodWorkspaceProduction(), enabled: true, leadDays: '5', evidence: '근거', confirmed: true },
+      production: { ...emptyGoodWorkspaceProduction(), enabled: true, leadDays: '5' },
     }, rows, { canManageCosts: true });
     expect(prepared.ok).toBe(true);
     if (!prepared.ok) return;
@@ -51,7 +51,8 @@ describe('나머지 설정 제출(prepare)', () => {
     expect(value.transactionTerms).not.toHaveProperty('delivery');
     expect(value.shippingChargeGroup).toEqual({ groupId: '22222222-2222-4222-8222-222222222222', expectedRevision: 3 });
     expect(value.subscriptionPolicy).toEqual({ enabled: true, intervals: ['month_1'], message: '안내' });
-    expect(value.production).toMatchObject({ enabled: true, leadDays: 5, dayBasis: 'calendar', closedDates: [], confirmed: true });
+    /* 주문 후 제작은 설정 근거·확인 체크 없이 필요한 값만 싣는다(2026-11-25 결정). */
+    expect(value.production).toEqual({ enabled: true, leadDays: 5, dayBasis: 'calendar', closedDates: [], publicNote: '' });
     /* 서버 액션이 같은 제출을 다시 확인한다. */
     const parsed = parseGoodWorkspaceSections(JSON.stringify({ kc: null, preorders: [], ...value }), true);
     expect(parsed).toMatchObject({ ok: true, sections: { optionSaleMode: 'random', additional: ['other-good'], shippingChargeGroup: { expectedRevision: 3 } } });
@@ -71,16 +72,36 @@ describe('나머지 설정 제출(prepare)', () => {
     expect(field({ sizeChart: { enabled: true, chart: { unit: 'cm', sizes: [], measurements: [], note: '' } } })).toBe('workspaceSizeChart');
     expect(field({ listingColors: [{ label: '빨강', hex: '#ff0000' }, { label: '빨강', hex: '#00ff00' }] })).toBe('workspaceListingColors');
     expect(field({ subscriptionPolicy: { enabled: true, intervals: [], message: '' } })).toBe('workspaceSubscriptionPolicy');
-    expect(field({ fulfillment: { ...emptyGoodWorkspaceFulfillment(), mode: 'no_delivery' } })).toBe('workspaceFulfillment');
-    expect(field({ production: { ...emptyGoodWorkspaceProduction(), enabled: true, leadDays: '3', evidence: '근거' } })).toBe('workspaceProduction');
+    expect(field({ fulfillment: { ...emptyGoodWorkspaceFulfillment(), mode: 'digital' } })).toBe('workspaceFulfillment');
+    expect(field({ fulfillment: { ...emptyGoodWorkspaceFulfillment(), methods: emptyGoodWorkspaceFulfillment().methods.map((method) => ({ ...method, enabled: false })) } })).toBe('workspaceFulfillment');
+    expect(field({ production: { ...emptyGoodWorkspaceProduction(), enabled: true } })).toBe('workspaceProduction');
+    expect(field({ production: { ...emptyGoodWorkspaceProduction(), enabled: true, leadDays: '0' } })).toBe('workspaceProduction');
     expect(field({ transactionTerms: { ...emptyGoodWorkspaceTerms(), volume: { status: 'active', fields: emptyGoodWorkspaceTerms().volume.fields } } })).toBe('workspaceTransactionTerms');
   });
 
-  it('수령 방식은 택배 기본값이 아니면 근거·확인과 함께 기존 저장 값 모양으로 싣는다', () => {
-    const fulfillment = { ...emptyGoodWorkspaceFulfillment(), mode: 'no_delivery' as const, evidence: '직접 전달', confirmed: true };
+  /* 2026-11-25 결정: 저장 = 적용. 수령 방식·주문 후 제작은 설정 근거·확인 체크 없이 필요한 값만 넣으면 저장된다. */
+  it('수령 방식은 택배 기본값이 아니면 설정 근거·확인 체크 없이 고른 값만 싣는다', () => {
+    const fulfillment = { ...emptyGoodWorkspaceFulfillment(), mode: 'no_delivery' as const };
     const prepared = prepareGoodWorkspaceExtraSections({ fulfillment }, rows);
     expect(prepared).toEqual({ ok: true, value: { fulfillment: { mode: 'no_delivery', methods: [{ method: 'none', feeAmount: 0, feeBasis: 'per_order', installationFee: 0 }],
-      assetIds: [], publicNote: '', evidence: '직접 전달', confirmed: true } } });
+      assetIds: [], publicNote: '' } } });
+    const quick = { ...emptyGoodWorkspaceFulfillment(), publicNote: '설치 기사가 방문합니다',
+      methods: emptyGoodWorkspaceFulfillment().methods.map((method) => method.method === 'quick' ? { ...method, enabled: true, amount: '3000', basis: 'per_item' as const, installation: '2000' } : method) };
+    expect(prepareGoodWorkspaceExtraSections({ fulfillment: quick }, rows)).toEqual({ ok: true, value: { fulfillment: { mode: 'shipping', methods: [
+      { method: 'parcel', feeAmount: null, feeBasis: 'per_order', installationFee: 0 }, { method: 'quick', feeAmount: 3000, feeBasis: 'per_item', installationFee: 2000 },
+    ], assetIds: [], publicNote: '설치 기사가 방문합니다' } } });
+  });
+
+  it('주문 후 제작은 켜고 발송 예정 기간만 넣으면 실리고, 끄면 싣지 않는다', () => {
+    const on = { ...emptyGoodWorkspaceProduction(), enabled: true, leadDays: '7', dayBasis: 'business' as const, closedDates: '2026-12-25\n2027-01-01', publicNote: '주문 뒤 만듭니다' };
+    expect(prepareGoodWorkspaceExtraSections({ production: on }, rows)).toEqual({ ok: true, value: { production: {
+      enabled: true, leadDays: 7, dayBasis: 'business', closedDates: ['2026-12-25', '2027-01-01'], publicNote: '주문 뒤 만듭니다' } } });
+    expect(prepareGoodWorkspaceExtraSections({ production: { ...on, enabled: false } }, rows)).toEqual({ ok: true, value: {} });
+  });
+
+  it('새 입력 모양에는 설정 근거·확인 체크 칸이 없다', () => {
+    expect(Object.keys(emptyGoodWorkspaceFulfillment()).sort()).toEqual(['files', 'methods', 'mode', 'publicNote']);
+    expect(Object.keys(emptyGoodWorkspaceProduction()).sort()).toEqual(['closedDates', 'dayBasis', 'enabled', 'leadDays', 'publicNote']);
   });
 });
 
@@ -124,8 +145,14 @@ describe('나머지 설정 서버 확인(parse)', () => {
     expect(parseGoodWorkspaceExtraSections({ pricePeriods: [{ variant: { attributes: [] }, period: { state: 'draft' } }] })).toMatchObject({ ok: false, field: 'workspacePrices' });
     expect(parseGoodWorkspaceExtraSections({ pricePeriods: [{ variant: { attributes: {} }, period: { state: 'disabled' } }] })).toMatchObject({ ok: false, field: 'workspacePrices' });
     expect(parseGoodWorkspaceExtraSections({ shippingChargeGroup: { groupId: 'x', expectedRevision: 1 } })).toMatchObject({ ok: false, field: 'workspaceShippingChargeGroup' });
-    expect(parseGoodWorkspaceExtraSections({ production: { enabled: false, leadDays: null, dayBasis: 'calendar', closedDates: [], publicNote: '', evidence: '근거', confirmed: false } }))
-      .toMatchObject({ ok: false, field: 'workspaceProduction' });
+    /* 수령 방식·주문 후 제작: 설정 근거·확인 체크 없는 모양만 받는다. 알 수 없는 키(옛 evidence·confirmed 포함)나 빠진 키는 그 섹션 오류다. */
+    const production = { enabled: true, leadDays: 5, dayBasis: 'calendar', closedDates: [], publicNote: '' };
+    const fulfillment = { mode: 'shipping', methods: [{ method: 'parcel', feeAmount: null, feeBasis: 'per_order', installationFee: 0 }], assetIds: [], publicNote: '' };
+    expect(parseGoodWorkspaceExtraSections({ production, fulfillment })).toEqual({ ok: true, value: { production, fulfillment } });
+    expect(parseGoodWorkspaceExtraSections({ production: { ...production, evidence: '근거', confirmed: true } })).toMatchObject({ ok: false, field: 'workspaceProduction' });
+    expect(parseGoodWorkspaceExtraSections({ production: { ...production, publicNote: undefined } })).toMatchObject({ ok: false, field: 'workspaceProduction' });
+    expect(parseGoodWorkspaceExtraSections({ fulfillment: { ...fulfillment, evidence: '근거', confirmed: true } })).toMatchObject({ ok: false, field: 'workspaceFulfillment' });
+    expect(parseGoodWorkspaceExtraSections({ fulfillment: { ...fulfillment, methods: [] } })).toMatchObject({ ok: false, field: 'workspaceFulfillment' });
     /* 알 수 없는 섹션 이름은 기존처럼 거절한다. */
     expect(parseGoodWorkspaceSections(JSON.stringify({ stock: [] }), true)).toMatchObject({ ok: false });
   });
@@ -138,7 +165,13 @@ describe('섹션 실패·공개 결과 안내', () => {
     expect(goodWorkspaceExtraSectionFailure('goods_workspace_section_failed:shippingChargeGroup:shipping_charge_group_changed', 'PT409'))
       .toEqual({ workspaceShippingChargeGroup: expect.stringContaining('다시 골라주세요') });
     expect(goodWorkspaceExtraSectionFailure('goods_workspace_section_failed:production:invalid_parameter_value', '22023'))
-      .toEqual({ workspaceProduction: expect.stringContaining('상품은 저장되지 않았고 입력은 유지됩니다.') });
+      .toEqual({ workspaceProduction: '발송 예정 기간(1~365일)·기간 계산 기준·휴무일 날짜를 확인해주세요. 상품은 저장되지 않았고 입력은 유지됩니다.' });
+    expect(goodWorkspaceExtraSectionFailure('goods_workspace_section_failed:fulfillment:invalid_parameter_value', '22023'))
+      .toEqual({ workspaceFulfillment: '받을 방식·비용·제공 파일을 확인해주세요. 상품은 저장되지 않았고 입력은 유지됩니다.' });
+    /* 근거 칸이 없으므로 어느 안내도 근거를 고치라고 하지 않는다. */
+    for (const section of ['production', 'fulfillment']) for (const code of ['22023', 'PT409', '42501', 'XX000']) {
+      expect(JSON.stringify(goodWorkspaceExtraSectionFailure(`goods_workspace_section_failed:${section}:boom`, code))).not.toMatch(/근거|요청/);
+    }
     expect(goodWorkspaceExtraSectionFailure('goods_workspace_section_failed:unknown:boom')).toBeNull();
     expect(goodWorkspaceExtraSectionFailure('goods_kc_review_changed')).toBeNull();
   });

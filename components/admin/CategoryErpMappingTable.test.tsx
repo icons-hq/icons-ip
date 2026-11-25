@@ -36,7 +36,7 @@ const { ConsolePagination } = await import('./console/ConsolePagination');
 const { Input } = await import('./kit/ui/input');
 const { Button } = await import('./kit/ui/button');
 
-type Props = { children?: ReactNode; id?: string; name?: string; form?: string; value?: unknown; disabled?: boolean; required?: boolean; type?: string; 'aria-label'?: string; row?: { value: string; label: string }; onChange?: (event: { target: { value?: string; checked?: boolean } }) => void; onPageChange?: (page: number) => void; total?: number; page?: number };
+type Props = { children?: ReactNode; id?: string; name?: string; form?: string; value?: unknown; disabled?: boolean; required?: boolean; type?: string; 'aria-label'?: string; row?: { value: string; label: string }; onChange?: (event: { target: { value?: string; checked?: boolean } }) => void; onPageChange?: (page: number) => void; onSubmit?: (event: { currentTarget: unknown }) => void; total?: number; page?: number; scope?: string };
 
 function find(tree: ReactNode, predicate: (element: ReactElement<Props>) => boolean): ReactElement<Props>[] {
   if (!isValidElement<Props>(tree)) return Array.isArray(tree) ? tree.flatMap((child) => find(child, predicate)) : [];
@@ -65,7 +65,7 @@ const render = (categories: AdminCategoryNode[] = small, mappings: AdminCategory
 };
 const rowElements = (table: ReactNode) => find(table, (element) => Boolean(element.props.row));
 const labels = (table: ReactNode) => rowElements(table).map((element) => element.props.row!.label);
-/* 표는 행 컴포넌트를 렌더할 뿐이라, 행 요소를 꺼내 같은 훅 저장소로 직접 렌더한다. */
+/* 표는 줄 컴포넌트를 렌더할 뿐이라, 줄 요소를 꺼내 같은 훅 저장소로 직접 렌더한다. */
 const renderRow = (label: string, categories = small, mappings: AdminCategoryErpMapping[] = []) => {
   const table = render(categories, mappings);
   const element = rowElements(table).find((row) => row.props.row!.label === label)!;
@@ -85,13 +85,13 @@ beforeEach(() => {
   hooks.actionState = {};
 });
 
-describe('카테고리별 ERP 분류 매핑 표', () => {
+describe('카테고리별 ERP 코드 표', () => {
   /* 2026-11-10 사람 눈 시험: 말단 336개를 카드로 펼치면 페이지가 10만 px까지 길어졌다. */
-  it('카테고리가 늘어도 한 번에 50행만 그리고 높이가 고정된 스크롤 영역에 둔다', () => {
+  it('카테고리가 늘어도 한 번에 50줄만 그리고 높이가 고정된 스크롤 영역에 둔다', () => {
     const many = [node('p', '문구', null, { childCount: 336 }), ...Array.from({ length: 336 }, (_, index) => node(`c${String(index).padStart(3, '0')}`, `분류${String(index).padStart(3, '0')}`, 'p'))];
     const table = render(many);
     expect(rowElements(table)).toHaveLength(50);
-    expect(find(table, (element) => (element.props as { role?: string }).role === 'region')[0].props).toMatchObject({ 'aria-label': '카테고리별 ERP 분류 매핑' });
+    expect(find(table, (element) => (element.props as { role?: string }).role === 'region')[0].props).toMatchObject({ 'aria-label': '카테고리별 ERP 코드' });
     expect(String((find(table, (element) => (element.props as { role?: string }).role === 'region')[0].props as { className?: string }).className)).toContain('max-h-[520px]');
     const pager = find(table, (element) => element.type === ConsolePagination)[0];
     expect(pager.props).toMatchObject({ page: 1, total: 336 });
@@ -102,28 +102,57 @@ describe('카테고리별 ERP 분류 매핑 표', () => {
     expect(text(last)).toContain('마지막 단계 카테고리 336개 중 0개 입력됨');
   });
 
-  it('행마다 전체 경로와 코드를 보이고 입력은 그 행의 저장 폼에 묶인다', () => {
+  it('줄마다 전체 경로와 코드를 보이고 입력은 그 줄의 저장 폼에 묶인다', () => {
     const tree = renderRow('문구 > 키링');
     expect(text(tree)).toContain('문구 > 키링');
     expect(text(tree)).toContain('code-k');
     const form = find(tree, (element) => element.type === 'form')[0];
     expect(form.props.id).toBe('category-erp-mapping-k');
-    for (const name of ['erpCode', 'erpName', 'source', 'verifiedAt']) {
+    for (const name of ['erpCode', 'erpName']) {
       expect(input(tree, name).props).toMatchObject({ form: 'category-erp-mapping-k', required: true });
     }
     expect(input(tree, 'erpCode').props['aria-label']).toBe('문구 > 키링 ERP 코드');
-    expect(input(tree, 'verifiedAt').props.type).toBe('datetime-local');
   });
 
-  it('저장된 값을 보여 주고 검증 시각은 한국 시간 입력값으로 바꾼다', () => {
+  /* 결정 D3(2026-11-25): 출처·검증 시각 칸을 없앤다. 한 줄에 적는 값은 ERP 코드·품명 둘이고, 표의 열은 넷이다. */
+  it('출처·검증 시각 칸이 없다 — 한 줄은 ERP 코드·품명 두 칸이다', () => {
+    const table = render(small, [mapping('k')]);
+    expect(find(table, (element) => element.props.scope === 'col').map(text)).toEqual(['카테고리 경로', 'ERP 코드', 'ERP 품명', '저장']);
+    const tree = renderRow('문구 > 키링', small, [mapping('k')]);
+    expect(find(tree, (element) => element.type === Input).map((element) => element.props.name)).toEqual(['erpCode', 'erpName']);
+    expect(input(tree, 'source')).toBeUndefined();
+    expect(input(tree, 'verifiedAt')).toBeUndefined();
+    for (const gone of ['출처', '검증 시각', '분류표 v1', 'KST', '매핑']) expect(text(table) + text(tree)).not.toContain(gone);
+  });
+
+  it('저장된 값을 보여 주고, 바꾼 것이 없으면 저장을 잠근다', () => {
     const tree = renderRow('문구 > 키링', small, [mapping('k')]);
     expect(input(tree, 'erpCode').props.value).toBe('ERP-1');
-    expect(input(tree, 'source').props.value).toBe('분류표 v1');
-    expect(input(tree, 'verifiedAt').props.value).toBe('2026-11-10T00:30');
+    expect(input(tree, 'erpName').props.value).toBe('키링류');
     expect(saveButton(tree).props.disabled).toBe(true);
   });
 
-  it('경로·붙여 쓴 경로·코드·ERP 코드·ERP 품명으로 찾고 미설정만 골라 본다', () => {
+  /* 근거 없이 저장한 줄은 출처·검증 시각이 비어 있다. 그 값이 비어 있어도 줄은 그대로 그린다. */
+  it('출처·검증 시각이 비어 있는 줄도 그대로 보인다', () => {
+    const tree = renderRow('문구 > 키링', small, [mapping('k', { source: null, verifiedAt: null })]);
+    expect(input(tree, 'erpCode').props.value).toBe('ERP-1');
+    expect(saveButton(tree).props.disabled).toBe(true);
+  });
+
+  /* C-12: 작업 번호는 보내는 순간에 만든다. 같은 줄을 연달아 보내도 번호가 같아 한 번만 처리된다. */
+  it('저장을 누르는 순간 작업 번호를 만들어 넣고, 이미 있으면 그대로 둔다', () => {
+    const tree = renderRow('문구 > 키링');
+    const form = find(tree, (element) => element.type === 'form')[0];
+    const operation = { value: '' };
+    const event = { currentTarget: { elements: { namedItem: (name: string) => (name === 'operationId' ? operation : null) } } };
+    form.props.onSubmit?.(event);
+    expect(operation.value).toMatch(/^[0-9a-f-]{36}$/);
+    const stamped = operation.value;
+    form.props.onSubmit?.(event);
+    expect(operation.value).toBe(stamped);
+  });
+
+  it('경로·붙여 쓴 경로·코드·ERP 코드·ERP 품명으로 찾고 ERP 코드 없는 것만 골라 본다', () => {
     const mappings = [mapping('k')];
     const search = (value: string) => {
       filterInput(render(small, mappings)).props.onChange?.({ target: { value } });
@@ -164,7 +193,7 @@ describe('카테고리별 ERP 분류 매핑 표', () => {
     expect(leaveDirty()).toBe(false);
   });
 
-  it('검색으로 행이 빠져도 입력이 남는다', () => {
+  it('검색으로 줄이 빠져도 입력이 남는다', () => {
     const tree = renderRow('문구 > 키링');
     input(tree, 'erpCode').props.onChange?.({ target: { value: 'ERP-9' } });
     filterInput(render()).props.onChange?.({ target: { value: '스티커' } });
@@ -174,11 +203,11 @@ describe('카테고리별 ERP 분류 매핑 표', () => {
     expect(input(renderRow('문구 > 키링'), 'erpCode').props.value).toBe('ERP-9');
   });
 
-  it('저장하면 입력을 비우고 그 행에 저장됨을 보인다', async () => {
+  it('저장하면 입력을 비우고 그 줄에 저장됨을 보인다', async () => {
     let tree = renderRow('문구 > 키링');
     input(tree, 'erpCode').props.onChange?.({ target: { value: 'ERP-9' } });
     renderRow('문구 > 키링');
-    hooks.save.mockResolvedValue({ message: 'ERP 분류 매핑을 저장했습니다.', changed: true });
+    hooks.save.mockResolvedValue({ message: 'ERP 코드를 저장했습니다.', changed: true });
     hooks.actionState = await hooks.action!({}, new FormData());
     expect(hooks.save).toHaveBeenCalledOnce();
     tree = renderRow('문구 > 키링');
@@ -186,21 +215,21 @@ describe('카테고리별 ERP 분류 매핑 표', () => {
     expect(text(tree)).toContain('저장됨');
   });
 
-  it('실패하면 입력과 경고를 남기고 문구를 그 행에 보이며, 값을 고치면 문구를 지운다', async () => {
+  it('실패하면 입력과 경고를 남기고 문구를 그 줄에 보이며, 값을 고치면 문구를 지운다', async () => {
     let tree = renderRow('문구 > 키링');
     input(tree, 'erpCode').props.onChange?.({ target: { value: 'ERP-9' } });
     renderRow('문구 > 키링');
-    hooks.save.mockResolvedValue({ errors: { form: '이미 연결된 ERP 코드입니다.' } });
+    hooks.save.mockResolvedValue({ errors: { form: '다른 카테고리가 이미 쓰는 ERP 코드입니다. 코드를 확인해 다시 적어주세요.' } });
     hooks.actionState = await hooks.action!({}, new FormData());
     tree = renderRow('문구 > 키링');
-    expect(text(tree)).toContain('이미 연결된 ERP 코드입니다.');
+    expect(text(tree)).toContain('다른 카테고리가 이미 쓰는 ERP 코드입니다.');
     expect(input(tree, 'erpCode').props.value).toBe('ERP-9');
     expect(leaveDirty()).toBe(true);
     input(tree, 'erpCode').props.onChange?.({ target: { value: 'ERP-10' } });
-    expect(text(renderRow('문구 > 키링'))).not.toContain('이미 연결된 ERP 코드입니다.');
+    expect(text(renderRow('문구 > 키링'))).not.toContain('다른 카테고리가 이미 쓰는 ERP 코드입니다.');
   });
 
   it('마지막 단계 카테고리가 없으면 안내만 보인다', () => {
-    expect(text(render([]))).toContain('ERP 값을 적을 마지막 단계 카테고리가 없습니다.');
+    expect(text(render([]))).toContain('ERP 코드를 적을 마지막 단계 카테고리가 없습니다.');
   });
 });

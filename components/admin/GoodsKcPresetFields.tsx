@@ -17,28 +17,28 @@ function initialDraft(template:GoodsKcPresetTemplate|null|undefined,raw?:string)
   };
 }
 
-/* 템플릿 룩(ADR-0028). 고시정보 프리셋 폼(C 트랙 GoodsNoticePresetForm)이 쓰는 KC 모델 틀 입력이다. */
+/* 템플릿 룩(ADR-0028). 상품정보제공고시 템플릿 폼(GoodsNoticePresetForm)이 쓰는 KC 유형 틀 입력이다. 이름은 상품등록의 KC 정보(GoodsKcPanel)와 같다: 'KC 유형 틀'·'적용 제도'. */
 export function GoodsKcPresetFields({template,raw,error}:{template?:GoodsKcPresetTemplate|null;raw?:string;error?:string}) {
   const [draft,setDraft]=useState(()=>initialDraft(template,raw));
   const id=useId();
   return <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0" data-kc-preset-fields="">
-    <legend className="float-left w-full p-0 text-sm font-medium text-foreground">KC 모델 틀 · 선택</legend>
+    <legend className="float-left w-full p-0 text-sm font-medium text-foreground">KC 유형 틀 · 선택</legend>
     <input type="hidden" name="kcTemplate" value={JSON.stringify(draft.enabled?{
       family:draft.family,scheme:draft.scheme,publicNote:draft.scheme==='not_applicable'?draft.publicNote:'',
     }:null)}/>
-    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.enabled} onChange={event=>setDraft({...draft,enabled:event.target.checked})}/> KC 모델 틀 포함</label>
+    <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.enabled} onChange={event=>setDraft({...draft,enabled:event.target.checked})}/> KC 유형 틀 포함</label>
     {draft.enabled?<div className="grid min-w-0 gap-4 sm:grid-cols-2">
       <div className="flex min-w-0 flex-col gap-2"><Label htmlFor={`${id}-family`}>제품군</Label><NativeSelect className="w-full" id={`${id}-family`} required value={draft.family} onChange={event=>{
         const family=event.target.value as GoodsKcFamily|'';
         setDraft({...draft,family,scheme:family&&draft.scheme&&goodsKcSchemeAllowed(family,draft.scheme as GoodsKcScheme)?draft.scheme:''});
       }}><option value="">선택</option>{Object.entries(GOODS_KC_FAMILY_LABELS).map(([value,label])=><option key={value} value={value}>{label}</option>)}</NativeSelect></div>
-      <div className="flex min-w-0 flex-col gap-2"><Label htmlFor={`${id}-scheme`}>제도</Label><NativeSelect className="w-full" id={`${id}-scheme`} required value={draft.scheme} onChange={event=>setDraft({...draft,scheme:event.target.value as GoodsKcScheme|''})}>
+      <div className="flex min-w-0 flex-col gap-2"><Label htmlFor={`${id}-scheme`}>적용 제도</Label><NativeSelect className="w-full" id={`${id}-scheme`} required value={draft.scheme} onChange={event=>setDraft({...draft,scheme:event.target.value as GoodsKcScheme|''})}>
         <option value="">선택</option>{Object.entries(GOODS_KC_SCHEME_LABELS).filter(([value])=>draft.family&&goodsKcSchemeAllowed(draft.family as GoodsKcFamily,value as GoodsKcScheme))
           .map(([value,label])=><option key={value} value={value}>{label}</option>)}
       </NativeSelect></div>
       {draft.scheme==='not_applicable'?<label className="flex min-w-0 flex-col gap-2 text-sm sm:col-span-2"><span className="font-medium">해당 없음 고객 안내 (선택)</span><textarea className={GOOD_TEXTAREA_CLASS} data-slot="textarea" rows={3} maxLength={1000} value={draft.publicNote} onChange={event=>setDraft({...draft,publicNote:event.target.value})}/></label>:null}
     </div>:null}
-    <p className="text-sm text-muted-foreground">제품군·제도와 해당 없음 안내만 KC 정보의 새 미검토 모델로 복사합니다. 옵션·인증번호·증빙·검토 완료 상태는 복사하지 않습니다.</p>
+    <p className="text-sm text-muted-foreground">제품군·적용 제도와 해당 없음 안내만 KC 정보의 새 미검토 모델로 복사합니다. 옵션·인증번호·증빙·검토 완료 상태는 복사하지 않습니다.</p>
     {error?<p className="text-sm text-destructive" role="alert">{error}</p>:null}
   </fieldset>;
 }

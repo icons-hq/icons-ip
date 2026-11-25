@@ -223,6 +223,73 @@ export function erpLinkedGoodsCounts(rows: readonly ErpLinkedGoodsRow[]) {
   };
 }
 
+/**
+ * 함께 반영해야 하는 판매가 줄. `줄 key → 그 줄을 반영하려면 같이 반영해야 하는 줄 key들`.
+ *
+ * DB 확정은 고른 줄만 반영한 뒤의 옵션 판매 금액이 상품 판매가(기본 옵션)보다 낮으면 통째로 거절한다(erp_goods_apply_partial_price).
+ * 미리보기는 같은 상품의 판매가 줄을 모두 반영했을 때를 이미 확인했으므로, 어긋나는 것은 기본 옵션 줄과 다른 옵션 줄을 따로 고를 때뿐이다.
+ * - 상품 판매가가 오르는데 그보다 싼 옵션을 그대로 두면: 기본 옵션 줄은 그 옵션 줄과 함께 반영해야 한다.
+ * - 옵션 금액이 지금 상품 판매가보다 낮아지면: 그 옵션 줄은 기본 옵션 줄과 함께 반영해야 한다.
+ * 미리보기에 다 담기지 않은 상품(500줄 넘음)은 보이지 않는 줄을 알 수 없어 DB 거절 문구가 마지막 안전장치로 남는다.
+ */
+export function erpLinkedGoodsPriceCompanions(rows: readonly ErpLinkedGoodsRow[]): ReadonlyMap<string, readonly string[]> {
+  const byGood = new Map<string, ErpLinkedGoodsRow[]>();
+  for (const row of rows) {
+    if (row.status !== 'apply' || row.field !== 'price' || typeof row.next !== 'number' || typeof row.current !== 'number') continue;
+    byGood.set(row.goodId, [...(byGood.get(row.goodId) ?? []), row]);
+  }
+  const companions = new Map<string, string[]>();
+  const require = (key: string, companion: string) => companions.set(key, [...(companions.get(key) ?? []), companion]);
+  for (const prices of byGood.values()) {
+    const base = prices.find((row) => row.isDefault);
+    if (!base) continue;
+    for (const option of prices) {
+      if (option === base) continue;
+      if ((option.current as number) < (base.next as number)) require(base.key, option.key);
+      if ((option.next as number) < (base.current as number)) require(option.key, base.key);
+    }
+  }
+  return companions;
+}
+
+/**
+ * 줄 하나를 고르거나 뺀 뒤의 선택. 함께 반영해야 하는 줄({@link erpLinkedGoodsPriceCompanions})을 같이 고르고 같이 뺀다.
+ * `moved`는 운영자가 누르지 않았는데 따라 바뀐 줄이다(그 줄에 이유를 보인다).
+ */
+export function toggleErpLinkedGoodsRow(
+  selected: ReadonlySet<string>,
+  companions: ReadonlyMap<string, readonly string[]>,
+  key: string,
+  checked: boolean,
+): { selected: Set<string>; moved: string[] } {
+  const next = new Set(selected);
+  const moved: string[] = [];
+  const queue = [key];
+  if (checked) next.add(key);
+  else next.delete(key);
+  while (queue.length) {
+    const current = queue.shift() as string;
+    /* 고르면 그 줄에 필요한 줄을, 빼면 그 줄이 필요한 줄을 따라 움직인다. */
+    const followers = checked
+      ? companions.get(current) ?? []
+      : [...companions].filter(([, needs]) => needs.includes(current)).map(([other]) => other);
+    for (const follower of followers) {
+      if (next.has(follower) === checked) continue;
+      if (checked) next.add(follower);
+      else next.delete(follower);
+      moved.push(follower);
+      queue.push(follower);
+    }
+  }
+  return { selected: next, moved };
+}
+
+/** 따라 바뀐 줄에 보이는 이유. `by`는 운영자가 누른 줄이다. */
+export function erpLinkedGoodsCompanionNote(by: Pick<ErpLinkedGoodsRow, 'optionName' | 'isDefault'>, checked: boolean): string {
+  const name = by.isDefault && by.optionName !== '기본 옵션' ? `${by.optionName}(기본 옵션)` : by.optionName;
+  return `‘${name}’ 판매가와 함께 반영해야 해서 같이 ${checked ? '골랐습니다' : '뺐습니다'}. 따로 반영하면 옵션 금액이 상품 판매가보다 낮아집니다.`;
+}
+
 /** 확정 확인창 문구. 바코드가 바뀌는 행이 있으면 창고 확인을 함께 묻는다. */
 export function erpLinkedGoodsConfirmation(rows: readonly ErpLinkedGoodsRow[]): string {
   const count = (value: number) => value.toLocaleString('ko-KR');

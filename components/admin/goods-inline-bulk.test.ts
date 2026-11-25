@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ preview: vi.fn(), commit: vi.fn(), read: vi.fn() }));
 vi.mock('@/app/admin/goods-bulk-actions', () => ({ previewGoodsBulkAction: mocks.preview, commitGoodsBulkAction: mocks.commit, readGoodsBulkAction: mocks.read }));
-import { goodsBulkError, type GoodsBulkGood, type GoodsBulkRequest } from '@/lib/admin/goods-bulk';
+import { GOODS_BULK_UNCERTAIN, GOODS_BULK_UNRESOLVED, goodsBulkError, type GoodsBulkGood, type GoodsBulkRequest } from '@/lib/admin/goods-bulk';
 import { changePriceAfterStop, recoverDiscountStopPrice, reviewDiscountStop, runSingleGoodBulk, stopDiscountThenChangePrice } from './goods-inline-bulk';
 
 const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
@@ -22,10 +22,24 @@ beforeEach(() => {
 });
 
 describe('상품 1개짜리 일괄 변경', () => {
-  it('확정 응답이 끊기면(호출 자체가 실패) 재실행하지 않고 같은 요청번호의 결과 조회를 남긴다', async () => {
+  it("확정 응답이 끊기면(호출 자체가 실패) 재실행하지 않고 같은 요청번호의 '저장됐는지 확인'을 남긴다", async () => {
     mocks.commit.mockRejectedValueOnce(new Error('network'));
     const result = await runSingleGoodBulk(identity, 'good-a', 'price', { mode: 'set', value: 12000 }, () => null);
-    expect(result).toEqual({ ok: false, message: expect.stringContaining('처리됐는지 확인하지 못했습니다'), operationId: mocks.preview.mock.calls[0][0] });
+    expect(result).toEqual({ ok: false, message: GOODS_BULK_UNCERTAIN, operationId: mocks.preview.mock.calls[0][0] });
+    expect(GOODS_BULK_UNCERTAIN).toContain('[저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');
+  });
+  /* D4(20261126120000): 미리보기가 그 상품을 건너뛴다고 하면 저장을 부르지 않고, 이유를 문장으로 돌려준 뒤 비교 요청을 닫는다. */
+  it('미리보기가 건너뛴다고 한 상품은 저장하지 않고 이유를 알린다 — 본 값이 다르면 그 안내가 먼저다', async () => {
+    mocks.preview.mockImplementationOnce(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, good({ skip: 'active_price_period_requires_reset' })));
+    const blocked = await runSingleGoodBulk(identity, 'good-a', 'price', { mode: 'set', value: 12000 }, () => null);
+    expect(blocked).toEqual({ ok: false, message: goodsBulkError('active_price_period_requires_reset') });
+    expect(mocks.commit).not.toHaveBeenCalled();
+    expect(mocks.read).toHaveBeenCalledWith(mocks.preview.mock.calls[0][0], identity, true);
+    mocks.preview.mockImplementationOnce(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, good({ skip: 'good_archived', stopped: true })));
+    expect(await runSingleGoodBulk(identity, 'good-a', 'stop', {}, row => row.stopped ? '다른 곳에서 판매상태가 바뀌었습니다.' : null)).toEqual({ ok: false, message: '다른 곳에서 판매상태가 바뀌었습니다.' });
+    mocks.preview.mockImplementationOnce(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, good({ skip: 'random_option_count' })));
+    expect(await runSingleGoodBulk(identity, 'good-a', 'stop', {}, () => null)).toEqual({ ok: false, message: '판매 중인 옵션이 2개 이상이어야 랜덤 판매를 쓸 수 있습니다.' });
+    expect(mocks.commit).not.toHaveBeenCalled();
   });
 });
 
@@ -83,18 +97,18 @@ describe('할인 중지 후 판매가 변경 (1027T-025)', () => {
   it('한 번에 진행하다 판매가 확정 응답이 끊기면 결과를 모르는 단계(price-uncertain)로 멈추고 그 요청번호를 남긴다', async () => {
     const review = { operationId: 'b9000000-0000-4000-8000-0000000000a1', discounts };
     // 할인 중지 확정은 받았고, 판매가 확정은 서버에 반영됐을 수 있으나 응답이 끊겼다(호출 실패·불명확 응답 두 경우).
-    for (const failure of [() => Promise.reject(new Error('network')), () => Promise.resolve({ error: '처리됐는지 확인하지 못했습니다.', uncertain: true })]) {
+    for (const failure of [() => Promise.reject(new Error('network')), () => Promise.resolve({ error: '저장됐는지 확인하지 못했습니다.', uncertain: true })]) {
       vi.clearAllMocks();
       mocks.commit.mockImplementation(async (operationId: string) => operationId === review.operationId ? receipt(operationId, 'completed') : failure());
       const onStopped = vi.fn();
       const step = await stopDiscountThenChangePrice(identity, 'good-a', review, 10000, 12000, onStopped);
       const priceOperation = mocks.preview.mock.calls[0][0];
       expect(step.done).toBeUndefined();
-      expect(step.phase).toEqual({ step: 'price-uncertain', stoppedHere: true, stopped: discounts, operationId: priceOperation, message: expect.stringContaining('처리됐는지 확인하지 못했습니다') });
+      expect(step.phase).toEqual({ step: 'price-uncertain', stoppedHere: true, stopped: discounts, operationId: priceOperation, message: expect.stringContaining('저장됐는지 확인하지 못했습니다') });
       expect(onStopped).toHaveBeenCalledWith({ step: 'price', stoppedHere: true, stopped: discounts, error: '' });
     }
     // 같은 단계에서 다시 시도해도 결과 단계는 넘겨받은 값이 아니라 결과로 정해진다.
-    mocks.commit.mockResolvedValueOnce({ error: '처리 결과가 불명확합니다.', uncertain: true });
+    mocks.commit.mockResolvedValueOnce({ error: '저장됐는지 확인하지 못했습니다.', uncertain: true });
     const retried = await changePriceAfterStop(identity, 'good-a', 10000, 12000, { step: 'price', stoppedHere: true, stopped: discounts, error: 'x' } as never);
     expect(retried.phase).toMatchObject({ step: 'price-uncertain', stoppedHere: true });
     expect(Object.keys(retried.phase)).not.toContain('error');
@@ -134,16 +148,16 @@ describe('할인 중지 후 판매가 변경 (1027T-025)', () => {
     expect(mocks.preview).not.toHaveBeenCalled();
   });
 
-  it('결과 조회: 할인 중지가 확인되면 판매가 변경을 기다리고(자동으로 시작하지 않음), 미처리 종료면 아무것도 바뀌지 않았다고 한다', async () => {
+  it('저장됐는지 확인: 할인 중지가 확인되면 판매가 변경을 기다리고(자동으로 시작하지 않음), 그만두면 아무것도 바뀌지 않았다고 한다', async () => {
     const review = { operationId: 'b9000000-0000-4000-8000-0000000000a1', discounts };
     const stopUncertain = { step: 'stop-uncertain' as const, review, operationId: review.operationId, message: '' };
     expect(await recoverDiscountStopPrice(identity, stopUncertain, false)).toEqual({ phase: { step: 'price', stoppedHere: true, stopped: discounts, error: '' } });
     expect(mocks.preview).not.toHaveBeenCalled();
-    expect((await recoverDiscountStopPrice(identity, stopUncertain, true)).phase).toMatchObject({ step: 'review-failed', retry: true, message: expect.stringContaining('바뀌지 않았습니다') });
+    expect((await recoverDiscountStopPrice(identity, stopUncertain, true)).phase).toMatchObject({ step: 'review-failed', retry: true, message: '저장하지 않고 그만뒀습니다. 할인과 판매가는 그대로입니다. 멈출 할인을 다시 확인해주세요.' });
     mocks.read.mockResolvedValueOnce(receipt(review.operationId, 'unresolved'));
-    expect((await recoverDiscountStopPrice(identity, stopUncertain, false)).phase).toMatchObject({ step: 'stop-uncertain', message: expect.stringContaining('완료 기록') });
+    expect((await recoverDiscountStopPrice(identity, stopUncertain, false)).phase).toMatchObject({ step: 'stop-uncertain', message: GOODS_BULK_UNRESOLVED });
     const priceUncertain = { step: 'price-uncertain' as const, stoppedHere: true, stopped: discounts, operationId: 'b9000000-0000-4000-8000-0000000000b1', message: '' };
     expect((await recoverDiscountStopPrice(identity, priceUncertain, false)).done).toBe(true);
-    expect((await recoverDiscountStopPrice(identity, priceUncertain, true)).phase).toEqual({ step: 'price', stoppedHere: true, stopped: discounts, error: expect.stringContaining('판매가는 바뀌지 않았습니다') });
+    expect((await recoverDiscountStopPrice(identity, priceUncertain, true)).phase).toEqual({ step: 'price', stoppedHere: true, stopped: discounts, error: '저장하지 않고 그만뒀습니다. 판매가는 그대로입니다.' });
   });
 });

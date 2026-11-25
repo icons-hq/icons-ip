@@ -21,7 +21,7 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { AdminHelpTip } from './console/AdminHelpTip';
 import { AdminField } from './console/AdminKit';
-import { ErpItemNameInput } from './ErpItemNameInput';
+import { ErpItemPickButton, erpItemPickSummary } from './ErpItemPicker';
 import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TABLE_FRAME_CLASS, GoodAmountField, GoodChoiceCard, GoodChoiceCards, GoodReadback } from './GoodEditorParts';
 import { GoodsOptionImportPicker } from './GoodsOptionImportDialog';
 import { AUTO_CODE_BADGE } from './GoodIdentifierFields';
@@ -50,7 +50,7 @@ type GoodsOptionEditorProps = {
    * 없으면 예상하지 않고 '저장 시 자동 생성'만 보인다.
    */
   savedCodes?: GoodsOptionSavedCodes;
-  /** 옵션의 ERP 품명에서 반입된 ERP 품목을 골랐을 때 */
+  /** 옵션의 [ERP 품목 고르기]에서 ERP 품목 메뉴에 올린 품목을 골랐을 때 */
   onErpItemSelect?: (item: ErpItemMatch) => void;
   /** 옵션 미사용 상품에서 ERP 판매가 적용을 누르면 판매가 칸에 넣는다 */
   onRegularPriceApply?: (price: number) => void;
@@ -84,6 +84,8 @@ const TABLE_HEAD_CLASS = 'px-3 text-xs font-medium whitespace-normal text-muted-
 const TABLE_CELL_CLASS = 'px-3 py-2.5 align-top whitespace-normal';
 /* 옵션 상세 안내 색(10/07 3차 리뷰): ERP 적용 성공은 성공색, 적용 실패·확인 필요는 경고색. 같은 칸의 재고 부족 경고는 경고색의 더 작은 글자. */
 const ERP_MESSAGE_CLASS = { success: 'mt-1 block text-xs text-[var(--wc-success)]', warning: 'mt-1 block text-xs text-[var(--wc-warning)]' } as const;
+/* 고른 ERP 품목을 되읽는 한 줄. 직접 적은 줄에는 없다. 적어 둔 바코드가 품목과 다를 때만 경고색이다. */
+const ERP_PICKED_CLASS = 'mt-1 block text-xs text-muted-foreground wrap-anywhere';
 const LOW_STOCK_CLASS = 'mt-1 block text-[11px] leading-normal text-[var(--wc-warning)]';
 
 function wholeNumber(raw: string): number {
@@ -142,7 +144,8 @@ function OptionDetailTable({ rows, single, predictedCodes, savedCodes, update, e
     <div className="flex min-w-0 flex-col gap-3 border-t p-3">
       {/* 2026-11-19 MD가 받은 엑셀의 '코드'(ERP 코드)를 옛 '관리코드' 칸에 넣어 거래확정 엑셀의 ERP 코드가 비었다.
           어느 칸에 무엇을 넣고 어느 엑셀에 찍히는지는 긴 안내 문단 대신 그 칸에서 보인다: 머리글 아래 작은 줄(직접 입력·찍히는 엑셀),
-          입력칸 예시(엑셀의 '코드'), 잠긴 옵션 자동코드. 이름이 비슷해 헷갈리는 ERP 코드·ERP 품명·옵션 자동코드에만 "?"를 단다. */}
+          입력칸 예시(엑셀의 '코드'), 잠긴 옵션 자동코드. 이름이 비슷해 헷갈리는 ERP 코드·옵션 자동코드에만 "?"를 단다.
+          ERP 품목은 줄 맨 앞의 [ERP 품목 고르기](공용 선택창)에서 고르면 ERP 코드·ERP 품명·바코드가 한 번에 들어간다. 세 칸은 ERP 품목에 없는 것을 직접 적는 칸이다. */}
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1" data-good-option-code-lock={codesOpen ? 'open' : 'locked'}>
         <button type="button" className={buttonVariants({ variant: 'ghost', size: 'xs' })} data-slot="button" onClick={() => codesOpen ? lockCodes() : setCodesOpen(true)}>
           {codesOpen ? `${optionCode} 다시 잠그기` : `${optionCode} 직접 바꾸기`}
@@ -156,7 +159,7 @@ function OptionDetailTable({ rows, single, predictedCodes, savedCodes, update, e
             <TableHead scope="col" className={`w-[15%] ${TABLE_HEAD_CLASS}`}>옵션</TableHead>
             <TableHead scope="col" className={`w-[15%] ${TABLE_HEAD_CLASS}`}>ERP 코드<AdminHelpTip className="ml-1 align-middle" help={GOOD_OPTIONS_HELP.erpCode} label="ERP 코드" /><span className={HEAD_HINT_CLASS}>직접 입력 · 거래확정·출고 엑셀에 찍힘</span></TableHead>
             <TableHead scope="col" className={`w-[16%] ${TABLE_HEAD_CLASS}`}>바코드<span className={HEAD_HINT_CLASS}>직접 입력 · 거래확정·출고 엑셀에 찍힘</span></TableHead>
-            <TableHead scope="col" className={`w-[23%] ${TABLE_HEAD_CLASS}`}>ERP 품명{canSearchErp && <><AdminHelpTip className="ml-1 align-middle" help={GOOD_OPTIONS_HELP.erpName} label="ERP 품명" /><span className={HEAD_HINT_CLASS}>이름으로 검색해 채우기</span></>}</TableHead>
+            <TableHead scope="col" className={`w-[23%] ${TABLE_HEAD_CLASS}`}>ERP 품명</TableHead>
             <TableHead scope="col" className={`w-[17%] ${TABLE_HEAD_CLASS}`}>{optionCode}<AdminHelpTip className="ml-1 align-middle" help={GOOD_OPTIONS_HELP.optionAutoCode} label={optionCode} /><span className={HEAD_HINT_CLASS}>{codesOpen ? '직접 바꾸는 중' : AUTO_CODE_BADGE}</span></TableHead>
             <TableHead scope="col" className={`w-[14%] ${TABLE_HEAD_CLASS}`}>안전재고 기준</TableHead>
           </TableRow></TableHeader>
@@ -165,15 +168,25 @@ function OptionDetailTable({ rows, single, predictedCodes, savedCodes, update, e
             const erp = erpRows[key];
             const erpSalePrice = erp?.item?.salePrice ?? null;
             const tone = erp?.warning ? 'warning' : 'success';
+            const picked = erp?.item ? erpItemPickSummary(row, erp.item) : null;
+            const optionName = row.name.trim();
             return <TableRow key={key} data-variant-id={row.id ?? undefined}>
-              <TableCell className={`${TABLE_CELL_CLASS} wrap-anywhere`}>{single
-                ? <input className={GOOD_INPUT_CLASS} data-slot="input" readOnly={structureLocked} aria-label="옵션 이름" value={row.name} maxLength={200} onChange={(event) => update(key, { name: event.target.value })} />
-                : row.name || `옵션 ${index + 1}`}</TableCell>
+              <TableCell className={`${TABLE_CELL_CLASS} wrap-anywhere`}><div className="flex min-w-0 flex-col items-start gap-1.5">
+                {single
+                  ? <input className={GOOD_INPUT_CLASS} data-slot="input" readOnly={structureLocked} aria-label="옵션 이름" value={row.name} maxLength={200} onChange={(event) => update(key, { name: event.target.value })} />
+                  : <span className="max-w-full">{row.name || `옵션 ${index + 1}`}</span>}
+                {/* 줄의 맨 앞에 둔다: 고르면 오른쪽 세 칸(ERP 코드·바코드·ERP 품명)이 채워지고, 손으로 적기 전에 먼저 눈에 띈다.
+                    같은 상품의 다른 옵션이 쓰는 품목은 목록에서 고를 수 없게 한다(한 ERP 품목은 옵션 하나에만 연결된다). */}
+                {canSearchErp && <ErpItemPickButton ariaLabel={single ? 'ERP 품목 고르기' : `옵션 ${index + 1} ERP 품목 고르기`}
+                  target={single ? undefined : `옵션 ${index + 1}${optionName ? `(${optionName})` : ''}`}
+                  blockedReason={(item) => selectErpItemForGoodsOption(rows, key, item).ok ? null : '다른 옵션에 넣은 품목'}
+                  onSelect={(item) => onErpSelect(key, item)} />}
+              </div></TableCell>
               <TableCell className={TABLE_CELL_CLASS}><input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} ERP 코드`} value={row.erpCode ?? ''} maxLength={120} placeholder="엑셀의 '코드'" onChange={(event) => update(key, { erpCode: event.target.value })} /></TableCell>
               <TableCell className={TABLE_CELL_CLASS}><input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 바코드`} value={row.barcode ?? ''} maxLength={120} placeholder="엑셀의 '바코드'" onChange={(event) => update(key, { barcode: event.target.value })} /></TableCell>
               <TableCell className={TABLE_CELL_CLASS}>
-                {canSearchErp ? <ErpItemNameInput value={row.erpName ?? ''} onChange={(value) => onErpChange(key, value)} onSelect={(item) => onErpSelect(key, item)}
-                  ariaLabel={`옵션 ${index + 1} ERP 품명`} maxLength={200} placeholder="이름으로 검색" /> : <input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} ERP 품명`} value={row.erpName ?? ''} onChange={event => onErpChange(key, event.target.value)} maxLength={200} placeholder="ERP 상품 이름" />}
+                <input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} ERP 품명`} value={row.erpName ?? ''} onChange={event => onErpChange(key, event.target.value)} maxLength={200} placeholder="ERP 상품 이름" />
+                {picked && <small role="status" className={picked.warning ? ERP_MESSAGE_CLASS.warning : ERP_PICKED_CLASS} data-good-option-erp-picked="" data-tone={picked.warning ? 'warning' : undefined}>{picked.text}</small>}
                 {erpSalePrice !== null && <button type="button" className={`${buttonVariants({ variant: 'outline', size: 'xs' })} mt-1.5 h-auto min-h-6 whitespace-normal`} data-slot="button" onClick={() => onErpPrice(key, erpSalePrice)}>
                   ERP 판매가 {formatWon(erpSalePrice)} 적용
                 </button>}
@@ -425,9 +438,7 @@ export function GoodsOptionEditor({
     /* 한 ERP 품목은 옵션 하나에만 연결된다. 다른 옵션이 쓰는 품목이면 채우지도, 카테고리·판매가를 제안하지도 않는다. */
     const selection = selectErpItemForGoodsOption(rows, key, item);
     if (!selection.ok) {
-      /* 입력 칸은 고른 품목의 품명을 먼저 넣는다(onChange). 품명과 ERP 코드가 다른 품목을 가리키지 않게 고르기 전 품명으로 되돌린다. */
-      const previous = rows.find((row) => goodsOptionRowKey(row) === key);
-      if (previous) update(key, { erpName: previous.erpName ?? null });
+      /* 선택창은 이런 품목을 고를 수 없게 막는다. 그사이 다른 줄이 바뀐 경우에 대비해 여기서도 채우지 않고 이유를 알린다. */
       setErpRows((current) => ({ ...current, [key]: { message: selection.error, warning: true } }));
       return;
     }

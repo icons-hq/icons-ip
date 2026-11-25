@@ -11,8 +11,10 @@ vi.mock('@/app/admin/goods-size-chart-actions', () => ({ saveGoodsSizeChartActio
 vi.mock('./useGoodsSizeRecovery', () => ({ useGoodsSizeRecovery: () => ({ recovery: mocks.recovery, invalidRecovery: false, unavailable: false, capture: mocks.capture, restore: mocks.restore, discard: mocks.discard }) }));
 import { GoodSizeChartPanel } from './GoodSizeChartPanel';
 import { GoodsSizeChartFields } from './GoodsSizeChartFields';
+import { GoodsSizeTemplatePicker } from './GoodsSizeTemplatePicker';
+import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
-import type { GoodsSizeChart } from '@/lib/goods-size-chart';
+import type { GoodsSizeChart, GoodsSizeTemplate } from '@/lib/goods-size-chart';
 const chart: GoodsSizeChart = { unit: 'cm', sizes: ['단일'], measurements: [{ name: '둘레', values: ['42.7'] }], note: '' };
 const values = { enabled: true, chart }, snapshot = { goodId: 'synthetic-size', goodName: '합성 상품', values, revision: 1, updatedAt: '2026-10-14T00:00:00Z' };
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onSubmit?: (event: { preventDefault: () => void }) => void; onChange?: (event: { target: { value: string } }) => void; disabled?: boolean; value?: string; type?: string }>;
@@ -34,9 +36,11 @@ it('keeps the same operation during unknown outcome and blocks double submission
   submit(); submit(); expect(mocks.save).toHaveBeenCalledOnce();
   finish({ ok: false, uncertain: true, error: '결과 불명' }); await settle();
   expect(all(render()).find(node => node.type === 'fieldset')?.props.disabled).toBe(true);
+  /* 저장됐는지 모를 때의 문장과 버튼은 어느 화면에서나 같은 말이다(서버가 준 옛 문구를 그대로 보이지 않는다). */
+  expect(text(render())).toContain(SAVE_UNKNOWN_MESSAGE); expect(text(render())).not.toContain('결과 불명');
   const reads = mocks.load.mock.calls.length; button('최신 저장본 확인').props.onClick?.(); await settle(); expect(mocks.load).toHaveBeenCalledTimes(reads);
   mocks.load.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 2 } });
-  button('같은 요청 결과 확인').props.onClick?.(); await settle();
+  button('저장됐는지 확인').props.onClick?.(); await settle();
   expect(mocks.save.mock.calls[1]).toEqual(mocks.save.mock.calls[0]); expect(mocks.discard).toHaveBeenCalled();
 });
 it('keeps losing input for comparison and requires explicit adoption of the fresh revision', async () => {
@@ -64,9 +68,10 @@ it('recovers a pending operation after remount and compares the current table af
   mocks.load.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 4, values: { enabled: false, chart } } });
   mocks.save.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 2 } });
   await mount(); submit(); expect(mocks.save).not.toHaveBeenCalled();
-  button('이전 저장 요청 결과 확인').props.onClick?.(); await settle();
+  expect(text(render())).toContain('앞서 누른 저장이 됐는지 아직 모릅니다.');
+  button('저장됐는지 확인').props.onClick?.(); await settle();
   expect(mocks.save).toHaveBeenCalledWith('synthetic-size', values, 1, oldRequest.operationId);
-  expect(text(render())).toContain('이후 변경된 최신 저장본'); expect(button('사이즈 안내 저장').props.disabled).toBe(true);
+  expect(text(render())).toContain('그 뒤에 표가 또 바뀌었으니 아래 최신 저장본도 확인해 주세요.'); expect(button('사이즈 안내 저장').props.disabled).toBe(true);
 });
 it('브라우저 복구 기록이 남은 동안 표를 고치거나 저장해 이전 기록을 덮지 않는다', async () => {
   mocks.recovery = { baseRevision: 1, values: { ...values, chart: { ...chart, note: '이전에 작성한 표' } }, request: null };
@@ -117,8 +122,26 @@ it('고객 화면 표시를 이름으로 고르고, 사이즈·측정 항목 추
   expect(html).toContain('사이즈 추가 (1/10)');
   expect(html).toContain('측정 항목 추가 (1/10)');
   expect(html).toContain('치수는 0.1~99,999 사이로, 소수 첫째 자리까지 입력합니다. 단위를 바꿔도 숫자는 변환되지 않습니다.');
-  expect(html).toContain('사이즈 템플릿에서 가져오기');
-  for (const old of ['설정안함', '사이즈 템플릿 불러오기', '상품의 측정 치수를 별도로 저장합니다', '기존 표를 비우는 기능은 아닙니다']) expect(html).not.toContain(old);
+  expect(html).toContain('사이즈 템플릿 고르기');
+  for (const old of ['설정안함', '사이즈 템플릿 불러오기', '사이즈 템플릿에서 가져오기', '상품의 측정 치수를 별도로 저장합니다', '기존 표를 비우는 기능은 아닙니다', '같은 요청', '저장 요청', '미저장']) expect(html).not.toContain(old);
   expect(all(render()).some(node => text(node) === '고객 화면 표시')).toBe(true);
   expect(all(render()).some(node => text(node) === '공개 표시')).toBe(false);
+});
+
+it('템플릿은 공용 선택창에서 고르고, 지금 적어 둔 표를 선택창에 알려 바꾸기 전에 묻게 한다', async () => {
+  await mount();
+  expect(all(render()).some(node => node.type === GoodsSizeTemplatePicker)).toBe(false);
+  button('사이즈 템플릿 고르기').props.onClick?.();
+  const picker = all(render()).find(node => node.type === GoodsSizeTemplatePicker) as unknown as { props: { current: GoodsSizeChart; onSelect: (template: GoodsSizeTemplate) => void; onClose: () => void } };
+  expect(picker.props.current).toEqual(chart);
+  const template: GoodsSizeTemplate = { id: '93800000-0000-4000-8000-000000000701', name: '맨투맨', chart: { ...chart, sizes: ['M'] }, revision: 1, archived: false, createdAt: '2026-10-13T14:00:00Z', updatedAt: '2026-10-13T14:00:00Z' };
+  picker.props.onSelect(template); picker.props.onClose();
+  expect(mocks.capture).toHaveBeenLastCalledWith({ baseRevision: 1, values: { enabled: true, chart: template.chart }, request: null });
+  expect(text(render())).toContain('‘맨투맨’ 템플릿을 가져왔습니다. 고객 화면 표시를 확인하고 [사이즈 안내 저장]을 눌러 주세요.');
+  expect(all(render()).some(node => node.type === GoodsSizeTemplatePicker)).toBe(false);
+});
+
+it('표가 다 채워지면 미리보기를 펼쳐 보인다', async () => {
+  await mount();
+  expect((all(render()).find(node => node.type === 'details') as unknown as { props: { open?: boolean } }).props.open).toBe(true);
 });

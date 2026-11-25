@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_GROUP_FILTERS, goodsGroupConsoleHref, normalizeGoodsGroupFilters, parseGoodsGroupConsole, parseGoodsGroupFilters } from './goods-group-console';
+import { DEFAULT_GROUP_FILTERS, GROUP_SEARCH_FIELDS, goodsGroupConsoleHref, normalizeGoodsGroupFilters, parseGoodsGroupConsole, parseGoodsGroupFilters } from './goods-group-console';
 
 describe('group console search contract', () => {
   it('preserves filters through the shared URL, including KST calendar bounds and paging', () => {
@@ -16,5 +16,16 @@ describe('group console search contract', () => {
     expect(parseGoodsGroupConsole({ ...page, counts: { ...page.counts, all: 4 } })).toBeNull();
     expect(parseGoodsGroupConsole({ ...page, total: 4 })).toBeNull();
     expect(parseGoodsGroupConsole({ ...page, metadata: { unknown: {} } })).toBeNull();
+  });
+});
+
+describe('그룹 검색 항목(G-01)', () => {
+  it('그룹 번호와 상품 URL은 고르는 항목에 없고, 예전 주소의 값은 전체로 읽는다', () => {
+    expect(GROUP_SEARCH_FIELDS.map(row => row.value)).toEqual(['all', 'code', 'name', 'maker']);
+    for (const field of ['groupId', 'goodId']) {
+      expect(normalizeGoodsGroupFilters({ q: 'abc', field }).field).toBe('all');
+      expect(parseGoodsGroupFilters({ ...DEFAULT_GROUP_FILTERS, field })).toBeNull();
+    }
+    expect(normalizeGoodsGroupFilters({ q: 'abc', field: 'code' }).field).toBe('code');
   });
 });

@@ -546,17 +546,20 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
       <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"><ChevronRight aria-hidden="true" className="size-3.5 shrink-0 transition-transform group-open/image-guide:rotate-90 motion-reduce:transition-none" />이미지 바꾸기·순서·삭제 방법</summary>
       <p className="mt-1.5">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 왼쪽 위 손잡이(⋮⋮)를 끌거나 ←·→ 키로 순서를 바꾸며(마우스는 이미지를 바로 끌어도 됩니다), 이 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시됩니다. {{ draft: '×를 누르면 그 이미지를 뺍니다.', published: '추가 이미지는 ×로 빼고, 공개 중인 상품의 대표 이미지는 교체만 합니다.', archived: '보관 상품은 복원한 뒤 이미지를 고쳐 저장합니다.' }[publication]} 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다. {GOODS_IMAGE_LIBRARY_NOTICE}</p>
     </GoodWorkspaceDetails>
-    <button type="button" className={cn(buttonVariants({ variant: 'outline' }), 'self-start')} data-slot="button" disabled={slots.every(Boolean)} onClick={() => setPhotoPicker(true)}>사진 보관함에서 선택</button>
-    {photoPicker ? <GoodsPhotoPicker onClose={() => setPhotoPicker(false)} onSelect={photo => {
+    <button type="button" className={cn(buttonVariants({ variant: 'outline' }), 'self-start')} data-slot="button" disabled={slots.every(Boolean)} onClick={() => setPhotoPicker(true)}>사진 보관함에서 고르기</button>
+    {/*
+      여러 장을 이어서 고른다 — 고른 사진은 그때마다 빈 자리에 들어가고 창은 [완료]로 닫는다(추가 이미지 9장에 창을 9번 열지 않는다).
+      이미 넣은 사진과 남은 자리를 창에 넘겨, 고를 수 없는 사진은 창 안에서 [선택]이 없다. 고른 뒤에 닫고 거절하지 않는다.
+    */}
+    {photoPicker ? <GoodsPhotoPicker multiple pickedPaths={slots.flatMap(tile => tile?.path ? [tile.path] : [])} remaining={slots.filter(tile => !tile).length} onClose={() => setPhotoPicker(false)} onSelect={photo => {
       const current = slotsRef.current;
       const position = current.findIndex(tile => !tile);
-      if (position < 0) { setNotice('상품 이미지는 최대 10장입니다.'); setPhotoPicker(false); return; }
-      if (current.some(tile => tile?.path === photo.imagePath)) { setNotice('이미 선택한 사진입니다.'); setPhotoPicker(false); return; }
+      /* 창이 막아 주므로 여기까지 오는 것은 빠르게 두 번 누른 경우뿐이다. 두 번째는 조용히 버린다. */
+      if (position < 0 || current.some(tile => tile && normalizePublicMediaPath(tile.path) === normalizePublicMediaPath(photo.imagePath))) return;
       keyCounter.current += 1;
       const next = [...current];
       next[position] = { key: `library-${keyCounter.current}`, path: photo.imagePath, url: publicMediaUrl(photo.imagePath), status: 'uploaded' };
-      commit(next, `${goodsImageLabel(position)}에 보관함 사진을 선택했습니다. 상품 저장 전입니다.`);
-      setPhotoPicker(false);
+      commit(next, `${goodsImageLabel(position)}에 보관함 사진을 넣었습니다. 상품 저장 전입니다.`);
     }} /> : null}
     <ol className="m-0 grid max-w-[680px] list-none grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3 p-0">
       {Array.from({ length: GOODS_IMAGE_SLOT_COUNT }, (_, position) =>

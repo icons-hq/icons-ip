@@ -1,12 +1,14 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
+import { AdminHelpTip } from '../console/AdminHelpTip';
 import { AdminSelect } from '../console/AdminSelect';
 import { Button, buttonVariants } from '../kit/ui/button';
 import { GoodsListDateRange } from './GoodsListDateRange';
 import { GoodsListQueryField } from './GoodsListQueryField';
 import { GOODS_READINESS_REASONS } from '@/lib/admin/goods-readiness';
 import { GOODS_LIST_DATE_FIELDS, GOODS_LIST_PAGE_SIZE, GOODS_LIST_PATH, GOODS_LIST_STOCK_OPTIONS, type AdminGoodsListData } from '@/lib/admin/goods-list';
+import { GOODS_LIST_HELP } from '@/lib/admin/help/goods-list';
 
 /*
  * 상품 조회 조건(스마트스토어 상품 조회/수정의 행 구성 그대로). 모양만 kit 카드·입력·버튼(ADR-0028)이고,
@@ -37,8 +39,12 @@ export function GoodsListFiltersForm({ data }: { data: AdminGoodsListData }) {
     {/* 자주 쓰는 조건만 첫 화면에 둔다(판매상태·카테고리 한 줄). 나머지는 아래 상세검색에 접혀 있어도 같은 폼으로 제출된다. 넓은 화면에서는 오른쪽 끝을 상세검색·초기화·검색 자리로 비워 둔다. */}
     <SearchRow className="lg:border-b-0 lg:pr-56" label={<label htmlFor="goods-list-stock">판매상태</label>}><div className="flex flex-wrap items-center gap-2">
       <AdminSelect id="goods-list-stock" name="stock" defaultValue={filters.stock} wrapperClassName={SELECT}>{GOODS_LIST_STOCK_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect>
-      <AdminSelect aria-label="판매기간" id="goods-list-sale-period" name="salePeriod" defaultValue={filters.salePeriod ?? 'all'} wrapperClassName={SELECT}><option value="all">전체 판매기간</option><option value="scheduled">판매대기 (시작 전)</option><option value="ended">판매기간 종료</option></AdminSelect>
-      <AdminSelect aria-label="판매 준비 상태" id="goods-list-readiness" name="readiness" defaultValue={filters.readiness} wrapperClassName={SELECT}><option value="all">전체 준비 상태</option><option value="review_required">확인할 상품 전체</option><option value="ready">설정 준비 완료</option>{Object.entries(GOODS_READINESS_REASONS).map(([code, reason]) => <option key={code} value={code}>{reason.label}</option>)}</AdminSelect>
+      <AdminSelect aria-label="판매기간" id="goods-list-sale-period" name="salePeriod" defaultValue={filters.salePeriod ?? 'all'} wrapperClassName={SELECT}><option value="all">전체 판매기간</option><option value="scheduled">판매 예정</option><option value="ended">판매 종료</option></AdminSelect>
+      {/* "?"는 '판매 준비' 한 곳이다 — 남은 항목이 무엇을 막는지는 이름으로 드러나지 않는다. 줄이 바뀌어도 셀렉트와 떨어지지 않게 한 묶음으로 둔다. */}
+      <span className={`flex items-center gap-1 ${SELECT}`} data-goods-search="readiness">
+        <AdminSelect aria-label="판매 준비 상태" id="goods-list-readiness" name="readiness" defaultValue={filters.readiness} wrapperClassName="w-full flex-1"><option value="all">전체 준비 상태</option><option value="review_required">확인할 상품 전체</option><option value="ready">설정 준비 완료</option>{Object.entries(GOODS_READINESS_REASONS).map(([code, reason]) => <option key={code} value={code}>{reason.label}</option>)}</AdminSelect>
+        <AdminHelpTip help={GOODS_LIST_HELP.readiness} label="판매 준비" />
+      </span>
       <AdminSelect aria-label="카테고리" id="goods-list-category" name="categoryId" defaultValue={filters.categoryId} wrapperClassName={SELECT}><option value="">전체 카테고리</option>{categories.map(category => <option key={category.id} value={category.id}>{'　'.repeat(Math.max(0, category.depth - 1))}{category.name}{category.archivedAt ? ' · 보관' : ''}</option>)}</AdminSelect>
       <AdminSelect aria-label="연결 IP" id="goods-list-ip" name="ipId" defaultValue={filters.ipId} wrapperClassName={SELECT}><option value="">전체 IP</option>{ips.map(ip => <option key={ip.id} value={ip.id}>{ip.title}{ip.archivedAt ? ' · 보관' : ''}</option>)}</AdminSelect>
     </div></SearchRow>

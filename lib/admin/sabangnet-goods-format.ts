@@ -80,15 +80,17 @@ export const SABANGNET_TARGETS: readonly {
   { key: 'ignore', label: '가져오지 않음', multiple: true },
   { key: 'name', label: '상품명' },
   { key: 'code', label: '상품 자동코드' },
-  // 사방넷 판매가는 고객 결제 금액이다. TAG가가 더 크면 ICONS 판매가는 TAG가, 차액은 즉시할인이 된다(상품 엑셀 v8과 같은 뜻).
-  { key: 'price', label: '판매가(고객 결제 금액)' },
-  { key: 'compareAtPrice', label: 'TAG가(할인 전 판매가)' },
+  // 사방넷 판매가는 고객이 내는 금액이라 상품 수정 화면의 '할인가'다. TAG가는 할인 전 금액이라 그 화면의 '판매가'다.
+  // TAG가가 더 클 때만 판매가는 TAG가, 차액은 즉시할인이 된다(상품 엑셀 v8과 같은 뜻). 사방넷 판매가만 연결하면 그 금액이 판매가이고 할인은 없다.
+  // 이름은 화면의 말이다 — 저장 값(price·compareAtPrice)과 변환은 그대로다.
+  { key: 'price', label: '할인가(고객이 내는 금액)' },
+  { key: 'compareAtPrice', label: '판매가(할인 전 금액)' },
   { key: 'nameEn', label: '영문 상품명' },
   { key: 'searchKeywords', label: '검색 키워드' },
-  { key: 'optionTitle1', label: '옵션 축 1 이름' },
-  { key: 'optionValues1', label: '옵션 축 1 값' },
-  { key: 'optionTitle2', label: '옵션 축 2 이름' },
-  { key: 'optionValues2', label: '옵션 축 2 값' },
+  { key: 'optionTitle1', label: '옵션명 1' },
+  { key: 'optionValues1', label: '옵션값 1' },
+  { key: 'optionTitle2', label: '옵션명 2' },
+  { key: 'optionValues2', label: '옵션값 2' },
   { key: 'image', label: '대표 이미지' },
   { key: 'imageFallback', label: '대표 이미지(대표이미지 칸이 비었을 때)' },
   { key: 'gallery', label: '추가 이미지', multiple: true },
@@ -456,47 +458,47 @@ export function convertSabangnetRows(input: {
     if (gallery.length > SABANGNET_GALLERY_LIMIT)
       notes.add(`추가 이미지는 ${SABANGNET_GALLERY_LIMIT}장까지 가져옵니다. 나머지 ${gallery.length - SABANGNET_GALLERY_LIMIT}장은 상품 편집에서 확인해 주세요.`);
 
-    // 옵션: 옵션제목(n)·옵션상세명칭(n) → 옵션 축 최대 2개의 조합.
+    // 옵션: 옵션제목(n)·옵션상세명칭(n) → 옵션명 n·옵션값 n, 최대 2개 옵션명의 조합.
     const axes: ParsedAxis[] = [];
     for (const index of [1, 2] as const) {
       let title = cell(`optionTitle${index}`);
       const raw = cell(`optionValues${index}`);
       if (!raw) {
-        if (title) notes.add(`옵션 축 ${index} 이름만 있고 옵션 값이 없어 옵션 축 ${index}을 만들지 않았습니다.`);
+        if (title) notes.add(`옵션명 ${index}만 있고 옵션값이 없어 이 옵션은 만들지 않았습니다.`);
         continue;
       }
       if (!title) {
         title = index === 1 ? '옵션' : '옵션 2';
-        notes.add(`옵션 축 ${index} 이름이 비어 '${title}'(으)로 만들었습니다.`);
+        notes.add(`옵션명 ${index} 칸이 비어 있어 '${title}'(으)로 만들었습니다.`);
       }
       const parsed = new Map<string, number>();
       for (const token of splitOptionValues(raw)) {
         let name = token;
         if (name.includes('^^')) {
           name = name.split('^^')[0].trim();
-          notes.add("옵션 값의 '^^' 뒤 표기는 가져오지 않았습니다. 옵션 가격·재고를 초안에서 확인해 주세요.");
+          notes.add("옵션값의 '^^' 뒤는 가져오지 않았습니다. 초안에서 옵션 가격·재고를 확인해 주세요.");
         }
         let extra = 0;
         const priced = OPTION_PRICE.exec(name);
         if (priced) {
           name = priced[1].trim();
           extra = (priced[2] === '-' ? -1 : 1) * Number(priced[3].replace(/,/g, ''));
-          notes.add('옵션 값의 (+금액) 표기를 옵션가(추가금액)로 가져왔습니다. 옵션가를 확인해 주세요.');
+          notes.add('옵션값 뒤의 (+금액)을 옵션가(추가금액)로 가져왔습니다. 옵션가를 확인해 주세요.');
         }
         if (!name) continue;
         if (parsed.has(name)) {
-          notes.add(`옵션 축 ${index}의 같은 값 '${name}'을 하나로 합쳤습니다.`);
+          notes.add(`같은 옵션값은 하나로 합쳤습니다(옵션명 ${index}: '${name}').`);
           continue;
         }
-        if (extra < 0) errors.push(`옵션 값 '${name}'의 금액이 판매가보다 낮습니다. 엑스스퀘어 옵션가는 0원 이상인 추가금액이어야 합니다.`);
-        if (name.length > 80) errors.push(`옵션 값은 80자 이하로 입력해 주세요: ${name.slice(0, 20)}…`);
+        if (extra < 0) errors.push(`옵션값 '${name}'에 마이너스 금액이 있습니다. 옵션가는 0원 이상의 추가금액이어야 합니다.`);
+        if (name.length > 80) errors.push(`옵션값은 80자 이하로 입력해 주세요: ${name.slice(0, 20)}…`);
         parsed.set(name, Math.max(0, extra));
       }
-      if (title.length > 40) errors.push(`옵션 축 이름은 40자 이하로 입력해 주세요: ${title.slice(0, 20)}…`);
+      if (title.length > 40) errors.push(`옵션명은 40자 이하로 입력해 주세요: ${title.slice(0, 20)}…`);
       if (parsed.size) axes.push({ name: title, values: [...parsed].map(([name, extra]) => ({ name, extra })) });
     }
     if (axes.length === 2 && axes[0].name === axes[1].name)
-      errors.push('옵션 축 1과 옵션 축 2의 이름이 같습니다. 서로 다른 이름을 입력해 주세요.');
+      errors.push('옵션명 1과 옵션명 2가 같습니다. 서로 다른 이름을 입력해 주세요.');
     const combinations = axes.reduce((count, axis) => count * axis.values.length, 1);
     if (axes.length && combinations > OPTION_LIMIT)
       errors.push(`옵션 조합이 ${combinations}개입니다. 상품 하나의 옵션 조합은 ${OPTION_LIMIT}개까지입니다.`);
@@ -528,18 +530,18 @@ export function convertSabangnetRows(input: {
     identities.set(identity, [...(identities.get(identity) ?? []), source.row]);
     if (notes.size) warnings.set(source.row, [...notes]);
   }
-  // 사방넷 한 행은 상품 하나다. 같은 상품코드(코드가 없으면 같은 IP·상품명)가 겹치면 ICONS 양식처럼 옵션을 합치지 않는다.
+  // 사방넷 한 줄은 상품 하나다. 같은 상품코드(코드가 없으면 같은 IP·상품명)가 겹치면 ICONS 양식처럼 옵션을 합치지 않는다.
   for (const [identity, rows] of identities) {
     if (rows.length < 2) continue;
     const message = identity.startsWith('code:')
-      ? `같은 자체상품코드가 여러 행에 있습니다(${rows.join(', ')}행). 행마다 다른 자체상품코드를 입력해 주세요.`
-      : `자체상품코드가 없고 상품명이 같은 행이 있습니다(${rows.join(', ')}행). 자체상품코드를 입력하거나 상품명을 구분해 주세요.`;
+      ? `같은 자체상품코드가 여러 줄에 있습니다(엑셀 ${rows.join(', ')}번째 줄). 줄마다 다른 자체상품코드를 입력해 주세요.`
+      : `자체상품코드가 없고 상품명이 같은 줄이 있습니다(엑셀 ${rows.join(', ')}번째 줄). 자체상품코드를 입력하거나 상품명을 구분해 주세요.`;
     for (const row of rows) firstRows.get(row)?.errors?.push(message);
   }
-  if (!products) throw new Error('열 이름 행 아래에 상품 정보가 없습니다.');
+  if (!products) throw new Error('열 이름 줄 아래에 상품 정보가 없습니다.');
   if (result.length > GOODS_WORKBOOK_ROW_LIMIT)
     throw new Error(
-      `옵션 조합으로 펼친 행이 ${result.length}행입니다. 한 번에 ${GOODS_WORKBOOK_ROW_LIMIT}행까지 등록할 수 있어 파일을 나누어 올려 주세요.`,
+      `옵션을 펼치면 ${result.length}줄입니다. 한 번에 ${GOODS_WORKBOOK_ROW_LIMIT}줄까지 올릴 수 있으니 파일을 나누어 올려 주세요.`,
     );
   return { rows: result, warnings, ignoredColumns: [...ignoredColumns], products };
 }

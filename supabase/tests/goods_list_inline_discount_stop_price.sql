@@ -40,9 +40,11 @@ create function pg_temp.inline_list_discount_ends(p_good text) returns timestamp
 -- 1. 할인 중지 후 판매가 변경 ------------------------------------------------------------------------------------------
 select pg_temp.inline_discount(1);
 select pg_temp.inline_assert(pg_temp.inline_commit(1)->>'state'='completed','individual period discount on both options');
--- 목록은 진행·예정 할인이 있다고 읽고(판매가 칸 = '할인 중지 후 변경'), 판매가만 바꾸는 비교는 거절된다.
+-- 목록은 진행·예정 할인이 있다고 읽고(판매가 칸 = '할인 중지 후 변경'), 판매가만 바꾸는 비교는 그 상품을 이유와 함께 건너뛴다(20261126120000). 저장은 거절된다.
 select pg_temp.inline_assert(pg_temp.inline_list_discount_ends('inline-a') is not null,'list sees the upcoming discount');
-select pg_temp.inline_error($q$select pg_temp.inline_preview(2,'price','{"mode":"set","value":12000}')$q$,'active_price_period_requires_reset');
+select pg_temp.inline_assert((select r->>'skip'='active_price_period_requires_reset' and (r->>'nextPrice')::int=10000
+ from jsonb_array_elements(pg_temp.inline_preview(2,'price','{"mode":"set","value":12000}')->'goods') r),'price review names the blocking discount');
+select pg_temp.inline_assert(pg_temp.inline_commit(2)->>'error'='goods_bulk_all_skipped','a blocked price change cannot be saved');
 -- 창이 먼저 읽는 멈출 할인(상품 1개짜리 기간 할인 중지 비교)과 그 비교가 본 기본 판매가.
 select pg_temp.inline_preview(3,'discount_stop') as stop_preview \gset
 select pg_temp.inline_assert((select (r->>'price')::int=10000 and (r->'discounts'->>'count')::int=2 and (r->'discounts'->>'minPrice')::int=9000
@@ -66,7 +68,9 @@ select pg_temp.inline_discount(5);select pg_temp.inline_assert(pg_temp.inline_co
 select pg_temp.inline_preview(6,'discount_stop');select pg_temp.inline_assert(pg_temp.inline_commit(6)->>'state'='completed','second stop');
 select public.admin_save_goods_price_period('inline-a',(select id from public.goods_variants where good_id='inline-a' and is_default),null,
  jsonb_build_object('state','active','discountPrice',11000,'startsAt',now()+interval '5 days','endsAt',now()+interval '6 days'),null) as late_period \gset
-select pg_temp.inline_error($q$select pg_temp.inline_preview(7,'price','{"mode":"set","value":13000}')$q$,'active_price_period_requires_reset');
+select pg_temp.inline_assert((select r->>'skip'='active_price_period_requires_reset' from jsonb_array_elements(pg_temp.inline_preview(7,'price','{"mode":"set","value":13000}')->'goods') r),
+ 'a discount added meanwhile blocks the price change');
+select pg_temp.inline_assert(pg_temp.inline_commit(7)->>'error'='goods_bulk_all_skipped','the blocked price change is not saved');
 reset role;
 select pg_temp.inline_assert((select count(*)=1 from private.goods_variant_price_periods where good_id='inline-a' and state='active')
  and (select count(*)=4 from private.goods_variant_price_periods where good_id='inline-a' and state='disabled'),'late discount stays active, stopped ones stay stopped');

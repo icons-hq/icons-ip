@@ -34,16 +34,19 @@ export async function cancelGoodsMediaAction(id: string): Promise<void> {
 type MediaSaveFailure = { error: string; uncertain?: boolean };
 export type GoodMediaSaveResult = { snapshot: GoodMediaSnapshot } | MediaSaveFailure;
 export type MediaSettingsSaveResult = { snapshot: GoodsMediaSettingsSnapshot } | MediaSaveFailure;
-const unknownSave = (): MediaSaveFailure => ({ error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 [같은 요청 결과 확인]을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.', uncertain: true });
+/* 문구 속 버튼 이름은 각 화면의 저장 버튼과 같아야 한다. 상품 동영상·숏클립 화면은 [저장됐는지 확인]이다. */
+const unknownSave = (): MediaSaveFailure => ({ error: '저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.', uncertain: true });
+/* 대표미디어 전시 설정 화면(DetailMediaScreen)은 버튼 이름이 아직 [같은 요청 결과 확인]이다. 그 화면의 버튼을 바꿀 때 이 문구도 함께 바꾼다. */
+const unknownSettingsSave = (): MediaSaveFailure => ({ error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 [같은 요청 결과 확인]을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.', uncertain: true });
 function failure(error: { code?: string } | null): MediaSaveFailure | null {
-  if (error?.code === 'PT409') return { error: '다른 관리자가 먼저 수정했습니다. 지금 입력한 내용을 따로 적어 둔 뒤 화면을 새로고침하고, 최신 내용에서 다시 저장해주세요.' };
+  if (error?.code === 'PT409') return { error: '다른 사람이 먼저 바꿨습니다. 지금 입력한 내용을 따로 적어 둔 뒤 화면을 새로고침하고, 최신 내용에서 다시 저장해주세요.' };
   return error && ['42501', '23505', '23514', '22023', 'P0002'].includes(error.code ?? '') ? { error: '저장하지 못했습니다. 이 작업 권한이 있는 계정인지와 상품·영상 상태를 확인해주세요. 올린 지 오래되어 만료된 영상은 다시 올려야 합니다.' } : null;
 }
 export async function saveGoodMediaAction(goodId: string, input: unknown, revision: number, operationId: string): Promise<GoodMediaSaveResult> {
   try {
     if (!await requireAdminActionAccess(GOODS_MEDIA_PATH, { capability: 'catalog.manage' })) return { error: '상품 관리 권한이 필요합니다.' };
     const values = parseGoodsMediaSelection(input);
-    if (!values || !/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId) || !isUuid(operationId) || !Number.isSafeInteger(revision) || revision < 0) return { error: '저장 요청의 형식이 맞지 않습니다. 화면을 새로고침한 뒤 영상과 제목을 다시 확인하고 저장해주세요.' };
+    if (!values || !/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId) || !isUuid(operationId) || !Number.isSafeInteger(revision) || revision < 0) return { error: '저장할 내용을 확인하지 못했습니다. 화면을 새로고침한 뒤 영상과 제목을 다시 확인하고 저장해주세요.' };
     const client = await createClient(), { data, error } = await client.rpc('admin_save_good_media', { p_good_id: goodId, p_values: values, p_revision: revision, p_operation_id: operationId });
     const known = failure(error); if (known) return known;
     const snapshot = !error ? parseGoodMediaSnapshot(data) : null;
@@ -60,7 +63,7 @@ export async function saveGoodsMediaSettingsAction(input: unknown, revision: num
     const client = await createClient(), { data, error } = await client.rpc('admin_save_goods_media_settings', { p_values: values, p_revision: revision, p_operation_id: operationId });
     const known = failure(error); if (known) return known;
     const result = !error ? parseGoodsMediaSettings(data?.values) : null;
-    if (!result || data.revision !== revision + 1 || result.priority !== values.priority || result.shortclips !== values.shortclips) return unknownSave();
+    if (!result || data.revision !== revision + 1 || result.priority !== values.priority || result.shortclips !== values.shortclips) return unknownSettingsSave();
     revalidatePath(GOODS_MEDIA_SETTINGS_PATH); revalidateGoodsSurfaces(); return { snapshot: { values: result, revision: data.revision } };
-  } catch (error) { unstable_rethrow(error); return unknownSave(); }
+  } catch (error) { unstable_rethrow(error); return unknownSettingsSave(); }
 }

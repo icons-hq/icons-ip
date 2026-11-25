@@ -4,10 +4,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { adjustGoodsOptionStocksAction, readGoodsOptionStocksAction, type GoodsOptionStockSaveResult } from '@/app/admin/goods-list-inline-actions';
+import { adminConfirm } from '@/lib/admin/confirm';
 import { statusTone } from '@/lib/admin/status-tone';
 import {
   OPTION_STOCK_REASON_MAX, OPTION_STOCK_STATUS_LABELS, applyOptionStockOutcomes, applyOptionStockRead, openOptionStockRows, optionStockNeedsRead, optionStockSummary,
-  planOptionStockSave, type GoodsListOptionStock, type OptionStockRequest, type OptionStockRow,
+  optionStockUnsavedCount, planOptionStockSave, type GoodsListOptionStock, type OptionStockRequest, type OptionStockRow,
 } from '@/lib/admin/goods-list-inline';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
 import { GroupTable } from './GoodsGroupOperation';
@@ -23,9 +24,10 @@ import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
  * 나머지 옵션은 저장된다. 목록 갱신은 서버가 묶음 끝에 한 번 한다.
  * 창과 상태는 목록 화면 수준(GoodsInlineDialogHost)에 있다 — 저장 뒤 목록이 다시 그려지며 그 상품이 현재 페이지에서
  * 빠져도(품절 필터·정렬) 창과 옵션별 결과가 남는다. 거절된 옵션의 새 현재 수량은 서버가 같은 응답에 다시 읽어 준다.
+ * 적어 둔 수량·사유가 있으면 [닫기]·×·Esc가 묻고 닫는다(화면 규칙 7) — 옵션 여러 개의 수량을 적다가 Esc 한 번에 잃지 않는다.
  */
 
-const UNCERTAIN = '저장 결과를 확인하지 못했습니다. 같은 수량으로 다시 저장하면 한 번만 반영됩니다.';
+const UNCERTAIN = '저장됐는지 확인하지 못했습니다. 같은 수량으로 다시 저장하면 한 번만 반영됩니다.';
 
 /**
  * 바뀐 옵션을 한 번에 저장한다. 서버가 거절한 묶음(권한·입력)은 아무 옵션도 바꾸지 않았다는 뜻이다.
@@ -43,7 +45,7 @@ export async function saveGoodsOptionStocks(good: { goodId: string; ipId: string
 export interface OptionStockTarget { goodId: string; ipId: string; goodName: string; goodCode: string | null; editorHref: string; options: GoodsListOptionStock[] }
 
 const newRequestId = () => crypto.randomUUID();
-const READ_FAILED = ' 바뀐 현재 수량을 읽지 못했습니다. 저장을 누르면 먼저 다시 읽습니다.';
+const READ_FAILED = ' 바뀐 지금 수량을 읽지 못했습니다. [저장]을 누르면 먼저 다시 읽습니다.';
 
 /** 창의 상태와 동작. 창이 닫혀 있으면 `rows`가 null이다. `onSaved`는 모든 옵션이 저장돼 창이 닫힐 때 목록 화면에 결과를 남긴다. */
 export function useOptionStockDialog({ onSaved }: { onSaved?: (target: OptionStockTarget, count: number) => void } = {}) {
@@ -83,15 +85,15 @@ export function useOptionStockDialog({ onSaved }: { onSaved?: (target: OptionSto
         const before = rows;
         run(async () => {
           const fresh = await readGoodsOptionStocksAction(goal.goodId).catch(() => null);
-          if (!fresh?.ok) { setSummary(`현재 수량을 읽지 못했습니다. 잠시 후 다시 저장해주세요.${fresh ? ` (${fresh.error})` : ''}`); return; }
+          if (!fresh?.ok) { setSummary(`지금 수량을 읽지 못했습니다. 잠시 뒤 다시 저장해주세요.${fresh ? ` (${fresh.error})` : ''}`); return; }
           setRows(applyOptionStockRead(before, fresh.options));
-          setSummary('바뀐 현재 수량을 다시 읽었습니다. 확인하고 다시 저장해주세요.');
+          setSummary('바뀐 지금 수량을 다시 읽었습니다. 확인하고 다시 저장해주세요.');
         });
         return;
       }
       const plan = planOptionStockSave(rows);
       setRows(plan.rows);
-      if (!plan.ok) { setSummary('수량이나 사유가 맞지 않는 옵션이 있습니다. 해당 옵션에 표시된 안내대로 고친 뒤 다시 저장해주세요. 아무 옵션도 저장하지 않았습니다.'); return; }
+      if (!plan.ok) { setSummary('수량이나 사유가 맞지 않는 옵션이 있습니다. 그 줄의 안내대로 고친 뒤 다시 저장해주세요. 아직 아무 옵션도 저장하지 않았습니다.'); return; }
       if (!plan.requests.length) { setSummary('바뀐 수량이 없습니다.'); return; }
       setSummary('');
       run(async () => {
@@ -114,6 +116,19 @@ export function useOptionStockDialog({ onSaved }: { onSaved?: (target: OptionSto
 }
 
 export type OptionStockDialogFlow = ReturnType<typeof useOptionStockDialog>;
+
+/**
+ * [닫기]·×·Esc. 적어 둔 수량·사유가 없으면 바로 닫고, 있으면 몇 개 옵션의 입력이 사라지는지 보여 주고 확인받는다.
+ * Esc를 거듭 누르면 브라우저가 창을 먼저 닫는다 — 적은 내용을 보면서 고르도록 창(`dialog`)을 다시 띄운 뒤 묻는다(닫힌 채 두면 같은 칸으로 다시 열 수도 없다).
+ */
+export function requestOptionStockClose(flow: Pick<OptionStockDialogFlow, 'rows' | 'pending' | 'close'>, dialog?: Pick<HTMLDialogElement, 'open' | 'isConnected' | 'showModal'> | null) {
+  if (flow.pending || !flow.rows) return;
+  const unsaved = optionStockUnsavedCount(flow.rows);
+  if (!unsaved) { flow.close(); return; }
+  if (dialog && dialog.isConnected && !dialog.open) { try { dialog.showModal(); } catch { /* 문서에서 빠지는 중이면 그대로 둔다. */ } }
+  void adminConfirm({ title: '적은 내용을 저장하지 않고 닫을까요?', message: `옵션 ${unsaved.toLocaleString('ko-KR')}개에 적은 수량·사유가 사라집니다.`, confirmLabel: '저장하지 않고 닫기' })
+    .then(ok => { if (ok) flow.close(); });
+}
 
 /*
  * 좁은 폭(모바일)에서는 표를 옵션마다 두 줄 카드로 바꾼다 — 1줄 옵션명·현재 수량, 2줄 새 수량·사유 입력. 가로로 밀지 않고 입력·저장한다.
@@ -146,11 +161,12 @@ export function GoodsOptionStockDialog({ flow }: {
     focus?.focus({ preventScroll: true });
   }, [settled, pending]);
   if (!rows || !target) return null;
-  return <CustomerServiceDialog title="옵션별 재고수량" busy={pending} onClose={flow.close}>
+  const requestClose = () => requestOptionStockClose(flow, formRef.current?.closest('dialog'));
+  return <CustomerServiceDialog title="옵션별 재고수량" busy={pending} onClose={requestClose}>
     <form ref={formRef} className="flex min-w-0 flex-col gap-4" data-option-stock-dialog="" aria-busy={pending} onSubmit={event => { event.preventDefault(); flow.save(); }}>
       <p className="text-sm"><strong className="font-semibold">{target.goodName}</strong>{target.goodCode ? <small className="ml-1.5 text-xs text-muted-foreground">{target.goodCode}</small> : null}</p>
       {/* 화면에 보이지 않는 결과만 한 줄로 남긴다. 그사이 수량이 바뀐 옵션은 저장 뒤 그 줄에 '다시 확인'과 이유가 뜨고, 사유를 비웠을 때의 기록은 사유 칸 예시가 말한다. */}
-      <p className="text-sm text-muted-foreground">저장하면 옵션마다 실재고 조정 기록이 남습니다.</p>
+      <p className="text-sm text-muted-foreground">저장하면 옵션마다 재고수량 조정 기록이 남습니다.</p>
       <fieldset className="m-0 min-w-0 border-0 p-0" disabled={pending}><legend className="sr-only">옵션별 재고수량</legend>
         <GroupTable label="옵션별 재고수량" layout="fixed" className={NARROW_TABLE}>
           <TableHeader className="max-sm:hidden"><TableRow><TableHead className="w-[36%]">옵션</TableHead><TableHead className="w-[18%] text-right">현재</TableHead><TableHead className="w-[18%]">새 수량</TableHead><TableHead>사유 (선택)</TableHead></TableRow></TableHeader>
@@ -179,7 +195,7 @@ export function GoodsOptionStockDialog({ flow }: {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <Link className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={target.editorHref}>옵션 추가·안전재고는 상품 수정에서</Link>
         <span className="flex gap-2">
-          <Button type="button" variant="outline" disabled={pending} onClick={flow.close}>닫기</Button>
+          <Button type="button" variant="outline" disabled={pending} onClick={requestClose}>닫기</Button>
           <Button type="submit" disabled={pending}>{pending ? '저장 중' : '저장'}</Button>
         </span>
       </div>

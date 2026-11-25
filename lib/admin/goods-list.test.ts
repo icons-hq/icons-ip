@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { GOODS_LIST_SEARCH_FIELDS, GOODS_LIST_SEARCH_HINTS, GOODS_LIST_SORT_OPTIONS, GOODS_LIST_STOCK_OPTIONS, goodsConsoleFilterValues, goodsListHref, goodsListPreorderSaleLabel, goodsListSalePeriodLabel, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
+import { GOODS_LIST_DATE_FIELDS, GOODS_LIST_SEARCH_FIELDS, GOODS_LIST_SEARCH_HINTS, GOODS_LIST_SORT_OPTIONS, GOODS_LIST_STOCK_OPTIONS, goodsConsoleFilterValues, goodsListHref, goodsListPreorderSaleLabel, goodsListSalePeriodLabel, goodsListSearchChoices, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
 
 describe('goods list navigation', () => {
   it('상품번호(시스템 순번)와 상품 URL을 다른 검색 대상으로 두고, 예전 상품번호순 주소는 새 상품번호순으로 연다(S36-009·S36-X02)', () => {
@@ -15,6 +15,20 @@ describe('goods list navigation', () => {
     expect(normalizeGoodsListFilters({ sort: 'id_asc' }).sort).toBe('number_asc');
     for (const sort of ['constructor', 'toString', '__proto__']) expect(normalizeGoodsListFilters({ sort }).sort).toBe('created_desc');
     expect(normalizeGoodsListFilters({ field: 'id' }).field).toBe('id');
+  });
+  it('상품 URL(영문 내부 값)은 검색 대상으로 고르는 항목에서 빼고, 저장해 둔 주소(field=id)는 그대로 열어 그 조건을 보인다', () => {
+    expect(goodsListSearchChoices().map(item => item.value)).toEqual(['all', 'name', 'number', 'code', 'erp', 'barcode']);
+    for (const field of ['all', 'name', 'number', 'code', 'erp', 'barcode'] as const) expect(goodsListSearchChoices(field).some(item => item.value === 'id')).toBe(false);
+    expect(goodsListSearchChoices('id').map(item => [item.value, item.label])).toEqual(GOODS_LIST_SEARCH_FIELDS.map(item => [item.value, item.label]));
+    // 주소 계약은 그대로다: field=id는 정규화·목록 주소·내보내기 조건에 그대로 실린다.
+    const filters = normalizeGoodsListFilters({ field: 'id', q: 'good-a' });
+    expect(new URL(goodsListHref(filters), 'https://icons.test').searchParams.get('field')).toBe('id');
+    expect(goodsConsoleFilterValues(filters).field).toBe('id');
+    // '전체' 검색은 지금처럼 이 값도 찾는다.
+    expect(GOODS_LIST_SEARCH_HINTS.all.title).toContain('상품 URL');
+  });
+  it('기간 조건의 날짜 이름은 전시상태 값과 같은 말이다(공개일)', () => {
+    expect(GOODS_LIST_DATE_FIELDS.map(item => [item.value, item.label])).toEqual([['created', '상품등록일'], ['updated', '상품수정일'], ['published', '공개일']]);
   });
   it('검색어 칸 안내는 검색 대상마다 따로 있고, 전체 안내는 ERP 품명·바코드까지 말한다(TKT-074)', () => {
     for (const item of GOODS_LIST_SEARCH_FIELDS) {
@@ -42,7 +56,18 @@ describe('goods list navigation', () => {
     expect(editor.searchParams.get('pageSize')).toBe('100');
     expect(normalizeGoodsListFilters({ from: '2026-02-30', to: '2026-10-12', sort: 'random', pageSize: '1000', originId: 'bad', payment: 'bad' })).toMatchObject({ from: null, sort: 'created_desc', pageSize: 50, originId: '', payment: 'all' });
   });
-  it('판매기간(판매대기·판매기간 종료) 필터를 정규화하고 목록·편집기·내보내기 조건에 그대로 싣는다', () => {
+  it('시작일과 종료일이 뒤바뀌어 오면 기간 조건을 버리지 않고 바로잡아 건다', () => {
+    const swapped = normalizeGoodsListFilters({ dateField: 'updated', from: '2026-10-12', to: '2026-10-01' });
+    expect(swapped).toMatchObject({ dateField: 'updated', from: '2026-10-01', to: '2026-10-12' });
+    const href = new URL(goodsListHref(swapped), 'https://icons.test');
+    expect([href.searchParams.get('from'), href.searchParams.get('to')]).toEqual(['2026-10-01', '2026-10-12']);
+    expect(goodsConsoleFilterValues(swapped)).toMatchObject({ from: '2026-10-01', to: '2026-10-12' });
+    // 같은 날·한쪽만 있는 기간은 그대로다.
+    expect(normalizeGoodsListFilters({ from: '2026-10-05', to: '2026-10-05' })).toMatchObject({ from: '2026-10-05', to: '2026-10-05' });
+    expect(normalizeGoodsListFilters({ from: '2026-10-12' })).toMatchObject({ from: '2026-10-12', to: null });
+    expect(normalizeGoodsListFilters({ to: '2026-10-01' })).toMatchObject({ from: null, to: '2026-10-01' });
+  });
+  it('판매기간(판매 예정·판매 종료) 필터를 정규화하고 목록·편집기·내보내기 조건에 그대로 싣는다', () => {
     const filters = normalizeGoodsListFilters({ salePeriod: 'scheduled' });
     expect(filters.salePeriod).toBe('scheduled');
     expect(new URL(goodsListHref(filters), 'https://icons.test').searchParams.get('salePeriod')).toBe('scheduled');

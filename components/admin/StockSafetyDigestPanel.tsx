@@ -21,7 +21,7 @@ import {
 import { formatOrderDateTime } from '@/lib/orders';
 
 const HINT = 'text-sm text-muted-foreground';
-const UNKNOWN = '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 누르면 방금 보낸 내용 그대로 다시 보내 결과를 받아 옵니다. 여러 번 눌러도 한 번만 저장됩니다.';
+const UNKNOWN = '저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.';
 const count = (value: number) => value.toLocaleString('ko-KR');
 
 /**
@@ -73,19 +73,16 @@ export function StockSafetyDigestPanel({ initial }: { initial: StockSafetyDigest
         {` · 운영자 ${count(state.operatorRecipients.length)}명 · 출고지 담당자 ${count(originRecipients)}명`}
       </span>
     </p>
-    <p className={HINT}>매일 정한 시각(KST)이 지나면 그날 한 번, 사용 중인 옵션 중 재고수량이 안전재고 기준 이하인 옵션을 모아 보냅니다.
-      운영자 주소에는 전체 목록을, 출고지 담당자 주소에는 그 출고지 상품만 보냅니다. 같은 주소는 하루 한 통이고, 대상 옵션이 없거나 받는 주소가 없으면 보내지 않습니다.
-      안전재고 기준은 상품 수정의 옵션 상세에서 옵션마다 넣습니다(비워 두면 대상이 아닙니다).</p>
     {state.enabled && !state.operatorRecipients.length && !originRecipients ? <AdminNotice tone="warning">켜져 있지만 받는 주소가 없어 보내지 않습니다. 운영자 주소나 출고지 담당자 주소를 넣어주세요.</AdminNotice> : null}
     <form className="flex flex-col gap-4" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={pending || uncertain}>
         <legend className="sr-only">안전재고 요약 메일 설정</legend>
         <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={enabled} onChange={(event) => setEnabled(event.target.checked)} /> 하루 1회 요약 메일 보내기</label>
-        <AdminField label="매일 보내는 시각 (KST)" inputId="stock-digest-time" hint="기본 09:00 — 담당자가 업무 시작에 받아 그날 출고 마감(16:30) 전에 보충·품절 처리를 할 수 있습니다. 오늘 시각이 이미 지났고 오늘 보낸 적이 없으면 켠 직후 보냅니다.">
+        <AdminField label="매일 보내는 시각 (KST)" inputId="stock-digest-time" hint="오늘 이 시각이 이미 지났고 오늘 보낸 적이 없으면 켠 직후 보냅니다.">
           <Input className="w-36" id="stock-digest-time" type="time" step={60} required value={sendTime} aria-describedby="stock-digest-time-hint"
             onChange={(event) => setSendTime(event.target.value.slice(0, 5))} />
         </AdminField>
-        <AdminField label={`운영자 받는 주소 (최대 ${STOCK_DIGEST_OPERATOR_RECIPIENT_LIMIT}개)`} inputId="stock-digest-recipients" hint="한 줄에 하나 또는 쉼표로 나눠 넣습니다. 전체 목록(모든 출고지)을 받습니다."
+        <AdminField label={`운영자 받는 주소 (최대 ${STOCK_DIGEST_OPERATOR_RECIPIENT_LIMIT}개)`} inputId="stock-digest-recipients" hint="모든 출고지 상품의 목록을 받습니다."
           error={parsedRecipients.ok ? undefined : parsedRecipients.error}>
           <Textarea className="min-h-24 max-w-[35rem] font-mono text-[13px]" id="stock-digest-recipients" rows={3} value={recipients}
             aria-describedby="stock-digest-recipients-hint" aria-invalid={!parsedRecipients.ok || undefined} placeholder={'md@example.com\nops@example.com'}
@@ -93,17 +90,17 @@ export function StockSafetyDigestPanel({ initial }: { initial: StockSafetyDigest
         </AdminField>
       </fieldset>
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="submit" disabled={pending || (!changed && !uncertain)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button>
+        <Button type="submit" disabled={pending || (!changed && !uncertain)}>{pending ? '저장 중…' : uncertain ? '저장됐는지 확인' : '설정 저장'}</Button>
         {message ? <p className={`text-sm ${error ? 'text-destructive' : 'text-success'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}
       </div>
     </form>
     <div className="flex flex-col gap-2 border-t pt-4">
       <p className="font-medium">출고지 담당자 주소</p>
       <ul className="flex flex-col gap-1">{state.origins.map((origin) => <li className="flex flex-wrap items-center gap-2" key={origin.originId}>
-        <Link className="underline underline-offset-4" href={fulfillmentOriginTabHref(origin.originCode)}>{origin.originName}{origin.active ? '' : ' (비활성)'}</Link>
+        <Link className="underline underline-offset-4" href={fulfillmentOriginTabHref(origin.originCode)}>{origin.originName}{origin.active ? '' : ' (사용 안 함)'}</Link>
         <span className={HINT}>{origin.recipients.length ? origin.recipients.join(', ') : '받는 주소 없음'}</span>
       </li>)}</ul>
-      <p className={HINT}>배송정보 관리의 출고지 탭에서 넣습니다. 서원처럼 창고가 다른 곳은 그 창고 담당자 주소를 넣으면 그 출고지 상품만 받습니다. 한 주소를 여러 출고지에 넣으면 그 출고지들 상품을 한 통으로 받습니다.</p>
+      <p className={HINT}>주소는 배송정보 관리의 출고지 탭에서 넣습니다. 담당자는 그 출고지 상품만 받습니다.</p>
     </div>
     {state.runs.length ? <div className="flex flex-col gap-2 border-t pt-4">
       <p className="font-medium">최근 발송 기록</p>

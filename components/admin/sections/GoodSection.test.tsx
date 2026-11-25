@@ -14,7 +14,6 @@ import { ADMIN_SCREENS, adminScreenForPath } from '@/lib/admin/navigation';
 import { commonTestOwnership } from '@/lib/admin/goods-group-common.test-fixtures';
 import { parseGoodsEditorOwnership } from '@/lib/admin/goods-group-common';
 import { GoodsKcTemplateProvider } from '../useGoodsKcTemplate';
-import { GOOD_LOCKED_SELECTS_CLASS } from '../GoodEditorParts';
 import { GOODS_RANDOM_OPTION_LIMIT_GUIDANCE, GOODS_RANDOM_OPTION_LIMIT_MIXED } from '../GoodsSalePolicyFields';
 
 vi.mock('@/app/admin/actions', () => ({
@@ -161,13 +160,13 @@ describe('GoodSection', () => {
     }
   });
 
-  /* 1027T-016(T18): 옵션 ERP 품명 제안은 상품 관리 권한(catalog.manage)으로 열고, IP 운영 화면(platform.manage) 링크는 따로 게이트한다. */
-  it('ERP 품명 제안과 IP 운영 화면 링크를 서로 다른 권한으로 연다', () => {
+  /* 1027T-016(T18): 옵션의 [ERP 품목 고르기]는 상품 관리 권한(catalog.manage)으로 열고, IP 운영 화면(platform.manage) 링크는 따로 게이트한다. */
+  it('ERP 품목 고르기와 IP 운영 화면 링크를 서로 다른 권한으로 연다', () => {
     const md = renderGoodSection(good, {}, { canSearchErp: true, canOpenIp: false });
-    expect(md).toContain('data-erp-item-combobox=""');
+    expect(md).toContain('data-erp-item-picker=""');
     expect(md).not.toContain('/admin/catalog/ips/hwasan');
     const platformOnly = renderGoodSection(good, {}, { canSearchErp: false, canOpenIp: true });
-    expect(platformOnly).not.toContain('data-erp-item-combobox=""');
+    expect(platformOnly).not.toContain('data-erp-item-picker=""');
     expect(platformOnly).toContain('aria-label="옵션 1 ERP 품명"');
     expect(platformOnly).toContain('/admin/catalog/ips/hwasan');
   });
@@ -194,7 +193,10 @@ describe('GoodSection', () => {
     for (const name of ['name', 'noticeMaker', 'noticeOrigin', 'noticeMaterial', 'noticeSize']) {
       expect(html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0]).toContain('readOnly');
     }
-    expect(html.match(/<select[^>]*name="ipId"[^>]*>/)?.[0]).toContain('disabled');
+    /* 연결 IP는 이름만 보이는 잠긴 상자다. 고르는 버튼이 없고 값은 숨은 칸이 그대로 제출한다. */
+    const ipBox = html.match(/<input[^>]*id="good-ip-display"[^>]*>/)?.[0];
+    expect(ipBox).toContain('readOnly'); expect(ipBox).toContain('border-dashed'); expect(ipBox).toContain('value="화산강림"');
+    expect(html).not.toContain('IP 고르기');
     expect(html).toMatch(/<input[^>]*type="hidden"[^>]*name="ipId"/);
     /* 상품 유형은 입력칸도 숨은 입력도 없다(ADR-0044). */
     expect(html).not.toMatch(/<(?:select|input)[^>]*name="type"/);
@@ -266,17 +268,20 @@ describe('GoodSection', () => {
 
   /*
    * 11/11 묶음 10 결정 "둘 다 펼친 채로 … 남은 등록 화면 정리(ADM-004)도 이 원칙" — 입력 섹션인 상세설명 카드는 펼친 채로 두고 요약 한 줄만 머리에
-   * 보인다(복잡도 표 168행의 '카드 기본 접힘' 처리안은 채택하지 않음). 용어 도움말(190행)은 입력칸이 아닌 안내 문구라 고르는 동안만 보인다.
+   * 보인다(복잡도 표 168행의 '카드 기본 접힘' 처리안은 채택하지 않음). 연결 IP가 무엇인지는 칸 아래 안내 문단 대신 칸 이름 옆 "?"가 말한다(화면 규칙 3).
    */
-  it('상세설명 카드는 등록·수정 화면 모두 펼쳐져 있고 요약 한 줄을 머리에 두며, 연결 IP·유형 도움말은 고르는 동안만 보인다', () => {
+  it('상세설명 카드는 등록·수정 화면 모두 펼쳐져 있고 요약 한 줄을 머리에 두며, 연결 IP 설명은 칸 이름 옆 "?"에 둔다', () => {
     const create = renderGoodSection(null);
     const saved = renderGoodSection({ ...good, publishedAt: null });
     for (const markup of [create, saved]) expect(markup.match(/<details id="good-section-description"[^>]*>/)?.[0]).toContain('open=""');
     expect(create).toMatch(/<textarea[^>]*name="description"/);
     expect(create).toMatch(/data-good-section-summary="">입력 안 함<\/span>/);
     expect(saved).toMatch(/data-good-section-summary="">일반 텍스트 · \d+자<\/span>/);
-    expect(create).toContain('data-good-identity-help=""');
-    expect(saved).not.toContain('data-good-identity-help=""');
+    for (const markup of [create, saved]) {
+      expect(markup).not.toContain('data-good-identity-help');
+      expect(markup).not.toContain('연결 IP는 상품이 속한 브랜드·작품입니다.');
+      expect(markup).toContain('aria-label="연결 IP (필수) 도움말"');
+    }
   });
   it('[실제 등록]이 KC에 막혀 임시저장으로만 저장되면 성공이 아니라 공개 보류로 알리고 KC 정보로 안내한다', () => {
     const draft = { ...good, publishedAt: null };
@@ -310,7 +315,8 @@ describe('GoodSection', () => {
   it('상품코드 검색이 목록을 거르고 새 상품의 연결 IP가 미리 채워진다',()=>{
     const matching=renderGoodSection(null,{}, {initialQuery:'hw-0100',initialIpId:'hwasan'});
     expect(matching).toContain('HW-0100 · 화산강림 아크릴 스탠드 · 12개');
-    expect(matching).toContain('<option value="hwasan" selected="">');
+    expect(matching).toContain('<input type="hidden" name="ipId" value="hwasan"/>');
+    expect(matching.match(/<input[^>]*id="good-ip-display"[^>]*>/)?.[0]).toContain('value="화산강림"');
     expect(matching).not.toContain('일치하는 상품이 없습니다.');
     const empty=renderGoodSection(null,{}, {initialQuery:'없는 코드'});
     expect(empty).toContain('일치하는 상품이 없습니다.');
@@ -488,16 +494,18 @@ describe('GoodSection', () => {
       expect(button(bar(renderGoodSection(good, {}, { readiness: live })), '임시저장')).toContain('type="button"');
     });
 
-    it('공개 중 반영 안내는 주의색이고 잠긴 연결 IP·유형 선택칸은 잠긴 입력칸과 같은 모양이다', () => {
+    it('공개 중 반영 안내는 주의색이고 잠긴 연결 IP 칸은 잠긴 입력칸과 같은 점선 상자다', () => {
       const publishedHtml = renderGoodSection(good, {}, { readiness: live });
       expect(bar(publishedHtml)).toMatch(/data-good-next-step=""><span class="[^"]*text-warning[^"]*">[^]*?\[실제 등록\]을 누르면 공개 중인 상품 화면에 바로 반영됩니다\./);
-      /* 잠금은 모양만 바꾼다. 값은 hidden input이 그대로 제출한다. */
-      const lockedOpen = `<div class="${GOOD_LOCKED_SELECTS_CLASS.replaceAll('&', '&amp;')}">`;
-      expect(publishedHtml).toContain(lockedOpen);
-      const locked = publishedHtml.slice(publishedHtml.indexOf(lockedOpen));
-      expect(locked).toMatch(/<select[^>]*disabled=""[^>]*name="ipId"|<select[^>]*name="ipId"[^>]*disabled=""/);
-      expect(locked).toContain('<input type="hidden" name="ipId" value="hwasan"/>');
-      expect(renderGoodSection(draft, {}, { readiness: ready })).not.toContain(lockedOpen);
+      /* 잠금은 모양만 바꾼다(점선 상자, 고르는 버튼 없음). 값은 hidden input이 그대로 제출한다. */
+      const ipBox = (html: string) => html.match(/<input[^>]*id="good-ip-display"[^>]*>/)?.[0] ?? '';
+      expect(ipBox(publishedHtml)).toContain('border-dashed');
+      expect(ipBox(publishedHtml)).not.toContain('aria-haspopup');
+      expect(publishedHtml).not.toMatch(/<button[^>]*name="ipId"/);
+      expect(publishedHtml).toContain('<input type="hidden" name="ipId" value="hwasan"/>');
+      const draftHtml = renderGoodSection(draft, {}, { readiness: ready });
+      expect(ipBox(draftHtml)).not.toContain('border-dashed');
+      expect(draftHtml).toMatch(/<button[^>]*name="ipId"[^>]*>IP 고르기<\/button>/);
     });
 
     it('실제로 막는 항목만 주의색이다: 초안만으로는 판매 설정을 확인 필요로 보이지 않는다', () => {

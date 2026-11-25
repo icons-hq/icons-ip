@@ -3,8 +3,10 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { loadGoodsAfterSalesAction, saveGoodsAfterSalesAction, type GoodsAfterSalesResult } from '@/app/admin/goods-after-sales-actions';
 import { GOODS_AFTER_SALES_TEMPLATES_PATH, parseGoodsAfterSalesValues, type GoodsAfterSalesSnapshot, type GoodsAfterSalesValues } from '@/lib/goods-after-sales';
+import { goodsAfterSalesError, goodsAfterSalesProblem } from '@/lib/admin/goods-after-sales-messages';
+import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
-import { GoodsAfterSalesTemplatePicker } from './screens/GoodsAfterSalesTemplatesScreen';
+import { GoodsAfterSalesTemplatePicker } from './GoodsAfterSalesTemplatePicker';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 
 export function GoodsAfterSalesPanel({ goodId }: { goodId: string }) {
@@ -34,31 +36,32 @@ export function GoodsAfterSalesPanel({ goodId }: { goodId: string }) {
   async function save(clear = false) {
     if (busy.current || !snapshot || conflict) return;
     const parsed = request.current?.values ?? parseGoodsAfterSalesValues(clear ? { phone: '', guide: '', sellerSpecialNotes: '' } : values, clear || uncertain);
-    if (!parsed) { setError(true); setMessage('전화번호와 A/S 안내를 입력하고 글자 수를 확인해주세요.'); return; }
+    if (!parsed) { setError(true); setMessage(goodsAfterSalesProblem(values) ?? goodsAfterSalesError('invalid_goods_after_sales')); return; }
     request.current ??= { values: parsed, revision: snapshot.revision, id: crypto.randomUUID() };
     ++readSequence.current;
     busy.current = true; setPending(true); setMessage('');
     const fixed = request.current;
     let result: GoodsAfterSalesResult<GoodsAfterSalesSnapshot>;
     try { result = await saveGoodsAfterSalesAction(goodId, fixed.values, fixed.revision, fixed.id); }
-    catch { result = { ok: false, uncertain: true, error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.' }; }
+    catch { result = { ok: false, uncertain: true, error: SAVE_UNKNOWN_MESSAGE }; }
     busy.current = false; if (!mounted.current) return; setPending(false);
     if (result.ok) { accept(result.value); setError(false); setMessage(result.value.phone ? 'A/S 안내와 판매자 특이사항을 저장했습니다.' : '상품 상세의 A/S 안내와 판매자 특이사항을 해제했습니다.'); }
-    else { setError(true); setMessage(result.error); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) request.current = null; if (result.conflict) setConflict(true); }
+    else { setError(true); setMessage(result.uncertain ? SAVE_UNKNOWN_MESSAGE : result.error); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) request.current = null; if (result.conflict) setConflict(true); }
   }
   return <div className="flex min-w-0 flex-col gap-4 text-sm" data-goods-after-sales="">
     <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
       <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={!snapshot || pending || uncertain || conflict}>
         <GoodsAfterSalesFields values={values} onChange={setValues} />
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>A/S 템플릿</button><Link className="text-sm underline underline-offset-4" href={GOODS_AFTER_SALES_TEMPLATES_PATH} target="_blank" rel="noreferrer">A/S 템플릿 관리 ↗</Link></div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button aria-haspopup="dialog" className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>A/S 템플릿 고르기</button><Link className="text-sm underline underline-offset-4" href={GOODS_AFTER_SALES_TEMPLATES_PATH} target="_blank" rel="noreferrer">A/S 템플릿 관리 ↗</Link></div>
       </fieldset>
       {message ? <p className={error ? 'text-sm text-destructive' : 'text-sm text-[var(--wc-success)]'} role={error ? 'alert' : 'status'}>{message}</p> : null}
       <div className="flex flex-wrap gap-2">
-        {uncertain ? <button className={buttonVariants()} data-slot="button" type="button" disabled={pending} onClick={() => void save()}>같은 요청 결과 확인</button> : <button className={buttonVariants()} data-slot="button" disabled={!snapshot || pending || conflict}>안내 저장</button>}
+        {uncertain ? <button className={buttonVariants()} data-slot="button" type="button" disabled={pending} onClick={() => void save()}>{SAVE_CHECK_LABEL}</button> : <button className={buttonVariants()} data-slot="button" type="submit" disabled={!snapshot || pending || conflict}>안내 저장</button>}
         <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={!snapshot || !snapshot.phone || pending || uncertain || conflict} onClick={() => void save(true)}>안내 해제</button>
         <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={pending || uncertain} onClick={() => void reload()}>저장된 내용으로 다시 불러오기</button>
       </div>
     </form>
-    {templates ? <GoodsAfterSalesTemplatePicker onClose={() => setTemplates(false)} onSelect={template => { setValues({ phone: template.phone, guide: template.guide, sellerSpecialNotes: template.sellerSpecialNotes }); setTemplates(false); }} /> : null}
+    {/* 적어 둔 안내가 있으면 선택창이 바꾸기 전에 묻는다. 고른 내용은 [안내 저장]을 눌러야 상품에 저장된다. */}
+    {templates ? <GoodsAfterSalesTemplatePicker current={values} onClose={() => setTemplates(false)} onSelect={template => setValues({ phone: template.phone, guide: template.guide, sellerSpecialNotes: template.sellerSpecialNotes })} /> : null}
   </div>;
 }

@@ -117,6 +117,36 @@ describe('재고 파일 대조 화면', () => {
     expect(html).toMatch(/<input[^>]*(?:id="stock-reconcile-file-input"[^>]*type="file"|type="file"[^>]*id="stock-reconcile-file-input")/);
   });
 
+  it('설명 글을 줄이고 "?"는 파일의 재고 기준 시각에만 단다(맞춘 뒤 재고수량은 미리보기 표 머리에)', () => {
+    const html = renderToStaticMarkup(<StockReconcileScreen origins={[{ id: 'o1', name: '남양주', active: false }]} history={[]} snapshot={null} digest={null} canManageDigest={false} now="2031-05-01T01:00:00Z" />);
+    /* 파일 수량이 엑스스퀘어 몫이어야 한다는 조건은 남기고, 칸 아래·카드 요약에서 되풀이하던 설명은 뺀다. */
+    expect(html).toContain('파일의 수량은 엑스스퀘어 판매용으로 떼어 둔 수량이어야 합니다');
+    for (const gone of ['자동으로 연동되지는 않습니다', '창고 실물은 출고할 때 줄기 때문입니다', '다른 출고지 상품의 행은', '열을 자동으로 짝짓습니다', 'KB 이하, 한 번에', '감사 기록에 남습니다']) expect(html).not.toContain(gone);
+    expect(html.match(/data-admin-help=""/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="파일의 재고 기준 시각 (KST) 도움말"');
+    /* 출고지 상태는 상품 목록과 같은 '사용 안 함'이다. */
+    expect(html).toContain('남양주 (사용 안 함)');
+    expect(html).not.toContain('(비활성)');
+  });
+
+  it('맞춘 뒤 재고수량 열 머리에만 계산식 "?"를 달고, 표 위에 계산식 글을 늘어놓지 않는다', () => {
+    const preview = renderToStaticMarkup(<StockReconcileResult snapshot={snapshot} showSame={false} onToggleSame={() => {}} />);
+    expect(preview).toContain('aria-label="맞춘 뒤 재고수량 도움말"');
+    expect(preview).toContain('반영 전 미리보기');
+    expect(preview).not.toContain('= 파일 수량');
+    const applied = renderToStaticMarkup(<StockReconcileResult snapshot={{ ...snapshot, appliedAt: '2031-05-01T00:10:00Z', appliedByName: '운영자', applyReason: '대조',
+      applyResult: { changed: 2, increased: 1, decreased: 1, shortages: 1, totalDelta: -9 } }} showSame={false} />);
+    expect(applied).not.toContain('data-admin-help');
+  });
+
+  it('표의 행은 줄이라 부른다', () => {
+    const html = renderToStaticMarkup(<StockReconcileResult snapshot={snapshot} showSame={false} />);
+    expect(html).toContain('옵션 자동코드 · 2번째 줄');
+    expect(html).toContain('aria-label="반영하지 않는 줄"');
+    expect(html).not.toContain('2행');
+    expect(html).not.toContain('반영하지 않는 행');
+  });
+
   it('파일은 형식·크기를 먼저 본다', () => {
     expect(stockReconcileFileError({ name: 'a.xls', size: 10 })).toContain('XLSX로 다시 저장');
     expect(stockReconcileFileError({ name: 'a.xlsx', size: 0 })).toContain('선택해주세요');

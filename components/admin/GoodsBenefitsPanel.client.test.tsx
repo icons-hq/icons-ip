@@ -9,6 +9,9 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 vi.mock('@/app/admin/goods-benefit-actions', () => ({ saveGoodsBenefitsAction: mocks.save, loadGoodsBenefitsAction: mocks.load, listGoodsEventTemplatesAction: vi.fn(), saveGoodsEventTemplateAction: vi.fn() }));
 vi.mock('@/lib/media', () => ({ publicMediaUrl: (path: string) => { if (!path) throw new Error('Empty paths must not reach the configured media normalizer'); return `https://cdn.example/${path}`; } }));
 import { GoodsBenefitFields, GoodsBenefitsPanel } from './GoodsBenefitsPanel';
+import { GoodsEventTemplatePicker } from './GoodsEventTemplatePicker';
+import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
+import type { GoodsEventTemplate } from '@/lib/goods-benefits';
 const values = { eventText: '행사 안내', giftText: '사은품 설명', giftImagePaths: [] };
 const snapshot = { ...values, goodId: 'good-1', goodName: '상품', revision: 1, updatedAt: '2026-10-13T14:00:00Z' };
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onSubmit?: (event: { preventDefault: () => void }) => void; onChange?: (event: { target: { value: string } }) => void; disabled?: boolean; value?: string }>;
@@ -29,8 +32,10 @@ it('keeps an unknown write on one fixed request and blocks same-render double su
   submit(); submit(); expect(mocks.save).toHaveBeenCalledOnce();
   finish({ ok: false, uncertain: true, error: '응답 불명' }); await settle();
   expect(all(render()).find(item => item.type === 'fieldset')?.props.disabled).toBe(true);
+  /* 저장됐는지 모를 때의 문장과 버튼은 어느 화면에서나 같은 말이다(서버가 준 옛 문구를 그대로 보이지 않는다). */
+  expect(text(render())).toContain(SAVE_UNKNOWN_MESSAGE); expect(text(render())).not.toContain('응답 불명');
   button('저장된 내용으로 다시 불러오기').props.onClick?.(); await settle(); expect(mocks.load).not.toHaveBeenCalled();
-  button('같은 요청 결과 확인').props.onClick?.(); await settle();
+  button('저장됐는지 확인').props.onClick?.(); await settle();
   expect(mocks.save.mock.calls[1]).toEqual(mocks.save.mock.calls[0]); expect(hooks.state[0]).toMatchObject({ revision: 2 });
 });
 it('preserves losing edits after a confirmed conflict and requires an explicit fresh read', async () => {
@@ -73,4 +78,15 @@ it.each(['response', 'exception'])('ignores a late initial read %s error after a
   expect(hooks.state[0]).toMatchObject({ eventText: '최신 안내', revision: 2 });
   expect(text(render())).toContain('저장된 내용으로 다시 불러왔습니다.');
   expect(hooks.state[5]).toBe(false);
+});
+
+it('이벤트 템플릿은 공용 선택창에서 고르고, 지금 적어 둔 문구를 선택창에 알려 바꾸기 전에 묻게 한다', () => {
+  expect(all(render()).some(item => item.type === GoodsEventTemplatePicker)).toBe(false);
+  button('이벤트 템플릿 고르기').props.onClick?.();
+  const picker = all(render()).find(item => item.type === GoodsEventTemplatePicker) as unknown as { props: { current: string; onSelect: (template: GoodsEventTemplate) => void; onClose: () => void } };
+  expect(picker.props.current).toBe('행사 안내');
+  picker.props.onSelect({ id: '93800000-0000-4000-8000-000000000901', eventText: '연말 한정 증정', revision: 1, archived: false, createdAt: '2026-10-13T14:00:00Z' });
+  picker.props.onClose();
+  expect(hooks.state[1]).toEqual({ ...values, eventText: '연말 한정 증정' });
+  expect(all(render()).some(item => item.type === GoodsEventTemplatePicker)).toBe(false);
 });

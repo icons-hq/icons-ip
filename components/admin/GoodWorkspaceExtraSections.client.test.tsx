@@ -226,16 +226,17 @@ describe('나머지 섹션의 안내 글', () => {
     const fulfillment = (draft.type as (props: unknown) => ReactNode)(draft.props);
     const fulfillmentLegend = nodes(fulfillment).find(node => node.type === 'legend')!;
     expect([fulfillmentLegend.props.className, text(fulfillmentLegend.props.children as ReactNode)]).toEqual(['sr-only', '상품 제공 방식']);
-    expect(intro(fulfillment)).toEqual(['택배만 쓰면 바꿀 것이 없습니다. 다른 수령 방식을 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.']);
-    expect(intro(production)).toEqual(['쓰지 않으면 바꿀 것이 없습니다. 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.']);
+    /* 설정 근거·확인 체크가 없어 채우라는 안내도 없다(2026-11-25 결정). 주문 후 제작은 체크 하나가 스스로 말해 도입 문장을 두지 않는다. */
+    expect(intro(fulfillment)).toEqual(['택배만 쓰면 바꿀 것이 없습니다.']);
+    expect(intro(production)).toEqual([]);
   });
-  it('사이즈 안내: 저장된 상품의 패널과 같은 이름(고객 화면 표시·표시 안 함·템플릿에서 가져오기)을 쓴다', () => {
+  it('사이즈 안내: 저장된 상품의 패널과 같은 이름(고객 화면 표시·표시 안 함·사이즈 템플릿 고르기)을 쓴다', () => {
     const tree = GoodWorkspaceSizeChartSection({});
     expect(intro(tree)).toEqual(['상품의 치수를 표로 보여 줍니다. 표의 사이즈 이름은 구매 옵션과 따로 적습니다.']);
     const all = nodes(tree);
     expect(all.filter(node => node.type === Label).map(node => text(node.props.children as ReactNode))).toEqual(['고객 화면 표시']);
     expect(all.filter(node => node.type === 'option').map(node => text(node.props.children as ReactNode))).toEqual(['표시 안 함 · 표는 그대로 보관', '표시']);
-    expect(all.some(node => node.type === 'button' && text(node.props.children as ReactNode) === '사이즈 템플릿에서 가져오기')).toBe(true);
+    expect(all.some(node => node.type === 'button' && text(node.props.children as ReactNode) === '사이즈 템플릿 고르기')).toBe(true);
     const shown = text(tree); expect(shown).not.toContain('공개 표시'); expect(shown).not.toContain('설정안함');
   });
   it('기간 할인: 입력이 없을 때 따로 말하지 않고 안내는 한 줄이다', () => {

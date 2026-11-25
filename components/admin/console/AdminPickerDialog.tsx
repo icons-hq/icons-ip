@@ -15,6 +15,7 @@ import { ADMIN_PICKER_PAGE_SIZE, type AdminPickerLoader, type AdminPickerPage, t
  *
  * 상품·카테고리·템플릿·그룹처럼 "다른 대상을 골라 넣는 칸"은 모두 이 창을 쓴다. 화면마다 따로 짠 인라인 검색·전체 드롭다운을 새로 만들지 않는다.
  *   검색(검색 대상·검색어·추가 조건) → 결과 수 → 20개씩 목록(상품은 사진) → 줄마다 [선택] → 페이지 이동.
+ *   사진 보관함처럼 사진으로만 구분하는 대상은 같은 흐름을 격자(`layout="grid"`)로 보인다.
  * 고를 수 없는 항목은 조회(load) 단계에서 빼고 `excludedNote` 한 줄로 알린다. 목록에 넣고 눌렀을 때 거절하지 않는다.
  * 상품 폼 안에서 열리므로 항상 body로 포털해 바깥 폼의 제출·자동저장 이벤트와 섞이지 않게 한다.
  * 버튼은 네이티브 button에 kit 모양을 입힌다 — 화면 시험이 이 컴포넌트를 함수로 불러 네이티브 버튼을 찾는다.
@@ -48,6 +49,12 @@ export interface AdminPickerPanelProps<T> {
   filterOptions?: readonly AdminPickerOption[];
   /** 상품처럼 사진으로 알아보는 대상이면 썸네일 칸을 둔다. */
   showImages?: boolean;
+  /**
+   * 목록 모양. 기본 'list'는 줄 목록(48px 썸네일)이다.
+   * 'grid'는 사진을 크게 보이는 격자(사진 + 이름 + [선택])로, 이름이 아니라 사진으로 구분하는 대상(사진 보관함)에 쓴다.
+   * 격자는 `showImages`와 관계없이 사진 칸을 둔다. 검색·페이지·여러 개 고르기·[선택] 동작은 줄 목록과 같다.
+   */
+  layout?: 'list' | 'grid';
   /** 결과 수의 단위(개·건). */
   unit?: string;
   /** 조회에서 뺀 항목을 알리는 한 줄(예: "옵션이 없는 상품은 목록에서 뺐습니다."). */
@@ -76,12 +83,15 @@ export interface AdminPickerPanelProps<T> {
 const LABEL_CLASS = 'text-sm leading-snug font-medium text-foreground';
 const INPUT_CLASS = 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50';
 const LOAD_FAILED = '목록을 불러오지 못했습니다. 잠시 뒤 다시 검색해주세요.';
+/* 목록 상자. 줄 목록은 테두리 안에 줄을 쌓고, 격자는 칸마다 테두리를 둔다(바깥 여백은 칸의 포커스 링이 잘리지 않게 한다). */
+const LIST_CLASS = 'm-0 flex max-h-[min(27.5rem,50svh)] min-w-0 list-none flex-col overflow-y-auto rounded-lg border p-0 empty:hidden';
+const GRID_CLASS = 'm-0 grid max-h-[min(36rem,56svh)] min-w-0 list-none grid-cols-2 gap-2.5 overflow-y-auto p-0.5 empty:hidden sm:grid-cols-[repeat(auto-fill,minmax(9.5rem,1fr))] sm:gap-3';
 
 /** 선택창의 본문. 창(모달·포털) 없이 그린다 — `AdminPickerDialog`가 감싼다. */
 export function AdminPickerPanel<T>({
   description, load, rowKey, rowView, onSelect, onClose, searchFields, searchPlaceholder = '이름으로 찾기', filterLabel = '조건', filterOptions,
   showImages = false, unit = '개', excludedNote, emptyText = '조건에 맞는 항목이 없습니다.', selectLabel = '선택', selectedKeys, onDeselect,
-  multiple = false, rowBlocked, rowAction, blockedReason = null, footer, onSelectingChange,
+  multiple = false, rowBlocked, rowAction, blockedReason = null, footer, onSelectingChange, layout = 'list',
 }: AdminPickerPanelProps<T>) {
   const id = useId();
   const first = (): AdminPickerRequest => ({ query: '', field: searchFields?.[0]?.value ?? '', filter: filterOptions?.[0]?.value ?? '', page: 1 });
@@ -134,6 +144,7 @@ export function AdminPickerPanel<T>({
   /* 검색은 조회 중에도 받는다(창을 열자마자 넣은 검색어가 버려지지 않게). 적용 중이거나 창을 쓸 수 없을 때만 막는다. */
   const searchLocked = selecting || Boolean(blockedReason);
   const selected = new Set(selectedKeys ?? []);
+  const grid = layout === 'grid';
   const submit = () => { void search({ ...filters, page: 1 }); };
   return <section className="flex min-w-0 flex-col gap-4 text-sm" data-admin-picker="">
     {description ? <p className="text-muted-foreground">{description}</p> : null}
@@ -164,16 +175,24 @@ export function AdminPickerPanel<T>({
       {excludedNote ? <p className="text-xs text-muted-foreground" data-admin-picker-excluded="">{excludedNote}</p> : null}
     </div>
     {error ? <p className="text-destructive wrap-anywhere" role="alert">{error}</p> : null}
-    <ul className="m-0 flex max-h-[min(27.5rem,50svh)] min-w-0 list-none flex-col overflow-y-auto rounded-lg border p-0 empty:hidden" data-admin-picker-list="">
+    <ul className={grid ? GRID_CLASS : LIST_CLASS} data-admin-picker-layout={grid ? 'grid' : undefined} data-admin-picker-list="">
       {data?.rows.map((row) => {
         const key = rowKey(row), view = rowView(row), picked = selected.has(key), blocked = rowBlocked?.(row) ?? null;
+        /* 줄 오른쪽(격자에서는 칸 아래) 동작. 두 모양이 같은 것을 쓴다. */
+        const action = rowAction ? rowAction(row, { busy: locked })
+          : blocked ? <span className="text-xs text-muted-foreground">{blocked}</span>
+          : picked ? <span className="flex items-center gap-2"><span className="text-xs font-medium text-muted-foreground">선택됨</span>{onDeselect ? <button className={buttonVariants({ variant: 'ghost', size: 'sm' })} data-slot="button" disabled={locked} onClick={() => onDeselect(row)} type="button">빼기</button> : null}</span>
+          : <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={locked} onClick={() => void choose(row)} type="button">{selectLabel}</button>;
+        /* 격자: 원본 사진이라 화면에 들어올 때만 내려받고(loading), 크기는 CSS(w-full·aspect-square)가 정한다. 잘리지 않게 통째로 보인다(object-contain). */
+        if (grid) return <li className="flex min-w-0 flex-col gap-2 rounded-lg border bg-card p-2.5 text-card-foreground data-picked:bg-muted/40" data-picked={picked || undefined} key={key}>
+          {view.imageUrl ? <img alt="" className="aspect-square w-full rounded-md bg-muted object-contain" decoding="async" loading="lazy" src={view.imageUrl} /> : <span aria-hidden="true" className="aspect-square w-full rounded-md bg-muted" />}
+          <div className="flex min-w-0 flex-col gap-0.5 wrap-anywhere"><strong className="line-clamp-2 font-medium">{view.title}</strong>{view.meta ? <small className="text-xs text-muted-foreground">{view.meta}</small> : null}</div>
+          <div className="mt-auto flex min-h-7 flex-wrap items-center gap-2">{action}</div>
+        </li>;
         return <li className={`grid min-w-0 items-center gap-3 border-b p-3 last:border-b-0 data-picked:bg-muted/40 ${showImages ? 'grid-cols-[3rem_minmax(0,1fr)_auto]' : 'grid-cols-[minmax(0,1fr)_auto]'}`} data-picked={picked || undefined} key={key}>
           {showImages ? view.imageUrl ? <img alt="" className="size-12 rounded-md bg-muted object-cover" height={48} src={view.imageUrl} width={48} /> : <span aria-hidden="true" className="size-12 rounded-md bg-muted" /> : null}
           <div className="flex min-w-0 flex-col gap-0.5 wrap-anywhere"><strong className="font-medium">{view.title}</strong>{view.meta ? <small className="text-xs text-muted-foreground">{view.meta}</small> : null}</div>
-          {rowAction ? rowAction(row, { busy: locked })
-            : blocked ? <span className="text-xs text-muted-foreground">{blocked}</span>
-            : picked ? <span className="flex items-center gap-2"><span className="text-xs font-medium text-muted-foreground">선택됨</span>{onDeselect ? <button className={buttonVariants({ variant: 'ghost', size: 'sm' })} data-slot="button" disabled={locked} onClick={() => onDeselect(row)} type="button">빼기</button> : null}</span>
-            : <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={locked} onClick={() => void choose(row)} type="button">{selectLabel}</button>}
+          {action}
         </li>;
       })}
     </ul>

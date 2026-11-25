@@ -22,12 +22,17 @@ import {
   ERP_ITEM_SEARCH_MIN_LENGTH,
   ERP_ITEM_SEARCH_QUERY_MAX,
   ERP_ITEM_SUGGESTION_LIMIT,
+  addErpItemClears,
+  emptyErpItemClears,
   erpCategoryMappingBatchMessage,
   erpCategoryMappingErrorLabel,
+  erpItemBlankFields,
   isErpItemRejectReason,
   parseErpCategoryMappingBatch,
   parseErpItemMatch,
   type ErpCategoryMappingEntry,
+  type ErpItemBlankField,
+  type ErpItemClears,
   type ErpItemMatch,
 } from '@/lib/admin/erp-items';
 import {
@@ -179,6 +184,80 @@ export async function importErpItemsAction(rowsValue: unknown): Promise<ErpItemI
   }
 }
 
+export type ErpItemClearsResult = { ok: true; clears: ErpItemClears } | { ok: false; error: string };
+
+const CLEARS_FAILED = '올려 둔 값과 비교하지 못했습니다.';
+/* 조회 주소가 너무 길어지지 않게 ERP 코드를 나눠 읽는다(코드는 120자까지이고 한글은 주소에서 9배로 늘어난다). */
+const CLEARS_LOOKUP_SIZE = 50;
+const CLEARS_LOOKUP_CHARS = 3_000;
+
+function lookupChunks(codes: readonly string[]): string[][] {
+  const chunks: string[][] = [];
+  let current: string[] = [];
+  let size = 0;
+  for (const code of codes) {
+    const length = encodeURIComponent(code).length + 3;
+    if (current.length && (current.length >= CLEARS_LOOKUP_SIZE || size + length > CLEARS_LOOKUP_CHARS)) {
+      chunks.push(current);
+      current = [];
+      size = 0;
+    }
+    current.push(code);
+    size += length;
+  }
+  if (current.length) chunks.push(current);
+  return chunks;
+}
+
+/* PostgREST `in.(…)` 목록. 쉼표·괄호·따옴표가 든 ERP 코드도 글자 그대로 찾게 큰따옴표로 감싸고 `\`와 `"`는 역슬래시로 표시한다. */
+function quotedInList(values: readonly string[]): string {
+  return `(${values.map((value) => `"${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"`).join(',')})`;
+}
+
+/**
+ * 품목 올리기 전 확인(화면 규칙 7): 열을 골랐는데 칸이 비어 있는 줄 가운데, 이미 올려 둔 값이 있어 그 값이 지워지는 품목을 센다.
+ * 읽기만 하고 아무것도 바꾸지 않는다. 화면은 칸이 빈 줄만 한 번에 500줄까지 보내고, 지워지는 값이 있을 때만 올리기 전에 한 번 묻는다.
+ * 올려 둔 품목은 상품 관리 권한의 읽기 정책(erp_items_staff_read)으로 ERP 코드가 같은 것만 읽는다(코드는 올릴 때처럼 글자 그대로 비교한다).
+ */
+export async function countErpItemClearsAction(rowsValue: unknown): Promise<ErpItemClearsResult> {
+  try {
+    if (!await requireAdminActionAccess(ERP_ITEMS_PATH)) return { ok: false, error: STAFF_ONLY };
+    if (!Array.isArray(rowsValue) || rowsValue.length === 0 || rowsValue.length > ERP_ITEM_IMPORT_CHUNK_SIZE) return { ok: false, error: CLEARS_FAILED };
+    /* 올릴 때와 같은 규칙으로 줄을 다시 읽는다. 올리지 못할 줄은 아무것도 지우지 않으므로 뺀다. 같은 코드는 마지막 줄이 이긴다. */
+    const blanks = new Map<string, ErpItemBlankField[]>();
+    rowsValue.forEach((value, index) => {
+      const normalized = normalizeErpImportRowInput(value, index + 1);
+      if (!normalized.ok) return;
+      const fields = erpItemBlankFields(normalized.row);
+      if (fields.length) blanks.set(normalized.row.code, fields);
+      else blanks.delete(normalized.row.code);
+    });
+    let clears = emptyErpItemClears();
+    if (!blanks.size) return { ok: true, clears };
+    const supabase = await createClient();
+    for (const codes of lookupChunks([...blanks.keys()])) {
+      const { data, error } = await supabase.from('erp_items').select('code,name,category,sale_price,barcode')
+        .filter('code', 'in', quotedInList(codes));
+      if (error || !Array.isArray(data)) return { ok: false, error: CLEARS_FAILED };
+      for (const raw of data as Record<string, unknown>[]) {
+        const fields = typeof raw.code === 'string' ? blanks.get(raw.code) : undefined;
+        if (!fields) continue;
+        clears = addErpItemClears(clears, {
+          code: raw.code as string,
+          name: typeof raw.name === 'string' ? raw.name : '',
+          category: typeof raw.category === 'string' ? raw.category : null,
+          salePrice: typeof raw.sale_price === 'number' ? raw.sale_price : null,
+          barcode: typeof raw.barcode === 'string' ? raw.barcode : null,
+        }, fields);
+      }
+    }
+    return { ok: true, clears };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: CLEARS_FAILED };
+  }
+}
+
 export type ErpItemDeleteResult =
   | { ok: true; deleted: number; missing: number; message: string }
   | { ok: false; error: string };
@@ -300,7 +379,7 @@ export async function setErpCategoryMappingsAction(entriesValue: unknown): Promi
     const parsed = parseErpCategoryMappingBatch(data);
     if (!parsed) {
       revalidatePath(ERP_ITEMS_PATH);
-      return { ok: false, error: '저장 결과를 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.' };
+      return { ok: false, error: '저장됐는지 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.' };
     }
     if (parsed.changed) revalidatePath(ERP_ITEMS_PATH);
     const rejected = parsed.rejected.map(({ index, reason }) => ({

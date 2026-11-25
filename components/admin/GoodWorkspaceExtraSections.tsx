@@ -34,9 +34,9 @@ import { GoodsProductionFields } from './GoodsProductionPanel';
 import { ShippingChargeGroupField, type ShippingChargeGroupSummaryValue } from './ShippingChargeGroupField';
 import { useShippingChargeGroupSession } from './shipping-charge-groups/useShippingChargeGroupOperation';
 import { GoodsPhotoPicker } from './screens/GoodsPhotoLibraryScreen';
-import { GoodsEventTemplatePicker } from './screens/GoodsEventTemplatesScreen';
-import { GoodsAfterSalesTemplatePicker } from './screens/GoodsAfterSalesTemplatesScreen';
-import { GoodsSizeTemplatePicker } from './screens/GoodsSizeTemplatesScreen';
+import { GoodsEventTemplatePicker } from './GoodsEventTemplatePicker';
+import { GoodsAfterSalesTemplatePicker } from './GoodsAfterSalesTemplatePicker';
+import { GoodsSizeTemplatePicker } from './GoodsSizeTemplatePicker';
 
 /*
  * 상품 등록 화면의 나머지 설정(11/11 묶음 10 1027T-024 "저장 전 전부 입력" — T15b).
@@ -163,7 +163,8 @@ export function GoodWorkspaceBenefitsSection({ serverError }: { serverError?: st
     <GoodsBenefitFields values={value} onChange={set} onPickPhoto={setPicker} onOpenTemplates={() => setTemplates(true)} fieldPrefix="goods-workspace-benefit-image" />
     <SectionError message={error ?? serverError} />
     {picker !== null ? <GoodsPhotoPicker onClose={() => setPicker(null)} onSelect={(photo) => { set((current) => withGiftImage(current, picker, photo.imagePath)); setPicker(null); }} /> : null}
-    {templates ? <GoodsEventTemplatePicker onClose={() => setTemplates(false)} onSelect={(template) => { set((current) => ({ ...current, eventText: template.eventText })); setTemplates(false); }} /> : null}
+    {/* 템플릿 선택창은 적어 둔 값이 있을 때만 바꾸기 전에 묻는다(이 파일의 세 선택창 모두). */}
+    {templates ? <GoodsEventTemplatePicker current={value.eventText} onClose={() => setTemplates(false)} onSelect={(template) => set((current) => ({ ...current, eventText: template.eventText }))} /> : null}
   </DraftBody>;
 }
 
@@ -179,9 +180,10 @@ export function GoodWorkspaceAfterSalesSection({ serverError, phoneDefault = '' 
   return <DraftBody testId="after-sales">
     <GoodsAfterSalesFields values={value} onChange={set} />
     {prefilled ? <small className="text-xs text-muted-foreground" data-good-workspace-after-sales-prefill="">전화번호는 스토어 기본 A/S 연락처로 채웠습니다. A/S 안내를 쓰면 함께 저장됩니다.</small> : null}
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>A/S 템플릿</button><Link className="text-sm underline underline-offset-4" href={GOODS_AFTER_SALES_TEMPLATES_PATH} target="_blank" rel="noreferrer">A/S 템플릿 관리 ↗</Link></div>
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button aria-haspopup="dialog" className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>A/S 템플릿 고르기</button><Link className="text-sm underline underline-offset-4" href={GOODS_AFTER_SALES_TEMPLATES_PATH} target="_blank" rel="noreferrer">A/S 템플릿 관리 ↗</Link></div>
     <SectionError message={error ?? serverError} />
-    {templates ? <GoodsAfterSalesTemplatePicker onClose={() => setTemplates(false)} onSelect={(template) => { set({ phone: template.phone, guide: template.guide, sellerSpecialNotes: template.sellerSpecialNotes }); setTemplates(false); }} /> : null}
+    {/* 스토어 기본 연락처로 미리 보인 전화번호는 적어 둔 값이 아니다 — 저장 대상(stored)에 든 것만 본다. */}
+    {templates ? <GoodsAfterSalesTemplatePicker current={stored} onClose={() => setTemplates(false)} onSelect={(template) => set({ phone: template.phone, guide: template.guide, sellerSpecialNotes: template.sellerSpecialNotes })} /> : null}
   </DraftBody>;
 }
 
@@ -195,10 +197,10 @@ export function GoodWorkspaceSizeChartSection({ serverError }: { serverError?: s
     <p className="text-muted-foreground">상품의 치수를 표로 보여 줍니다. 표의 사이즈 이름은 구매 옵션과 따로 적습니다.</p>
     <div className="flex min-w-0 flex-col gap-2"><Label htmlFor={displayId}>고객 화면 표시</Label><NativeSelect className="w-full sm:w-72" id={displayId} value={value.enabled ? 'enabled' : 'disabled'} onChange={(event) => set((current) => ({ ...current, enabled: event.target.value === 'enabled' }))}><option value="disabled">표시 안 함 · 표는 그대로 보관</option><option value="enabled">표시</option></NativeSelect></div>
     <GoodsSizeChartFields chart={value.chart} onChange={(chart) => set((current) => ({ ...current, chart }))} />
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>사이즈 템플릿에서 가져오기</button><Link className="text-sm underline underline-offset-4" href={GOODS_SIZE_TEMPLATES_PATH} target="_blank" rel="noreferrer">사이즈 템플릿 관리 ↗</Link></div>
-    {preview ? <details className="min-w-0 rounded-lg border"><summary className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50">저장 전 사이즈 안내 미리보기</summary><div className="flex min-w-0 flex-col gap-3 border-t p-3">{!value.enabled ? <p className="text-muted-foreground">고객 화면 표시를 ‘표시 안 함’으로 두었습니다. 저장해도 보이지 않습니다.</p> : null}<GoodSizeChart chart={preview} /></div></details> : null}
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button aria-haspopup="dialog" className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>사이즈 템플릿 고르기</button><Link className="text-sm underline underline-offset-4" href={GOODS_SIZE_TEMPLATES_PATH} target="_blank" rel="noreferrer">사이즈 템플릿 관리 ↗</Link></div>
+    {preview ? <details className="min-w-0 rounded-lg border" open><summary className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50">저장 전 사이즈 안내 미리보기</summary><div className="flex min-w-0 flex-col gap-3 border-t p-3">{!value.enabled ? <p className="text-muted-foreground">고객 화면 표시를 ‘표시 안 함’으로 두었습니다. 저장해도 보이지 않습니다.</p> : null}<GoodSizeChart chart={preview} /></div></details> : null}
     <SectionError message={error ?? serverError} />
-    {templates ? <GoodsSizeTemplatePicker onClose={() => setTemplates(false)} onSelect={(template) => { set((current) => ({ enabled: current.enabled, chart: structuredClone(template.chart) })); setTemplates(false); }} /> : null}
+    {templates ? <GoodsSizeTemplatePicker current={value.chart} onClose={() => setTemplates(false)} onSelect={(template) => set((current) => ({ enabled: current.enabled, chart: structuredClone(template.chart) }))} /> : null}
   </DraftBody>;
 }
 
@@ -282,7 +284,7 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
     else { setMessage(result.error); if (!result.uncertain) setPendingFile(null); }
   }
   return <DraftBody testId="fulfillment">
-    <p className="text-muted-foreground">택배만 쓰면 바꿀 것이 없습니다. 다른 수령 방식을 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.</p>
+    <p className="text-muted-foreground">택배만 쓰면 바꿀 것이 없습니다.</p>
     <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" disabled={pending || Boolean(pendingFile)}>
       <legend className="sr-only">상품 제공 방식</legend>
       <GoodsFulfillmentDraftFields draft={value} onChange={(draft) => set(draft as GoodWorkspaceExtraDraft['fulfillment'])} onUpload={(file) => { void upload(file); }} fieldId={fieldId} />
@@ -293,7 +295,7 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
   </DraftBody>;
 }
 
-/** 주문 후 제작. */
+/** 주문 후 제작. 체크 하나로 켜고, 켜면 필요한 입력만 열린다 — 도입 문장은 두지 않는다. */
 export function GoodWorkspaceProductionSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('production');
   /* 규칙 5: 예약판매와 주문 후 제작은 함께 쓸 수 없다(DB가 거절). 판매 시기에서 예약판매를 골라 두었으면 여기서 켜지 못하게 막고 이유와 푸는 방법을 적는다.
@@ -302,7 +304,7 @@ export function GoodWorkspaceProductionSection({ serverError }: { serverError?: 
   return <DraftBody testId="production">
     {preorderChosen
       ? <p className="text-warning" data-good-production-blocked="" role="status">판매 시기에서 예약판매를 골라 두어 주문 후 제작을 함께 쓸 수 없습니다. 주문 후 제작을 쓰려면 판매 시기를 ‘바로 판매’나 ‘기간을 정해 판매’로 바꿉니다.</p>
-      : <p className="text-muted-foreground">쓰지 않으면 바꿀 것이 없습니다. 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.</p>}
+      : null}
     <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4 disabled:opacity-60" disabled={preorderChosen}><legend className="sr-only">주문 후 제작</legend>
       <GoodsProductionFields draft={value} onChange={(draft) => set(draft)} idPrefix="workspace-production" />
     </fieldset>
