@@ -124,7 +124,7 @@ select 1/case when (
   and exists (select 1 from pg_trigger t where t.tgrelid = 'public.notifications'::regclass
     and t.tgname = 'skip_withdrawn_member_notification' and not t.tgisinternal and (t.tgtype & 6) = 6)
   and (select count(*) from cron.job where jobname = 'member-withdrawal-retention' and schedule = '41 * * * *') = 1
-  and (select count(*) from cron.job where jobname = 'auth-audit-log-retention' and schedule = '53 3 * * *') = 1
+  and (select count(*) from cron.job where jobname = 'auth-audit-log-retention' and schedule = '53 * * * *') = 1
 ) then 1 else 0 end as assert_sealed_acl_and_contracts;
 
 -- ---------------------------------------------------------------------------

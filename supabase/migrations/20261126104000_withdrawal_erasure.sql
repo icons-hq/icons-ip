@@ -526,7 +526,7 @@ do $$
 begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
     perform cron.schedule('member-withdrawal-retention', '41 * * * *', 'select private.run_member_withdrawal_retention(100)');
-    perform cron.schedule('auth-audit-log-retention', '53 3 * * *', 'select private.purge_auth_audit_log(50000)');
+    perform cron.schedule('auth-audit-log-retention', '53 * * * *', 'select private.purge_auth_audit_log(50000)');
   end if;
 end;
 $$;
