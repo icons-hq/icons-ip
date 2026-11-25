@@ -120,7 +120,11 @@ Cloudflare `xsquare.kr` 존(네임서버 `rick.ns.cloudflare.com`·`wanda.ns.clo
 ### 실운영 점검(2026-11-25, 전환 직후)
 
 - 로그인 메일: Supabase 대시보드에서 직원 계정으로 재설정 메일을 보내 `"X SQUARE" <no-reply@xsquare.kr>`·배달 완료를
-  Resend에서 확인했다. 같은 메일의 `email.sent`·`email.delivered`가 `https://xsquare.kr/api/webhooks/resend`에서 200.
+  Resend에서 확인했다(전송은 Supabase 기본 메일이 아니라 custom SMTP → Resend). 같은 메일의 `email.sent`·`email.delivered`가
+  `https://xsquare.kr/api/webhooks/resend`에서 200.
+- 비밀번호 재설정 흐름: 로그인 화면 '비밀번호 찾기' → 같은 브라우저에서 메일 링크 → `/update-password` 새 비밀번호 화면까지
+  2026-11-25 실측 통과. **대시보드의 'Send password recovery' 메일은 흐름 시험에 못 쓴다** — 링크가 `{{ .RedirectTo }}`
+  기본값(Site URL 루트)으로 가고, 앱은 요청한 브라우저의 서명 state가 있어야 재설정을 연다. 발신·배달 확인 용도로만 쓴다.
 - 앱 메일(주문 확인 등, 키 `icons-ip-app-transactional-xsquare`)은 시험 발송 기능이 없어 첫 실제 주문 때 Resend에서
   발신자·배달을 확인한다. 이 과정에서 만든 미사용 키 `icons-ip-supabase-auth-xsquare`는 지웠다.
 - 운영 env에 메일 주소를 덮어쓰는 `RESEND_API_KEY`·`RESEND_FROM`·`RESEND_REPLY_TO`·`EMAIL_REPLY_TO`가 없다.
