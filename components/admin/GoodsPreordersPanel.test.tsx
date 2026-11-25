@@ -155,10 +155,17 @@ describe('새 예약 한 번에 입력', () => {
     expect(html).toContain('빨강 옵션은 이미 예약판매 중이라 표에서 뺐습니다.');
     expect(html).toContain('접수를 중지하고 새로 저장하면 예약 물량을 처음부터 다시 셉니다. 이미 받은 수량을 뺀 물량을 넣어주세요.');
   });
-  it('이전 회차의 예약 주문이 입고 확인 전으로 남은 옵션은 새 물량에서 그만큼 빼라고 알린다(막지 않는다)', () => {
-    expect(previousRoundPendingText([['빨강', 20], ['파랑', 1500]])).toBe('입고 확인 전인 예약 주문이 남은 옵션이 있습니다(빨강 20개 · 파랑 1,500개). 재고수량에 그 수량이 들어 있으면 그만큼 뺀 예약 물량을 넣어주세요.');
+  it('이전 회차의 예약 주문이 입고 확인 전으로 남은 옵션은 예약 물량 기본값에서 그만큼 빼고 알린다(직접 고친 값은 막지 않는다)', () => {
+    expect(previousRoundPendingText([['빨강', 20], ['파랑', 1500]])).toBe('입고 확인 전인 예약 주문이 남은 옵션이 있습니다(빨강 20개 · 파랑 1,500개). 예약 물량에는 재고수량에서 그 수량을 뺀 값이 기본으로 들어갑니다.');
     const html = renderToStaticMarkup(<PreorderEditor goodId="hsq" variants={stocked} pending={[['빨강', 20]]} onSaved={() => {}} />);
     expect(html).toContain('data-preorder-pending-note=""');
+    /* 과판매 방지: 이전 회차 예약이 남은 옵션은 재고수량에서 그 수량을 뺀 값이 기본 물량이고, 줄에 '이전 예약 포함'을 밝힌다. */
+    const reduced = renderToStaticMarkup(<PreorderEditor goodId="hsq" variants={stocked} pending={[['빨강', 20]]} pendingByVariant={new Map([[stocked[0].id, 20]])} onSaved={() => {}} />);
+    const capacity = (id: string) => reduced.match(new RegExp(`<input[^>]*data-preorder-field="capacity:${id}"[^>]*>`))?.[0] ?? '';
+    expect(capacity(stocked[0].id)).toContain('value="480"');
+    expect(capacity(stocked[1].id)).toContain('value="1000"');
+    expect(reduced).toContain('이전 예약 20개 포함');
+    expect(html).not.toContain('이전 예약');
     expect(html).toMatch(/<button[^>]*data-preorder-save=""[^>]*>예약판매 저장<\/button>/);
     expect(html.match(/<button[^>]*data-preorder-save=""[^>]*>/)?.[0]).not.toContain('disabled=""');
     expect(renderToStaticMarkup(<PreorderEditor goodId="hsq" variants={stocked} onSaved={() => {}} />)).not.toContain('data-preorder-pending-note');

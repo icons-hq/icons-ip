@@ -66,7 +66,8 @@ export function categoryTreeOrder(categories: readonly CategorySearchNode[]): Ma
 }
 
 const categoryRowKey = (row: CategoryPickerRow) => row.category.id;
-const categoryRowView = (row: CategoryPickerRow): AdminPickerRowView => ({ title: row.path, meta: `${row.category.code}${row.erp ? ` · ERP 분류 ${row.erp}` : ''}` });
+/* 카테고리 코드는 엑셀의 '카테고리 코드' 열에 넣는 값이다. 무엇인지 알 수 있게 이름표를 붙인다(규칙 8). */
+const categoryRowView = (row: CategoryPickerRow): AdminPickerRowView => ({ title: row.path, meta: `카테고리 코드 ${row.category.code}${row.erp ? ` · ERP 분류 ${row.erp}` : ''}` });
 /** 로더가 ERP 분류 이름을 실어 준 경우에만 ERP 분류명으로도 찾는다고 알린다. */
 const categorySearchPlaceholder = (categories: readonly CategorySearchNode[]) => categories.some((category) => category.erpNames?.length) ? '카테고리명·코드·ERP 분류명으로 찾기' : '카테고리명 또는 코드로 찾기';
 

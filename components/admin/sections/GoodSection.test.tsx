@@ -672,7 +672,8 @@ describe('GoodSection', () => {
     expect(sale).toBeGreaterThan(0);
     expect(moved).toBeGreaterThan(sale);
     expect(saved.slice(sale + 1, moved)).not.toContain('<details id="good-operation-');
-    expect(saved.slice(moved)).toMatch(/href="#good-operation-preorders"[^>]*>예약판매로 이동<\/a>/);
+    /* 옛 자리의 링크는 예약 입력이 열리는 '판매 시기'로 보낸다(예약판매를 고르기 전에는 예약 자리가 비어 있다). */
+    expect(saved.slice(moved)).toMatch(/href="#good-section-period"[^>]*>판매 시기로 이동<\/a>/);
     expect(saved.indexOf('id="good-operation-preorders"')).toBeLessThan(saved.indexOf('id="good-section-limits"'));
     expect(saved.indexOf('id="good-section-period"')).toBeLessThan(saved.indexOf('id="good-operation-preorders"'));
     expect(ids(saved)).not.toContain('preorders');

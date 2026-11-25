@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  emptyPreorderPlan, expandPreorderPlan, fillPreorderPlanCapacity, firstPreorderPlanProblemField, parseAdminPreorderReservations, parseGoodsPreorderBulkRequest, parseGoodsPreorderInput,
+  emptyPreorderPlan, expandPreorderPlan, preorderSellableStock, fillPreorderPlanCapacity, firstPreorderPlanProblemField, parseAdminPreorderReservations, parseGoodsPreorderBulkRequest, parseGoodsPreorderInput,
   parseRandomPreorderRequest, pendingPreorderReservationsByVariant, preorderApplyProblemLabels, preorderApplyProblems, preorderBulkSavedMessage,
   preorderCapacityFromStock, preorderCapacityProblem, preorderCapacityStockNote, preorderEditorTargets, preorderMutationError, preorderOptionNames, preorderPlanHasInput,
   preorderPlanManualCapacities, preorderPlanOwnSchedules, preorderPlanProblemMessage, preorderPlanProblems, preorderPlanReadback, preparePreorderAllocation, setPreorderPlanPerOption,
@@ -290,5 +290,29 @@ describe('일괄 저장과 이미 예약판매 중인 옵션', () => {
     expect(preorderMutationError('production_preorder_conflict')).toContain('주문 후 제작');
     expect(preorderMutationError('invalid_preorder_bulk')).toContain('새로고침');
     expect(preorderMutationError('goods_variant_inactive')).toContain('사용 중지한 옵션');
+  });
+});
+
+describe('이전 회차 예약이 남은 옵션의 예약 물량 기본값', () => {
+  /* 예약 주문은 입고 확인 전까지 재고수량을 줄이지 않는다. 접수를 중지한 옵션에 재고수량 그대로 새 예약을 받으면 이전 예약분만큼 더 팔린다. */
+  it('재고수량에서 입고 확인 전 예약 수량을 뺀 값을 기본으로 넣는다', () => {
+    const plan = { ...emptyPreorderPlan(), startsAt: '2026-12-01T10:00', endsAt: '2026-12-07T23:59', expectedShipDate: '2026-12-20' };
+    const targets = [{ key: 'a', name: 'A', stockQty: 50, pendingQty: 30 }, { key: 'b', name: 'B', stockQty: 20 }];
+    expect(expandPreorderPlan(plan, targets).map((entry) => [entry.key, entry.capacityQty, entry.capacityFromStock])).toEqual([['a', '20', true], ['b', '20', true]]);
+  });
+
+  it('이전 예약이 재고수량 이상이면 기본값을 넣지 않아 직접 입력해야 저장된다', () => {
+    expect(preorderSellableStock({ stockQty: 30, pendingQty: 30 })).toBe(0);
+    expect(preorderSellableStock({ stockQty: 10, pendingQty: 30 })).toBe(0);
+    const [entry] = expandPreorderPlan(emptyPreorderPlan(), [{ key: 'a', name: 'A', stockQty: 30, pendingQty: 30 }]);
+    expect(entry.capacityQty).toBe('');
+  });
+
+  it('직접 넣은 예약 물량은 그대로 쓰고, 이전 예약이 없으면 재고수량 그대로다', () => {
+    const [entry] = expandPreorderPlan({ ...emptyPreorderPlan(), options: { a: { capacityQty: '45' } } }, [{ key: 'a', name: 'A', stockQty: 50, pendingQty: 30 }]);
+    expect([entry.capacityQty, entry.capacityFromStock]).toEqual(['45', false]);
+    expect(preorderSellableStock({ stockQty: 50 })).toBe(50);
+    expect(preorderSellableStock({ stockQty: null })).toBeNull();
+    expect(preorderSellableStock(undefined)).toBeUndefined();
   });
 });

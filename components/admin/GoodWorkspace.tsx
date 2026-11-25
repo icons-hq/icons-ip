@@ -416,7 +416,7 @@ export function GoodFoldedRow({ id, title, summary, help, errorCount = 0, isDefa
  * 접이식 줄(`<summary>`) 안의 "?" 도움말. summary 안의 버튼을 누르면 details가 함께 접히고 펴지므로, 누르기·키 입력이 summary로 올라가지 않게 막는다.
  */
 function GoodSummaryHelp({ help, label }: { help: AdminHelp | string; label: string }) {
-  return <span className="inline-flex shrink-0" onClick={(event) => event.preventDefault()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation(); }} onKeyUp={(event) => { if (event.key === ' ') event.preventDefault(); }}>
+  return <span className="inline-flex shrink-0" onClick={(event) => event.preventDefault()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation(); }} onKeyUp={(event) => { if (event.key === ' ') event.stopPropagation(); }}>
     <AdminHelpTip help={help} label={label} />
   </span>;
 }

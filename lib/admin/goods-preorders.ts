@@ -174,7 +174,19 @@ export interface PreorderPlan {
   options: Record<string, PreorderPlanOption>;
 }
 /** 예약할 수 있는 옵션 한 줄. 사용 중이고 이미 접수 중인 예약 조건이 없는 옵션만 넘긴다. */
-export interface PreorderPlanTarget { key: string; name: string; stockQty: number | null | undefined }
+export interface PreorderPlanTarget {
+  key: string; name: string; stockQty: number | null | undefined;
+  /** 이전 회차에 받아 아직 입고 확인하지 않은 예약 수량(저장된 상품만). 재고수량에 들어 있는 수량이라 새 예약 물량의 기본값에서 뺀다. */
+  pendingQty?: number;
+}
+/**
+ * 새 예약으로 더 받을 수 있는 수량: 재고수량에서 이전 회차의 입고 확인 전 예약을 뺀 값(0 아래로는 내려가지 않는다).
+ * 예약 주문은 입고 확인 전까지 재고수량을 줄이지 않는다. 그래서 이전 회차 예약이 남은 옵션에 재고수량 그대로 새 예약을 받으면 그만큼 더 팔린다.
+ */
+export function preorderSellableStock(target: Pick<PreorderPlanTarget, 'stockQty' | 'pendingQty'> | undefined): number | null | undefined {
+  if (!target || typeof target.stockQty !== 'number' || !Number.isSafeInteger(target.stockQty)) return target?.stockQty;
+  return Math.max(0, target.stockQty - Math.max(0, target.pendingQty ?? 0));
+}
 /** 옵션별로 펼친 예약 조건 하나. */
 export interface PreorderPlanEntry {
   key: string; name: string; capacityQty: string; capacityFromStock: boolean; startsAt: string; endsAt: string; expectedShipDate: string;
@@ -193,7 +205,7 @@ export function expandPreorderPlan(plan: PreorderPlan, targets: readonly Preorde
     if (option.excluded && !all) return [];
     const capacityFromStock = option.capacityQty === undefined;
     return [{ key: target.key, name: target.name, capacityFromStock,
-      capacityQty: capacityFromStock ? preorderCapacityFromStock(target.stockQty) : option.capacityQty!,
+      capacityQty: capacityFromStock ? preorderCapacityFromStock(preorderSellableStock(target)) : option.capacityQty!,
       startsAt: (perOption ? option.startsAt : undefined) ?? plan.startsAt, endsAt: (perOption ? option.endsAt : undefined) ?? plan.endsAt,
       expectedShipDate: (perOption ? option.expectedShipDate : undefined) ?? plan.expectedShipDate }];
   });
@@ -207,7 +219,7 @@ export function preorderPlanHasInput(plan: PreorderPlan): boolean {
 /** 예약하는 옵션 가운데 직접 넣은 물량이 `qty`(null은 재고수량)와 다른 옵션 수. 한꺼번에 채우기 전에 바뀌는 수를 알린다(규칙 7). */
 export function preorderPlanManualCapacities(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], qty: string | null, scope: PreorderPlanScope = {}): number {
   return expandPreorderPlan(plan, targets, scope).filter((entry) => !entry.capacityFromStock && entry.capacityQty.trim() !== ''
-    && entry.capacityQty.trim() !== (qty ?? preorderCapacityFromStock(targets.find((target) => target.key === entry.key)?.stockQty))).length;
+    && entry.capacityQty.trim() !== (qty ?? preorderCapacityFromStock(preorderSellableStock(targets.find((target) => target.key === entry.key))))).length;
 }
 /** 예약하는 모든 옵션의 물량을 한 번에 채운다. `qty`가 null이면 재고수량을 따라가게 되돌린다([재고수량과 같게]). */
 export function fillPreorderPlanCapacity(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], qty: string | null, { all = false }: PreorderPlanScope = {}): PreorderPlan {

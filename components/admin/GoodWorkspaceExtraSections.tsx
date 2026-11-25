@@ -296,9 +296,14 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
 /** 주문 후 제작. */
 export function GoodWorkspaceProductionSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('production');
+  /* 규칙 5: 예약판매와 주문 후 제작은 함께 쓸 수 없다(DB가 거절). 판매 시기에서 예약판매를 골라 두었으면 여기서 켜지 못하게 막고 이유와 푸는 방법을 적는다.
+     반대 방향(주문 후 제작을 켠 뒤 예약판매 고르기)은 판매 시기 카드가 막는다. 이미 켜져 있으면 끌 수 있게 열어 둔다. */
+  const preorderChosen = Boolean(useGoodWorkspaceSections()?.sections.preorderPlan) && !value?.enabled;
   return <DraftBody testId="production">
-    <p className="text-muted-foreground">쓰지 않으면 바꿀 것이 없습니다. 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.</p>
-    <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4"><legend className="sr-only">주문 후 제작</legend>
+    {preorderChosen
+      ? <p className="text-warning" data-good-production-blocked="" role="status">판매 시기에서 예약판매를 골라 두어 주문 후 제작을 함께 쓸 수 없습니다. 주문 후 제작을 쓰려면 판매 시기를 ‘바로 판매’나 ‘기간을 정해 판매’로 바꿉니다.</p>
+      : <p className="text-muted-foreground">쓰지 않으면 바꿀 것이 없습니다. 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.</p>}
+    <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4 disabled:opacity-60" disabled={preorderChosen}><legend className="sr-only">주문 후 제작</legend>
       <GoodsProductionFields draft={value} onChange={(draft) => set(draft)} idPrefix="workspace-production" />
     </fieldset>
     <SectionError message={error ?? serverError} />

@@ -46,7 +46,7 @@ export function GoodsListingColorsPanel({ goodId }: { goodId: string }) {
   /* 버튼은 네이티브 button에 kit 버튼 모양을 입힌다 — 화면 전송 실패 재시도 테스트(PresentationTransportFailure)가
      전시 설정 화면들과 함께 네이티브 버튼을 찾는다. 모양·동작은 kit Button과 같다. */
   return <div className="flex min-w-0 flex-col gap-3" data-goods-listing-colors="">
-    <fieldset className="flex min-w-0 flex-col gap-3" disabled={pending || uncertain || revision === null}><legend className="sr-only">상품 색상칩</legend>
+    <fieldset className="flex min-w-0 flex-col gap-3" disabled={pending || uncertain || revision === null}><legend className="sr-only">목록 색상칩</legend>
       <GoodsListingColorFields colors={colors} onChange={setColors} />
     </fieldset>
     {message ? <p className={`text-sm${error ? ' text-destructive' : ' text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<button className={`${buttonVariants()} self-start`} data-slot="button" type="button" disabled={pending || revision === null} onClick={() => void save()}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '색상칩 저장'}</button>

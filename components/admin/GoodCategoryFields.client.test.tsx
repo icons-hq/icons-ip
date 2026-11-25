@@ -316,7 +316,7 @@ describe('카테고리 선택창 조회(categoryPickerLoader)', () => {
   it('줄은 "상위 > 하위" 경로와 코드를 보인다', async () => {
     const [row] = (await firstPage(categoryPickerLoader(categories)(request()))).rows;
     const view = dialogView(row);
-    expect(view).toEqual({ title: '문구 > 가방', meta: 'code-a' });
+    expect(view).toEqual({ title: '문구 > 가방', meta: '카테고리 코드 code-a' });
   });
 
   it('20개씩 나누고 전체 개수를 센다', async () => {
@@ -351,10 +351,10 @@ describe('카테고리 선택창 조회(categoryPickerLoader)', () => {
     const load = categoryPickerLoader(list);
     const [byErp] = (await firstPage(load(request('문구>키링')))).rows;
     expect(byErp.erp).toBe('문구>키링');
-    expect(dialogView(byErp).meta).toBe('code-a · ERP 분류 문구>키링');
+    expect(dialogView(byErp).meta).toBe('카테고리 코드 code-a · ERP 분류 문구>키링');
     const [byName] = (await firstPage(load(request('가방')))).rows;
     expect(byName.erp).toBeNull();
-    expect(dialogView(byName).meta).toBe('code-a');
+    expect(dialogView(byName).meta).toBe('카테고리 코드 code-a');
     expect((await firstPage(load(request()))).rows.every((row) => row.erp === null)).toBe(true);
   });
 

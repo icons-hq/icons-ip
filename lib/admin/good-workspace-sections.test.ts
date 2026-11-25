@@ -193,10 +193,11 @@ describe('등록 화면 원자 저장 섹션', () => {
   });
 
   /* 규칙 5 — 판매기간·주문 후 제작과 예약판매는 함께 쓸 수 없다(DB가 양방향으로 거절). 판매 시기 선택이 먼저 막고, 제출 직전에도 한 번 더 막는다. */
-  it('판매기간이나 주문 후 제작을 켰으면 예약 입력을 저장 전에 막는다', () => {
-    const blocked = prepareGoodWorkspaceSections(withPlan(plan), rows, true, { salePeriodEnabled: true });
-    expect(blocked).toMatchObject({ ok: false, field: 'workspacePreorders', error: expect.stringContaining('판매기간') });
-    expect(blocked.ok ? '' : blocked.error).toContain('판매 시기에서 하나만 골라주세요');
+  it('판매기간을 켰으면 가려진 예약 입력은 싣지 않고, 주문 후 제작을 켰으면 예약 입력을 저장 전에 막는다', () => {
+    /* '기간을 정해 판매'가 켜져 있으면 예약 입력은 화면에 보이지 않는다. 남아 있는 입력은 임시저장·자동복구로 폼이 바뀌기 전의 지난 입력이라 저장을 막지 않고 싣지 않는다. */
+    const period = prepareGoodWorkspaceSections(withPlan(plan), rows, true, { salePeriodEnabled: true });
+    expect(period).toMatchObject({ ok: true });
+    expect(period.ok ? period.value.preorders : null).toEqual([]);
     expect(prepareGoodWorkspaceSections(withPlan(plan), rows, true, { salePeriodEnabled: false })).toMatchObject({ ok: true });
     const production = prepareGoodWorkspaceSections(withPlan(plan, { extras: { production: { ...emptyGoodWorkspaceProduction(), enabled: true } } }), rows, true);
     expect(production).toMatchObject({ ok: false, field: 'workspacePreorders', error: expect.stringContaining('주문 후 제작') });

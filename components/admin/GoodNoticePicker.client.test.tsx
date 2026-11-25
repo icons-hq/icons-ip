@@ -116,7 +116,7 @@ describe('템플릿 선택창', () => {
     expect(templateDialog()).toBeUndefined();
     button('템플릿에서 가져오기').props.onClick!();
     const dialog = templateDialog()!.props;
-    expect(dialog).toMatchObject({ title: '상품정보제공고시 템플릿 선택', selectLabel: '적용', searchPlaceholder: '템플릿 이름으로 찾기', emptyText: '일치하는 템플릿이 없습니다.' });
+    expect(dialog).toMatchObject({ title: '상품정보제공고시 템플릿 선택', selectLabel: '적용', searchPlaceholder: '템플릿 이름으로 찾기', emptyText: '템플릿이 없습니다. 상품관리의 ‘상품정보제공고시 템플릿 관리’에서 만들 수 있습니다.' });
     expect(dialog.description).toBe('고르면 상품정보제공고시 7개 칸이 템플릿 내용으로 바뀝니다.');
     dialog.onClose();
     expect(templateDialog()).toBeUndefined();

@@ -137,7 +137,7 @@ export function GoodsDeliveryRuleFields({ value, onChange }: { value: GoodsTerms
           <NumberField label="둘째 구간을 넘으면 더하는 금액 (원)" value={fields.extra2} max={1000000} onChange={next => patch('extra2', next)} /></>}
       </AdminFormGrid> : null}
       <GoodReadback>
-        {rows ? <>개수별 배송비 · {rows}<br /></> : null}
+        {rows ? <>수량별 배송비 · {rows}<br /></> : null}
         상품 상세에는 &lsquo;{GOODS_DELIVERY_PAYMENT_READBACK[fields.paymentMode] ?? GOODS_DELIVERY_PAYMENT_READBACK.prepaid}&rsquo;로 보입니다. 지역 추가 배송비는 따로 더해집니다.
       </GoodReadback>
     </> : null}
@@ -187,6 +187,8 @@ export function GoodsTransactionTermsPanel({ goodId, accountId, disabledReason =
   const workspace = storedWorkspace?.owner === scope ? storedWorkspace.value : null;
   const setWorkspace = useMemo(() => (value: Workspace) => setStoredWorkspace({ owner: scope, value }), [scope]);
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
+  /* 방금 누른 저장 버튼. 패널 맨 위의 안내는 버튼에서 멀어 보이지 않으므로, 저장 결과를 누른 버튼 바로 아래에도 보인다. */
+  const [savedKind, setSavedKind] = useState<'volume' | 'delivery' | null>(null);
   const requestBusy = useRef(false), generation = useRef(0), root = useRef<HTMLDivElement>(null);
   const valid = auth.ready && !auth.blocked, ready = valid && workspace !== null;
   const dirty = Boolean(workspace && !sameGoodsTerms(workspace.draft, goodsTermsDraft(workspace.base)));
@@ -251,13 +253,13 @@ export function GoodsTransactionTermsPanel({ goodId, accountId, disabledReason =
   async function save(kind: 'volume' | 'delivery', original?: GoodsTermsRequest) {
     if (!workspace || !valid || busy || requestBusy.current || workspace.recoveryPending || disabledReason || workspace.retry && !original) return;
     const prepared = original ? null : prepareGoodsTermsInput(kind, workspace.draft);
-    if (prepared && !prepared.ok) { setError(prepared.error); return; }
+    if (prepared && !prepared.ok) { setSavedKind(kind); setError(prepared.error); return; }
     const request: GoodsTermsRequest = original ?? { goodId, expectedActorId: accountId, expectedRevision: workspace.base.revision,
       expectedGoodUpdatedAt: workspace.base.goodUpdatedAt, operationId: crypto.randomUUID(),
       volume: kind === 'volume' && prepared?.ok ? prepared.value as VolumeTermsInput : null,
       delivery: kind === 'delivery' && prepared?.ok ? prepared.value as DeliveryTermsInput : null };
     const ticket = scope.capture(); if (!ticket) return;
-    requestBusy.current = true; setBusy(true); setError(''); setMessage(''); const sequence = ++generation.current;
+    requestBusy.current = true; setBusy(true); setError(''); setMessage(''); setSavedKind(kind); const sequence = ++generation.current;
     const pending = { ...workspace, retry: request }; setWorkspace(pending); persist(pending, true);
     try {
       const result = await saveGoodsTransactionTermsAction(request);
@@ -287,6 +289,8 @@ export function GoodsTransactionTermsPanel({ goodId, accountId, disabledReason =
   }
   const locked = !ready || busy || Boolean(workspace?.retry) || Boolean(workspace?.recoveryPending);
   const recoveryValid = recovery?.sessionId === sessionId && recovery?.base.goodId === goodId && (!recovery.retry || recovery.retry.expectedActorId === accountId);
+  const saveResult = error ? <p className="text-sm text-destructive" data-terms-save-result="error" role="alert">{error}</p>
+    : message ? <p className="text-sm font-medium" data-terms-save-result="ok" role="status">{message}</p> : null;
   return <div className="flex min-w-0 flex-col gap-4" data-goods-transaction-terms="" ref={root}>
     {!auth.ready ? <p className="text-sm text-muted-foreground" role="status">로그인 상태를 확인하는 중입니다…</p> : auth.blocked ? <p className="text-sm text-destructive" role="alert">로그인한 계정이 바뀌었거나 다시 로그인했습니다. 지금 계정으로 상품 화면을 새로고침해주세요.</p> : <>
       {error && <p className="text-sm text-destructive" role="alert">{error}</p>}{message && <p className="text-sm font-medium" role="status">{message}</p>}
@@ -306,10 +310,10 @@ export function GoodsTransactionTermsPanel({ goodId, accountId, disabledReason =
         </section>}
         <section aria-label="복수구매 할인" className={GOOD_SUBPANEL_CLASS}><h3 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-base leading-snug font-medium">복수구매 할인 <small className="text-xs font-normal text-muted-foreground">저장 상태: {stateLabel(workspace.base.volume?.status)}</small></h3>
           <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0"><GoodsVolumeDiscountFields value={workspace.draft.volume} onChange={value => edit('volume', value)} /></fieldset>
-          <button type="button" className={`${buttonVariants()} self-start`} data-slot="button" disabled={locked || Boolean(disabledReason)} onClick={() => void save('volume')}>복수구매 할인 저장</button></section>
+          <button type="button" className={`${buttonVariants()} self-start`} data-slot="button" disabled={locked || Boolean(disabledReason)} onClick={() => void save('volume')}>복수구매 할인 저장</button>{savedKind === 'volume' ? saveResult : null}</section>
         <section aria-label="착불·수량별 배송비" className={GOOD_SUBPANEL_CLASS}><h3 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-base leading-snug font-medium">착불·수량별 배송비 <small className="text-xs font-normal text-muted-foreground">저장 상태: {stateLabel(workspace.base.delivery?.status)}</small></h3>
           <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0"><GoodsDeliveryRuleFields value={workspace.draft.delivery} onChange={value => edit('delivery', value)} /></fieldset>
-          <button type="button" className={`${buttonVariants()} self-start`} data-slot="button" disabled={locked || Boolean(disabledReason)} onClick={() => void save('delivery')}>배송비 규칙 저장</button></section>
+          <button type="button" className={`${buttonVariants()} self-start`} data-slot="button" disabled={locked || Boolean(disabledReason)} onClick={() => void save('delivery')}>배송비 규칙 저장</button>{savedKind === 'delivery' ? saveResult : null}</section>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => void readLatest()} disabled={busy}>최신 저장본 비교</button>
           <small className="text-xs text-muted-foreground" role="status">{busy ? '요청 처리 중…' : workspace.retry ? '결과 확인 필요' : dirty ? '미저장 입력 · 이 브라우저에 7일 임시보관' : '저장된 내용과 같음'}</small>

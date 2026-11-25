@@ -257,3 +257,31 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     });
   });
 });
+
+/* 규칙 5: 공개 중인 상품은 옵션 구성이 KC 검토 대상이라 서버가 변경을 거절한다. 열어 두고 저장 때 거절하지 않고 여기서 막는다. */
+describe('공개 중 옵션 구성 잠금', () => {
+  const rows = [
+    { id: savedA, name: '빨강', code: 'LOCK-01', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 3 },
+    { id: savedB, name: '파랑', code: 'LOCK-02', attributes: { 색상: '파랑' }, extraPrice: 0, stockQty: 5 },
+  ];
+  const reason = '공개 중에는 옵션을 더하거나 빼거나 옵션 이름을 바꿀 수 없습니다.';
+  const tag = (html: string, pattern: RegExp) => html.match(pattern)?.[0] ?? '';
+
+  it('이유를 보이고 옵션 만들기·빼기·이름 바꾸기를 막되 재고수량·옵션가·사용여부는 열어 둔다', () => {
+    const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={rows} baseline={[savedA, savedB]} basePrice={1000} compositionLockedReason={reason} />);
+    expect(html).toMatch(new RegExp(`data-good-option-composition-locked=""[^>]*>${reason}</p>`));
+    expect(tag(html, /<fieldset[^>]*data-good-option-usage=""[^>]*>/)).toContain(' disabled=""');
+    expect(tag(html, /<input[^>]*aria-label="옵션 1 이름"[^>]*>/)).toContain(' readOnly=""');
+    expect(tag(html, /<button[^>]*aria-label="옵션 1 삭제"[^>]*>/)).toContain(' disabled=""');
+    /* 재고수량·옵션가·사용여부는 공개 중에도 바꿀 수 있다. */
+    for (const label of ['옵션 1 재고수량', '옵션 1 옵션가']) expect(tag(html, new RegExp(`<input[^>]*aria-label="${label}"[^>]*>`)), label).not.toMatch(/ (readOnly|disabled)=""/);
+    expect(tag(html, /<select[^>]*aria-label="옵션 1 사용여부"[^>]*>/)).not.toContain(' disabled=""');
+  });
+
+  it('잠그지 않으면 이유가 없고 옵션 이름·삭제가 열려 있다', () => {
+    const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={rows} baseline={[savedA, savedB]} basePrice={1000} />);
+    expect(html).not.toContain('data-good-option-composition-locked');
+    expect(tag(html, /<input[^>]*aria-label="옵션 1 이름"[^>]*>/)).not.toContain(' readOnly=""');
+    expect(tag(html, /<button[^>]*aria-label="옵션 1 삭제"[^>]*>/)).not.toContain(' disabled=""');
+  });
+});

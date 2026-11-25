@@ -56,8 +56,8 @@ select 1/case when exists(select 1 from private.operator_rpc_contracts c join pg
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','05e10000-0000-4000-8000-000000000001',true);
--- 3. 선택형 옵션이 있는 상품만, 등록일 최신순. 옵션 없는 상품·옵션이 모두 사용 중지된 상품·보관 상품은 없다.
-select public.admin_search_goods_option_sources() as listed \gset
+-- 3. 선택형 옵션이 있는 상품만, 등록일 최신순(이 시험의 상품 이름 '옵션원본'으로 좁혀 다른 데이터가 있는 DB에서도 같은 결과다). 옵션 없는 상품·옵션이 모두 사용 중지된 상품·보관 상품은 없다.
+select public.admin_search_goods_option_sources(p_query=>'옵션원본') as listed \gset
 select 1/case when (:'listed'::jsonb->>'total')::int=3
  and (select jsonb_agg(item->>'id' order by position) from jsonb_array_elements(:'listed'::jsonb->'rows') with ordinality as r(item,position))
   ='["option-source-mug","option-source-keyring","option-source-shirt"]'::jsonb
@@ -69,11 +69,11 @@ select 1/case when (select array_agg(key order by key) from jsonb_object_keys(:'
  and :'listed'::jsonb->'rows'->2->'archivedAt'='null'::jsonb
  then 1 else 0 end as assert_row_shape_is_picker_projection;
 -- 4. 총 개수는 걸러 낸 뒤의 수이고 페이지와 맞는다.
-select 1/case when (public.admin_search_goods_option_sources(p_limit=>2)->>'total')::int=3
- and jsonb_array_length(public.admin_search_goods_option_sources(p_limit=>2)->'rows')=2
- and jsonb_array_length(public.admin_search_goods_option_sources(p_limit=>2,p_offset=>2)->'rows')=1
- and public.admin_search_goods_option_sources(p_limit=>2,p_offset=>2)->'rows'->0->>'id'='option-source-shirt'
- and jsonb_array_length(public.admin_search_goods_option_sources(p_limit=>2,p_offset=>4)->'rows')=0
+select 1/case when (public.admin_search_goods_option_sources(p_query=>'옵션원본',p_limit=>2)->>'total')::int=3
+ and jsonb_array_length(public.admin_search_goods_option_sources(p_query=>'옵션원본',p_limit=>2)->'rows')=2
+ and jsonb_array_length(public.admin_search_goods_option_sources(p_query=>'옵션원본',p_limit=>2,p_offset=>2)->'rows')=1
+ and public.admin_search_goods_option_sources(p_query=>'옵션원본',p_limit=>2,p_offset=>2)->'rows'->0->>'id'='option-source-shirt'
+ and jsonb_array_length(public.admin_search_goods_option_sources(p_query=>'옵션원본',p_limit=>2,p_offset=>4)->'rows')=0
  then 1 else 0 end as assert_total_and_pages_agree;
 -- 5. 검색 대상(상품명·자동코드·상품 URL)과 카테고리(하위 포함)는 상품 조회/수정과 같은 검색이고, 그 뒤에 옵션 조건이 걸린다.
 select 1/case when public.admin_search_goods_option_sources(p_query=>'티셔츠')->'rows'->0->>'id'='option-source-shirt'
@@ -86,8 +86,8 @@ select 1/case when public.admin_search_goods_option_sources(p_query=>'티셔츠'
  and public.admin_search_goods_option_sources(p_category_id=>'05e10000-0000-4000-8000-000000000101')->'rows'->0->>'id'='option-source-shirt'
  then 1 else 0 end as assert_search_and_category_apply_before_option_condition;
 -- 6. 지금 편집 중인 상품은 뺀다(자기 옵션은 불러올 수 없다).
-select 1/case when (public.admin_search_goods_option_sources(p_exclude_good_id=>'option-source-keyring')->>'total')::int=2
- and not exists(select 1 from jsonb_array_elements(public.admin_search_goods_option_sources(p_exclude_good_id=>'option-source-keyring')->'rows') item
+select 1/case when (public.admin_search_goods_option_sources(p_query=>'옵션원본',p_exclude_good_id=>'option-source-keyring')->>'total')::int=2
+ and not exists(select 1 from jsonb_array_elements(public.admin_search_goods_option_sources(p_query=>'옵션원본',p_exclude_good_id=>'option-source-keyring')->'rows') item
   where item->>'id'='option-source-keyring')
  then 1 else 0 end as assert_current_good_is_excluded;
 -- 7. 기존 상품 검색은 그대로다: 옵션 없는 상품도 나오고(보관만 뺀다) 새 조건 키는 받지 않는다.

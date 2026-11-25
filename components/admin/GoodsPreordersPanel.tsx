@@ -33,7 +33,9 @@ const SUMMARY_CLASS = 'cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium
  * 저장은 버튼 클릭으로만 한다. 기본 폼은 저장 시도마다 다시 마운트되므로 입력 중인 예약 조건은 키 밖에 맡긴다(useGoodWorkspaceStash).
  */
 const form = GOOD_DETACHED_FORM_ID;
-const planTargets = (variants: readonly AdminGoodsVariant[]): PreorderPlanTarget[] => variants.map((variant) => ({ key: variant.id, name: variant.name, stockQty: variant.stockQty }));
+/** 표의 옵션 줄. `pendingByVariant`는 이전 회차의 입고 확인 전 예약 수량 — 새 예약 물량의 기본값에서 뺀다(재고수량 그대로 받으면 그만큼 더 팔린다). */
+const planTargets = (variants: readonly AdminGoodsVariant[], pendingByVariant?: ReadonlyMap<string, number>): PreorderPlanTarget[] =>
+  variants.map((variant) => ({ key: variant.id, name: variant.name, stockQty: variant.stockQty, ...(pendingByVariant?.get(variant.id) ? { pendingQty: pendingByVariant.get(variant.id) } : {}) }));
 /** 저장한 예약 조건은 고칠 수 없다는 것은 화면에 보이지 않는 결과라 저장 버튼 위에 한 줄로 남긴다. */
 const SAVE_APPLIES_NOTE = '저장하면 바로 적용됩니다. 저장한 뒤에는 예약 물량과 일정을 고칠 수 없고, 바꾸려면 접수를 중지하고 새로 저장합니다.';
 /** 이미 예약판매 중인 옵션을 중지하고 새로 저장할 때 더 팔지 않게 하는 주의. 새 예약 조건은 이전에 받은 수량을 모른다. */
@@ -63,11 +65,11 @@ export function stockSupplyBlockedText(pending: readonly (readonly [name: string
 }
 
 /**
- * 이전 회차의 예약 주문이 입고 확인 전으로 남은 옵션에 새 예약을 저장할 때의 주의. 새 예약 조건은 예약 물량을 처음부터 세고
- * 기본값이 재고수량이라, 재고수량에 이전 예약분이 들어 있으면 그만큼 더 팔린다. 막지는 않는다.
+ * 이전 회차의 예약 주문이 입고 확인 전으로 남은 옵션에 새 예약을 저장할 때의 안내. 새 예약 조건은 예약 물량을 처음부터 세므로,
+ * 기본값을 재고수량에서 이전 예약분을 뺀 값으로 넣는다(재고수량 그대로 받으면 그만큼 더 팔린다). 직접 고친 값은 막지 않는다.
  */
 export function previousRoundPendingText(pending: readonly (readonly [name: string, qty: number])[]): string {
-  return `입고 확인 전인 예약 주문이 남은 옵션이 있습니다(${pending.map(([name, qty]) => `${name} ${qty.toLocaleString('ko-KR')}개`).join(' · ')}). 재고수량에 그 수량이 들어 있으면 그만큼 뺀 예약 물량을 넣어주세요.`;
+  return `입고 확인 전인 예약 주문이 남은 옵션이 있습니다(${pending.map(([name, qty]) => `${name} ${qty.toLocaleString('ko-KR')}개`).join(' · ')}). 예약 물량에는 재고수량에서 그 수량을 뺀 값이 기본으로 들어갑니다.`;
 }
 
 /** 막힌 첫 칸으로 포커스를 옮긴다. 칸은 늘 그려져 있어 바로 찾을 수 있다. */
@@ -82,7 +84,7 @@ function focusField(group: HTMLElement | null, key: string | undefined) {
  * 남은 예약 물량이 처음부터 다시 계산되기 때문이다. 그사이 다른 창에서 예약을 건 옵션은 서버가 건너뛰고 알려 준다.
  * 저장 뒤에도 입력한 일정은 남아, 남은 옵션을 이어서 저장할 수 있다.
  */
-export function PreorderEditor({ goodId, variants, table = variants.length > 1, busy = [], pending: pendingOrders = [], blockedReason = null, onSaved, onActivated }: {
+export function PreorderEditor({ goodId, variants, table = variants.length > 1, busy = [], pending: pendingOrders = [], pendingByVariant, blockedReason = null, onSaved, onActivated }: {
   goodId: string;
   /** 새로 예약할 수 있는 옵션(사용 중이고 예약판매 중이 아닌 옵션). */
   variants: AdminGoodsVariant[];
@@ -92,6 +94,8 @@ export function PreorderEditor({ goodId, variants, table = variants.length > 1, 
   busy?: AdminGoodsVariant[];
   /** 이전 회차에 받아 아직 입고 확인하지 않은 예약 주문이 남은 옵션과 수량. 새 예약 물량에서 그만큼 빼야 더 팔지 않는다. */
   pending?: readonly (readonly [name: string, qty: number])[];
+  /** 옵션별 이전 회차의 입고 확인 전 예약 수량. 예약 물량 기본값에서 뺀다. */
+  pendingByVariant?: ReadonlyMap<string, number>;
   /** 지금은 저장할 수 없는 이유(저장된 판매기간이 남아 있음). 있으면 저장 버튼을 막고 그 자리에 보인다. */
   blockedReason?: string | null;
   onSaved: (message: string) => void;
@@ -99,7 +103,7 @@ export function PreorderEditor({ goodId, variants, table = variants.length > 1, 
   onActivated?: (expectedShipDate: string, variantId: string | null) => void;
 }) {
   const [plan, setPlan, forget] = useGoodWorkspaceStash<PreorderPlan>(`preorder-plan:${goodId}`, emptyPreorderPlan);
-  const targets = planTargets(variants);
+  const targets = planTargets(variants, pendingByVariant);
   const [error, setError] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -143,14 +147,15 @@ export function PreorderEditor({ goodId, variants, table = variants.length > 1, 
  * 랜덤 판매 상품의 예약 등록. 모든 판매 중 옵션이 같은 접수 기간·발송 예정일을 쓰고 예약 물량만 옵션별로 정한다
  * (옵션마다 일정이 다르면 고객의 발송 예정일로 배정 옵션이 드러난다). 그래서 옵션을 빼거나 일정을 다르게 넣는 칸이 없다.
  */
-export function RandomPreorderEditor({ goodId, variants, pending: pendingOrders = [], blockedReason = null, onSaved, onActivated }: {
+export function RandomPreorderEditor({ goodId, variants, pending: pendingOrders = [], pendingByVariant, blockedReason = null, onSaved, onActivated }: {
   goodId: string; variants: AdminGoodsVariant[]; blockedReason?: string | null; onSaved: (message: string) => void;
   onActivated?: (expectedShipDate: string) => void;
   /** 이전 회차에 받아 아직 입고 확인하지 않은 예약 주문이 남은 옵션과 수량(PreorderEditor와 같다). */
   pending?: readonly (readonly [name: string, qty: number])[];
+  pendingByVariant?: ReadonlyMap<string, number>;
 }) {
   const [plan, setPlan, forget] = useGoodWorkspaceStash<PreorderPlan>(`random-preorder-plan:${goodId}`, emptyPreorderPlan);
-  const targets = planTargets(variants);
+  const targets = planTargets(variants, pendingByVariant);
   const [error, setError] = useState<string | null>(null);
   const [checked, setChecked] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -301,7 +306,7 @@ function ReservationSelection({ goodId, page, onSaved, canAllocate }: { goodId: 
             onChange={(event) => setSelected((current) => event.target.checked ? [...current, item.orderItemId] : current.filter((id) => id !== item.orderItemId))} />}
           <span className="min-w-0">{item.variantName ?? '기본 옵션'} · <span className="tabular-nums">{item.qty.toLocaleString('ko-KR')}개</span> · {status[item.state]}{item.orderStatus === 'pending' ? ' · 결제 대기' : ''}{item.fulfillmentHold ? <span className="font-medium text-destructive"> · 출고 보류(입고 확인 불가 — 주문 상세 확인)</span> : null}</span>
         </label>
-        <a className="w-fit text-xs underline underline-offset-4 wrap-anywhere" href={`/admin/sales/orders/${item.orderId}`}>주문 {item.orderId}</a>
+        <a className="w-fit text-xs underline underline-offset-4 wrap-anywhere" href={`/admin/sales/orders/${item.orderId}`}>주문 상세</a>
         <small className="block text-xs text-muted-foreground">{goodsShipDateLabel(item.expectedShipDate)} · 지금 옵션 재고수량 <span className="tabular-nums">{item.physicalStockQty.toLocaleString('ko-KR')}개</span></small>
         {canAllocate && item.allocationReference && <small className="block text-xs text-muted-foreground wrap-anywhere">입고 확인 근거: {item.allocationReference}</small>}
         {canAllocate && item.releaseReason && <small className="block text-xs text-muted-foreground">취소·환불 기록: {item.releaseReason}</small>}
@@ -444,8 +449,8 @@ export function GoodsPreordersPanel({ goodId, variants, canReadOrders = true, ca
   const previousRound = (targets: readonly AdminGoodsVariant[]) => targets.flatMap((variant) => { const qty = pendingByVariant.get(variant.id) ?? 0; return qty > 0 ? [[variant.name, qty] as const] : []; });
   const editor = randomSale
     ? randomOpen ? <p className="text-sm text-muted-foreground">접수 중인 예약이 있습니다. 새 예약은 모든 옵션의 접수를 중지한 뒤 저장할 수 있습니다. {RESTART_CAPACITY_NOTE}</p>
-      : <RandomPreorderEditor goodId={goodId} variants={activeVariants} blockedReason={blockedReason} pending={previousRound(activeVariants)} onSaved={saved} onActivated={(date) => activated(date, null)} />
-    : available.length ? <PreorderEditor goodId={goodId} variants={available} table={activeVariants.length > 1} busy={busy} blockedReason={blockedReason} pending={previousRound(available)} onSaved={saved} onActivated={activated} />
+      : <RandomPreorderEditor goodId={goodId} variants={activeVariants} blockedReason={blockedReason} pending={previousRound(activeVariants)} pendingByVariant={pendingByVariant} onSaved={saved} onActivated={(date) => activated(date, null)} />
+    : available.length ? <PreorderEditor goodId={goodId} variants={available} table={activeVariants.length > 1} busy={busy} blockedReason={blockedReason} pending={previousRound(available)} pendingByVariant={pendingByVariant} onSaved={saved} onActivated={activated} />
       : activeVariants.length ? <p className="text-sm text-muted-foreground" data-preorder-all-busy="">{activeVariants.length > 1 ? '모든 옵션이 이미 예약판매 중입니다.' : '이미 예약판매 중입니다.'} 일정이나 물량을 바꾸려면 [새 예약 접수 중지]를 누른 뒤 새로 저장합니다. {RESTART_CAPACITY_NOTE}</p>
       : <p className="text-sm text-muted-foreground">사용 중인 옵션이 없습니다. 옵션을 사용으로 바꾸면 예약판매를 저장할 수 있습니다.</p>;
   /* 저장한 예약 조건이 있으면 새 입력은 접어 두고(기록이 먼저 보이게), 없으면 바로 펼쳐 둔다. */

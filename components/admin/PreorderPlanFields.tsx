@@ -5,7 +5,7 @@ import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { adminConfirm } from '@/lib/admin/confirm';
 import {
   expandPreorderPlan, fillPreorderPlanCapacity, preorderCapacityProblem, preorderCapacityStockNote, preorderPlanManualCapacities, preorderPlanOwnSchedules,
-  preorderPlanReadback, setPreorderPlanPerOption,
+  preorderPlanReadback, preorderSellableStock, setPreorderPlanPerOption,
   type PreorderApplyField, type PreorderApplyProblems, type PreorderPlan, type PreorderPlanOption, type PreorderPlanProblems, type PreorderPlanTarget,
 } from '@/lib/admin/goods-preorders';
 import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_TABLE_FRAME_CLASS, GoodReadback } from './GoodEditorParts';
@@ -80,7 +80,7 @@ export function PreorderPlanFields({ plan, onChange, targets, table, all = false
     onChange((current) => setPreorderPlanPerOption(current, next));
   }
   const included = targets.filter((target) => entryByKey.has(target.key));
-  const differing = entries.filter((entry) => !entry.capacityFromStock && preorderCapacityStockNote(entry.capacityQty, targets.find((target) => target.key === entry.key)?.stockQty)).length;
+  const differing = entries.filter((entry) => !entry.capacityFromStock && preorderCapacityStockNote(entry.capacityQty, preorderSellableStock(targets.find((target) => target.key === entry.key)))).length;
   const fillValid = !preorderCapacityProblem(fill);
   const only = table ? undefined : targets[0];
   const onlyEntry = only ? entryByKey.get(only.key) : undefined;
@@ -93,7 +93,7 @@ export function PreorderPlanFields({ plan, onChange, targets, table, all = false
           value={onlyEntry.capacityQty} placeholder="예: 100" disabled={disabled} {...invalidProps(onlyProblems.capacityQty, `${idPrefix}-capacityQty-problem`)}
           onChange={(event) => setOption(only.key, { capacityQty: event.target.value })} />
         <FieldProblem id={`${idPrefix}-capacityQty-problem`} message={onlyProblems.capacityQty} />
-        <PreorderCapacityStockHint fromStock={onlyEntry.capacityFromStock} capacity={onlyEntry.capacityQty} stockQty={only.stockQty} disabled={disabled} onUseStock={() => followStock(only.key)} />
+        <PreorderCapacityStockHint fromStock={onlyEntry.capacityFromStock} capacity={onlyEntry.capacityQty} stockQty={preorderSellableStock(only)} disabled={disabled} onUseStock={() => followStock(only.key)} />
       </div> : null}
       {SCHEDULE_FIELDS.map(([field, label, type]) => <div className={FIELD_CLASS} key={field}><label className="font-medium" htmlFor={`${idPrefix}-${field}`}>{label}</label>
         <input className={GOOD_INPUT_CLASS} data-slot="input" data-preorder-field={field} form={form} id={`${idPrefix}-${field}`} type={type} value={plan[field]} disabled={disabled}
@@ -137,13 +137,14 @@ export function PreorderPlanFields({ plan, onChange, targets, table, all = false
               {all ? null : <td className={CELL_CLASS}><input form={form} type="checkbox" aria-label={`${target.name} 예약`} checked={Boolean(entry)} disabled={disabled}
                 onChange={(event) => setOption(target.key, { excluded: !event.target.checked })} /></td>}
               <td className={`${CELL_CLASS} wrap-anywhere`}>{target.name}</td>
-              <td className={`${CELL_CLASS} text-right tabular-nums`}>{(Number.isFinite(target.stockQty) ? target.stockQty ?? 0 : 0).toLocaleString('ko-KR')}개</td>
+              <td className={`${CELL_CLASS} text-right tabular-nums`}>{(Number.isFinite(target.stockQty) ? target.stockQty ?? 0 : 0).toLocaleString('ko-KR')}개
+                {target.pendingQty ? <small className="block text-xs font-normal text-warning" data-preorder-row-pending="">이전 예약 {target.pendingQty.toLocaleString('ko-KR')}개 포함</small> : null}</td>
               <td className={CELL_CLASS}><div className="flex flex-col gap-1">
                 <input className={`${GOOD_NUMBER_INPUT_CLASS} max-w-40`} data-slot="input" data-preorder-field={`capacity:${target.key}`} form={form} type="number" min={1} max={2147483647} step={1} inputMode="numeric"
                   aria-label={`${target.name} 예약 물량`} placeholder="예: 100" value={entry?.capacityQty ?? ''} disabled={disabled || !entry} {...invalidProps(found.capacityQty, problemId('capacity'))}
                   onChange={(event) => setOption(target.key, { capacityQty: event.target.value })} />
                 <FieldProblem id={problemId('capacity')} message={found.capacityQty} />
-                {entry ? <PreorderCapacityStockHint compact fromStock={entry.capacityFromStock} capacity={entry.capacityQty} stockQty={target.stockQty} onUseStock={() => followStock(target.key)} /> : null}
+                {entry ? <PreorderCapacityStockHint compact fromStock={entry.capacityFromStock} capacity={entry.capacityQty} stockQty={preorderSellableStock(target)} onUseStock={() => followStock(target.key)} /> : null}
               </div></td>
               {perOption ? SCHEDULE_FIELDS.map(([field, label, type]) => <td className={CELL_CLASS} key={field}><div className="flex flex-col gap-1">
                 <input className={GOOD_INPUT_CLASS} data-slot="input" data-preorder-field={`${field}:${target.key}`} form={form} type={type} aria-label={`${target.name} ${label}`} value={entry?.[field] ?? ''} disabled={disabled || !entry}
@@ -156,9 +157,11 @@ export function PreorderPlanFields({ plan, onChange, targets, table, all = false
         </table>
       </div>
       {differing > 0
-        ? <p className="text-xs font-medium text-warning" data-preorder-capacity-differs="">예약 물량이 재고수량과 다른 옵션이 {differing.toLocaleString('ko-KR')}개 있습니다. 입고 확인은 재고수량 안에서만 할 수 있어, 실제로 들어온 수량과 다르면 재고 조정으로 재고수량을 맞춘 뒤 입고 확인을 합니다.</p>
+        ? <p className="text-xs font-medium text-warning" data-preorder-capacity-differs="">예약 물량이 재고수량과 다른 옵션이 {differing.toLocaleString('ko-KR')}개 있습니다. 상품이 들어오면 재고수량을 실제로 들어온 수량으로 맞춘 뒤 입고 확인을 합니다.</p>
         : <p className="text-xs text-muted-foreground">고치지 않은 예약 물량은 재고수량을 따라 바뀝니다.</p>}
       {capacityNote ? <p className="text-xs text-muted-foreground">{capacityNote}</p> : null}
+      {/* 화면에 보이지 않는 결과: 체크를 끈 옵션은 예약이 아니라 지금 재고로 바로 팔린다. */}
+      {!all && included.length > 0 && included.length < targets.length ? <p className="text-xs text-muted-foreground" data-preorder-unchecked-note="">체크를 끈 옵션은 예약 없이 재고수량으로 바로 팝니다.</p> : null}
       {excludedNote ? <p className="text-xs text-muted-foreground" data-preorder-excluded-note="">{excludedNote}</p> : null}
     </div> : null}
     {readback ? <GoodReadback>{readback.problem ? <span className="font-medium text-warning">{readback.text}</span> : readback.text}</GoodReadback> : null}

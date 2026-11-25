@@ -205,8 +205,8 @@ export function GoodSection({
       /* 1027T-023: 예약판매 패널은 판매 정보 카드의 판매기간 바로 뒤로 옮겼다. 옛 자리에는 그 위치로 가는 링크만 남긴다(판매 방식 바로 뒤 — D5②). */
       preorders: <div key="preorders" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border px-4 py-3 text-sm" data-good-operation-moved="preorders">
         <span className="font-medium text-foreground">{OPERATION.preorders[0]}</span>
-        <span className="min-w-0 flex-1 text-muted-foreground">판매 정보 카드의 판매기간 아래에서 설정합니다.</span>
-        <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href="#good-operation-preorders" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-preorders'); }}>예약판매로 이동</a>
+        <span className="min-w-0 flex-1 text-muted-foreground">판매 정보 카드의 ‘판매 시기’에서 예약판매를 고르면 입력이 열립니다.</span>
+        <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href="#good-section-period" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-section-period'); }}>판매 시기로 이동</a>
       </div>,
       ...(cloneOperationId ? { clone: <GoodOperationSection key="clone" id="clone" title={OPERATION.clone[0]} description={OPERATION.clone[1]}><GoodClonePanel operationId={cloneOperationId} goodId={selected.id} goodName={selected.name} goodCode={selected.code} categoryId={selected.categoryId ?? null} key={`clone-${selected.id}`} /></GoodOperationSection> } : {}),
     }),

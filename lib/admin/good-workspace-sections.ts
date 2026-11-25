@@ -191,9 +191,12 @@ export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, 
   if (otherProblems.length) return { ok: false, field: 'workspaceKc', error: otherProblems[0] };
   const otherCertifications = otherEntries.length ? normalizeGoodsOtherCertifications(otherEntries)! : [];
   const preorders: GoodWorkspaceSectionsSubmission['preorders'] = [];
-  if (draft.preorderPlan) {
+  /*
+   * 판매 시기는 하나만 고른다. '기간을 정해 판매'가 켜져 있으면 예약 입력은 화면에 보이지 않는다 — 남아 있는 예약 입력은
+   * 임시저장·자동복구로 폼이 바뀌기 전에 넣어 둔 지난 입력이라 싣지 않는다(보이지 않는 입력 때문에 저장이 막히지 않게). DB도 둘을 함께 받지 않는다.
+   */
+  if (draft.preorderPlan && !salePeriodEnabled) {
     const fail = (error: string) => ({ ok: false as const, field: 'workspacePreorders' as const, error });
-    if (salePeriodEnabled) return fail(GOOD_WORKSPACE_SALE_PERIOD_PREORDER_CONFLICT);
     if (draft.extras?.production?.enabled) return fail(GOOD_WORKSPACE_PRODUCTION_PREORDER_CONFLICT);
     const targets = goodWorkspacePreorderTargets(rows), all = goodWorkspaceRandomSale(draft);
     const problem = preorderPlanProblemMessage(preorderPlanProblems(draft.preorderPlan, targets, { all, now }), { table: targets.length > 1 });

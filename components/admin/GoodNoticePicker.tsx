@@ -124,7 +124,7 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
     {message && <p className="text-sm text-foreground" role="status">{message}</p>}
     {dialog === 'templates' ? <AdminPickerDialog<Preset>
       description="고르면 상품정보제공고시 7개 칸이 템플릿 내용으로 바뀝니다."
-      emptyText="일치하는 템플릿이 없습니다."
+      emptyText="템플릿이 없습니다. 상품관리의 ‘상품정보제공고시 템플릿 관리’에서 만들 수 있습니다."
       load={loadNoticePresets}
       onClose={closeDialog}
       onSelect={applyPreset}

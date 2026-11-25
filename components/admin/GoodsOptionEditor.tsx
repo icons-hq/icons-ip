@@ -58,6 +58,11 @@ type GoodsOptionEditorProps = {
   erpNotice?: ReactNode;
   canSearchErp?: boolean;
   structureLocked?: boolean;
+  /**
+   * 옵션 구성(더하기·빼기·이름 바꾸기)만 잠그는 이유. 공개 중인 상품은 옵션 구성이 KC 검토 대상이라 서버가 변경을 거절한다 —
+   * 열어 두고 저장할 때 거절하지 않고 여기서 막는다(규칙 5). 재고수량·옵션가·사용여부는 그대로 바꿀 수 있다.
+   */
+  compositionLockedReason?: string | null;
   optionImport?: GoodsOptionImportContext & { categories: { id: string; name: string }[]; onApplied: () => void };
 };
 
@@ -237,11 +242,13 @@ function OptionInputs({ axes, rows, hidden, setAxes, setRows, onCreatedFromSingl
   </section>;
 }
 
-function OptionList({ rows, basePrice, update, setRows }: {
+function OptionList({ rows, basePrice, update, setRows, compositionLocked = false }: {
   rows: GoodsOptionRow[];
   basePrice: number;
   update: (key: string, changes: Partial<GoodsOptionRow>) => void;
   setRows: Dispatch<SetStateAction<GoodsOptionRow[]>>;
+  /** 옵션을 빼거나 이름을 바꿀 수 없다(공개 중). 재고수량·옵션가·사용여부·순서는 바꿀 수 있다. */
+  compositionLocked?: boolean;
 }) {
   const [checked, setChecked] = useState<ReadonlySet<string>>(() => new Set());
   const [bulk, setBulk] = useState<GoodsOptionBulkInput>(EMPTY_BULK);
@@ -297,7 +304,7 @@ function OptionList({ rows, basePrice, update, setRows }: {
         </NativeSelect>
       </div>
       <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={!selected.size} onClick={applyBulk}>선택목록 일괄수정</button>
-      <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={!selected.size} onClick={() => void removeSelected()}>선택삭제</button>
+      <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={!selected.size || compositionLocked} onClick={() => void removeSelected()}>선택삭제</button>
     </div>
     {bulkMessage && <p className={bulkTone === 'warning' ? 'text-xs text-[var(--wc-warning)]' : 'text-xs text-[var(--wc-success)]'} data-tone={bulkTone} role="status">{bulkMessage.text}</p>}
     <div className={GOOD_TABLE_FRAME_CLASS} data-good-option-list="" role="region" aria-label="옵션목록 편집표" tabIndex={0}>
@@ -319,7 +326,7 @@ function OptionList({ rows, basePrice, update, setRows }: {
           return <TableRow key={key} data-variant-id={row.id ?? undefined} data-selected={isSelected || undefined} data-state={isSelected ? 'selected' : undefined}>
             <TableCell className={`${TABLE_CELL_CLASS} text-center`}><input type="checkbox" className="mt-2" aria-label={`옵션 ${index + 1} 선택`} checked={isSelected} onChange={(event) => toggle(key, event.target.checked)} /></TableCell>
             <TableCell className={TABLE_CELL_CLASS}>
-              <input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 이름`} value={row.name} maxLength={200} onChange={(event) => update(key, { name: event.target.value })} />
+              <input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 이름`} readOnly={compositionLocked} value={row.name} maxLength={200} onChange={(event) => update(key, { name: event.target.value })} />
               {/* 사용 중지로 저장한 옵션이 어디로 가는지 그 자리에서 알린다. 첫 줄은 저장 뒤에도 이 목록에 남는다(상품 편집은 사용 중인 옵션과 첫 옵션만 연다). */}
               {row.isActive === false && <small className="mt-1 block text-xs text-[var(--wc-warning)]" data-good-option-stopped="">{index === 0
                 ? '사용 중지 · 고객이 고를 수 없습니다'
@@ -337,7 +344,7 @@ function OptionList({ rows, basePrice, update, setRows }: {
               <button type="button" className={buttonVariants({ variant: 'outline', size: 'icon-sm' })} data-slot="button" aria-label={`옵션 ${index + 1} 위로`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp aria-hidden="true" /></button>
               <button type="button" className={buttonVariants({ variant: 'outline', size: 'icon-sm' })} data-slot="button" aria-label={`옵션 ${index + 1} 아래로`} disabled={index === rows.length - 1} onClick={() => move(index, 1)}><ArrowDown aria-hidden="true" /></button>
             </div></TableCell>
-            <TableCell className={TABLE_CELL_CLASS}><button type="button" className={buttonVariants({ variant: 'destructive', size: 'sm' })} data-slot="button" aria-label={`옵션 ${index + 1} 삭제`} disabled={rows.length === 1} onClick={() => void removeRow(key)}>삭제</button></TableCell>
+            <TableCell className={TABLE_CELL_CLASS}><button type="button" className={buttonVariants({ variant: 'destructive', size: 'sm' })} data-slot="button" aria-label={`옵션 ${index + 1} 삭제`} disabled={rows.length === 1 || compositionLocked} onClick={() => void removeRow(key)}>삭제</button></TableCell>
           </TableRow>;
         })}</TableBody>
       </Table>
@@ -379,8 +386,9 @@ function SingleStock({ row, basePrice, update, structureLocked }: {
 
 export function GoodsOptionEditor({
   rows, baseline, basePrice, priceDraft, error, axisValues, onRowsChange: setRows, codePrefix, savedCodes,
-  onErpItemSelect, onRegularPriceApply, erpNotice, canSearchErp = true, optionImport, structureLocked = false,
+  onErpItemSelect, onRegularPriceApply, erpNotice, canSearchErp = true, optionImport, structureLocked = false, compositionLockedReason = null,
 }: GoodsOptionEditorProps) {
+  const compositionLocked = Boolean(compositionLockedReason);
   const firstAttributes = rows[0]?.attributes ?? {};
   const initialAxes = Object.keys(firstAttributes).map((name) => ({ name, values: [...new Set(rows.map((row) => row.attributes[name]))].join(', ') }));
   const [axes, setAxes] = useState<GoodsOptionAxis[]>(() => Array.from({ length: GOODS_OPTION_AXIS_LIMIT }, (_, i) => ({ name: axisValues?.[`optionAxisName${i}`] ?? initialAxes[i]?.name ?? '', values: axisValues?.[`optionAxisValues${i}`] ?? initialAxes[i]?.values ?? '' })));
@@ -469,7 +477,8 @@ export function GoodsOptionEditor({
     </section>
 
     {/* 둘 중 하나를 고르면 그에 필요한 입력만 열린다('글보다 화면' 2). 폼 name·value(optionUsage on/off)는 그대로다. */}
-    <GoodChoiceCards disabled={structureLocked} data-good-option-usage="" legend="옵션">
+    {compositionLockedReason ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm" data-good-option-composition-locked="" role="note">{compositionLockedReason}</p> : null}
+    <GoodChoiceCards disabled={structureLocked || compositionLocked} data-good-option-usage="" legend="옵션">
       <GoodChoiceCard name="optionUsage" value="off" checked={!optionsEnabled} onChange={() => void changeOptionUsage('off')} title={GOODS_OPTION_NONE_LABEL} description="한 가지로만 파는 상품" />
       <GoodChoiceCard name="optionUsage" value="on" checked={optionsEnabled} onChange={() => void changeOptionUsage('on')} title="옵션 있음" description="색상·사이즈처럼 골라서 사는 상품" />
     </GoodChoiceCards>
@@ -489,13 +498,13 @@ export function GoodsOptionEditor({
         optionImport.onApplied(); return true;
       }} />}
 
-    <fieldset disabled={structureLocked} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0"><OptionInputs axes={axes} rows={rows} hidden={!optionsEnabled} setAxes={setAxes} setRows={setRows} onCreatedFromSingle={setPreviousSingleStock} />
+    <fieldset disabled={structureLocked} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0"><fieldset disabled={compositionLocked} className="m-0 min-w-0 border-0 p-0"><OptionInputs axes={axes} rows={rows} hidden={!optionsEnabled} setAxes={setAxes} setRows={setRows} onCreatedFromSingle={setPreviousSingleStock} /></fieldset>
     {optionsEnabled && (single
       ? <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground" data-good-option-empty="" role="status">아직 만든 옵션이 없습니다. 지금 저장하면 옵션 없는 상품으로 저장됩니다.</p>
-      : <OptionList rows={rows} basePrice={basePrice} update={update} setRows={setRows} />)}</fieldset>
+      : <OptionList rows={rows} basePrice={basePrice} update={update} setRows={setRows} compositionLocked={compositionLocked} />)}</fieldset>
 
     <OptionDetailTable rows={rows} single={single} predictedCodes={predictedCodes} savedCodes={savedCodes} update={update} erpRows={erpRows} onErpChange={changeErpName}
-      onErpSelect={selectErp} onErpPrice={applyErpPrice} notice={erpNotice} canSearchErp={canSearchErp} structureLocked={structureLocked} />
+      onErpSelect={selectErp} onErpPrice={applyErpPrice} notice={erpNotice} canSearchErp={canSearchErp} structureLocked={structureLocked || compositionLocked} />
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
     {rows.every((row) => row.isActive === false) && <p className="text-sm font-medium text-[var(--wc-warning)]" role="status">모든 옵션이 사용 중지되어 고객이 구매할 수 없습니다.</p>}
     <input type="hidden" name="variants" value={JSON.stringify(rows)} readOnly />

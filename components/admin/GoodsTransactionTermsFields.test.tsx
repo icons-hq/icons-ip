@@ -57,13 +57,13 @@ describe('이 상품만의 배송비 규칙 입력', () => {
 
   it('수량마다 반복·구간 입력을 고르면 계산 결과를 예시로 되읽어 준다', () => {
     const repeat = renderDelivery(delivery({ kind: 'repeat', baseFee: '3000', interval: '2' }));
-    expect(repeat).toContain('개수별 배송비 · 1~2개 3,000원 · 3~4개 6,000원 · 5~6개 9,000원 · …');
+    expect(repeat).toContain('수량별 배송비 · 1~2개 3,000원 · 3~4개 6,000원 · 5~6개 9,000원 · …');
     expect(repeat).toContain('몇 개마다 (개)');
     const tier3 = renderDelivery(delivery({ kind: 'tier3', baseFee: '3000', firstLimit: '3', secondLimit: '5', extra1: '1000', extra2: '2500' }));
-    expect(tier3).toContain('개수별 배송비 · 1~3개 3,000원 · 4~5개 4,000원 · 6개부터 5,500원');
+    expect(tier3).toContain('수량별 배송비 · 1~3개 3,000원 · 4~5개 4,000원 · 6개부터 5,500원');
     expect(tier3).toContain('둘째 구간을 넘으면 더하는 금액 (원)');
     /* 규칙에 맞지 않는 입력은 틀린 예시를 말하지 않는다. */
-    expect(renderDelivery(delivery({ kind: 'tier3', baseFee: '3000', firstLimit: '5', secondLimit: '5', extra1: '1000', extra2: '2000' }))).not.toContain('개수별 배송비 ·');
+    expect(renderDelivery(delivery({ kind: 'tier3', baseFee: '3000', firstLimit: '5', secondLimit: '5', extra1: '1000', extra2: '2000' }))).not.toContain('수량별 배송비 ·');
   });
 
   it('선택 카드마다 같은 계산으로 만든 예시를 보인다', () => {
