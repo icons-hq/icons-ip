@@ -14,6 +14,7 @@ const BANNED: readonly [RegExp, string][] = [
   [/\b(RPC|DB|UUID|ID|API|JSON|SKU)\b/i, '개발 용어'],
   [/확장 배송비|저장 버전|리비전|revision/i, '내부 값 이름(규칙 8)'],
   [/해요|하세요|됩니다요|돼요|이에요|예요/, "'~합니다'체가 아닌 말투"],
+  [/에 대한|을 통해|를 통해|에 의해|것이 가능|되어집니다|되어지|해당 |상기 |의 경우[ ,]|에 한하여/, '번역투(admin-copy-guide 원칙 10)'],
 ];
 const entries = Object.entries(ADMIN_HELP_BOOKS).flatMap(([book, helps]) => Object.entries(helps).map(([key, help]) => ({ name: `${book}.${key}`, help: help as AdminHelp })));
 const texts = (help: AdminHelp) => [help.what, ...ADMIN_HELP_PARTS.map(([part]) => help[part]).filter((value): value is string => typeof value === 'string')];
@@ -29,10 +30,10 @@ describe('어드민 "?" 도움말 문구', () => {
     expect(problems).toEqual([]);
   });
 
-  it('한 줄은 160자, 한 건은 모두 합쳐 420자를 넘지 않는다', () => {
+  it('한 줄은 110자, 한 건은 모두 합쳐 260자를 넘지 않는다(도움말은 한두 문장이 기본)', () => {
     const problems = entries.flatMap(({ name, help }) => [
-      ...texts(help).filter((text) => text.length > 160).map((text) => `${name}: ${text.length}자 — ${text.slice(0, 30)}…`),
-      ...(texts(help).join('').length > 420 ? [`${name}: 합계 ${texts(help).join('').length}자`] : []),
+      ...texts(help).filter((text) => text.length > 110).map((text) => `${name}: ${text.length}자 — ${text.slice(0, 30)}…`),
+      ...(texts(help).join('').length > 260 ? [`${name}: 합계 ${texts(help).join('').length}자`] : []),
     ]);
     expect(problems).toEqual([]);
   });

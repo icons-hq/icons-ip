@@ -58,3 +58,39 @@ export function GoodAmountField({ unit, children, className = '' }: { unit?: Rea
     {unit ? <span aria-hidden="true" className="shrink-0 text-sm text-muted-foreground">{unit}</span> : null}
   </div>;
 }
+
+/**
+ * 선택 카드 묶음(docs/admin-screen-rules.md '글보다 화면' 2·3). 선택지가 둘셋이고 고르기 전에 차이를 알아야 할 때,
+ * 설명 문단 대신 선택지마다 이름·한 줄 설명(또는 작은 미리보기)을 카드로 보여 고르게 한다. 네이티브 라디오라 폼 제출은 GoodChoiceGroup과 같다.
+ */
+export function GoodChoiceCards({ legend, help, children, className = '', ...props }: Omit<ComponentProps<'fieldset'>, 'children'> & {
+  legend: ReactNode; children: ReactNode; help?: AdminHelp | string;
+}) {
+  return <fieldset className={`m-0 min-w-0 border-0 p-0 ${className}`.trim()} data-good-choice="cards" {...props}>
+    <legend className="float-left mb-2 flex w-full items-center gap-1 p-0 text-sm leading-snug font-medium text-foreground">{legend}{help && typeof legend === 'string' ? <AdminHelpTip help={help} label={legend} /> : null}</legend>
+    <div className="clear-both grid min-w-0 gap-2 [grid-template-columns:repeat(auto-fit,minmax(min(100%,13rem),1fr))]">{children}</div>
+  </fieldset>;
+}
+
+/**
+ * GoodChoiceCards의 선택지 하나. `title`은 선택지 이름, `description`은 고르면 어떻게 되는지 한 줄, `children`은 작은 미리보기(선택).
+ * 고를 수 없을 때는 `disabled`와 함께 `blockedReason`(왜 못 고르는지·푸는 방법 한 줄)을 준다 — 이유 없이 흐리게만 두지 않는다(규칙 5).
+ */
+export function GoodChoiceCard({ title, description, blockedReason, children, ...input }: Omit<ComponentProps<'input'>, 'type' | 'children' | 'title'> & {
+  title: ReactNode; description?: ReactNode; blockedReason?: ReactNode; children?: ReactNode;
+}) {
+  return <label className="flex min-w-0 cursor-pointer flex-col gap-1.5 rounded-lg border px-3 py-2.5 text-sm text-foreground transition-colors has-checked:border-primary has-checked:bg-muted/40 has-disabled:cursor-not-allowed has-focus-visible:ring-3 has-focus-visible:ring-ring/50" data-good-choice-card="">
+    <span className="flex min-w-0 items-center gap-2 font-medium"><input type="radio" {...input} />{title}</span>
+    {description ? <span className="text-xs text-muted-foreground">{description}</span> : null}
+    {children}
+    {input.disabled && blockedReason ? <span className="text-xs text-warning" data-good-choice-blocked="">{blockedReason}</span> : null}
+  </label>;
+}
+
+/**
+ * 입력을 한 줄로 되읽어 주는 요약('글보다 화면' 3). 입력 방법을 설명하는 대신 지금 값이 무슨 뜻인지 보여 준다.
+ * 예: "12월 1일 10:00부터 12월 7일 23:59까지 주문받고 12월 20일에 보냅니다."
+ */
+export function GoodReadback({ children, className = '' }: { children: ReactNode; className?: string }) {
+  return <p className={`rounded-lg bg-muted/40 px-3 py-2 text-sm text-foreground ${className}`.trim()} data-good-readback="" role="status">{children}</p>;
+}
