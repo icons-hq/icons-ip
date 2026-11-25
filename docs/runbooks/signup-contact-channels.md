@@ -569,7 +569,8 @@ Turnstile을 켜면 Cloudflare, Inc.가 접속 정보를 처리하고, 앱 한�
   거절됐다(켜기 전 같은 호출은 `weak_password`·`invalid_credentials`까지 처리됐다). 가짜 토큰은 `invalid-input-response`로 거절된다 — GoTrue가 등록된
   비밀 키로 Cloudflare 검증을 거친다는 뜻이다. 세션 갱신(`refresh_token`)은 CAPTCHA 대상이 아니라 그대로 통과한다. 위젯 경로는 `www.iconsip.com`
   비밀번호 재설정 화면에서 없는 `example.com` 주소로 요청해 앱 성공 안내와 Auth 로그 `/recover` 200을 확인했다. 켠 뒤 Auth 로그의 `captcha_failed`는
-  이 확인 호출뿐이었다(실회원 거절 없음). 실제 계정의 가입·로그인·코드 확인 → 자동 로그인은 운영 비밀번호가 필요해 사람이 확인한다.
+  이 확인 호출뿐이었다(실회원 거절 없음). 실제 계정 로그인은 사용자가 운영에서 확인했다. 실제 가입·코드 확인 → 자동 로그인은 같은 토큰 전달 경로라
+  따로 돌리지 않았다 — 가입 문의가 들어오면 Auth 로그의 `captcha_failed`부터 본다.
 
 ### 시험
 
