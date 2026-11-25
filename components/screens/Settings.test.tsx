@@ -124,7 +124,7 @@ describe('Settings', () => {
 
     expect(html).toContain('지금은 1:1 문의로 탈퇴 요청을 받고 있어요');
     expect(html).toContain('href="/my/inquiries/new?category=account"');
-    expect(html).toContain('거래 기록은 관련 법에 따라 정해진 기간(최대 5년) 보관한 뒤 파기해요');
+    expect(html).toContain('관련 법에 따라 주문·결제·환불·티켓 거래 기록은 5년, 1:1 문의·상품 문의 기록은 3년 동안 보관한 뒤 파기해요');
     expect(html).not.toContain('실제 Storage·DB·Auth hard delete');
     expect(html).not.toContain('name="confirmation"');
   });
