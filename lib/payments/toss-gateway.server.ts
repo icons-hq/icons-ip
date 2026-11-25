@@ -1505,11 +1505,18 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       cancelBody = {
         ...cancelBody,
         refundReceiveAccount: { bank: account.bankCode, accountNumber: account.accountNumber, holderName: account.holderName },
+        // 잔액 전제(결제 취소 API refundableAmount — "환불 가능한 잔액 정보가 refundableAmount의 값과 다르면 취소를 처리하지 않고 에러",
+        // /reference#결제-취소, 2026-11-25 확인). 계좌별 멱등키는 계좌가 바뀐 재시도를 걸러 주지 못하므로, 앞 취소가 이미 반영돼 잔액이
+        // 움직였으면 결제사가 이 취소를 거절하게 한다(NOT_MATCHES_REFUNDABLE_AMOUNT) — 같은 부분 환불이 두 번 나가지 않는다.
+        refundableAmount: expectedBefore,
       };
       cancelKey = `${request.idempotencyKey}:va-${refundAccountKeySuffix(account)}`;
     }
 
     let cancelSucceeded = false;
+    // 결제사가 잔액 전제(refundableAmount)가 지금 잔액과 다르다며 거절했다 — 돈은 움직이지 않았다. 조회가 이 취소의 반영을 확인하면(앞 재시도가
+    // 반영됨) 그 결과로 닫고, 아니면 잔액이 어긋난 것으로 운영자 확인에 넘긴다.
+    let refundableMismatch = false;
     // 결제사가 이 결제의 부분 환불을 받지 않는다고 거절했다(NOT_ALLOWED_PARTIAL_REFUND). 조회가 잔액 그대로를
     // 확인하면 돈이 움직이지 않은 것이라 '부분 취소 불가'로 돌려준다 — 호출자가 전액 환불로 돌린다.
     let partialRefundRejected = false;
@@ -1529,6 +1536,8 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         cancelSucceeded = true;
       } else if (code === 'NOT_ALLOWED_PARTIAL_REFUND') {
         partialRefundRejected = true;
+      } else if (code === 'NOT_MATCHES_REFUNDABLE_AMOUNT') {
+        refundableMismatch = true;
       } else if (virtualAccount && refundAccountRejected(code)) {
         // 결제사가 환불 계좌(은행·계좌번호·예금주)를 검증해 거절했다 — 계좌를 다시 받아야 풀린다. 돈은 움직이지 않았다.
         return baseOutcome(attempt, 'needs_review', 'provider_refund_account_invalid', {
@@ -1554,6 +1563,9 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
 
     const after = await inquirePartial();
     if (after.kind === 'applied') return settled(after.payment, 'provider_partial_cancel_confirmed');
+    if (refundableMismatch && (after.kind === 'unchanged' || after.kind === 'unavailable' || after.kind === 'balance_mismatch')) {
+      return balanceMismatch(after.payment);
+    }
     if (partialRefundRejected && (after.kind === 'unchanged' || after.kind === 'unavailable')) {
       return baseOutcome(attempt, 'declined', PARTIAL_CANCEL_UNAVAILABLE_REASON, {
         providerPaymentKey: paymentKey,
