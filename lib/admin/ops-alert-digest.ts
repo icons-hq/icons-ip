@@ -21,7 +21,7 @@ export const OPS_ALERT_DIGEST_CATEGORY_HINTS: Record<OpsAlertDigestCategory, str
   inquiries: '고객이 새로 남기거나 다시 연 1:1 문의가 있으면 건수만 알립니다.',
   questions: '상품 상세에 새 상품 문의가 올라오면 건수만 알립니다.',
   delay: '답변을 기다리는 문의가 아래 기준 시간을 넘기면 문의당 한 번만 알립니다.',
-  system: '자동 작업 실패·멈춤(앱 자동 작업과 DB 작업 모두), 메일 발송 실패, 미종결 결제를 건수와 작업 이름으로 알립니다. 시스템 상태 화면과 같은 기준입니다. 작업 실패·멈춤과 미종결 결제는 이어지면 한 시간에 한 번씩 다시 알리고, 메일 발송 실패는 새 실패가 생길 때만 알립니다.',
+  system: '자동 작업 실패·멈춤(앱 자동 작업과 DB 작업 모두), 메일 발송 실패, 미종결 결제, 풀리지 않은 출고 보류, 발송 지연을 건수와 작업 이름으로 알립니다. 시스템 상태 화면과 같은 기준입니다. 작업 실패·멈춤과 미종결 결제는 이어지면 한 시간에 한 번씩 다시 알리고, 메일 발송 실패는 새 실패가 생길 때만 알립니다. 풀리지 않은 출고 보류(창고에 넘어간 주문은 창고에 직접 연락해야 합니다)와 발주확인 뒤 3일 넘게 나가지 못한 발송 지연도 여기서 알리며, 새로 생긴 건이 있을 때만 그 시점의 전체 건수로 알립니다.',
 };
 
 export interface OpsAlertDigestDelivery { recipient: string; status: StockDigestDeliveryStatus; errorCode: string | null; attempts: number; updatedAt: string }
