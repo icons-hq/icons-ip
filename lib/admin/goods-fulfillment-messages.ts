@@ -1,4 +1,7 @@
 /** 운영자 화면 전용 문구(ADR-0014 운영 어휘). 고객 화면은 이 모듈을 쓰지 않는다. */
+/** 저장하기 전에 무엇이 안 되는지 따로 말한다(받을 방식을 안 고른 것과 금액이 숫자가 아닌 것은 고치는 곳이 다르다). 저장된 상품의 패널과 등록 화면의 '상품과 함께 저장'이 같이 쓴다. */
+export const FULFILLMENT_METHOD_REQUIRED = '받을 방식을 하나 이상 골라 주세요.';
+export const FULFILLMENT_AMOUNT_INVALID = '선결제 배송비와 설치비는 0 이상의 숫자(원)로 적어 주세요.';
 /** 저장 결과를 모를 때. 패널의 [저장됐는지 확인]은 같은 작업 번호로 다시 보내므로 두 번 저장되지 않는다. */
 export const GOODS_FULFILLMENT_SAVE_UNCERTAIN = '저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.';
 export function fulfillmentError(code?: string, message?: string) {

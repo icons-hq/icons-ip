@@ -2,7 +2,7 @@ import { GOODS_DETAIL_IMAGE_FIELD_NAMES } from './catalog';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import type { GoodsOptionRow } from './goods-option-editor';
 import { GOOD_WORKSPACE_EXTRA_ERROR_SECTIONS } from './good-workspace-extra-sections';
-import { goodsReadinessAnchor, type AdminGoodsReadiness, type GoodsReadinessReasonCode } from './goods-readiness';
+import type { AdminGoodsReadiness, GoodsReadinessReasonCode } from './goods-readiness';
 
 /**
  * 옵션별 구매 제한 표(D7②)의 입력은 옵션 행 JSON(`variants`)으로 제출돼 자기 이름이 없다. 브라우저 검증 오류를
@@ -187,11 +187,8 @@ export function goodKcContextChanged(savedValues: Record<string, string>, curren
 
 type GoodReadinessReason = AdminGoodsReadiness['reasons'][number];
 
-/** 판매 준비 링크의 도착지. 사유 표의 대상은 공용 판정(goods-readiness)이고, 입력이 옮겨 간 두 항목만 새 자리로 보낸다. */
-export function goodReadinessReasonAnchor(reason: Pick<GoodReadinessReason, 'code' | 'target'>): string {
-  if (reason.code === 'category_missing') return 'good-section-category';
-  return reason.code === 'stopped' ? 'good-section-information' : reason.code === 'image_missing' ? 'good-section-images' : goodsReadinessAnchor(reason.target);
-}
+/** 판매 준비 링크의 도착지. 상품 목록의 준비 사유 링크도 같은 자리로 가도록 정의는 goods-readiness에 둔다. */
+export { goodReadinessReasonAnchor } from './goods-readiness';
 
 const GOOD_READINESS_ACTIONS: Partial<Record<GoodsReadinessReasonCode, string>> = {
   kc_required: 'KC 검토하기', kc_legacy_unrecorded: 'KC 정보 확인하기', category_missing: '대표 카테고리 고르기', image_missing: '대표 이미지 등록하기', notice_missing: '고시정보 입력하기',

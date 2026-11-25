@@ -120,3 +120,108 @@ describe('공용 선택창의 목록 모양', () => {
     expect(load).toHaveBeenLastCalledWith({ query: '키링', field: '', filter: '', page: 1 });
   });
 });
+
+/* 2026-11-25 리뷰 뒤에 더한 것. 모두 선택적 prop이고, 주지 않으면 예전 모양·동작 그대로다. */
+describe('공용 선택창의 선택적 동작', () => {
+  const buttonNamed = (name: string) => nodes(render()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === name);
+  const closeButton = (name: string) => { const found = buttonNamed(name); expect(found, name).toBeDefined(); return found!; };
+  const query = (all: Element[]) => all.find(node => node.type === 'input' && node.props.type === 'search')!;
+  const filter = () => nodes(render()).find(node => node.props.id === 'picker-filter')!;
+  const filterOptions = [{ value: '', label: '저장한 항목' }, { value: 'archived', label: '삭제한 항목' }];
+
+  it('여러 개 고르기의 닫는 버튼: 기본은 주 버튼 [완료]이고, 글자를 넘기면 그 글자의 보조 버튼이다', async () => {
+    props = { ...props, multiple: true };
+    await opened();
+    expect(String(closeButton('완료').props.className)).toContain('bg-primary');
+    /* footer에 개수·주의 글만 둔 창의 [완료]도 그대로 주 버튼이다. */
+    props = { ...props, footer: '고른 상품 2개' };
+    expect(String(closeButton('완료').props.className)).toContain('bg-primary');
+    /* 주 동작([N개 등록])이 footer에 따로 있는 창은 글자를 넘겨 닫는 버튼을 보조 모양으로 둔다 — 주 버튼이 둘로 보이지 않는다. */
+    props = { ...props, closeLabel: '닫기' };
+    expect(buttonNamed('완료')).toBeUndefined();
+    expect(String(closeButton('닫기').props.className)).not.toContain('bg-primary');
+    (closeButton('닫기').props.onClick as () => void)();
+    expect(close).toHaveBeenCalledOnce();
+  });
+
+  it('한 개 고르기의 [닫기]는 넘긴 글자와 상관없이 그대로다', async () => {
+    props = { ...props, closeLabel: '끝내기' };
+    await opened();
+    expect(buttonNamed('끝내기')).toBeUndefined();
+    expect(String(closeButton('닫기').props.className)).not.toContain('bg-primary');
+  });
+
+  it('조건을 바꾸면 [검색]을 누르지 않아도 첫 쪽부터 다시 조회하고, 적어 둔 검색어를 함께 넘긴다', async () => {
+    props = { ...props, filterLabel: '보기', filterOptions };
+    const all = await opened();
+    expect(load).toHaveBeenCalledExactlyOnceWith({ query: '', field: '', filter: '', page: 1 });
+    (query(all).props.onChange as (event: unknown) => void)({ target: { value: '키링' } });
+    expect(load).toHaveBeenCalledOnce();
+    (filter().props.onChange as (event: unknown) => void)({ target: { value: 'archived' } });
+    await settle();
+    expect(load).toHaveBeenCalledTimes(2);
+    expect(load).toHaveBeenLastCalledWith({ query: '키링', field: '', filter: 'archived', page: 1 });
+    expect(filter().props.value).toBe('archived');
+    /* 같은 값을 다시 고르면 조회하지 않는다. */
+    (filter().props.onChange as (event: unknown) => void)({ target: { value: 'archived' } });
+    await settle();
+    expect(load).toHaveBeenCalledTimes(2);
+    /* 쪽 이동과 [검색]은 바꾼 조건을 그대로 쓴다. */
+    (buttonNamed('검색')!.props.onClick as () => void)();
+    await settle();
+    expect(load).toHaveBeenLastCalledWith({ query: '키링', field: '', filter: 'archived', page: 1 });
+  });
+
+  it('조건을 잇달아 바꾸면 가장 최근 조회만 목록에 반영한다', async () => {
+    props = { ...props, filterLabel: '보기', filterOptions };
+    await opened();
+    let finishSlow!: (value: unknown) => void;
+    load.mockImplementationOnce(() => new Promise(resolve => { finishSlow = resolve; }))
+      .mockImplementationOnce(async (request: AdminPickerRequest) => ({ rows: [photos[1]], total: 1, page: request.page, pageSize: 20 }));
+    (filter().props.onChange as (event: unknown) => void)({ target: { value: 'archived' } });
+    (filter().props.onChange as (event: unknown) => void)({ target: { value: '' } });
+    await settle();
+    expect(load.mock.calls.map(([request]) => (request as AdminPickerRequest).filter)).toEqual(['', 'archived', '']);
+    expect(rows(nodes(render()))).toHaveLength(1);
+    /* 늦게 온 앞선 조회는 버린다. */
+    finishSlow({ rows: photos, total: 3, page: 1, pageSize: 20 });
+    await settle();
+    expect(rows(nodes(render()))).toHaveLength(1);
+    expect(filter().props.value).toBe('');
+  });
+
+  it('처음 검색어를 넘기면 검색어 칸에 넣어 두고 첫 조회도 그 검색어로 한다', async () => {
+    props = { ...props, initialQuery: '아크릴 키링' };
+    const all = await opened();
+    expect(load).toHaveBeenCalledExactlyOnceWith({ query: '아크릴 키링', field: '', filter: '', page: 1 });
+    expect(query(all).props.value).toBe('아크릴 키링');
+    /* 쪽 이동도 같은 검색어를 쓴다(적용된 검색어가 처음 검색어에서 시작한다). */
+    (query(all).props.onChange as (event: unknown) => void)({ target: { value: '스티커' } });
+    (buttonNamed('검색')!.props.onClick as () => void)();
+    await settle();
+    expect(load).toHaveBeenLastCalledWith({ query: '스티커', field: '', filter: '', page: 1 });
+  });
+
+  it('고른 줄: 들어간 자리를 선택됨 대신 보이고, 뺄 수 없는 줄은 [빼기] 자리에 까닭을 적거나 버튼만 감춘다', async () => {
+    const deselect = vi.fn();
+    props = { ...props, multiple: true, selectedKeys: ['a', 'b', 'c'], onDeselect: deselect,
+      selectedLabel: photo => photo.id === 'c' ? null : photo.id === 'a' ? '대표 이미지' : '추가 이미지 1',
+      deselectBlocked: photo => photo.id === 'a' ? '공개 중이라 뺄 수 없음' : photo.id === 'c' ? '' : null };
+    const [main, extra, kept] = rows(await opened());
+    expect(text(main.props.children as ReactNode)).toBe('키링 앞면.png연결 2건대표 이미지공개 중이라 뺄 수 없음');
+    expect(buttons(main)).toHaveLength(0);
+    expect(text(extra.props.children as ReactNode)).toBe('키링 뒷면.png추가 이미지 1빼기');
+    (buttons(extra)[0].props.onClick as () => void)();
+    expect(deselect).toHaveBeenCalledExactlyOnceWith(photos[1]);
+    /* 자리 이름을 돌려주지 않은 줄은 '선택됨'이고, 까닭이 빈 글자면 [빼기]만 없다. */
+    expect(text(kept.props.children as ReactNode)).toBe('미리보기 없는 사진선택됨');
+    expect(buttons(kept)).toHaveLength(0);
+  });
+
+  it('뺄 수 없는 줄을 따로 정하지 않으면 고른 줄마다 [빼기]가 있다(예전 그대로)', async () => {
+    props = { ...props, multiple: true, selectedKeys: ['a'], onDeselect: vi.fn() };
+    const [picked] = rows(await opened());
+    expect(text(picked.props.children as ReactNode)).toBe('키링 앞면.png연결 2건선택됨빼기');
+  });
+});
+

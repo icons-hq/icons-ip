@@ -41,9 +41,11 @@ async function settle() { for (let i = 0; i < 30; i++) await Promise.resolve(); 
 
 beforeEach(() => { vi.clearAllMocks(); hooks.state = []; hooks.refs = []; initial = page; });
 
-it('보관함 상단에 용도와 상품 이미지 타일 업로드도 자동 등록된다는 안내를 보인다', () => {
+it('보관함 상단에 용도와 상품 이미지 칸에 올린 사진도 들어온다는 안내를 운영자 말로 보인다', () => {
   const tree = render();
-  expect(text(tree)).toContain('여러 상품에 다시 쓸 사진을 모아 두는 곳입니다. 상품 편집기의 상품 이미지 타일에 올린 사진도 여기에 자동으로 등록됩니다.');
+  expect(text(tree)).toContain('여러 상품에 다시 쓸 사진을 모아 두는 곳입니다. 상품 등록 화면의 상품 이미지 칸에 올린 사진도 여기에 들어옵니다.');
+  /* '타일'·'편집기'는 운영자가 쓰는 말이 아니다. */
+  expect(text(tree)).not.toMatch(/타일|편집기/);
   expect(text(tree)).not.toContain('자동으로 등록되지 않습니다');
 });
 
@@ -293,10 +295,25 @@ describe('사진 선택창 (GoodsPhotoPicker)', () => {
   it('여러 장 고르기: 이미 넣은 사진은 선택됨으로 보이고 남은 자리를 알린다', () => {
     const props = dialog({ multiple: true, pickedPaths: [older.imagePath], remaining: 4 });
     expect(props.multiple).toBe(true);
-    expect(props.description).toBe('고르는 대로 바로 들어갑니다. 남은 자리 4장.');
+    expect(props.description).toBe('빈 칸에 앞에서부터 들어갑니다. 남은 자리 4장.');
     expect(props.selectedKeys).toEqual([props.rowKey(older)]);
     /* 자리가 남아 있으면 나머지 사진은 그대로 고를 수 있다. */
     expect(props.rowBlocked).toBeUndefined();
+    /* 자리 이름·빼기를 넘기지 않으면 예전처럼 '선택됨'만 보인다. */
+    expect(props.selectedLabel).toBeUndefined(); expect(props.onDeselect).toBeUndefined(); expect(props.deselectBlocked).toBeUndefined();
+  });
+
+  /* G8(2026-11-25 리뷰): 사진은 첫 빈 칸에 들어가는데 창 안에서는 어느 칸인지 알 수 없었고, 잘못 고르면 창을 닫고 이미지 칸의 ×로 빼야 했다. */
+  it('여러 장 고르기: 대표 이미지 칸이 비어 있으면 미리 알리고, 넣은 자리 이름과 [빼기]를 선택창에 넘긴다', () => {
+    const placeOf = vi.fn(() => '추가 이미지 2'), onDeselect = vi.fn(), deselectBlocked = vi.fn(() => '공개 중이라 뺄 수 없음');
+    const props = dialog({ multiple: true, pickedPaths: [older.imagePath], remaining: 9, nextIsMain: true, placeOf, onDeselect, deselectBlocked });
+    expect(props.description).toBe('빈 칸에 앞에서부터 들어갑니다. 남은 자리 9장. 다음에 고르는 사진이 대표 이미지가 됩니다.');
+    expect(props.selectedLabel?.(older)).toBe('추가 이미지 2');
+    expect(props.deselectBlocked?.(older)).toBe('공개 중이라 뺄 수 없음');
+    props.onDeselect?.(older);
+    expect(onDeselect).toHaveBeenCalledExactlyOnceWith(older);
+    /* 대표 이미지가 이미 있으면 그 말을 하지 않는다. */
+    expect(dialog({ multiple: true, pickedPaths: [older.imagePath], remaining: 8 }).description).toBe('빈 칸에 앞에서부터 들어갑니다. 남은 자리 8장.');
   });
 
   it('자리가 다 차면 아직 넣지 않은 사진의 [선택]을 잠그고 [완료]를 안내한다', () => {

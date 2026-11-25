@@ -7,7 +7,8 @@ import { adminConfirm } from '@/lib/admin/confirm';
 import { goodsAfterSalesProblem } from '@/lib/admin/goods-after-sales-messages';
 import {
   SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE, TEMPLATE_CLOSE_DIRTY_CONFIRM, TEMPLATE_DISCARD_INPUT_CONFIRM, TEMPLATE_DISCARD_INPUT_LABEL,
-  TEMPLATE_LATEST_UNREAD_MESSAGE, TEMPLATE_SAVE_OVER_LATEST_LABEL, findSavedTemplate, reopenClosedDialog, templateArchiveConfirm, templateCloseUnknownConfirm,
+  TEMPLATE_LATEST_UNREAD_MESSAGE, TEMPLATE_SAVE_OVER_LATEST_LABEL, TEMPLATE_SAVE_OVER_LATEST_NOTE, findSavedTemplate, reopenClosedDialog, templateArchiveConfirm, templateCloseUnknownConfirm,
+  templateSavedKind, templateSavedNotice, type TemplateSavedKind,
 } from '@/lib/admin/goods-template-save';
 import { kstDateTimeText } from '@/lib/admin/list-export';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
@@ -35,10 +36,11 @@ const listAll = (archived: boolean, page: number) => listGoodsAfterSalesTemplate
 
 /*
  * 편집 창. [저장]은 적은 내용을, [보관]·[복원]은 보관 상태만 바꾼다(고친 내용이 있으면 사라진다고 먼저 묻는다).
- * 다른 사람이 먼저 바꿨으면 입력을 그대로 둔 채 두 길을 고른다: 최신 내용 위에 내 입력으로 저장 / 내 입력 버리기.
+ * 다른 사람이 먼저 바꿨으면 입력을 그대로 둔 채 두 길을 고른다: 내 입력으로 덮어쓰기 / 내 입력 버리기.
  * 저장됐는지 모를 때는 같은 내용을 다시 보내 확인하고, 그래도 안 되면 [닫기]로 나가 목록에서 확인한다.
+ * 저장·보관·복원에 성공하면 무엇을 했는지 `onSaved`로 알려 목록 위에 결과 한 줄을 보이게 한다. 입력을 버리거나 그냥 닫을 때는 알리지 않는다.
  */
-function AfterSalesTemplateEditor({ template, onClose, onSaved }: { template: GoodsAfterSalesTemplate | null; onClose: () => void; onSaved: () => void }) {
+function AfterSalesTemplateEditor({ template, onClose, onSaved }: { template: GoodsAfterSalesTemplate | null; onClose: () => void; onSaved: (kind?: TemplateSavedKind) => void }) {
   const [id] = useState(() => template?.id ?? crypto.randomUUID());
   const [values, setValues] = useState<GoodsAfterSalesValues>(() => valuesOf(template));
   /* base: 지금 입력이 딛고 선 저장 내용. latest: 다른 사람이 먼저 바꿨을 때 찾아 둔 지금 저장 내용. */
@@ -47,13 +49,14 @@ function AfterSalesTemplateEditor({ template, onClose, onSaved }: { template: Go
   const busy = useRef(false), request = useRef<SaveRequest | null>(null), form = useRef<HTMLFormElement>(null);
   const dirty = !sameValues(values, valuesOf(base));
 
-  async function send(fixed: SaveRequest) {
+  /** `kind`는 성공했을 때 목록에 알릴 일이다. 주지 않으면([보관]·[복원]과 저장됐는지 다시 확인할 때) 보낸 보관 상태가 목록에서 보던 것과 달라졌는지로 가린다. */
+  async function send(fixed: SaveRequest, kind: TemplateSavedKind = templateSavedKind(template?.archived ?? false, fixed.archived)) {
     if (busy.current) return;
     busy.current = true; setPending(true); setMessage(''); request.current = fixed;
     let result: GoodsAfterSalesResult<GoodsAfterSalesTemplate>;
     try { result = await saveGoodsAfterSalesTemplateAction(fixed.id, fixed.values, fixed.archived, fixed.revision, fixed.operationId); }
     catch { result = { ok: false, uncertain: true, error: SAVE_UNKNOWN_MESSAGE }; }
-    if (result.ok) { busy.current = false; request.current = null; setPending(false); onSaved(); return; }
+    if (result.ok) { busy.current = false; request.current = null; setPending(false); onSaved(kind); return; }
     /* 다른 사람이 먼저 바꿨으면 지금 저장된 내용을 찾아 함께 보인다. 못 찾아도 입력은 그대로 둔다. */
     const found = result.conflict ? await findSavedTemplate(id, listAll) : null;
     busy.current = false; setPending(false);
@@ -65,7 +68,7 @@ function AfterSalesTemplateEditor({ template, onClose, onSaved }: { template: Go
     if (busy.current || uncertain || conflict) return;
     const problem = goodsAfterSalesProblem(values);
     if (problem) { setMessage(problem); return; }
-    void send({ id, values, archived: base?.archived ?? false, revision: base?.revision ?? 0, operationId: crypto.randomUUID() });
+    void send({ id, values, archived: base?.archived ?? false, revision: base?.revision ?? 0, operationId: crypto.randomUUID() }, 'saved');
   }
   async function toggleArchive() {
     if (!base || busy.current || uncertain || conflict) return;
@@ -85,7 +88,7 @@ function AfterSalesTemplateEditor({ template, onClose, onSaved }: { template: Go
       target = found;
     }
     setBase(target); setLatest(null); setConflict(false);
-    void send({ id, values, archived: target.archived, revision: target.revision, operationId: crypto.randomUUID() });
+    void send({ id, values, archived: target.archived, revision: target.revision, operationId: crypto.randomUUID() }, 'saved');
   }
   async function discardInput() {
     if (busy.current) return;
@@ -104,6 +107,7 @@ function AfterSalesTemplateEditor({ template, onClose, onSaved }: { template: Go
       {conflict ? <AdminNotice tone="warning" role="alert">
         <p>{message}</p>
         {latest ? <div className="mt-2 flex min-w-0 flex-col gap-1" data-goods-template-latest=""><strong className="font-medium">지금 저장된 내용{latest.archived ? ' · 보관됨' : ''}</strong><span className="tabular-nums">{latest.phone}</span><span className={EXCERPT_CLASS}>{latest.guide}</span>{latest.sellerSpecialNotes ? <span className={EXCERPT_CLASS}>{latest.sellerSpecialNotes}</span> : null}</div> : null}
+        <p className="mt-2 text-xs" data-goods-template-overwrite-note="">{TEMPLATE_SAVE_OVER_LATEST_NOTE}</p>
         <div className="mt-2 flex flex-wrap gap-2">
           <button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" disabled={pending} onClick={() => { void saveOverLatest(); }}>{TEMPLATE_SAVE_OVER_LATEST_LABEL}</button>
           <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending} onClick={() => { void discardInput(); }}>{TEMPLATE_DISCARD_INPUT_LABEL}</button>
@@ -122,6 +126,8 @@ function AfterSalesTemplateEditor({ template, onClose, onSaved }: { template: Go
 export function GoodsAfterSalesTemplatesScreen() {
   const [data, setData] = useState<GoodsAfterSalesTemplatePage | null>(null), [query, setQuery] = useState(''), [search, setSearch] = useState(''), [archived, setArchived] = useState(false);
   const [pending, setPending] = useState(false), [message, setMessage] = useState(''), [editor, setEditor] = useState<{ template: GoodsAfterSalesTemplate | null } | null>(null);
+  /* 저장·보관·복원 뒤의 결과 한 줄. 다음 조회(검색·보관 상태·페이지 이동)에서 지운다. */
+  const [notice, setNotice] = useState('');
   const busy = useRef(false), mounted = useRef(true), readSequence = useRef(0);
   useEffect(() => {
     mounted.current = true; let active = true; const sequence = ++readSequence.current;
@@ -130,10 +136,10 @@ export function GoodsAfterSalesTemplatesScreen() {
     }).catch(() => { if (active && sequence === readSequence.current) setMessage(LIST_FAILED); });
     return () => { active = false; mounted.current = false; };
   }, []);
-  async function load(nextPage = 1, nextQuery = search, nextArchived = archived) {
+  async function load(nextPage = 1, nextQuery = search, nextArchived = archived, nextNotice = '') {
     if (busy.current) return;
     const sequence = ++readSequence.current;
-    busy.current = true; setPending(true); setMessage('');
+    busy.current = true; setPending(true); setMessage(''); setNotice(nextNotice);
     try {
       let result = await listGoodsAfterSalesTemplatesAction(nextQuery, nextArchived, nextPage);
       if (result.ok && nextPage > Math.max(1, Math.ceil(result.value.total / 20))) result = await listGoodsAfterSalesTemplatesAction(nextQuery, nextArchived, Math.max(1, Math.ceil(result.value.total / 20)));
@@ -158,6 +164,7 @@ export function GoodsAfterSalesTemplatesScreen() {
       </ConsoleFilterActions>
     </form>
     {message ? <p className="text-destructive" role="alert">{message}</p> : null}
+    {notice ? <p data-goods-template-notice="" role="status">{notice}</p> : null}
     {data ? <ConsoleListCard headingLevel={3} title="조회 결과" total={data.total}>
       <div className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" aria-label="A/S 템플릿 목록 가로 스크롤" tabIndex={0}><Table className="min-w-[35rem]"><TableCaption className="sr-only">A/S 템플릿 목록</TableCaption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead className="px-3">A/S 전화번호</TableHead><TableHead className="px-3">A/S 안내</TableHead><TableHead className="px-3">판매자 특이사항</TableHead><TableHead className="px-3">등록일</TableHead><TableHead className="px-3">상태</TableHead><TableHead className="px-3">관리</TableHead></TableRow></ConsoleTableHeader><TableBody>
         {data.rows.map(row => <TableRow key={row.id}><TableCell className="px-3 align-top tabular-nums">{row.phone}</TableCell><TableCell className="px-3 align-top whitespace-normal"><span className={EXCERPT_CLASS}>{row.guide}</span></TableCell><TableCell className="px-3 align-top whitespace-normal"><span className={EXCERPT_CLASS}>{row.sellerSpecialNotes || '—'}</span></TableCell><TableCell className="px-3 align-top text-muted-foreground tabular-nums">{kstDateTimeText(row.createdAt).replaceAll('-', '.')}</TableCell><TableCell className="px-3 align-top"><AdminStatusBadge tone={statusTone('setting', row.archived ? 'archived' : 'active')}>{row.archived ? '보관됨' : '사용 중'}</AdminStatusBadge></TableCell><TableCell className="px-3 align-top"><button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" onClick={() => setEditor({ template: row })}>수정</button></TableCell></TableRow>)}
@@ -165,6 +172,6 @@ export function GoodsAfterSalesTemplatesScreen() {
       </TableBody></Table></div>
       <ConsolePagination label="A/S 템플릿 페이지" page={data.page} pageSize={20} total={data.total} disabled={pending} onPageChange={page => void load(page)} />
     </ConsoleListCard> : message ? null : <p className="text-muted-foreground" role="status">템플릿을 불러오는 중…</p>}
-    {editor ? <AfterSalesTemplateEditor key={editor.template?.id ?? 'new'} template={editor.template} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load(data?.page ?? 1); }} /> : null}
+    {editor ? <AfterSalesTemplateEditor key={editor.template?.id ?? 'new'} template={editor.template} onClose={() => setEditor(null)} onSaved={kind => { const done = kind ? templateSavedNotice(kind) : ''; setEditor(null); setNotice(done); void load(data?.page ?? 1, search, archived, done); }} /> : null}
   </section>;
 }

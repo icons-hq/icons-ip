@@ -63,7 +63,7 @@ describe('연관상품 XLSX 원문 검증', () => {
   it('편성/구성/조건의 세 시트, 순서·문자열 코드·KST와 수식 아닌 원문을 유지한다', async () => {
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(await buildGoodsRelationsWorkbook({ filters, rows: [row()], startedAt: '2026-10-13T15:10:00Z', verifiedAt: '2026-10-13T15:11:00Z' }) as unknown as Parameters<typeof book.xlsx.load>[0]);
-    expect(book.worksheets.map(sheet => [sheet.name, sheet.rowCount])).toEqual([['연관상품 편성', 2], ['구성 상품', 3], ['내려받기 정보', 13]]);
+    expect(book.worksheets.map(sheet => [sheet.name, sheet.rowCount])).toEqual([['연관상품', 2], ['담은 상품', 3], ['내려받기 정보', 13]]);
     const grouping = book.worksheets[0], members = book.worksheets[1], info = book.worksheets[2];
     expect(grouping.getCell('F2').value).toBe('g-2'); expect(grouping.getCell('G2').value).toBe('002');
     expect(grouping.getCell('K2').value).toContain('2026-10-14 00:00');
@@ -71,7 +71,13 @@ describe('연관상품 XLSX 원문 검증', () => {
     expect(members.getCell('D3').value).toBe('대표'); expect(members.getCell('H3').value).toBe('불가');
     expect(info.getCell('B3').value).toBe(filters.query); expect(info.getCell('B4').value).toBe('함께 사면 좋은 상품');
     expect(info.getCell('B11').value).toContain('한 시각에 고정해 찍어 둔 기록은 아닙니다');
-    expect(grouping.getRow(1).values).toEqual([, '편성 번호', '노출 제목', '유형', '전시상태', '전시 사용', '대표 상품 URL', '대표 상품 자동코드', '대표 상품명', '구성 상품수', '공개 상품수', '시작일시', '종료일시', '등록일시', '수정일시', '저장 회차']);
+    /* S11(2026-11-25 리뷰): 파일 안쪽도 화면의 말을 쓴다 — 연관상품·담은 상품·전시 여부(전시/전시중지)·시작 (KST). 옛 이름(편성·구성 상품·전시 사용)은 없다. */
+    expect(grouping.getRow(1).values).toEqual([, '연관상품 번호', '노출 제목', '유형', '전시상태', '전시 여부', '대표 상품 URL', '대표 상품 자동코드', '대표 상품명', '담은 상품수', '공개 상품수', '시작 (KST)', '종료 (KST)', '등록일시', '수정일시', '저장 회차']);
+    expect(members.getRow(1).values).toEqual([, '연관상품 번호', '노출 제목', '순서', '대표 여부', '상품 URL', '상품 자동코드', '상품명', '현재 공개 가능']);
+    expect(grouping.getCell('E2').value).toBe('전시');
+    const shown = JSON.stringify([grouping.getSheetValues(), members.getSheetValues(), info.getSheetValues()]);
+    expect(shown).toContain('연관상품 1개 · 담은 상품 2줄');
+    expect(shown).not.toMatch(/편성 번호|구성 순서|전시 사용|개 편성|"구성 상품수"/);
     expect(grouping.getCell('A1').font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true }); expect(grouping.getCell('A1').fill).toMatchObject({ fgColor: { argb: 'FFEFF2F0' } });
   });
   it('최대 2,000편성/20,000구성 행을 파일로 다시 읽어 끝 행까지 확인한다', async () => {

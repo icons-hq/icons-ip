@@ -72,7 +72,10 @@ export function announcementKstInput(value: string | null) { return toKstDateTim
 /* 저장 결과를 모를 때의 버튼·문장. 화면과 서버 액션이 같은 말을 쓴다(템플릿·연관상품 화면과도 같은 말). */
 export const GOODS_ANNOUNCEMENT_CHECK_LABEL = '저장됐는지 확인';
 export const GOODS_ANNOUNCEMENT_RETRY_LABEL = '다시 저장';
-export const GOODS_ANNOUNCEMENT_UNKNOWN_MESSAGE = `저장됐는지 확인하지 못했습니다. [${GOODS_ANNOUNCEMENT_CHECK_LABEL}]을 누르면 같은 내용이 두 번 저장되지 않습니다.`;
+/* 이 화면에는 버튼이 둘이다. [저장됐는지 확인]은 읽기만 하고, 다시 보내는 것은 [다시 저장]이다(같은 작업 번호라 두 번 저장되지 않는다). 어느 버튼을 먼저 누르는지까지 말한다. */
+export const GOODS_ANNOUNCEMENT_UNKNOWN_MESSAGE = `저장됐는지 확인하지 못했습니다. [${GOODS_ANNOUNCEMENT_CHECK_LABEL}]으로 먼저 확인하고, 저장되지 않았으면 [${GOODS_ANNOUNCEMENT_RETRY_LABEL}]을 누릅니다. 같은 내용이 두 번 저장되지 않습니다.`;
+/** 저장하려던 내용을 이 브라우저에 보관하지 못할 때의 한 줄. 저장은 되지만, 화면을 떠났다 돌아오면 결과를 다시 확인할 수 없다. */
+export const GOODS_ANNOUNCEMENT_STORAGE_UNAVAILABLE = '이 브라우저에서는 화면을 떠났다 돌아오면 저장됐는지 다시 확인할 수 없습니다. 저장 결과가 나올 때까지 이 화면에 있어 주세요.';
 /** 이 공지가 아직 홈 팝업이 아닌데 켜서 저장할 때의 확인창. 홈 팝업은 쇼핑몰에 하나뿐이라 다른 공지의 팝업이 내려간다. */
 export const GOODS_ANNOUNCEMENT_POPUP_CONFIRM = { title: '이 공지를 홈 팝업으로 띄울까요?', message: '홈 팝업은 하나뿐입니다. 지금 홈 팝업으로 걸린 다른 공지가 있으면 내려갑니다.', confirmLabel: '저장' } as const;
 
@@ -93,26 +96,39 @@ export interface GoodsAnnouncementOutcomeInput {
   popup: { startsAt: string; endsAt: string } | null;
   /** 지금 이 공지가 홈 팝업으로 걸려 있는가. 걸려 있는데 끄면 저장할 때 내려간다. */
   popupSelectedNow: boolean;
+  /**
+   * 지금 시각(ms, 화면을 연 시각). 주면 이미 지난 기간을 가려 "저장해도 보이지 않는다"고 말한다.
+   * 기준은 목록의 판정(goodsAnnouncementState)과 같다 — 종료가 지금보다 늦지 않으면 끝난 기간이다.
+   */
+  now?: number;
 }
 /**
  * 저장 막대의 결과 한 줄: 지금 입력대로 저장하면 고객 화면에 어떻게 보이는지(설명 글 대신 결과를 보인다).
  * 고객 화면의 판정과 같다 — 전시중지면 상세·홈 팝업 모두 안 보이고, 홈 팝업은 전시 기간과 팝업 기간이 겹치는 동안만 뜬다.
+ * 전시 기간이나 홈 팝업 기간이 이미 지났으면 날짜를 읽어 주지 않고 보이지 않는다고 먼저 말한다(날짜만 읽으면 '저장하면 보인다'로 읽힌다).
  */
 export function goodsAnnouncementOutcome(input: GoodsAnnouncementOutcomeInput): string {
   const start = input.period?.startsAt ?? '', end = input.period?.endsAt ?? '';
+  /* KST 입력값은 분 단위라 지금 시각도 분까지 잘라 같은 모양으로 견준다. 종료 <= 지금이면 끝난 기간이다. */
+  const nowInput = typeof input.now === 'number' && Number.isFinite(input.now) ? announcementKstInput(new Date(input.now).toISOString()) : '';
+  const past = (endInput: string) => Boolean(nowInput && endInput && endInput <= nowInput);
   if (!input.allGoods && !input.goodCount) return '적용 상품을 1개 이상 골라야 저장할 수 있습니다.';
   if (input.period && !start && !end) return '전시 기간의 시작이나 종료를 넣어야 저장할 수 있습니다.';
   if (start && end && start >= end) return '전시 기간의 종료가 시작보다 늦어야 저장할 수 있습니다.';
   if (input.popup && (!input.popup.startsAt || !input.popup.endsAt)) return '홈 팝업 기간의 시작과 종료를 넣어야 저장할 수 있습니다.';
   if (input.popup && input.popup.startsAt >= input.popup.endsAt) return '홈 팝업 기간의 종료가 시작보다 늦어야 저장할 수 있습니다.';
-  if (!input.enabled) return `전시중지라 저장해도 고객에게 보이지 않습니다.${input.popup ? ' 홈 팝업도 뜨지 않습니다.' : input.popupSelectedNow ? ' 홈 팝업에서도 내려갑니다.' : ''}`;
+  const popupToo = input.popup ? ' 홈 팝업도 뜨지 않습니다.' : input.popupSelectedNow ? ' 홈 팝업에서도 내려갑니다.' : '';
+  if (!input.enabled) return `전시중지라 저장해도 고객에게 보이지 않습니다.${popupToo}`;
+  if (past(end)) return `전시 기간이 끝나 저장해도 고객에게 보이지 않습니다. 다시 보이려면 종료를 늦춰 주세요.${popupToo}`;
   const when = start && end ? `${kstRangePhrase(start, end)} ` : start ? `${kstInputPhrase(start)}부터 ` : end ? `${kstInputPhrase(end)}까지 ` : '';
   const target = input.allGoods ? '공개된 모든 상품' : `고른 상품 ${input.goodCount.toLocaleString('ko-KR')}개(공개된 상품만)`;
   const sentences = [`저장하면 ${when}${target}의 상세 ${input.placement === 'bottom' ? '하단' : '상단'}에 보입니다.`];
   if (input.popup) {
     const from = start > input.popup.startsAt ? start : input.popup.startsAt;
     const to = end && end < input.popup.endsAt ? end : input.popup.endsAt;
-    sentences.push(from < to ? `${kstRangePhrase(from, to)}는 홈 팝업으로도 뜹니다.` : '홈 팝업 기간이 전시 기간과 겹치지 않아 홈 팝업은 뜨지 않습니다.');
+    sentences.push(from >= to ? '홈 팝업 기간이 전시 기간과 겹치지 않아 홈 팝업은 뜨지 않습니다.'
+      : past(to) ? '홈 팝업 기간이 끝나 홈 팝업은 뜨지 않습니다. 다시 띄우려면 홈 팝업 기간의 종료를 늦춰 주세요.'
+        : `${kstRangePhrase(from, to)}는 홈 팝업으로도 뜹니다.`);
   } else if (input.popupSelectedNow) sentences.push('홈 팝업에서는 내려갑니다.');
   if (input.device !== 'all') sentences.push(input.device === 'pc' ? 'PC처럼 넓은 화면에서만 보입니다.' : '휴대폰처럼 좁은 화면에서만 보입니다.');
   return sentences.join(' ');

@@ -155,16 +155,27 @@ export function parseGoodsBulkReceipt(value: unknown, expectedId: string): Goods
   return value as unknown as GoodsBulkReceipt;
 }
 /**
+ * 바꿀 수 있는 상품이 하나도 없을 때(`goods_bulk_all_skipped`)의 문장. 기간 할인 걸기·중지는 DB가 상품마다의 이유를 싣지 않고
+ * 미리보기부터 거절하므로(20261126120000), 그 명령에서 상품을 건너뛰는 이유를 모두 적는다 — 하나만 적으면 운영자가 엉뚱한 칸을 고친다.
+ * 그 밖의 명령은 미리보기가 상품마다 이유를 보여 주므로 이 문장은 그사이 상태가 바뀐 저장에서만 나온다.
+ */
+const GOODS_BULK_ALL_SKIPPED: Partial<Record<GoodsBulkCommand, string>> = {
+  discount: '기간 할인을 걸 수 있는 상품이 없습니다. 기간이 겹치는 할인이나 기간 없는 즉시할인이 이미 있는 상품, 사용 중인 옵션이 없는 상품, 할인가가 1원 미만이 되는 상품, 보관된 상품에는 걸 수 없습니다. 기간·금액을 바꾸거나, 상품 수정에서 즉시할인과 옵션을 확인한 뒤 다시 해주세요.',
+  discount_stop: '멈출 기간 할인이 없습니다. 고른 상품은 보관됐거나, 진행 중이거나 예정된 기간 할인이 없습니다.',
+};
+/**
  * 일괄 변경이 통째로 멈췄을 때, 그리고 상품 1개짜리 변경(목록 바로 수정)이 건너뛰어졌을 때의 문장.
  * 무엇이 문제인지와 다음에 할 일을 함께 쓴다. 표 한 칸에 들어가는 짧은 말은 `goodsBulkSkipLabel`이다.
+ * `command`를 알면 같은 코드라도 그 명령에 맞는 말로 쓴다(바꿀 수 있는 상품이 없을 때).
  */
-export function goodsBulkError(code: string | null): string {
+export function goodsBulkError(code: string | null, command?: GoodsBulkCommand): string {
+  if (code === 'goods_bulk_all_skipped' && command && GOODS_BULK_ALL_SKIPPED[command]) return GOODS_BULK_ALL_SKIPPED[command];
   const messages: Record<string, string> = {
     goods_bulk_changed: '확인한 뒤에 상품·옵션·재고가 바뀌어 아무것도 바꾸지 않았습니다. 지금 내용으로 다시 확인해주세요.',
     goods_bulk_busy: '같은 상품을 다른 사람이 저장하고 있습니다. 잠시 뒤 다시 해주세요.',
     goods_bulk_preview_expired: '확인한 지 15분이 지나 아무것도 바꾸지 않았습니다. 다시 확인해주세요.',
     goods_bulk_target_limit: '한 번에 상품 100개(IP 전체 할인은 1,000개)까지 바꿀 수 있습니다. 상품을 줄여 다시 골라주세요.',
-    goods_bulk_all_skipped: '바꿀 수 있는 상품이 없습니다. 기간 할인은 기간이 겹치는 할인이 있거나 할인 금액이 맞지 않으면 걸 수 없습니다. 기간·금액이나 고른 상품을 바꿔 다시 확인해주세요.',
+    goods_bulk_all_skipped: '바꿀 수 있는 상품이 없습니다. 상품의 지금 상태를 확인한 뒤 다시 해주세요.',
     goods_bulk_no_active_discount: '멈출 기간 할인이 없습니다. 진행 중이거나 예정된 할인만 멈출 수 있습니다.',
     instant_discount_period_conflict: '진행 중이거나 예정된 기간 할인이 있으면 기간 없는 즉시할인을 함께 걸 수 없습니다. 기간 할인을 먼저 중지해주세요.',
     active_price_period_requires_reset: '진행 중이거나 예정된 기간 할인이 있으면 판매가를 바꿀 수 없습니다. 기간 할인을 먼저 중지해주세요.',

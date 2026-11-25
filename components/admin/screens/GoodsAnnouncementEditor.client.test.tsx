@@ -7,7 +7,7 @@ const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current
   effects: [] as (() => void | (() => void))[], layoutKey: undefined as unknown, cleanup: undefined as undefined | (() => void) }));
 const mocks = vi.hoisted(() => ({ save: vi.fn(), resolve: vi.fn(), store: null as unknown }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
-  useState: (initial: unknown) => { const i = hooks.si++; if (!(i in hooks.states)) hooks.states[i] = initial; return [hooks.states[i], (next: unknown) => { hooks.states[i] = next; }]; },
+  useState: (initial: unknown) => { const i = hooks.si++; if (!(i in hooks.states)) hooks.states[i] = typeof initial === 'function' ? (initial as () => unknown)() : initial; return [hooks.states[i], (next: unknown) => { hooks.states[i] = next; }]; },
   useRef: (initial: unknown) => hooks.refs[hooks.ri++] ?? (hooks.refs[hooks.ri - 1] = { current: initial }),
   useEffect: (fn: () => void | (() => void)) => { hooks.effects.push(fn); },
   useLayoutEffect: (fn: () => void | (() => void), deps: unknown[]) => {
@@ -187,7 +187,7 @@ it('브라우저에 보관하지 못해도 저장을 보내고 한 줄 안내만
   failStorage = true; render().editor.action(form()); await settle();
   expect(mocks.save).toHaveBeenCalledOnce(); expect(rows.size).toBe(0);
   const view = render(); expect(view.editor.uncertain).toBe(false); expect(view.editor.state.errors).toBeUndefined();
-  expect(textOf(view.node, 'p', 'storage-unavailable')).toEqual(['이 브라우저에서는 저장 결과를 다시 확인할 수 없습니다.']);
+  expect(textOf(view.node, 'p', 'storage-unavailable')).toEqual(['이 브라우저에서는 화면을 떠났다 돌아오면 저장됐는지 다시 확인할 수 없습니다. 저장 결과가 나올 때까지 이 화면에 있어 주세요.']);
 });
 
 it('보관하지 못한 저장도 결과를 모르면 이 화면에서 바로 확인하거나 다시 저장할 수 있다', async () => {
@@ -344,10 +344,21 @@ it('보이는 기기·보이는 자리·적용 상품은 선택 카드이고 저
   for (const old of ['노출', '상품찾기', '번째 저장', '저장 결과 확인', '같은 요청', '일시']) expect(text).not.toContain(old);
 });
 
+/* G3(2026-11-25 리뷰): 지난달 끝난 공지를 '전시'로 저장하려 할 때 날짜만 읽어 주면 '저장하면 보인다'로 읽힌다. 목록은 그 공지를 전시중지로 보인다. */
+it('전시 기간이 이미 지난 공지는 결과 한 줄이 저장해도 보이지 않는다고 말하고, 종료를 늦추면 다시 날짜를 읽는다', () => {
+  vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-25T03:00:00Z'));
+  try {
+    const ended = { ...blankGoodsAnnouncement(ID), revision: 3, enabled: true, startsAt: '2026-11-01T01:00:00Z', endsAt: '2026-11-20T14:59:00Z' };
+    expect(textOf(fields(ended), 'p', 'outcome')).toEqual(['전시 기간이 끝나 저장해도 고객에게 보이지 않습니다. 다시 보이려면 종료를 늦춰 주세요.']);
+    setInput(fields(ended), 'endsAt', '2026-12-20T23:59');
+    expect(textOf(fields(ended), 'p', 'outcome')).toEqual(['저장하면 2026년 11월 1일 10:00부터 12월 20일 23:59까지 공개된 모든 상품의 상세 상단에 보입니다.']);
+  } finally { vi.useRealTimers(); }
+});
+
 it('결과를 모를 때는 저장됐는지 확인·다시 저장만 보이고 결과 한 줄은 숨긴다', async () => {
   mocks.save.mockRejectedValue(new Error('offline'));
   render().editor.action(form()); await settle();
-  const view = render(); expect(view.editor.state.errors?.form).toBe('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');
+  const view = render(); expect(view.editor.state.errors?.form).toBe('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]으로 먼저 확인하고, 저장되지 않았으면 [다시 저장]을 누릅니다. 같은 내용이 두 번 저장되지 않습니다.');
   const tree = fields();
   expect(saveBarButtons(tree)).toEqual(['저장됐는지 확인', '다시 저장']);
   expect(textOf(tree, 'p', 'outcome')).toEqual([]);

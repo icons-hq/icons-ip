@@ -133,10 +133,12 @@ it('미리보기가 준비되기 전에 지운 타일에는 늦게 온 미리보
  * 화면 규칙 2·6: 사진 보관함에서 고르기. 예전에는 한 장 고를 때마다 창이 닫혔고(추가 이미지 9장에 9번 열었다),
  * 이미 넣은 사진이나 자리가 없을 때는 고른 뒤 창을 닫고 나서 거절했다.
  */
-type Picker = ReactElement<{ multiple?: boolean; pickedPaths?: readonly string[]; remaining?: number; onClose: () => void; onSelect: (photo: ReturnType<typeof libraryPhoto>) => void }>;
+type LibraryPhoto = { id: string; name: string; imagePath: string; revision: number; archived: boolean; createdAt: string; references: never[] };
+type Picker = ReactElement<{ multiple?: boolean; pickedPaths?: readonly string[]; remaining?: number; nextIsMain?: boolean; onClose: () => void; onSelect: (photo: LibraryPhoto) => void;
+  placeOf: (photo: LibraryPhoto) => string | null; deselectBlocked: (photo: LibraryPhoto) => string | null; onDeselect: (photo: LibraryPhoto) => void }>;
 const picker = () => all(render()).find(item => item.type === GoodsPhotoPicker) as Picker | undefined;
 const libraryPath = (index: number) => `public-media/catalog/good/99000000-0000-4000-8000-0000000003${String(index).padStart(2, '0')}.png`;
-const libraryPhoto = (index: number) => ({ id: `99000000-0000-4000-8000-0000000002${String(index).padStart(2, '0')}`, name: `보관함 사진 ${index}`, imagePath: libraryPath(index), revision: 1, archived: false, createdAt: '2026-11-25T00:00:00Z', references: [] });
+const libraryPhoto = (index: number): LibraryPhoto => ({ id: `99000000-0000-4000-8000-0000000002${String(index).padStart(2, '0')}`, name: `보관함 사진 ${index}`, imagePath: libraryPath(index), revision: 1, archived: false, createdAt: '2026-11-25T00:00:00Z', references: [] });
 const submitted = () => all(render()).filter(item => item.type === 'input' && typeof item.props.name === 'string' && /^(imagePath|galleryPath\d)$/.test(item.props.name)).map(item => item.props.value).filter(Boolean);
 
 it('사진 보관함에서 여러 장을 이어서 고르고, 이미 넣은 사진과 남은 자리를 창에 넘긴다', () => {
@@ -170,4 +172,52 @@ it('10장을 채우면 창에 남은 자리 0장을 넘기고, 닫은 뒤에는 
   expect(text(render())).not.toContain('상품 이미지는 최대 10장입니다');
   picker()!.props.onClose();
   expect(button('사진 보관함에서 고르기').props.disabled).toBe(true);
+});
+
+/*
+ * G8(2026-11-25 리뷰): 사진은 첫 빈 칸에 들어가는데 창 안에서는 어느 칸인지 알 수 없었고, 잘못 고르면 창을 닫고 이미지 칸의 ×로 빼야 했다.
+ * 넣은 자리 이름을 창에 보이고, 창에서 넣은 사진은 창 안에서 [빼기]로 다시 뺀다. 원래 있던 이미지는 창에서 빼지 않는다.
+ */
+it('사진 보관함 창: 넣은 자리 이름을 보이고, 창에서 넣은 사진만 창 안에서 다시 뺀다', () => {
+  button('사진 보관함에서 고르기').props.onClick?.();
+  /* 대표 이미지가 이미 있으면 다음 사진이 대표 이미지가 된다고 말하지 않는다. */
+  expect(picker()?.props.nextIsMain).toBe(false);
+  picker()!.props.onSelect(libraryPhoto(1));
+  picker()!.props.onSelect(libraryPhoto(2));
+  const existing = { ...libraryPhoto(9), imagePath: original };
+  expect(picker()!.props.placeOf(existing)).toBe('대표 이미지');
+  expect([picker()!.props.placeOf(libraryPhoto(1)), picker()!.props.placeOf(libraryPhoto(2)), picker()!.props.placeOf(libraryPhoto(3))]).toEqual(['추가 이미지 1', '추가 이미지 2', null]);
+  /* 창을 열기 전부터 있던 이미지는 [빼기]가 없다(까닭 글 없이 버튼만 없다). 창에서 넣은 사진은 뺄 수 있다. */
+  expect(picker()!.props.deselectBlocked(existing)).toBe('');
+  expect(picker()!.props.deselectBlocked(libraryPhoto(1))).toBeNull();
+  picker()!.props.onDeselect(existing);
+  expect(submitted()).toEqual([original, libraryPath(1), libraryPath(2)]);
+  /* 첫 사진을 빼면 뒤의 사진이 앞으로 당겨지고, 창의 남은 자리와 자리 이름도 따라 바뀐다. */
+  picker()!.props.onDeselect(libraryPhoto(1));
+  expect(submitted()).toEqual([original, libraryPath(2)]);
+  expect(picker()?.props).toMatchObject({ pickedPaths: [original, libraryPath(2)], remaining: 8 });
+  expect(picker()!.props.placeOf(libraryPhoto(2))).toBe('추가 이미지 1');
+  expect(text(render())).toContain('추가 이미지 1에 넣은 보관함 사진을 뺐습니다.');
+  /* 뺀 사진은 다시 고를 수 있다. */
+  picker()!.props.onSelect(libraryPhoto(1));
+  expect(submitted()).toEqual([original, libraryPath(2), libraryPath(1)]);
+});
+
+it('사진 보관함 창: 대표 이미지 칸이 비어 있으면 미리 알리고, 공개 중인 상품의 대표 이미지는 창에서도 빼지 않고 까닭을 적는다', () => {
+  hooks.states = []; hooks.refs = []; hooks.memos = []; hooks.effects = []; hooks.changed = [];
+  const view = (publication: 'draft' | 'published') => { hooks.stateIndex = 0; hooks.refIndex = 0; hooks.memoIndex = 0; hooks.effectIndex = 0; return all(GoodsImageGrid({ ...props, initialPaths: [], initialUrls: [], publication })); };
+  const opened = (publication: 'draft' | 'published') => view(publication).find(item => item.type === GoodsPhotoPicker) as Picker;
+  view('published').find(item => item.type === 'button' && text(item) === '사진 보관함에서 고르기')!.props.onClick?.();
+  expect(opened('published').props).toMatchObject({ nextIsMain: true, remaining: 10 });
+  opened('published').props.onSelect(libraryPhoto(1));
+  expect(opened('published').props.nextIsMain).toBe(false);
+  expect(opened('published').props.placeOf(libraryPhoto(1))).toBe('대표 이미지');
+  /* 공개 중인 상품의 대표 이미지는 교체만 한다(이미지 칸에도 ×가 없다). 창에서 넣었어도 빼지 않는다. */
+  expect(opened('published').props.deselectBlocked(libraryPhoto(1))).toBe('공개 중이라 뺄 수 없음');
+  opened('published').props.onDeselect(libraryPhoto(1));
+  expect(opened('published').props.placeOf(libraryPhoto(1))).toBe('대표 이미지');
+  /* 초안 상품은 대표 이미지도 뺄 수 있다. */
+  expect(opened('draft').props.deselectBlocked(libraryPhoto(1))).toBeNull();
+  opened('draft').props.onDeselect(libraryPhoto(1));
+  expect(opened('draft').props).toMatchObject({ nextIsMain: true, remaining: 10 });
 });

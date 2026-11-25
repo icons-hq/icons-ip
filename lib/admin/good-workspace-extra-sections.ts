@@ -2,12 +2,12 @@ import { isUuid } from '@/lib/uuid';
 import { parseGoodsAfterSalesValues, type GoodsAfterSalesValues } from '@/lib/goods-after-sales';
 import { goodsAfterSalesError } from '@/lib/admin/goods-after-sales-messages';
 import { parseGoodsBenefitValues, type GoodsBenefitValues } from '@/lib/goods-benefits';
-import { goodsBenefitsError } from '@/lib/admin/goods-benefits-messages';
+import { goodsBenefitsError, goodsBenefitsProblem } from '@/lib/admin/goods-benefits-messages';
 import { emptyGoodsSizeChartValues, parseGoodsSizeChartValues, type GoodsSizeChartValues } from '@/lib/goods-size-chart';
 import { goodsSizeChartError } from '@/lib/admin/goods-size-chart-messages';
 import { parseGoodsColorChips, type GoodsColorChip } from '@/lib/store-presentation';
 import { type DigitalFile, type FulfillmentMethod, type FulfillmentMode } from '@/lib/goods-fulfillment';
-import { fulfillmentError } from '@/lib/admin/goods-fulfillment-messages';
+import { FULFILLMENT_AMOUNT_INVALID, FULFILLMENT_METHOD_REQUIRED, fulfillmentError } from '@/lib/admin/goods-fulfillment-messages';
 import { goodsProductionError } from '@/lib/admin/goods-production-messages';
 import { RANDOM_OPTION_PROBLEMS, type GoodsOptionSaleMode } from '@/lib/goods-option-sale-mode';
 import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
@@ -146,9 +146,9 @@ const fail = (key: GoodWorkspaceExtraKey, error: string): GoodWorkspaceExtraResu
 
 function fulfillmentValues(draft: GoodWorkspaceFulfillmentDraft): FulfillmentValues | string {
   const selected = draft.methods.filter((method) => method.enabled);
-  if (draft.mode === 'shipping' && (!selected.length || selected.some((method) => !/^\d+$/.test(method.amount) || !/^\d+$/.test(method.installation)))) {
-    return '받을 방식과 0 이상의 원 단위 비용을 입력해주세요.';
-  }
+  /* 저장된 상품의 수령 방식 패널(GoodsFulfillmentPanel)과 같은 말이다. */
+  if (draft.mode === 'shipping' && !selected.length) return FULFILLMENT_METHOD_REQUIRED;
+  if (draft.mode === 'shipping' && selected.some((method) => !/^\d+$/.test(method.amount) || !/^\d+$/.test(method.installation))) return FULFILLMENT_AMOUNT_INVALID;
   if (draft.mode === 'digital' && !draft.files.length) return '디지털 파일 제공은 확인을 마친 파일을 하나 이상 올려주세요.';
   const methods = draft.mode === 'shipping'
     ? selected.map((method) => ({ method: method.method, feeAmount: method.method === 'parcel' ? null : method.method === 'pickup' ? 0 : Number(method.amount),
@@ -213,7 +213,7 @@ export function prepareGoodWorkspaceExtraSections(extras: Partial<GoodWorkspaceE
   const benefits = extras.benefits;
   if (benefits && (benefits.eventText.trim() || benefits.giftText.trim() || benefits.giftImagePaths.some(Boolean))) {
     const parsed = parseGoodsBenefitValues({ ...benefits, giftImagePaths: benefits.giftImagePaths.filter(Boolean) });
-    if (!parsed) return fail('benefits', '사은품 사진에는 설명이 필요합니다. 설명 100자·이벤트 40자와 서로 다른 사진 3장까지 확인해주세요.');
+    if (!parsed) return fail('benefits', goodsBenefitsProblem(benefits) ?? '사은품 안내를 저장할 수 없습니다. 적은 내용을 확인한 뒤 다시 저장해 주세요.');
     value.benefits = parsed;
   }
   const afterSales = extras.afterSales;

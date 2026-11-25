@@ -121,6 +121,30 @@ describe('편집 창', () => {
     expect(mocks.save).toHaveBeenCalledExactlyOnceWith(active.id, '고친 문구', false, 1, expect.any(String)); expect(stillOpen()).toBe(false);
   });
 
+
+  /* G5(2026-11-25 리뷰): 저장·보관·복원 뒤 창이 닫히고 줄이 말없이 사라지면 지워진 줄 안다. 목록 위에 결과 한 줄을 보인다(사진 보관함과 같은 말). */
+  const notice = () => all(render()).filter(item => (item.props as Record<string, unknown>)['data-goods-template-notice'] !== undefined).map(item => text(item));
+  it('저장·보관·복원에 성공하면 목록 위에 무엇을 했는지와 어디서 다시 보는지를 한 줄로 알린다', async () => {
+    expect(notice()).toEqual([]);
+    mocks.save.mockResolvedValue({ ok: true, value: { ...active, eventText: '고친 문구', revision: 2 } });
+    write('고친 문구'); submit(); await settle();
+    expect(stillOpen()).toBe(false); expect(notice()).toEqual(['템플릿을 저장했습니다.']);
+    open(active); mocks.save.mockResolvedValue({ ok: true, value: { ...active, archived: true, revision: 2 } });
+    button('보관').props.onClick?.(); await settle();
+    expect(notice()).toEqual(["보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있습니다."]);
+    open(archived); mocks.save.mockResolvedValue({ ok: true, value: { ...archived, archived: false, revision: 2 } });
+    button('복원').props.onClick?.(); await settle();
+    expect(notice()).toEqual(["복원했습니다. 보관 상태 '사용 중' 목록에서 볼 수 있습니다."]);
+    /* 다음 조회에서는 지운다. */
+    all(render()).find(item => item.type === 'form')?.props.onSubmit?.({ preventDefault: () => {} }); await settle();
+    expect(notice()).toEqual([]);
+  });
+
+  it('그냥 닫거나 입력을 버리면 결과 한 줄을 보이지 않는다', async () => {
+    button('닫기').props.onClick?.(); await settle();
+    expect(stillOpen()).toBe(false); expect(notice()).toEqual([]);
+  });
+
   it('빈 문구는 저장하기 전에 알린다', () => {
     write('  '); submit();
     expect(mocks.save).not.toHaveBeenCalled(); expect(text(editor())).toContain('이벤트 문구를 적어 주세요.');
@@ -150,7 +174,7 @@ describe('편집 창', () => {
     const shown = text(editor());
     expect(shown).toContain('다른 사람이 먼저 바꿨습니다.'); expect(shown).toContain('지금 저장된 문구'); expect(shown).toContain('다른 담당자 문구');
     expect(hasButton('저장')).toBe(false); expect(hasButton('보관')).toBe(false); expect(hasButton('입력 닫고 최신 목록 조회')).toBe(false);
-    button('최신 내용 위에 내 입력으로 저장').props.onClick?.(); await settle();
+    button('내 입력으로 덮어쓰기').props.onClick?.(); await settle();
     expect(mocks.save.mock.calls[1]).toEqual([active.id, '내가 고친 문구', false, 4, expect.any(String)]); expect(stillOpen()).toBe(false);
   });
 
@@ -159,7 +183,7 @@ describe('편집 창', () => {
     mocks.list.mockResolvedValue({ ok: false, error: '조회 실패' });
     write('내가 고친 문구'); submit(); await settle();
     expect(text(editor())).not.toContain('지금 저장된 문구');
-    button('최신 내용 위에 내 입력으로 저장').props.onClick?.(); await settle();
+    button('내 입력으로 덮어쓰기').props.onClick?.(); await settle();
     expect(mocks.save).toHaveBeenCalledOnce(); expect(text(editor())).toContain('지금 저장된 내용을 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.');
     expect(input().props.value).toBe('내가 고친 문구'); expect(hasButton('내 입력 버리기')).toBe(true);
   });

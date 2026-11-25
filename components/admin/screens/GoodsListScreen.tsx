@@ -36,6 +36,8 @@ const STATUS_ITEMS = [{ label: '전체', status: 'all', icon: Boxes }, { label: 
  * 그 칸을 눌렀을 때의 목록 개수와 같다. 켜진 칸을 다시 누르면 그 조건을 푼다.
  * 이름이 기준을 말한다: 판매기간 밖은 줄의 배지·고객 화면과 같은 '판매 예정'·'판매 종료', 품절은 재고가 0이라 팔리지 않는 상품,
  * 판매중지는 운영자가 판매상태를 바꾼 상품이다. 수량 기준이 없는 소량 재고에만 "?"를 단다(`help`).
+ * 같은 이름은 같은 것만 가리킨다 — 접수 전 예약판매는 판매기간이 없어 '판매 예정' 칸에 들어가지 않으므로 줄의 배지도 '판매 예정'이 아니라
+ * '예약 접수 전'이다(`GOODS_LIST_PREORDER_NOT_OPEN_LABEL`).
  */
 const CONDITION_ITEMS = [
   { label: '판매 예정', axis: 'salePeriod', value: 'scheduled', tone: 'info', icon: CalendarClock, help: null },
@@ -81,7 +83,7 @@ function goodsSaleStatus(good: AdminGoodSummary, readiness: AdminGoodsReadiness)
   if (settingsReady) {
     return { label: '판매중', tone: statusTone('operation', 'active'), detail: `공개 · ${GOODS_READINESS_STATE_LABELS[readiness.state]}`, showsSaleValue: true };
   }
-  /* 예약판매만 있는 상품의 판매 가능 0개는 품절이 아니다 — 고객 화면과 같은 예약 상태(접수 전 '판매 예정' 등)를 말한다. */
+  /* 예약판매만 있는 상품의 판매 가능 0개는 품절이 아니다 — 예약 상태(접수 전 '예약 접수 전', 그 밖에는 고객 화면과 같은 말)를 말한다. */
   if (onlyNothingToSell && good.preorderSaleLabel) {
     const tone = statusTone('goodsSaleState', good.preorderSaleLabel);
     /* 물량 마감은 품절과 같아 빨갛게 강조한다. */
@@ -189,7 +191,8 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         /* 판매기간·예약 상태 배지는 '판매 가능 수량 없음'의 이유를 이미 말한다(`explainsEmpty`). */
         const reasons = readiness.reasons.filter(reason => !REASONS_SAID_BY_BADGE.has(reason.code)
           && !(reason.code === 'stock_unavailable' && sale.explainsEmpty));
-        const reasonLink = (reason: AdminGoodsReadiness['reasons'][number]) => <Link className={REASON_LINK} key={reason.code} href={goodEditorHref(filters, good.id, reason.target)}><TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />{reason.label} →</Link>;
+        /* 사유 링크는 상품 수정의 그 칸으로 간다 — 편집기 판매 준비 카드의 같은 사유와 같은 자리다(판매중지는 접힌 '추가 설정', 대표 이미지는 '상품이미지'). */
+        const reasonLink = (reason: AdminGoodsReadiness['reasons'][number]) => <Link className={REASON_LINK} key={reason.code} href={goodEditorHref(filters, good.id, reason)}><TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />{reason.label} →</Link>;
         /* 상세 재고는 값 수정 덮개가 있는 칸에 함께 있어 덮개 위에 세운다. 수량 셋의 차이를 이름이 말한다 — 지금 팔 수 있는 수량(예약판매 수량 포함,
            판매기간 밖이면 0), 사용 중인 옵션에 남은 재고, 사용 중지한 옵션에 남은 재고까지 합친 수. 판매상태는 옆 칸(전시상태 · 판매 준비)이 말하므로 여기 다시 적지 않는다. */
         const stockDetails = (extra?: ReactNode) => <details className="relative z-[1] text-xs font-normal" data-goods-list="stock-details"><summary className="inline-flex min-h-6 cursor-pointer items-center justify-end whitespace-nowrap text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">상세 재고</summary><dl className="mt-2 grid min-w-[9rem] gap-1 text-left text-sm whitespace-normal text-foreground">

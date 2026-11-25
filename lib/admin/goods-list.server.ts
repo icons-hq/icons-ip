@@ -104,7 +104,7 @@ async function loadGoodsListCustomerVisibility(ids: string[]) {
   return visible;
 }
 
-/* 판매 가능 수량이 0인 예약판매 상품은 품절이 아니라 고객 화면과 같은 예약 상태(접수 전 '판매 예정' 등)로 보인다.
+/* 판매 가능 수량이 0인 예약판매 상품은 품절이 아니라 예약 상태로 보인다(접수 전은 목록 이름 '예약 접수 전', 나머지는 고객 화면과 같은 말).
    예약 상태는 고객 화면이 읽는 옵션 공급 값(goods_variant_supply)과 같다. 읽지 못하거나 한도에 걸려 일부만 읽으면 배지는 지금처럼 품절이다. */
 async function loadGoodsListPreorderSaleLabels(ids: string[]) {
   const labels = new Map<string, string>();

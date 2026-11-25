@@ -14,6 +14,7 @@ import { CATEGORY_TEMPLATE_ALREADY_EXISTS, CATEGORY_TEMPLATE_LIST_FAILED, CATEGO
 import { CategoryTemplateRegisterDialog, CategoryTemplatesScreen } from './CategoryTemplatesScreen';
 import { AdminSelect } from '../console/AdminSelect';
 import { Button } from '../kit/ui/button';
+import { Input } from '../kit/ui/input';
 const id = '94700000-0000-4000-8000-000000000101', other = '94700000-0000-4000-8000-000000000102';
 const row = { categoryId: id, code: 'stationery', name: '문구', path: ['문구'], usable: true, archived: false, revision: 1, createdAt: '2026-10-14T00:00:00Z' };
 const page = { rows: [row], total: 1, page: 1, pageSize: 20 };
@@ -143,6 +144,16 @@ it('says once what to do when the first read fails', async () => {
   expect(screen.split(CATEGORY_TEMPLATE_LIST_FAILED)).toHaveLength(2);
   expect(screen).not.toContain('불러오는 중');
   expect(screen).not.toContain('조회 후에');
+});
+/* 보관 상태는 고르는 순간 조회한다. 검색칸에 적어 둔 글자로 함께 조회해야 칸의 글자와 목록이 어긋나지 않는다. */
+it('보관 상태를 바꾸면 검색칸에 적어 둔 글자로 바로 조회한다', async () => {
+  all(render()).find(item => item.type === Input)?.props.onChange?.({ target: { value: '머그' } });
+  expect(mocks.list).not.toHaveBeenCalled();
+  all(render()).find(item => item.type === 'select' || item.type === AdminSelect)?.props.onChange?.({ target: { value: 'archived' } }); await settle();
+  expect(mocks.list).toHaveBeenCalledExactlyOnceWith('머그', true, 1);
+  expect(hooks.state[S.archived]).toBe(true);
+  /* 조회한 검색어로 기록돼, 쪽을 옮겨도 같은 검색어로 읽는다. */
+  expect(hooks.state[2]).toBe('머그');
 });
 it('ignores an initial response that arrives after a newer archived-list search', async () => {
   hooks.state = []; let initial!: (value: unknown) => void;

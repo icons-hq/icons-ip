@@ -117,6 +117,8 @@ describe('등록할 카테고리 고르기 창', () => {
     expect(element.props).toMatchObject({
       title: '등록할 카테고리 고르기', multiple: true, searchPlaceholder: '카테고리 이름이나 코드로 찾기', emptyText: '일치하는 카테고리가 없습니다.',
       excludedNote: '이미 등록한 카테고리, 하위 카테고리가 있는 카테고리, 보관한 카테고리는 목록에서 뺐습니다.',
+      /* 창 아래 버튼은 고른 것을 넣고 닫는 [완료]가 아니다 — [N개 등록]을 눌러야 등록되므로 그냥 [닫기]다. */
+      closeLabel: '닫기',
     });
   });
 

@@ -39,6 +39,15 @@ export function goodsReadinessAnchor(target: GoodsReadinessTarget): string {
   if (target === 'kc' || target === 'publish') return `good-operation-${target}`;
   return `good-section-${target === 'ip' ? 'basic' : target}`;
 }
+/**
+ * 준비 사유를 눌렀을 때 닿는 상품 수정 화면의 자리. 편집기의 판매 준비 카드와 상품 목록의 사유 링크가 함께 쓴다 — 한 곳에서 정해야
+ * 같은 사유가 화면마다 다른 곳으로 가지 않는다. 사유 표의 대상(`target`)이 기본이고, 입력이 다른 카드로 옮겨 간 세 사유만 그 칸으로 보낸다:
+ * 대표 카테고리(기본 정보 맨 위 칸), 판매상태(접혀 있는 '추가 설정'), 대표 이미지('상품이미지' 카드).
+ */
+export function goodReadinessReasonAnchor(reason: { code: GoodsReadinessReasonCode; target: GoodsReadinessTarget }): string {
+  if (reason.code === 'category_missing') return 'good-section-category';
+  return reason.code === 'stopped' ? 'good-section-information' : reason.code === 'image_missing' ? 'good-section-images' : goodsReadinessAnchor(reason.target);
+}
 export function unknownGoodsReadiness(): AdminGoodsReadiness {
   return { state: 'unknown', checkedAt: null, publication: 'unknown', operation: 'unknown', availableQty: null,
     publicReview: 'unknown', saleSettings: 'unknown', reviewRequired: true,

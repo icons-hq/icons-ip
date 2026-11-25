@@ -107,6 +107,21 @@ describe('저장된 템플릿 고치기', () => {
     expect(hasButton('보관')).toBe(false);
     button('복원').props.onClick?.(); await settle();
     expect(mocks.save).toHaveBeenCalledExactlyOnceWith(saved.id, saved.name, saved.chart, false, 3, expect.any(String));
+    /* G5: 복원한 템플릿은 '보관됨' 목록에서 사라진다. 어디서 다시 보는지 목록 위에 한 줄로 알린다. */
+    expect(hooks.scopes.screen[6]).toBeNull();
+    expect(hooks.scopes.screen[7]).toBe("복원했습니다. 보관 상태 '사용 중' 목록에서 볼 수 있습니다.");
+  });
+
+  it('[보관]하거나 저장하면 목록 위에 결과 한 줄이 보이고, 입력을 버리면 보이지 않는다', async () => {
+    const shown = () => { hooks.scope = 'screen'; hooks.index = 0; hooks.refIndex = 0; return all(GoodsSizeTemplatesScreen({ accountId: 'operator-a' })).filter(node => (node.props as Record<string, unknown>)['data-goods-template-notice'] !== undefined).map(node => text(node)); };
+    mocks.save.mockResolvedValue({ ok: true, value: { ...saved, archived: true, revision: 4 } });
+    button('보관').props.onClick?.(); await settle();
+    expect(shown()).toEqual(["보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있습니다."]);
+    open(saved); mocks.recovery = null;
+    mocks.save.mockResolvedValue({ ok: true, value: { ...saved, name: '고친 이름', revision: 4 } });
+    nameInput().props.onChange?.({ target: { value: '고친 이름' } });
+    editor().find(node => node.type === 'form')?.props.onSubmit?.({ preventDefault() {} }); await settle();
+    expect(shown()).toEqual(['템플릿을 저장했습니다.']);
   });
 
   it('다른 사람이 먼저 바꿨으면 입력을 그대로 둔 채 두 길을 고른다 — 최신 내용 위에 저장하면 최신 것을 기준으로 내 입력을 보낸다', async () => {
@@ -120,7 +135,7 @@ describe('저장된 템플릿 고치기', () => {
     expect(shown).toContain('다른 사람이 먼저 바꿨습니다.'); expect(shown).toContain('지금 저장된 템플릿 · 다른 담당자 이름');
     expect(hasButton('저장')).toBe(false); expect(hasButton('보관')).toBe(false);
     for (const old of ['입력 보관하고 최신 목록 조회', '현재 템플릿 기준으로 표 유지', '현재 템플릿으로 바꾸기']) expect(hasButton(old)).toBe(false);
-    button('최신 내용 위에 내 입력으로 저장').props.onClick?.(); await settle();
+    button('내 입력으로 덮어쓰기').props.onClick?.(); await settle();
     expect(mocks.save.mock.calls[1]).toEqual([saved.id, '내가 고친 이름', chart, false, 5, expect.any(String)]);
     expect(mocks.save.mock.calls[1][5]).not.toBe(mocks.save.mock.calls[0][5]);
   });
@@ -152,6 +167,8 @@ describe('저장된 템플릿 고치기', () => {
     dialog().props.onClose?.(); await settle();
     expect(confirm).toHaveBeenCalledExactlyOnceWith('닫으면 목록을 다시 불러옵니다. 방금 저장하려던 내용이 목록에 있는지 확인해 주세요. 목록에 없으면 같은 템플릿을 다시 열어 [저장됐는지 확인]을 눌러 주세요.');
     expect(hooks.scopes.screen[6]).toBeNull();
+    /* 저장됐는지 모르고 닫은 것이라 '저장했습니다'라고 말하지 않는다. */
+    expect(hooks.scopes.screen[7]).toBe('');
   });
 
   it('고친 표는 브라우저에 보관되므로 묻지 않고 닫고, 보관하지 못하는 브라우저에서만 사라진다고 묻는다', async () => {
@@ -189,7 +206,7 @@ it('보관해 둔 뒤로 템플릿이 바뀌었으면 복구한 표를 그대로
   expect(nameInput().props.value).toBe('이전에 쓴 템플릿');
   expect(text(editor())).toContain('다른 사람이 먼저 바꿨습니다. 복구한 표는 그대로 있습니다.');
   expect(text(editor())).toContain('지금 저장된 템플릿 · 반팔 티셔츠');
-  expect(hasButton('최신 내용 위에 내 입력으로 저장')).toBe(true); expect(hasButton('내 입력 버리기')).toBe(true);
+  expect(hasButton('내 입력으로 덮어쓰기')).toBe(true); expect(hasButton('내 입력 버리기')).toBe(true);
 });
 
 describe('목록', () => {

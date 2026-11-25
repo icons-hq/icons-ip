@@ -326,16 +326,18 @@ describe('goods list screen', () => {
       expect(cell('ready-before-start')).toMatch(/data-tone="info"[^>]*>판매 예정<\/span>/);
       expect(cell('ready-before-start')).toContain('공개 · 설정 준비 완료');
     });
-    /* 접수 전 예약판매는 판매 가능 0개라 '판매 가능 수량 없음'으로 막히지만, 고객 화면처럼 '판매 예정'이다(품절·빨간 수량·경고 링크 없음). */
-    it('예약판매만 있는 상품의 판매 가능 0개는 품절이 아니라 고객 화면과 같은 예약 상태다', () => {
+    /* 접수 전 예약판매는 판매 가능 0개라 '판매 가능 수량 없음'으로 막히지만 품절이 아니라 '예약 접수 전'이다(품절·빨간 수량·경고 링크 없음).
+       고객 화면은 '판매 예정'이라 부르지만, 목록의 '판매 예정' 건수 칸은 판매기간 시작 전만 세므로 목록에서는 따로 부른다. */
+    it('예약판매만 있는 상품의 판매 가능 0개는 품절이 아니라 예약 상태다 — 접수 전은 예약 접수 전', () => {
       const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 4, ips: [], goods: [
-        { ...base, id: 'scheduled', stock: 'low' as const, lowStockOptionCount: 1, preorderSaleLabel: '판매 예정', readiness: blocked('stock_unavailable') },
+        { ...base, id: 'scheduled', stock: 'low' as const, lowStockOptionCount: 1, preorderSaleLabel: '예약 접수 전', readiness: blocked('stock_unavailable') },
         { ...base, id: 'full', preorderSaleLabel: '예약 물량 마감', readiness: blocked('stock_unavailable') },
         { ...base, id: 'closed', preorderSaleLabel: '예약 접수 종료', readiness: blocked('stock_unavailable') },
-        { ...base, id: 'also-unready', preorderSaleLabel: '판매 예정', readiness: { ...blocked('stock_unavailable'), reasons: [...blocked('stock_unavailable').reasons, ...blocked('image_missing').reasons] } },
+        { ...base, id: 'also-unready', preorderSaleLabel: '예약 접수 전', readiness: { ...blocked('stock_unavailable'), reasons: [...blocked('stock_unavailable').reasons, ...blocked('image_missing').reasons] } },
       ] }} />);
       const cell = (id: string) => row(html, id).split('data-goods-list="sale-status"')[1]?.split('</td>')[0] ?? '';
-      expect(cell('scheduled')).toMatch(/<span[^>]*data-tone="info"[^>]*>판매 예정<\/span>/);
+      expect(cell('scheduled')).toMatch(/<span[^>]*data-tone="info"[^>]*>예약 접수 전<\/span>/);
+      expect(cell('scheduled')).not.toContain('판매 예정');
       expect(cell('scheduled')).not.toContain('품절');
       expect(cell('scheduled')).not.toContain('판매 가능 수량 없음');
       expect(row(html, 'scheduled')).not.toMatch(/text-destructive[^>]*>0개</);
@@ -348,6 +350,47 @@ describe('goods list screen', () => {
       // 다른 준비 사유가 함께 막으면 지금처럼 판매 준비 중이고, 수량 없음 사유도 그대로 보인다.
       expect(cell('also-unready')).toMatch(/data-tone="warning"[^>]*>판매 준비 중<\/span>/);
       expect(cell('also-unready')).toContain('판매 가능 수량 없음');
+    });
+    /* 같은 이름은 같은 것을 가리킨다: '판매 예정' 건수 칸(판매기간 시작 전)과 같은 이름의 배지는 판매기간 시작 전 상품에만 붙는다.
+       접수 전 예약판매는 그 칸에 들어가지 않으므로 '예약 접수 전'이라는 다른 이름이다 — "판매 예정 0건인데 판매 예정 배지가 보인다"가 없다. */
+    it("건수 칸 '판매 예정'이 0건일 때 접수 전 예약판매 줄에 같은 이름의 배지가 붙지 않는다", () => {
+      const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 2, ips: [], saleStateCounts: { scheduled: 0, stopped: 0, ended: 0 }, goods: [
+        { ...base, id: 'preorder-not-open', preorderSaleLabel: '예약 접수 전', readiness: blocked('stock_unavailable') },
+        { ...base, id: 'selling-now', readiness: ready },
+      ] }} />);
+      expect(html).toMatch(/<a(?=[^>]*aria-label="판매 예정 0건")(?=[^>]*href="[^"]*salePeriod=scheduled)/);
+      expect(html.split('<table')[1]).not.toContain('판매 예정');
+      expect(row(html, 'preorder-not-open')).toMatch(/data-tone="info"[^>]*>예약 접수 전<\/span>/);
+      /* 판매기간 시작 전 상품이 있으면 칸과 배지가 같은 이름으로 같은 상품을 가리킨다. */
+      const period = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 1, ips: [], saleStateCounts: { scheduled: 1, stopped: 0, ended: 0 }, goods: [
+        { ...base, id: 'before-start', salePeriodLabel: '판매 예정', readiness: blocked('stock_unavailable') },
+      ] }} />);
+      expect(period).toMatch(/<a(?=[^>]*aria-label="판매 예정 1건")/);
+      expect(row(period, 'before-start')).toMatch(/data-tone="info"[^>]*>판매 예정<\/span>/);
+    });
+    /* 목록의 준비 사유 링크는 편집기 판매 준비 카드의 같은 사유와 같은 칸으로 간다(도움말 "상품 수정의 그 칸으로 갑니다"). 판매상태는 접혀 있는
+       '추가 설정', 대표 이미지는 '상품이미지', 대표 카테고리는 기본 정보 맨 위 칸이다 — 사유 표의 대상만 따르면 셋 다 기본 정보 카드에 떨어진다. */
+    it('준비 사유 링크는 상품 수정에서 그 사유의 칸으로 간다 — 하나일 때도, 여럿을 접어 둔 목록에서도', () => {
+      const reason = (code: GoodsReadinessReasonCode) => ({ code, ...GOODS_READINESS_REASONS[code], kind: 'blocking' as const });
+      const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({ status: 'draft' }), total: 5, ips: [], goods: [
+        { ...base, id: 'no-image', readiness: blocked('image_missing') },
+        { ...base, id: 'no-category', readiness: blocked('category_missing') },
+        { ...base, id: 'no-notice', readiness: blocked('notice_missing') },
+        { ...base, id: 'no-kc', readiness: blocked('kc_required') },
+        { ...base, id: 'several', publishedAt: null, readiness: { ...ready, state: 'blocked' as const, reasons: [reason('stopped'), reason('image_missing'), reason('category_missing'), reason('payment_disabled')] } },
+      ] }} />);
+      /* 그 글자를 가진 링크 하나의 주소만 읽는다(같은 줄의 미리보기 아이콘 링크로 넘어가지 않게 svg 안에서만 건너뛴다). */
+      const target = (id: string, label: string) => new RegExp(`href="[^"]*goodId=${id}#([a-z-]+)"[^>]*>(?:<svg(?:(?!</svg>)[\\s\\S])*</svg>)?${label} →</a>`).exec(row(html, id))?.[1];
+      expect(target('no-image', '대표 이미지 미입력')).toBe('good-section-images');
+      expect(target('no-category', '대표 카테고리 없음')).toBe('good-section-category');
+      expect(target('no-notice', '고시정보 미입력')).toBe('good-section-notice');
+      expect(target('no-kc', 'KC 검토 필요')).toBe('good-operation-kc');
+      expect(target('several', '판매상태가 판매중지')).toBe('good-section-information');
+      expect(target('several', '대표 이미지 미입력')).toBe('good-section-images');
+      expect(target('several', '대표 카테고리 없음')).toBe('good-section-category');
+      expect(target('several', '결제수단 모두 중지')).toBe('good-section-sale');
+      /* 목록 조건은 그대로 들고 간다. */
+      expect(row(html, 'no-image')).toMatch(/href="[^"]*status=draft[^"]*goodId=no-image#good-section-images"/);
     });
   });
   it('1440 화면에서 끝 열까지 들어오고, 첫 열은 상품번호, 기본 열에 상품 URL은 없다(S36-009)', () => {
@@ -523,7 +566,8 @@ describe('goods list screen', () => {
     const empty = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 0, ips: [], goods: [], stockCounts: { out_of_stock: 0, low: 0 } }} />);
     expect(card(empty, '품절\\(재고 0\\) 0건')).not.toContain('text-destructive');
     expect(card(empty, '소량 재고 0건')).not.toContain('text-warning');
-    expect(html).toMatch(/<a class="[^"]*\btext-warning\b[^"]*" href="[^"]*">(?:<svg[\s\S]*?<\/svg>)?대표 이미지 미입력 →<\/a>/);
+    /* 주소도 본다 — 대표 이미지 사유는 기본 정보가 아니라 상품이미지 카드로 간다. */
+    expect(html).toMatch(/<a class="[^"]*\btext-warning\b[^"]*" href="[^"]*goodId=long-good-id-1234567890#good-section-images">(?:<svg[\s\S]*?<\/svg>)?대표 이미지 미입력 →<\/a>/);
     // 주 색 링크는 첫 칸(상품번호) 하나다. 상품명 옆 아이콘은 흐린 글자다.
     const row = rowOf(html, 'long-good-id-1234567890');
     expect(row.match(/<a [^>]*class="[^"]*\btext-primary\b/g)).toHaveLength(1);

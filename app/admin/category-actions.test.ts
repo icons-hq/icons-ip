@@ -141,11 +141,13 @@ describe('admin category actions', () => {
     expect(mocks.updateTag).toHaveBeenCalledWith(STOREFRONT_MEGA_MENU_CACHE_TAG);
   });
 
-  it('공개 전환을 DB가 거절하면 이유를 볼 곳을 알리고 메뉴 캐시를 건드리지 않는다', async () => {
+  /* 거절되는 까닭은 둘이다: 그사이 카테고리가 모두 없어졌거나(새로고침하면 버튼이 잠기고 아래에 이유가 보인다), 화면에 없는 ERP 분류 값이
+     걸렸거나(새로고침하면 화면이 끈 값으로 보내 다시 누르면 된다). 카드에 이유가 늘 적혀 있는 것은 아니라 '적힌 이유를 확인'이라고만 하지 않는다. */
+  it('공개 전환을 DB가 거절하면 새로고침한 뒤 다시 누르라고 알리고 메뉴 캐시를 건드리지 않는다', async () => {
     mocks.getAuth.mockResolvedValue({ ...mocks.auth, role: 'admin' });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'category_activation_unready' } });
     await expect(setAdminCategoryActivationAction({}, form({ customerEnabled: 'on' }))).resolves.toMatchObject({
-      errors: { form: '지금은 바꿀 수 없습니다. 새로고침해 이 카드에 적힌 이유를 확인해주세요.' },
+      errors: { form: '지금은 바꿀 수 없습니다. 새로고침한 뒤 다시 눌러주세요. 버튼이 잠겨 있으면 그 아래에 이유가 적혀 있습니다.' },
     });
     expect(mocks.updateTag).not.toHaveBeenCalled();
   });

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { blankGoodsAnnouncement, GOODS_ANNOUNCEMENT_CHECK_LABEL, GOODS_ANNOUNCEMENT_POPUP_CONFIRM, GOODS_ANNOUNCEMENT_UNKNOWN_MESSAGE, goodsAnnouncementHref, goodsAnnouncementOutcome, goodsAnnouncementPlacement, goodsAnnouncementState, normalizeGoodsAnnouncementFilters, parseGoodsAnnouncementInput, type GoodsAnnouncementOutcomeInput } from './goods-announcements';
+import { blankGoodsAnnouncement, GOODS_ANNOUNCEMENT_CHECK_LABEL, GOODS_ANNOUNCEMENT_POPUP_CONFIRM, GOODS_ANNOUNCEMENT_STORAGE_UNAVAILABLE, GOODS_ANNOUNCEMENT_UNKNOWN_MESSAGE, goodsAnnouncementHref, goodsAnnouncementOutcome, goodsAnnouncementPlacement, goodsAnnouncementState, normalizeGoodsAnnouncementFilters, parseGoodsAnnouncementInput, type GoodsAnnouncementOutcomeInput } from './goods-announcements';
 
 function form(extra: Record<string, string> = {}) {
   const data = new FormData();
@@ -98,6 +98,36 @@ describe('상품 공지 입력과 목록 계약', () => {
       expect(goodsAnnouncementOutcome({ ...base, popup, period: { startsAt: '2026-12-08T00:00', endsAt: '' } })).toContain('홈 팝업 기간이 전시 기간과 겹치지 않아 홈 팝업은 뜨지 않습니다.');
       expect(goodsAnnouncementOutcome({ ...base, popupSelectedNow: true })).toBe('저장하면 공개된 모든 상품의 상세 상단에 보입니다. 홈 팝업에서는 내려갑니다.');
     });
+    /* G3: 결과 한 줄은 지금 시각과 견준다. 기준은 목록의 판정(goodsAnnouncementState)과 같다 — 종료가 지금보다 늦지 않으면 끝난 기간이다. */
+    it('전시 기간이 이미 지났으면 날짜를 읽지 않고 저장해도 보이지 않는다고 말한다', () => {
+      const period = { startsAt: '2026-11-01T10:00', endsAt: '2026-11-20T23:59' };
+      const endsAt = Date.parse('2026-11-20T23:59:00+09:00');
+      const ended = '전시 기간이 끝나 저장해도 고객에게 보이지 않습니다. 다시 보이려면 종료를 늦춰 주세요.';
+      /* 지금 시각을 주지 않으면 예전처럼 날짜만 읽는다. */
+      expect(goodsAnnouncementOutcome({ ...base, period })).toBe('저장하면 2026년 11월 1일 10:00부터 11월 20일 23:59까지 공개된 모든 상품의 상세 상단에 보입니다.');
+      expect(goodsAnnouncementOutcome({ ...base, period, now: endsAt - 1 })).toBe('저장하면 2026년 11월 1일 10:00부터 11월 20일 23:59까지 공개된 모든 상품의 상세 상단에 보입니다.');
+      for (const now of [endsAt, endsAt + 30_000, Date.parse('2026-11-25T12:00:00+09:00')]) {
+        expect(goodsAnnouncementOutcome({ ...base, period, now })).toBe(ended);
+        /* 목록이 같은 공지를 전시중지로 보이는 바로 그 시각이다. */
+        expect(goodsAnnouncementState({ enabled: true, startsAt: '2026-11-01T01:00:00Z', endsAt: new Date(endsAt).toISOString() }, now)).toBe('stopped');
+      }
+      expect(goodsAnnouncementState({ enabled: true, startsAt: '2026-11-01T01:00:00Z', endsAt: new Date(endsAt).toISOString() }, endsAt - 1)).toBe('shown');
+      /* 종료만 있는 기간도 같다. 시작만 있거나 기간이 없으면 지난 기간이 아니다. */
+      expect(goodsAnnouncementOutcome({ ...base, period: { startsAt: '', endsAt: period.endsAt }, now: endsAt })).toBe(ended);
+      expect(goodsAnnouncementOutcome({ ...base, period: { startsAt: period.startsAt, endsAt: '' }, now: endsAt })).toBe('저장하면 2026년 11월 1일 10:00부터 공개된 모든 상품의 상세 상단에 보입니다.');
+      expect(goodsAnnouncementOutcome({ ...base, now: endsAt })).toBe('저장하면 공개된 모든 상품의 상세 상단에 보입니다.');
+      /* 홈 팝업을 켜 두었거나 지금 걸려 있으면 그것도 함께 말한다. 전시중지와 저장할 수 없는 입력이 먼저다. */
+      expect(goodsAnnouncementOutcome({ ...base, period, now: endsAt, popup: { startsAt: '2026-11-01T10:00', endsAt: '2026-12-31T23:59' } })).toBe(`${ended} 홈 팝업도 뜨지 않습니다.`);
+      expect(goodsAnnouncementOutcome({ ...base, period, now: endsAt, popupSelectedNow: true })).toBe(`${ended} 홈 팝업에서도 내려갑니다.`);
+      expect(goodsAnnouncementOutcome({ ...base, period, now: endsAt, enabled: false })).toBe('전시중지라 저장해도 고객에게 보이지 않습니다.');
+      expect(goodsAnnouncementOutcome({ ...base, period, now: endsAt, allGoods: false })).toBe('적용 상품을 1개 이상 골라야 저장할 수 있습니다.');
+    });
+    it('홈 팝업 기간만 이미 지났으면 상세에는 보이고 홈 팝업은 뜨지 않는다고 말한다', () => {
+      const popup = { startsAt: '2026-11-01T10:00', endsAt: '2026-11-20T23:59' };
+      const now = Date.parse('2026-11-25T12:00:00+09:00');
+      expect(goodsAnnouncementOutcome({ ...base, popup, now })).toBe('저장하면 공개된 모든 상품의 상세 상단에 보입니다. 홈 팝업 기간이 끝나 홈 팝업은 뜨지 않습니다. 다시 띄우려면 홈 팝업 기간의 종료를 늦춰 주세요.');
+      expect(goodsAnnouncementOutcome({ ...base, popup: { ...popup, endsAt: '2026-12-07T23:59' }, now })).toBe('저장하면 공개된 모든 상품의 상세 상단에 보입니다. 2026년 11월 1일 10:00부터 12월 7일 23:59까지는 홈 팝업으로도 뜹니다.');
+    });
     it('저장할 수 없는 입력은 무엇을 넣어야 하는지 먼저 말한다', () => {
       expect(goodsAnnouncementOutcome({ ...base, allGoods: false })).toBe('적용 상품을 1개 이상 골라야 저장할 수 있습니다.');
       expect(goodsAnnouncementOutcome({ ...base, period: { startsAt: '', endsAt: '' } })).toBe('전시 기간의 시작이나 종료를 넣어야 저장할 수 있습니다.');
@@ -108,7 +138,9 @@ describe('상품 공지 입력과 목록 계약', () => {
   });
   it('결과를 모를 때의 버튼·문장과 홈 팝업 확인창은 공통 낱말 표의 말이다', () => {
     expect(GOODS_ANNOUNCEMENT_CHECK_LABEL).toBe('저장됐는지 확인');
-    expect(GOODS_ANNOUNCEMENT_UNKNOWN_MESSAGE).toBe('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');
+    /* 이 화면은 버튼이 둘이라 어느 것을 먼저 누르는지까지 말한다. [저장됐는지 확인]은 읽기만 하고, 다시 보내는 것은 [다시 저장]이다. */
+    expect(GOODS_ANNOUNCEMENT_UNKNOWN_MESSAGE).toBe('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]으로 먼저 확인하고, 저장되지 않았으면 [다시 저장]을 누릅니다. 같은 내용이 두 번 저장되지 않습니다.');
+    expect(GOODS_ANNOUNCEMENT_STORAGE_UNAVAILABLE).toBe('이 브라우저에서는 화면을 떠났다 돌아오면 저장됐는지 다시 확인할 수 없습니다. 저장 결과가 나올 때까지 이 화면에 있어 주세요.');
     expect(GOODS_ANNOUNCEMENT_POPUP_CONFIRM.message).toContain('지금 홈 팝업으로 걸린 다른 공지가 있으면 내려갑니다');
   });
   it('시작을 포함하고 종료부터 중지하며 전시중지가 기간보다 우선한다', () => {

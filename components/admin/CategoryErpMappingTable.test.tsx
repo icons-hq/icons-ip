@@ -105,7 +105,9 @@ describe('카테고리별 ERP 코드 표', () => {
   it('줄마다 전체 경로와 코드를 보이고 입력은 그 줄의 저장 폼에 묶인다', () => {
     const tree = renderRow('문구 > 키링');
     expect(text(tree)).toContain('문구 > 키링');
-    expect(text(tree)).toContain('code-k');
+    /* ERP 코드를 적는 표라 이름표 없는 코드는 "이미 ERP 코드가 있다"로 읽힌다 — 무엇의 코드인지 적는다. */
+    expect(text(tree)).toContain('카테고리 코드 code-k');
+    expect(find(tree, (element) => element.type === 'code')).toHaveLength(0);
     const form = find(tree, (element) => element.type === 'form')[0];
     expect(form.props.id).toBe('category-erp-mapping-k');
     for (const name of ['erpCode', 'erpName']) {

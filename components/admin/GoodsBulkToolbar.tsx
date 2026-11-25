@@ -238,9 +238,15 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
     try { localStorage.removeItem(`${prefix}${receipt.operationId}`); setRecovery(savedOperation()); }
     catch { setStorageBroken(true); setMessage('결과는 확인했지만 브라우저에 남긴 임시 기록을 지우지 못했습니다. 화면을 새로고침해주세요.'); return; }
     const skippedRows = receipt.state === 'completed' ? receipt.skipped ?? [] : [];
-    setSkipped({ rows: skippedRows, command: dialog?.command }); setPreview(null); setDialog(null);
-    setMessage(receipt.state === 'completed' ? `상품 ${receipt.goodsCount}개${receipt.groupsCount ? ` · 그룹 ${receipt.groupsCount}개` : ''}를 바꿨습니다.${skippedRows.length ? ` 건너뛴 상품 ${skippedRows.length}개는 아래에 있습니다.` : ''}`
-      : receipt.state === 'sealed' ? '저장하지 않고 그만뒀습니다. 지금 내용으로 처음부터 다시 해주세요.' : goodsBulkError(receipt.error));
+    setSkipped({ rows: skippedRows, command: dialog?.command }); setPreview(null); setAcknowledged(false);
+    /* 거절되면 아무것도 바뀌지 않았다. 창과 적어 둔 방식·금액·기간을 그대로 두고 입력 단계로 돌아가 이유를 창 안에 보인다 —
+       "다시 확인해주세요"라고 말하면서 다시 확인할 창을 닫지 않는다. 저장됐거나 그만둔 경우에만 창을 닫는다. */
+    if (receipt.state === 'rejected') { setMessage(goodsBulkError(receipt.error, dialog?.command)); return; }
+    setDialog(null);
+    /* 창이 닫힌 뒤에 남는 한 줄이라 무엇을 바꿨는지(공개로·판매가 변경…)를 앞에 붙인다. 새로고침 뒤 [저장됐는지 확인]으로 온 결과는 명령을 모른다. */
+    const done = dialog ? `${GOODS_BULK_LABELS[dialog.command]} · ` : '';
+    setMessage(receipt.state === 'completed' ? `${done}상품 ${receipt.goodsCount}개${receipt.groupsCount ? ` · 그룹 ${receipt.groupsCount}개` : ''}를 바꿨습니다.${skippedRows.length ? ` 건너뛴 상품 ${skippedRows.length}개는 아래에 있습니다.` : ''}`
+      : '저장하지 않고 그만뒀습니다. 지금 내용으로 처음부터 다시 해주세요.');
     if (receipt.state === 'completed') onCompleted();
   }
   function commit() {
@@ -272,7 +278,9 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
       finally { busy.current = false; }
     });
   }
-  const resultStatus = <>{message ? <p className="text-sm" role="status">{message}</p> : null}<GoodsBulkSkippedList skipped={skipped.rows} command={skipped.command} />
+  /* 결과를 모를 때는 아래 알림 상자가 같은 두 문장과 버튼을 보인다 — 상태 줄에 한 번 더 적지 않는다(저장 응답이 끊겼을 때도, 서버가 모른다고 답했을 때도). */
+  const statusLine = recovery && message === GOODS_BULK_UNCERTAIN ? '' : message;
+  const resultStatus = <>{statusLine ? <p className="text-sm" role="status">{statusLine}</p> : null}<GoodsBulkSkippedList skipped={skipped.rows} command={skipped.command} />
     {recovery ? <AdminNotice role="alert" title="저장됐는지 확인하지 못했습니다." tone="warning"><p>[{GOODS_BULK_RECOVER_LABEL}]을 누르면 같은 내용이 두 번 저장되지 않습니다.</p><div className="mt-2 flex flex-wrap items-center gap-2">
       <Button size="sm" type="button" disabled={pending || session.blocked} onClick={() => recover()}>{GOODS_BULK_RECOVER_LABEL}</Button>
       <Button size="sm" variant="outline" type="button" disabled={pending || session.blocked} onClick={() => recover(true)}>{GOODS_BULK_SEAL_LABEL}</Button></div></AdminNotice> : null}</>;

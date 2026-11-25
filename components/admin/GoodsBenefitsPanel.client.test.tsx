@@ -1,5 +1,5 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const hooks = vi.hoisted(() => ({ state: [] as unknown[], index: 0, refs: [] as { current: unknown }[], refIndex: 0, effects: [] as (() => void | (() => void))[] }));
 const mocks = vi.hoisted(() => ({ save: vi.fn(), load: vi.fn() }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'), useEffect: (effect: () => void | (() => void)) => { hooks.effects.push(effect); },
@@ -11,6 +11,8 @@ vi.mock('@/lib/media', () => ({ publicMediaUrl: (path: string) => { if (!path) t
 import { GoodsBenefitFields, GoodsBenefitsPanel } from './GoodsBenefitsPanel';
 import { GoodsEventTemplatePicker } from './GoodsEventTemplatePicker';
 import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { GoodsPhotoPicker } from './screens/GoodsPhotoLibraryScreen';
 import type { GoodsEventTemplate } from '@/lib/goods-benefits';
 const values = { eventText: '행사 안내', giftText: '사은품 설명', giftImagePaths: [] };
 const snapshot = { ...values, goodId: 'good-1', goodName: '상품', revision: 1, updatedAt: '2026-10-13T14:00:00Z' };
@@ -25,7 +27,10 @@ function render() { hooks.index = 0; hooks.refIndex = 0; hooks.effects = []; ret
 function button(label: string) { const element = all(render()).find(item => item.type === 'button' && text(item) === label); if (!element) throw new Error(label); return element; }
 function submit() { const form = all(render()).find(item => item.type === 'form'); if (!form) throw new Error('missing form'); form.props.onSubmit?.({ preventDefault: () => {} }); }
 async function settle() { for (let i = 0; i < 18; i++) await Promise.resolve(); }
-beforeEach(() => { vi.clearAllMocks(); hooks.state = [{ ...snapshot }, { ...values }]; hooks.refs = []; hooks.effects = []; });
+let confirm: ReturnType<typeof stubAdminConfirm>;
+beforeEach(() => { vi.clearAllMocks(); hooks.state = [{ ...snapshot }, { ...values }]; hooks.refs = []; hooks.effects = []; confirm = stubAdminConfirm(true); });
+afterEach(() => { confirm.restore(); });
+const photoPath = (index: number) => `public-media/catalog/good/93800000-0000-4000-8000-00000000070${index}.webp`;
 it('keeps an unknown write on one fixed request and blocks same-render double submission', async () => {
   let finish!: (value: unknown) => void;
   mocks.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce({ ok: true, value: { ...snapshot, revision: 2 } });
@@ -78,6 +83,48 @@ it.each(['response', 'exception'])('ignores a late initial read %s error after a
   expect(hooks.state[0]).toMatchObject({ eventText: '최신 안내', revision: 2 });
   expect(text(render())).toContain('저장된 내용으로 다시 불러왔습니다.');
   expect(hooks.state[5]).toBe(false);
+});
+
+/*
+ * G1(2026-11-25 리뷰, 화면 규칙 2·5): 사은품 이미지 1에 넣은 사진을 이미지 2에서 또 고를 수 있었고, 저장할 때에야 네 가지 원인을 한 문장으로 거절했다.
+ * 다른 칸에 넣은 사진은 선택창에서 '선택됨'으로 막고, 저장 전 안내는 원인 하나만 말한다.
+ */
+it('사은품 사진 선택창은 다른 칸에 이미 넣은 사진을 선택됨으로 넘겨 다시 고르지 못하게 한다', () => {
+  hooks.state[1] = { ...values, giftImagePaths: [photoPath(1), '', photoPath(3)] };
+  const pickButtons = () => all(render()).filter(item => item.type === 'button' && text(item) === '사진 보관함에서 고르기');
+  const picker = () => all(render()).find(item => item.type === GoodsPhotoPicker) as unknown as { props: { pickedPaths: string[]; onSelect: (photo: { imagePath: string }) => void; onClose: () => void } } | undefined;
+  expect(picker()).toBeUndefined();
+  /* 둘째 칸(빈 칸)을 고를 때: 첫째·셋째 칸의 사진은 고를 수 없다. */
+  pickButtons()[1].props.onClick?.();
+  expect(picker()!.props.pickedPaths).toEqual([photoPath(1), photoPath(3)]);
+  picker()!.props.onSelect({ imagePath: photoPath(2) });
+  expect((hooks.state[1] as typeof values).giftImagePaths).toEqual([photoPath(1), photoPath(2), photoPath(3)]);
+  expect(picker()).toBeUndefined();
+  /* 이미 사진이 있는 칸을 다른 사진으로 바꿀 때: 자기 칸의 사진은 막지 않는다(다시 골라도 같은 값이다). */
+  pickButtons()[0].props.onClick?.();
+  expect(picker()!.props.pickedPaths).toEqual([photoPath(2), photoPath(3)]);
+});
+it('저장하기 전에 무엇이 안 되는지 원인 하나만 말한다 — 같은 사진, 설명 없음', () => {
+  hooks.state[1] = { ...values, giftImagePaths: [photoPath(1), photoPath(1)] };
+  submit();
+  expect(mocks.save).not.toHaveBeenCalled();
+  expect(text(render())).toContain('같은 사진이 두 칸에 들어 있습니다. 한 칸의 사진을 빼거나 다른 사진으로 바꿔 주세요.');
+  expect(text(render())).not.toContain('100자');
+  hooks.state[1] = { ...values, giftText: ' ', giftImagePaths: [photoPath(1)] };
+  submit();
+  expect(mocks.save).not.toHaveBeenCalled();
+  expect(all(render()).filter(item => (item.props as { role?: string }).role === 'alert').map(item => text(item))).toEqual(['사은품 사진을 넣었으면 사은품 설명도 적어 주세요.']);
+});
+/* G6: 적은 내용이 저장된 것과 다를 때만 묻는다. */
+it('[저장된 내용으로 다시 불러오기]는 적은 내용이 저장된 것과 다를 때만 사라진다고 묻는다', async () => {
+  mocks.load.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 2 } });
+  button('저장된 내용으로 다시 불러오기').props.onClick?.(); await settle();
+  expect(confirm).not.toHaveBeenCalled(); expect(mocks.load).toHaveBeenCalledOnce();
+  hooks.state[1] = { ...values, eventText: '고치던 문구' };
+  confirm.restore(); confirm = stubAdminConfirm(false);
+  button('저장된 내용으로 다시 불러오기').props.onClick?.(); await settle();
+  expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적은 내용이 사라집니다.');
+  expect(mocks.load).toHaveBeenCalledOnce(); expect(hooks.state[1]).toEqual({ ...values, eventText: '고치던 문구' });
 });
 
 it('이벤트 템플릿은 공용 선택창에서 고르고, 지금 적어 둔 문구를 선택창에 알려 바꾸기 전에 묻게 한다', () => {

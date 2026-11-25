@@ -39,17 +39,19 @@ function AfterSalesPhonePrefill({ phone, onFill }: { phone: string; onFill: (pho
   </span>;
 }
 
-export function GoodsAfterSalesFields({ values, onChange, forTemplate = false }: {
+export function GoodsAfterSalesFields({ values, onChange, forTemplate = false, readOnly = false }: {
   values: GoodsAfterSalesValues; onChange: (value: GoodsAfterSalesValues) => void;
   /** 템플릿 편집 창이면 true. 템플릿에는 상품도 상품정보제공고시도 없어, 고시 연락처 한 줄과 미리 채움을 두지 않는다. */
   forTemplate?: boolean;
+  /** 고칠 수는 없지만 글자를 긁어 복사할 수 있게 둔다(다른 사람이 먼저 바꿔 저장이 멈춘 동안 — 잠근 칸에서는 복사가 안 되는 브라우저가 있다). */
+  readOnly?: boolean;
 }) {
   const update = (key: keyof GoodsAfterSalesValues, value: string, limit: number) => onChange({ ...values, [key]: Array.from(value).slice(0, limit).join('') });
   return <>
-    <label className={`${FIELD_CLASS} sm:max-w-xs`} data-goods-after-sales-field="phone"><span className="font-medium">A/S 전화번호 (필수)</span><input className={GOOD_INPUT_CLASS} data-slot="input" type="tel" value={values.phone} maxLength={40} required onChange={event => update('phone', event.target.value, 20)} /><small className={COUNT_CLASS}>{Array.from(values.phone).length}/20</small></label>
+    <label className={`${FIELD_CLASS} sm:max-w-xs`} data-goods-after-sales-field="phone"><span className="font-medium">A/S 전화번호 (필수)</span><input className={GOOD_INPUT_CLASS} data-slot="input" type="tel" value={values.phone} maxLength={40} required readOnly={readOnly} onChange={event => update('phone', event.target.value, 20)} /><small className={COUNT_CLASS}>{Array.from(values.phone).length}/20</small></label>
     {forTemplate ? null : <AfterSalesPhonePrefill phone={values.phone} onFill={(phone) => update('phone', phone, 20)} />}
-    <label className={FIELD_CLASS} data-goods-after-sales-field="guide"><span className="font-medium">A/S 안내 (필수)</span><textarea className={TEXTAREA_CLASS} data-slot="textarea" value={values.guide} maxLength={2600} rows={6} required placeholder="예: 접수 방법, 처리 기간, 무상 수리 범위" onChange={event => update('guide', event.target.value, 1300)} /><small className={COUNT_CLASS}>{Array.from(values.guide).length}/1,300</small></label>
-    <label className={FIELD_CLASS} data-goods-after-sales-field="seller-notes"><span className="font-medium">판매자 특이사항 (선택)</span><textarea className={TEXTAREA_CLASS} data-slot="textarea" value={values.sellerSpecialNotes} maxLength={2600} rows={6} placeholder="예: 배송 기간·방법, 교환·반품 추가 비용, 판매 지역·수량" onChange={event => update('sellerSpecialNotes', event.target.value, 1300)} /><small className={COUNT_CLASS}>{Array.from(values.sellerSpecialNotes).length}/1,300</small></label>
+    <label className={FIELD_CLASS} data-goods-after-sales-field="guide"><span className="font-medium">A/S 안내 (필수)</span><textarea className={TEXTAREA_CLASS} data-slot="textarea" value={values.guide} maxLength={2600} rows={6} required readOnly={readOnly} placeholder="예: 접수 방법, 처리 기간, 무상 수리 범위" onChange={event => update('guide', event.target.value, 1300)} /><small className={COUNT_CLASS}>{Array.from(values.guide).length}/1,300</small></label>
+    <label className={FIELD_CLASS} data-goods-after-sales-field="seller-notes"><span className="font-medium">판매자 특이사항 (선택)</span><textarea className={TEXTAREA_CLASS} data-slot="textarea" value={values.sellerSpecialNotes} maxLength={2600} rows={6} readOnly={readOnly} placeholder="예: 배송 기간·방법, 교환·반품 추가 비용, 판매 지역·수량" onChange={event => update('sellerSpecialNotes', event.target.value, 1300)} /><small className={COUNT_CLASS}>{Array.from(values.sellerSpecialNotes).length}/1,300</small></label>
     <p className="text-xs text-muted-foreground">{forTemplate ? '템플릿을 가져간 상품의 상세 하단에 A/S 안내와 판매자 특이사항이 보입니다.' : 'A/S 안내와 판매자 특이사항은 상품 상세 하단에 보입니다.'}</p>
   </>;
 }

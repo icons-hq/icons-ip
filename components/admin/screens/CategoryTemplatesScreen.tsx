@@ -107,7 +107,9 @@ export function CategoryTemplateRegisterDialog({ categories, busy, uncertain, st
     if (dialog?.isConnected && !dialog.open) { try { dialog.showModal(); } catch { /* 문서에서 빠지는 중이면 그대로 둔다. */ } }
     if (await adminConfirm({ title: '고른 카테고리를 등록하지 않고 닫을까요?', message: `고른 ${picked.length}개는 아직 등록되지 않았습니다. [${picked.length}개 등록]을 눌러야 등록됩니다.`, confirmLabel: '등록하지 않고 닫기' })) onClose();
   }
+  /* 이 창은 [N개 등록]을 눌러야 등록된다. 아래 버튼은 고른 것을 넣고 닫는 [완료](사진 보관함)가 아니라 그냥 닫는 버튼이라 [닫기]라고 부른다. */
   return <AdminPickerDialog<RegistrableTemplateCategory>
+    closeLabel="닫기"
     emptyText="일치하는 카테고리가 없습니다."
     excludedNote="이미 등록한 카테고리, 하위 카테고리가 있는 카테고리, 보관한 카테고리는 목록에서 뺐습니다."
     footer={<div className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/40 p-3" data-category-templates="register" ref={footer}>
@@ -191,7 +193,8 @@ export function CategoryTemplatesScreen({ categories = [] }: { categories?: Admi
   const searchFields = <>
     <div className={CONSOLE_FILTER_FIELDS_CLASS}>
       <label className={`${CONSOLE_FILTER_LABEL_CLASS} min-w-[min(100%,15rem)] flex-1`}>카테고리 이름·코드<Input type="search" value={query} maxLength={120} disabled={locked} onChange={event => setQuery(event.target.value)} /></label>
-      <label className={CONSOLE_FILTER_LABEL_CLASS}>보관 상태<AdminSelect value={archived ? 'archived' : 'active'} disabled={locked} onChange={event => void load(1, search, event.target.value === 'archived')} wrapperClassName="w-40"><option value="active">사용 중</option><option value="archived">보관됨</option></AdminSelect></label>
+      {/* 보관 상태는 고르는 순간 조회한다. 검색칸에 적어 둔 글자로 함께 조회해, 칸에는 글자가 있는데 목록에는 걸리지 않은 상태를 만들지 않는다. */}
+      <label className={CONSOLE_FILTER_LABEL_CLASS}>보관 상태<AdminSelect value={archived ? 'archived' : 'active'} disabled={locked} onChange={event => void load(1, query, event.target.value === 'archived')} wrapperClassName="w-40"><option value="active">사용 중</option><option value="archived">보관됨</option></AdminSelect></label>
     </div>
     <ConsoleFilterActions>
       <Button variant="ghost" type="button" disabled={locked} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</Button>

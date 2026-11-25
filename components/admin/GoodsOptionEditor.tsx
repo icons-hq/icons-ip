@@ -21,7 +21,7 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { AdminHelpTip } from './console/AdminHelpTip';
 import { AdminField } from './console/AdminKit';
-import { ErpItemPickButton, erpItemPickSummary } from './ErpItemPicker';
+import { ErpItemPickButton, ErpItemPickScope, erpItemPickSummary, type ErpItemPickTarget } from './ErpItemPicker';
 import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TABLE_FRAME_CLASS, GoodAmountField, GoodChoiceCard, GoodChoiceCards, GoodReadback } from './GoodEditorParts';
 import { GoodsOptionImportPicker } from './GoodsOptionImportDialog';
 import { AUTO_CODE_BADGE } from './GoodIdentifierFields';
@@ -84,7 +84,7 @@ const TABLE_HEAD_CLASS = 'px-3 text-xs font-medium whitespace-normal text-muted-
 const TABLE_CELL_CLASS = 'px-3 py-2.5 align-top whitespace-normal';
 /* 옵션 상세 안내 색(10/07 3차 리뷰): ERP 적용 성공은 성공색, 적용 실패·확인 필요는 경고색. 같은 칸의 재고 부족 경고는 경고색의 더 작은 글자. */
 const ERP_MESSAGE_CLASS = { success: 'mt-1 block text-xs text-[var(--wc-success)]', warning: 'mt-1 block text-xs text-[var(--wc-warning)]' } as const;
-/* 고른 ERP 품목을 되읽는 한 줄. 직접 적은 줄에는 없다. 적어 둔 바코드가 품목과 다를 때만 경고색이다. */
+/* 방금 ERP 품목에서 가져온 값을 되읽는 한 줄(가져온 직후에만 보인다). 적어 둔 바코드가 품목과 다를 때만 경고색이다. */
 const ERP_PICKED_CLASS = 'mt-1 block text-xs text-muted-foreground wrap-anywhere';
 const LOW_STOCK_CLASS = 'mt-1 block text-[11px] leading-normal text-[var(--wc-warning)]';
 
@@ -135,6 +135,16 @@ function OptionDetailTable({ rows, single, predictedCodes, savedCodes, update, e
     }
     setCodesOpen(false);
   }
+  /* [ERP 품목 고르기]가 줄마다 쓰는 것. 옵션이 여럿이면 표 전체를 함께 넘겨, 고른 뒤 아래의 빈 줄로 이어서 고르게 한다(규칙 6). */
+  const pickTargets: ErpItemPickTarget[] = canSearchErp ? rows.map((row, index) => {
+    const key = goodsOptionRowKey(row), optionName = row.name.trim(), erpCode = (row.erpCode ?? '').trim(), erpName = (row.erpName ?? '').trim();
+    return {
+      key, target: `옵션 ${index + 1}${optionName ? `(${optionName})` : ''}`, empty: !erpCode && !erpName, currentCode: erpCode || null,
+      /* 같은 상품의 다른 옵션이 쓰는 품목은 목록에서 고를 수 없게 한다(한 ERP 품목은 옵션 하나에만 연결된다). */
+      blockedReason: (item) => selectErpItemForGoodsOption(rows, key, item).ok ? null : '다른 옵션에 넣은 품목',
+      onSelect: (item) => onErpSelect(key, item),
+    };
+  }) : [];
   /* 펼침 상태는 저장 시도 뒤에도 유지한다(R14). */
   return <GoodWorkspaceDetails stateId="good-option-details" className="group/option-details min-w-0 rounded-lg border" data-good-option-details="">
     <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none group-open/option-details:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
@@ -163,24 +173,24 @@ function OptionDetailTable({ rows, single, predictedCodes, savedCodes, update, e
             <TableHead scope="col" className={`w-[17%] ${TABLE_HEAD_CLASS}`}>{optionCode}<AdminHelpTip className="ml-1 align-middle" help={GOOD_OPTIONS_HELP.optionAutoCode} label={optionCode} /><span className={HEAD_HINT_CLASS}>{codesOpen ? '직접 바꾸는 중' : AUTO_CODE_BADGE}</span></TableHead>
             <TableHead scope="col" className={`w-[14%] ${TABLE_HEAD_CLASS}`}>안전재고 기준</TableHead>
           </TableRow></TableHeader>
-          <TableBody>{rows.map((row, index) => {
+          <TableBody><ErpItemPickScope>{rows.map((row, index) => {
             const key = goodsOptionRowKey(row);
             const erp = erpRows[key];
             const erpSalePrice = erp?.item?.salePrice ?? null;
             const tone = erp?.warning ? 'warning' : 'success';
             const picked = erp?.item ? erpItemPickSummary(row, erp.item) : null;
-            const optionName = row.name.trim();
+            const pick = pickTargets[index];
             return <TableRow key={key} data-variant-id={row.id ?? undefined}>
               <TableCell className={`${TABLE_CELL_CLASS} wrap-anywhere`}><div className="flex min-w-0 flex-col items-start gap-1.5">
                 {single
                   ? <input className={GOOD_INPUT_CLASS} data-slot="input" readOnly={structureLocked} aria-label="옵션 이름" value={row.name} maxLength={200} onChange={(event) => update(key, { name: event.target.value })} />
                   : <span className="max-w-full">{row.name || `옵션 ${index + 1}`}</span>}
                 {/* 줄의 맨 앞에 둔다: 고르면 오른쪽 세 칸(ERP 코드·바코드·ERP 품명)이 채워지고, 손으로 적기 전에 먼저 눈에 띈다.
-                    같은 상품의 다른 옵션이 쓰는 품목은 목록에서 고를 수 없게 한다(한 ERP 품목은 옵션 하나에만 연결된다). */}
-                {canSearchErp && <ErpItemPickButton ariaLabel={single ? 'ERP 품목 고르기' : `옵션 ${index + 1} ERP 품목 고르기`}
-                  target={single ? undefined : `옵션 ${index + 1}${optionName ? `(${optionName})` : ''}`}
-                  blockedReason={(item) => selectErpItemForGoodsOption(rows, key, item).ok ? null : '다른 옵션에 넣은 품목'}
-                  onSelect={(item) => onErpSelect(key, item)} />}
+                    창은 이 줄에 적어 둔 ERP 품명·ERP 코드(없으면 이 표에서 마지막으로 찾은 검색어)로 열린다. */}
+                {pick && <ErpItemPickButton ariaLabel={single ? 'ERP 품목 고르기' : `옵션 ${index + 1} ERP 품목 고르기`}
+                  target={single ? undefined : pick.target} blockedReason={pick.blockedReason} onSelect={pick.onSelect}
+                  rowText={(row.erpName ?? '').trim() || (row.erpCode ?? '').trim()} currentCode={pick.currentCode}
+                  queue={single ? undefined : pickTargets} queueKey={key} />}
               </div></TableCell>
               <TableCell className={TABLE_CELL_CLASS}><input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} ERP 코드`} value={row.erpCode ?? ''} maxLength={120} placeholder="엑셀의 '코드'" onChange={(event) => update(key, { erpCode: event.target.value })} /></TableCell>
               <TableCell className={TABLE_CELL_CLASS}><input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 바코드`} value={row.barcode ?? ''} maxLength={120} placeholder="엑셀의 '바코드'" onChange={(event) => update(key, { barcode: event.target.value })} /></TableCell>
@@ -201,7 +211,7 @@ function OptionDetailTable({ rows, single, predictedCodes, savedCodes, update, e
                 {row.lowStockThreshold != null && row.stockQty <= row.lowStockThreshold && <small className={LOW_STOCK_CLASS} data-good-option-low-stock="" data-tone="warning">재고 부족 · 기준 {row.lowStockThreshold.toLocaleString('ko-KR')}개 이하</small>}
               </TableCell>
             </TableRow>;
-          })}</TableBody>
+          })}</ErpItemPickScope></TableBody>
         </Table>
       </div>
       {notice}

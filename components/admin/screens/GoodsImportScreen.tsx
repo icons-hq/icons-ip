@@ -24,8 +24,10 @@ import type { goodsImportView } from '@/lib/admin/goods-import.server';
 import {
   parseRememberedSabangnetTargets,
   rememberSabangnetTargets,
+  sabangnetPriceReadback,
   SABANGNET_GALLERY_LIMIT,
   SABANGNET_IMAGE_LIMIT,
+  SABANGNET_PRICE_REQUIRED,
   SABANGNET_TARGETS,
   suggestSabangnetBrandIps,
   suggestSabangnetTargets,
@@ -142,6 +144,8 @@ export function SabangnetMappingStep({
   const unknown = columnStates.filter((state) => state === 'unknown' || state === 'guessed').length;
   /* 숫자 앞뒤에 JSX 줄바꿈이 끼지 않게 한 문장으로 만든다. */
   const summary = `${inspection.fileName} · 엑셀 ${inspection.headerRow}번째 줄을 열 이름으로 읽었습니다 · 상품 ${inspection.rowCount}줄${unknown ? ` · 확인이 필요한 열 ${unknown}개` : ''}`;
+  /* 돈이 걸린 연결은 결과를 되읽는다 — 지금 연결로 판매가·즉시할인이 어떻게 들어가는지, 금액 열이 빠졌으면 무엇을 골라야 하는지. */
+  const priceReadback = sabangnetPriceReadback(inspection.columns.map((column) => column.header), targets);
   return (
     <AdminSectionCard title="2. 열 연결·IP 선택">
       <p className="text-sm text-muted-foreground">{summary}</p>
@@ -208,6 +212,16 @@ export function SabangnetMappingStep({
           </TableBody>
         </Table>
       </div>
+      {priceReadback ? (
+        <p className="rounded-lg bg-muted/40 px-3 py-2 text-sm text-foreground" data-sabangnet-price="readback" role="status">
+          {priceReadback}
+        </p>
+      ) : (
+        <p className={WARNING} data-sabangnet-price="missing" role="status">
+          <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+          {SABANGNET_PRICE_REQUIRED}
+        </p>
+      )}
       {brands.length ? (
         <div className="overflow-hidden rounded-lg border">
           <Table>

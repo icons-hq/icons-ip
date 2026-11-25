@@ -16,11 +16,18 @@ export function goodsAfterSalesProblem(values: GoodsAfterSalesValues): string | 
   return parseGoodsAfterSalesValues(values) ? null : '저장할 수 없는 글자가 들어 있습니다. 다른 곳에서 붙여 넣은 글이면 그 부분을 직접 다시 적어 주세요.';
 }
 
+/** [안내 해제]는 누르는 즉시 빈 값으로 저장한다. 고객 화면에서 내려가는 것과 지워지는 것을 먼저 말한다(화면 규칙 7). */
+export const GOODS_AFTER_SALES_CLEAR_CONFIRM = { title: 'A/S 안내를 해제할까요?', message: '상품 상세에서 A/S 안내와 판매자 특이사항이 내려갑니다. 적어 둔 내용도 지워집니다.', confirmLabel: '안내 해제' } as const;
+/** 저장된 내용과 지금 적은 내용이 같은가(다시 불러오기 전에 묻을지 가린다). */
+export function sameGoodsAfterSales(left: GoodsAfterSalesValues, right: GoodsAfterSalesValues): boolean {
+  return left.phone === right.phone && left.guide === right.guide && left.sellerSpecialNotes === right.sellerSpecialNotes;
+}
+
 /** 운영자 화면 전용 문구(ADR-0014 운영 어휘). 고객 화면은 이 모듈을 쓰지 않는다. */
 export function goodsAfterSalesError(message?: string): string {
   if (message === 'operation_conflict') return SAVE_MISMATCH_MESSAGE;
   /* 상품의 안내는 저장된 내용을 다시 불러와 고치고, 템플릿 편집 창은 그 자리에서 두 길을 고른다. */
-  if (message === 'goods_after_sales_changed') return `${CHANGED_BY_OTHER} 적은 내용은 그대로 있습니다. 필요한 내용을 따로 적어 둔 뒤 [저장된 내용으로 다시 불러오기]를 누르고 다시 고쳐 주세요.`;
+  if (message === 'goods_after_sales_changed') return `${CHANGED_BY_OTHER} 적은 내용은 그대로 있습니다. 필요한 내용을 복사해 둔 뒤 [저장된 내용으로 다시 불러오기]를 누르고 다시 고쳐 주세요.`;
   if (message === 'goods_after_sales_template_changed') return `${CHANGED_BY_OTHER} 적은 내용은 그대로 있습니다.`;
   if (message === 'good_not_found') return '상품을 찾을 수 없거나 보관된 상품입니다. 상품 목록에서 현재 상태를 확인해주세요.';
   if (message === 'operator_capability_required') return CATALOG_PERMISSION_MESSAGE;

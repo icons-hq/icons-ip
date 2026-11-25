@@ -24,6 +24,7 @@ import { AdminLabelWithHelp } from './console/AdminHelpTip';
 import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GoodChoiceCard, GoodChoiceCards } from './GoodEditorParts';
 import { GOODS_ADDITIONAL_INTRO, GoodsAdditionalLinks } from './GoodsAdditionalLinks';
 import { GoodsBenefitFields, withGiftImage } from './GoodsBenefitsPanel';
+import { otherGiftImagePaths } from '@/lib/admin/goods-benefits-messages';
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
 import { GoodsSizeChartFields } from './GoodsSizeChartFields';
 import { GoodsListingColorFields } from './GoodsListingColorsPanel';
@@ -162,7 +163,8 @@ export function GoodWorkspaceBenefitsSection({ serverError }: { serverError?: st
     <p className="text-muted-foreground">상품 상세에 보이는 안내입니다. 사은품 재고와 출고는 따로 챙겨야 합니다.</p>
     <GoodsBenefitFields values={value} onChange={set} onPickPhoto={setPicker} onOpenTemplates={() => setTemplates(true)} fieldPrefix="goods-workspace-benefit-image" />
     <SectionError message={error ?? serverError} />
-    {picker !== null ? <GoodsPhotoPicker onClose={() => setPicker(null)} onSelect={(photo) => { set((current) => withGiftImage(current, picker, photo.imagePath)); setPicker(null); }} /> : null}
+    {/* 다른 칸에 이미 넣은 사진은 선택창에서 다시 고를 수 없다(저장된 상품의 패널과 같다). */}
+    {picker !== null ? <GoodsPhotoPicker pickedPaths={otherGiftImagePaths(value, picker)} onClose={() => setPicker(null)} onSelect={(photo) => { set((current) => withGiftImage(current, picker, photo.imagePath)); setPicker(null); }} /> : null}
     {/* 템플릿 선택창은 적어 둔 값이 있을 때만 바꾸기 전에 묻는다(이 파일의 세 선택창 모두). */}
     {templates ? <GoodsEventTemplatePicker current={value.eventText} onClose={() => setTemplates(false)} onSelect={(template) => set((current) => ({ ...current, eventText: template.eventText }))} /> : null}
   </DraftBody>;

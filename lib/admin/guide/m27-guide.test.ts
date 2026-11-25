@@ -289,7 +289,7 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
       ['components/admin/GoodsBenefitsPanel.tsx', '이벤트 템플릿 고르기'],
       ['components/admin/GoodsAfterSalesPanel.tsx', 'A/S 템플릿 고르기'],
       ['components/admin/GoodSizeChartPanel.tsx', '사이즈 템플릿 고르기'],
-      ['lib/admin/goods-template-save.ts', '최신 내용 위에 내 입력으로 저장'],
+      ['lib/admin/goods-template-save.ts', '내 입력으로 덮어쓰기'],
       ['lib/admin/goods-template-save.ts', '내 입력 버리기'],
       ['components/admin/screens/CategoryTemplatesScreen.tsx', '자주 쓰는 카테고리 등록'],
       ['components/admin/GoodEditor.tsx', '임시저장 고르기'],

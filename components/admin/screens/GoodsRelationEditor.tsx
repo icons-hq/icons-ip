@@ -5,8 +5,8 @@ import { useState, useTransition, type FormEvent } from 'react';
 import { saveGoodsRelationAction } from '@/app/admin/goods-relation-actions';
 import { adminConfirm } from '@/lib/admin/confirm';
 import {
-  GOODS_RELATIONS_PATH, GOODS_RELATION_KINDS, RELATION_SAVE_UNKNOWN, goodsRelationDraft, relationCustomerView, relationDefaultTitle, relationDraftState,
-  relationGoodStatus, relationLimit, relationLimitBlock, relationLossText, relationPeriodReadback, relationReadback, relationShownGoods,
+  GOODS_RELATIONS_PATH, GOODS_RELATION_KINDS, RELATION_LEAVE_UNKNOWN, RELATION_SAVE_UNKNOWN, goodsRelationDraft, relationCustomerView, relationDefaultTitle, relationDraftState,
+  relationGoodStatus, relationLimit, relationLimitBlock, relationLossText, relationPeriodReadback, relationReadback, relationShownGoods, relationVisualError,
   type GoodsRelationDraft, type GoodsRelationGood, type GoodsRelationKind, type GoodsRelationValues,
 } from '@/lib/admin/goods-relations';
 import { relationVisualDraft, type GoodsRelationVisual } from '@/lib/good-relation-visual';
@@ -58,7 +58,9 @@ export function GoodsRelationEditor({ initial, backHref, adultGoodsHidden = fals
   const otherComposition = draft.kind === 'other_composition';
   const visual = otherComposition ? null : draft.visual ?? null, limit = relationLimit(draft.kind, Boolean(visual));
   const dirty = JSON.stringify(draft) !== baseline;
-  useAdminLeaveGuard({ dirty, blocked });
+  /* 저장을 보내는 중·이미지를 올리는 중에는 떠나지 못하게 막는다. 저장 결과를 모르는 동안에는 막지 않고 묻는다 —
+     연결이 돌아오지 않을 때 [목록]을 눌러도 아무 일도 없으면 나갈 길이 없다(칸은 그대로 잠가 둔다). */
+  useAdminLeaveGuard({ dirty: dirty || Boolean(retry), blocked: pending || uploading, message: retry ? RELATION_LEAVE_UNKNOWN : undefined });
   const update = (value: Partial<GoodsRelationDraft>) => { setDraft(current => ({ ...current, ...value })); setNotice(''); };
 
   /* 유형을 바꾼 뒤의 이미지: 유사·다른 구성은 이미지를 쓰지 않고, 코디는 늘 이미지가 있다. */
@@ -147,8 +149,9 @@ export function GoodsRelationEditor({ initial, backHref, adultGoodsHidden = fals
   const periodReadback = relationPeriodReadback(draft, openedAt);
   const unsaved = dirty || !draft.revision;
   /* 저장 막대의 결과 한 줄: 지금 저장하면 고객에게 보이는가. 새 연관상품의 기본값 '전시중지'도 여기서 알린다. 저장할 수 없는 입력이면 그것부터 말한다. */
-  const readback = draft.goods.length < 2 ? '상품을 2개 이상 담아야 저장할 수 있습니다.' : periodReadback.invalid ? periodReadback.text
-    : relationReadback(relationCustomerView({ ...audience, state: relationDraftState(draft, openedAt) }), { kind: draft.kind, unsaved, startText: periodReadback.startText });
+  const visualProblem = relationVisualError(draft.kind, visual);
+  const readback = draft.goods.length < 2 ? '상품을 2개 이상 담아야 저장할 수 있습니다.' : periodReadback.invalid ? periodReadback.text : visualProblem
+    ?? relationReadback(relationCustomerView({ ...audience, state: relationDraftState(draft, openedAt) }), { kind: draft.kind, unsaved, startText: periodReadback.startText });
   /* 미리보기는 전시 여부·기간과 상관없이 담은 상품만으로 그린다. 그릴 것이 없으면 그 까닭을 적는다. */
   const content = relationCustomerView({ ...audience, state: 'active' });
 
@@ -201,7 +204,7 @@ export function GoodsRelationEditor({ initial, backHref, adultGoodsHidden = fals
       <div className="mx-auto flex w-full max-w-[720px] flex-col gap-4 rounded-xl border p-4 data-[mobile=true]:w-[390px] data-[mobile=true]:max-w-full" data-mobile={mobilePreview} data-relation-preview="surface">{!content.shown ? <p>{relationReadback(content, { kind: draft.kind, unsaved, startText: null })}</p> : <>
       <p className="text-muted-foreground">{otherComposition ? `${previewGood?.name ?? '공개 상품'} 상세에 보이는 모습` : draft.kind === 'together' && !visual ? `${representative?.name ?? '대표 상품'} 상세에 보이는 모습` : '담은 상품 각각의 상세에 보이는 모습'}</p><h3 className="text-base font-medium">{draft.title}</h3>
       {visual?.imagePath && publicMediaUrl(visual.imagePath) ? <><RelationImageMap key={visual.imagePath} src={publicMediaUrl(visual.imagePath)!} alt={visual.alt || '연관상품 이미지'} selectedId={previewPoint} onSelect={setPreviewPoint} points={visual.hotspots.flatMap(point => { const good = shown.find(item => item.id === point.goodId); return good ? [{ ...point, name: good.name }] : []; })} /><p>{visual.description}</p>{previewPoint ? <p aria-live="polite">{shown.find(good => good.id === previewPoint)?.name}</p> : null}</> : null}
-      <ul className="m-0 grid list-none grid-cols-2 gap-3 p-0">{previewGoods.map(good => <li className="rounded-lg border p-4" key={good.id}>{good.name}{otherComposition && good.compositionLabel?.trim() ? <small className="mt-1.5 block text-xs text-muted-foreground wrap-anywhere">{good.compositionLabel.trim()}</small> : null}{good.visibility === 'restricted' ? <small className="mt-1.5 block text-xs text-muted-foreground">{relationGoodStatus(good).note}</small> : null}</li>)}</ul>
+      <ul className="m-0 grid list-none grid-cols-2 gap-3 p-0">{previewGoods.map(good => <li className="rounded-lg border p-4" key={good.id}>{good.name}{otherComposition && good.compositionLabel?.trim() ? <small className="mt-1.5 block text-xs text-muted-foreground wrap-anywhere">{good.compositionLabel.trim()}</small> : null}{good.visibility === 'restricted' ? <small className="mt-1.5 block text-xs text-muted-foreground">{relationGoodStatus(good, adultGoodsHidden).note}</small> : null}</li>)}</ul>
       <small className="text-xs text-muted-foreground">{readback}</small></>}</div></div></CustomerServiceDialog> : null}
   </section>;
 }

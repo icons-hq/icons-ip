@@ -121,7 +121,16 @@ describe('상품 일괄 변경 계약', () => {
   it('오류 문장은 무엇이 문제인지와 다음에 할 일을 함께 말한다', () => {
     expect(goodsBulkError('operator_capability_required')).toBe('상품을 바꿀 권한이 없습니다. 최고 관리자에게 매니저 관리에서 상품 관리 권한을 요청해주세요.');
     expect(goodsBulkError('goods_category_required')).toBe('대표 카테고리가 없어 공개할 수 없습니다. 상품 수정에서 대표 카테고리를 골라주세요.');
-    expect(goodsBulkError('goods_bulk_all_skipped')).toContain('바꿀 수 있는 상품이 없습니다.');
+    /* 바꿀 수 있는 상품이 없을 때: 명령을 모르면 어느 명령에나 맞는 말로, 기간 할인 걸기·중지는 그 명령에서 건너뛰는 이유를 모두 적는다(DB의 건너뛰기 이유와 같다). */
+    expect(goodsBulkError('goods_bulk_all_skipped')).toBe('바꿀 수 있는 상품이 없습니다. 상품의 지금 상태를 확인한 뒤 다시 해주세요.');
+    expect(goodsBulkError('goods_bulk_all_skipped', 'archive')).toBe(goodsBulkError('goods_bulk_all_skipped'));
+    expect(goodsBulkError('goods_bulk_all_skipped')).not.toContain('할인');
+    const discount = goodsBulkError('goods_bulk_all_skipped', 'discount');
+    for (const reason of ['기간이 겹치는 할인', '기간 없는 즉시할인', '사용 중인 옵션이 없는', '할인가가 1원 미만', '보관된 상품']) expect(discount, reason).toContain(reason);
+    for (const code of ['price_period_overlap', 'instant_discount_active', 'price_period_variant_inactive', 'goods_bulk_price_invalid']) expect(GOODS_BULK_SKIP_LABELS[code], code).toBeTruthy();
+    expect(goodsBulkError('goods_bulk_all_skipped', 'discount_stop')).toContain('멈출 기간 할인이 없습니다.');
+    /* 다른 코드는 명령을 줘도 같은 문장이다(목록 바로 수정이 문장으로 견준다). */
+    expect(goodsBulkError('goods_bulk_no_active_discount', 'discount_stop')).toBe(goodsBulkError('goods_bulk_no_active_discount'));
     for (const code of ['goods_bulk_changed', 'goods_kc_review_required', 'good_archived', 'goods_compare_at_price_invalid', 'unknown_code']) expect(goodsBulkError(code), code).not.toContain('해당');
   });
   it('할인이 아닌 명령의 완료 영수증도 건너뛴 상품과 이유를 싣는다', () => {

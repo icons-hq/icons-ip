@@ -8,7 +8,8 @@ import { parseGoodsSizeTemplateDraft, type GoodsSizeTemplateRequest } from '@/li
 import { goodsSizeChartError } from '@/lib/admin/goods-size-chart-messages';
 import {
   CHANGED_BY_OTHER, SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE, TEMPLATE_CLOSE_DIRTY_CONFIRM, TEMPLATE_DISCARD_INPUT_CONFIRM, TEMPLATE_DISCARD_INPUT_LABEL,
-  TEMPLATE_LATEST_UNREAD_MESSAGE, TEMPLATE_SAVE_OVER_LATEST_LABEL, findSavedTemplate, reopenClosedDialog, templateArchiveConfirm, templateCloseUnknownConfirm,
+  TEMPLATE_LATEST_UNREAD_MESSAGE, TEMPLATE_SAVE_OVER_LATEST_LABEL, TEMPLATE_SAVE_OVER_LATEST_NOTE, findSavedTemplate, reopenClosedDialog, templateArchiveConfirm, templateCloseUnknownConfirm,
+  templateSavedKind, templateSavedNotice, type TemplateSavedKind,
 } from '@/lib/admin/goods-template-save';
 import { kstDateTimeText } from '@/lib/admin/list-export';
 import { GoodSizeChart } from '@/components/shop/GoodSizeChart';
@@ -33,10 +34,11 @@ type Draft = { name: string; chart: GoodsSizeChart };
 
 /*
  * 편집 창. [저장]은 적은 표를, [보관]·[복원]은 보관 상태만 바꾼다(고친 내용이 있으면 사라진다고 먼저 묻는다).
- * 다른 사람이 먼저 바꿨으면 입력을 그대로 둔 채 두 길을 고른다: 최신 내용 위에 내 입력으로 저장 / 내 입력 버리기.
+ * 다른 사람이 먼저 바꿨으면 입력을 그대로 둔 채 두 길을 고른다: 내 입력으로 덮어쓰기 / 내 입력 버리기.
  * 적은 표는 이 브라우저에 최대 7일 보관돼, 저장하지 않고 닫아도 다시 열어 복구할 수 있다.
+ * 저장·보관·복원에 성공하면 무엇을 했는지 `onSaved`로 알려 목록 위에 결과 한 줄을 보이게 한다. 입력을 버리거나 그냥 닫을 때는 알리지 않는다.
  */
-function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { accountId: string; template: GoodsSizeTemplate | null; onClose: () => void; onSaved: () => void }) {
+function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { accountId: string; template: GoodsSizeTemplate | null; onClose: () => void; onSaved: (kind?: TemplateSavedKind) => void }) {
   const [id] = useState(() => template?.id ?? crypto.randomUUID());
   const [name, setName] = useState(template?.name ?? ''), [chart, setChart] = useState<GoodsSizeChart>(() => template?.chart ?? emptyGoodsSizeChart());
   const [baseRevision, setBaseRevision] = useState(template?.revision ?? 0), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false);
@@ -62,15 +64,18 @@ function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { account
     setMessageError(true); setMessage(normalizedName ? goodsSizeChartError() : '템플릿 이름을 1~50자로 적어 주세요.');
     return null;
   }
-  /** 저장을 보낸다. `keep`은 저장하지 못했을 때 브라우저에 다시 보관할 입력이다. */
-  async function send(fixed: GoodsSizeTemplateRequest, keep: Draft) {
+  /**
+   * 저장을 보낸다. `keep`은 저장하지 못했을 때 브라우저에 다시 보관할 입력이다.
+   * `kind`는 성공했을 때 목록에 알릴 일이다. 주지 않으면(저장됐는지 다시 확인할 때) 보낸 보관 상태가 목록에서 보던 것과 달라졌는지로 가린다.
+   */
+  async function send(fixed: GoodsSizeTemplateRequest, keep: Draft, kind: TemplateSavedKind = templateSavedKind(template?.archived ?? false, fixed.archived)) {
     if (busy.current) return;
     request.current = fixed; busy.current = true; setPending(true); setMessage('');
     local.capture({ baseRevision: fixed.revision, name: fixed.name, chart: fixed.chart, request: fixed }, true);
     let result: GoodsSizeResult<GoodsSizeTemplate>;
     try { result = await saveGoodsSizeTemplateAction(fixed.id, fixed.name, fixed.chart, fixed.archived, fixed.revision, fixed.operationId); }
     catch { result = { ok: false, uncertain: true, error: SAVE_UNKNOWN_MESSAGE }; }
-    if (result.ok) { busy.current = false; if (!mounted.current) return; setPending(false); request.current = null; local.discard(); onSaved(); return; }
+    if (result.ok) { busy.current = false; if (!mounted.current) return; setPending(false); request.current = null; local.discard(); onSaved(kind); return; }
     /* 다른 사람이 먼저 바꿨으면 지금 저장된 템플릿을 찾아 함께 보인다. 못 찾아도 입력은 그대로 둔다. */
     const found = result.conflict ? await findSavedTemplate(fixed.id, listAll) : null;
     busy.current = false; if (!mounted.current) return; setPending(false);
@@ -83,7 +88,7 @@ function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { account
   function saveInput() {
     if (busy.current || recoveryPending || uncertain || conflict) return;
     const input = readInput(); if (!input) return;
-    void send({ id, ...input, archived: base?.archived ?? false, revision: baseRevision, operationId: crypto.randomUUID() }, { name, chart });
+    void send({ id, ...input, archived: base?.archived ?? false, revision: baseRevision, operationId: crypto.randomUUID() }, { name, chart }, 'saved');
   }
   async function toggleArchive() {
     if (!base || busy.current || recoveryPending || uncertain || conflict) return;
@@ -102,7 +107,7 @@ function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { account
       target = found;
     }
     setBase(target); setBaseRevision(target.revision); setLatest(null); setConflict(false);
-    void send({ id, ...input, archived: target.archived, revision: target.revision, operationId: crypto.randomUUID() }, { name, chart });
+    void send({ id, ...input, archived: target.archived, revision: target.revision, operationId: crypto.randomUUID() }, { name, chart }, 'saved');
   }
   async function discardInput() {
     if (busy.current) return;
@@ -111,7 +116,7 @@ function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { account
   }
   async function close() {
     if (busy.current) return;
-    if (uncertain) { if (await adminConfirm(templateCloseUnknownConfirm(true))) onSaved(); else reopenClosedDialog(root.current); return; }
+    if (uncertain) { if (await adminConfirm(templateCloseUnknownConfirm(true, template ? undefined : '사이즈 템플릿 등록'))) onSaved(); else reopenClosedDialog(root.current); return; }
     /* 적은 표는 브라우저에 보관돼 다시 열면 복구할 수 있다. 보관하지 못하는 브라우저에서만 사라진다고 묻는다. */
     if (dirty && local.unavailable && !await adminConfirm(TEMPLATE_CLOSE_DIRTY_CONFIRM)) { reopenClosedDialog(root.current); return; }
     if (conflict) onSaved(); else onClose();
@@ -149,6 +154,7 @@ function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { account
         {conflict ? <AdminNotice tone="warning" role="alert">
           <p>{message}</p>
           {latest ? <div className="mt-2 flex min-w-0 flex-col gap-2" data-goods-template-latest=""><strong className="font-medium">지금 저장된 템플릿 · {latest.name}{latest.archived ? ' · 보관됨' : ''}</strong><GoodSizeChart chart={latest.chart} /></div> : null}
+          <p className="mt-2 text-xs" data-goods-template-overwrite-note="">{TEMPLATE_SAVE_OVER_LATEST_NOTE}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             <Button size="sm" type="button" disabled={pending || recoveryPending} onClick={() => { void saveOverLatest(); }}>{TEMPLATE_SAVE_OVER_LATEST_LABEL}</Button>
             <Button size="sm" variant="outline" type="button" disabled={pending} onClick={() => { void discardInput(); }}>{TEMPLATE_DISCARD_INPUT_LABEL}</Button>
@@ -169,6 +175,8 @@ function SizeTemplateEditor({ accountId, template, onClose, onSaved }: { account
 export function GoodsSizeTemplatesScreen({ accountId }: { accountId: string }) {
   const [data, setData] = useState<GoodsSizeTemplatePage | null>(null), [query, setQuery] = useState(''), [search, setSearch] = useState(''), [archived, setArchived] = useState(false);
   const [pending, setPending] = useState(false), [message, setMessage] = useState(''), [editor, setEditor] = useState<{ template: GoodsSizeTemplate | null } | null>(null);
+  /* 저장·보관·복원 뒤의 결과 한 줄. 다음 조회(검색·보관 상태·페이지 이동)에서 지운다. */
+  const [notice, setNotice] = useState('');
   const busy = useRef(false), mounted = useRef(true), readSequence = useRef(0);
   useEffect(() => {
     mounted.current = true; let active = true; const sequence = ++readSequence.current;
@@ -178,9 +186,9 @@ export function GoodsSizeTemplatesScreen({ accountId }: { accountId: string }) {
     }).catch(() => { if (active && sequence === readSequence.current) setMessage(LIST_FAILED); });
     return () => { active = false; mounted.current = false; };
   }, []);
-  async function load(nextPage = 1, nextQuery = search, nextArchived = archived) {
+  async function load(nextPage = 1, nextQuery = search, nextArchived = archived, nextNotice = '') {
     if (busy.current) return;
-    const sequence = ++readSequence.current; busy.current = true; setPending(true); setMessage('');
+    const sequence = ++readSequence.current; busy.current = true; setPending(true); setMessage(''); setNotice(nextNotice);
     try {
       let result = await listGoodsSizeTemplatesAction(nextQuery, nextArchived, nextPage);
       if (result.ok && nextPage > Math.max(1, Math.ceil(result.value.total / 20))) result = await listGoodsSizeTemplatesAction(nextQuery, nextArchived, Math.max(1, Math.ceil(result.value.total / 20)));
@@ -204,6 +212,7 @@ export function GoodsSizeTemplatesScreen({ accountId }: { accountId: string }) {
       </ConsoleFilterActions>
     </form>
     {message ? <p className="text-sm text-destructive" role="alert">{message}</p> : null}
+    {notice ? <p className="text-sm" data-goods-template-notice="" role="status">{notice}</p> : null}
     {data ? <ConsoleListCard headingLevel={3} title="조회 결과" total={data.total}>
       <div className={`${CONSOLE_TABLE_FRAME_CLASS} print:overflow-visible`} role="region" aria-label="사이즈 템플릿 목록 가로 스크롤" tabIndex={0}><table className="w-full min-w-[520px] caption-bottom text-sm" data-slot="table"><caption className="sr-only">사이즈 템플릿 목록</caption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead scope="col">템플릿 이름</TableHead><TableHead scope="col">사이즈</TableHead><TableHead scope="col">측정 항목</TableHead><TableHead scope="col">단위</TableHead><TableHead scope="col">수정일</TableHead><TableHead scope="col">상태</TableHead><TableHead scope="col" className="w-24">관리</TableHead></TableRow></ConsoleTableHeader><TableBody>
         {data.rows.map(row => <TableRow key={row.id}><TableHead scope="row" className="h-auto bg-transparent py-2 align-top text-sm font-medium whitespace-normal wrap-anywhere text-foreground">{row.name}</TableHead><TableCell className="align-top whitespace-normal wrap-anywhere">{row.chart.sizes.join(', ')}</TableCell><TableCell className="align-top whitespace-normal wrap-anywhere">{row.chart.measurements.map(item => item.name).join(', ')}</TableCell><TableCell className="align-top">{row.chart.unit}</TableCell><TableCell className="align-top tabular-nums">{kstDateTimeText(row.updatedAt).replaceAll('-', '.')}</TableCell><TableCell className="align-top"><AdminStatusBadge tone={statusTone('setting', row.archived ? 'archived' : 'active')}>{row.archived ? '보관됨' : '사용 중'}</AdminStatusBadge></TableCell><TableCell className="align-top"><Button size="xs" variant="outline" type="button" onClick={() => setEditor({ template: row })}>수정</Button></TableCell></TableRow>)}
@@ -211,6 +220,6 @@ export function GoodsSizeTemplatesScreen({ accountId }: { accountId: string }) {
       </TableBody></table></div>
       <ConsolePagination className="print:hidden" label="사이즈 템플릿 페이지" page={data.page} pageSize={20} total={data.total} disabled={pending} onPageChange={page => startTransition(() => load(page))} />
     </ConsoleListCard> : message ? null : <p className="text-sm text-muted-foreground" role="status">템플릿을 불러오는 중…</p>}
-    {editor ? <SizeTemplateEditor key={editor.template?.id ?? 'new'} accountId={accountId} template={editor.template} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); startTransition(() => load(data?.page ?? 1)); }} /> : null}
+    {editor ? <SizeTemplateEditor key={editor.template?.id ?? 'new'} accountId={accountId} template={editor.template} onClose={() => setEditor(null)} onSaved={kind => { const done = kind ? templateSavedNotice(kind) : ''; setEditor(null); setNotice(done); startTransition(() => load(data?.page ?? 1, search, archived, done)); }} /> : null}
   </section>;
 }

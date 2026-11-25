@@ -216,8 +216,11 @@ function parseInstant(value: unknown): string | null | false {
 const RELATION_UNREADABLE = '저장할 내용을 읽지 못했습니다. 화면을 새로고침한 뒤 다시 저장해 주세요.';
 const RELATION_PERIOD_ERROR = '전시 기간의 종료를 시작보다 늦게 맞춰 주세요.';
 const RELATION_VISUAL_ERROR = '이미지를 저장하지 못했습니다. 이미지를 다시 올리고 태그를 다시 붙인 뒤 저장해 주세요.';
-/** 이미지 쪽에서 저장할 수 없는 까닭을 하나씩 말한다(이미지 없음 → 이미지 설명 없음). 문제가 없으면 null — 글자 수·태그 위치는 parseGoodsRelationVisual이 본다. */
-function relationVisualError(kind: GoodsRelationKind, visual: unknown): string | null {
+/**
+ * 이미지 쪽에서 저장할 수 없는 까닭을 하나씩 말한다(이미지 없음 → 이미지 설명 없음). 문제가 없으면 null — 글자 수·태그 위치는 parseGoodsRelationVisual이 본다.
+ * 편집 화면의 결과 한 줄도 같은 판정을 써서, 저장하면 거절될 입력에 "저장하면 … 보입니다"라고 말하지 않는다.
+ */
+export function relationVisualError(kind: GoodsRelationKind, visual: unknown): string | null {
   if (visual === undefined || visual === null) return kind === 'codi' ? '코디 상품은 이미지가 있어야 합니다. 코디 이미지를 올려 주세요.' : null;
   if (kind === 'similar' || kind === 'other_composition') return '유사한 상품과 다른 구성 상품에는 이미지를 넣을 수 없습니다. 화면을 새로고침한 뒤 다시 저장해 주세요.';
   if (!isObject(visual)) return RELATION_UNREADABLE;
@@ -281,6 +284,8 @@ export function goodsRelationHref(filters: GoodsRelationFilters, page = filters.
 }
 /** 저장 결과를 모를 때의 안내. 화면은 입력을 잠그고 [저장됐는지 확인]으로 같은 저장을 다시 보낸다(두 번 저장되지 않는다). */
 export const RELATION_SAVE_UNKNOWN = '저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.';
+/** 저장 결과를 모르는 채 화면을 떠나려 할 때 묻는 말. 이 화면은 저장하려던 내용을 따로 보관하지 않아, 떠나면 여기서는 다시 확인할 수 없다. */
+export const RELATION_LEAVE_UNKNOWN = '저장됐는지 아직 모릅니다. 이 화면을 떠나면 여기서는 다시 확인할 수 없고, 저장되지 않았으면 적은 내용이 사라집니다. 떠난 뒤에는 연관상품 목록에서 저장됐는지 확인해 주세요. 이동할까요?';
 /** 다른 사람이 먼저 저장했거나 같은 저장이 다른 내용으로 이미 끝났다. 화면은 이때 [최신 내용 다시 열기]를 보인다. */
 export function goodsRelationConflict(message?: string) {
   return message === 'goods_relation_changed' || message === 'goods_relation_operation_conflict';

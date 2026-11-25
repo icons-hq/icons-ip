@@ -340,6 +340,7 @@ function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
     </div> : null}
     {picking ? <AdminGoodsPicker
       categories={filterCategories}
+      excludedNote="보관한 상품은 목록에서 뺐습니다."
       onClose={() => setPicking(false)}
       onSelect={(row) => { setGood(row); setCategoryId(''); setSent(null); setQuietRound(round); }}
       selectedKeys={good ? [good.id] : undefined}

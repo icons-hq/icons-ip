@@ -20,7 +20,7 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({ storage: { from: () => ({ upload: vi.fn() }) } }),
 }));
 import { GoodsImportScreen, SabangnetMappingStep } from './GoodsImportScreen';
-import { SABANGNET_GALLERY_LIMIT, suggestSabangnetTargets } from '@/lib/admin/sabangnet-goods-format';
+import { SABANGNET_GALLERY_LIMIT, SABANGNET_PRICE_REQUIRED, suggestSabangnetTargets } from '@/lib/admin/sabangnet-goods-format';
 const group = {
   index: 0,
   code: 'G0001',
@@ -270,22 +270,39 @@ describe('사방넷 상품 양식 화면', () => {
     expect(html).not.toContain('슬롯');
     /* 2026-10-07 QA: JSX 줄바꿈 뒤 숫자가 붙어 "추가 이미지9장으로"로 보였다. */
     expect(html).toContain(`대표 이미지와 추가 이미지 ${SABANGNET_GALLERY_LIMIT}장까지 가져오고, 옵션 재고수량은 0으로 만듭니다.`);
+    /* 이 파일은 사방넷 판매가 열이 없다(소비자가만 있다) — 금액 열을 골라야 한다는 것을 [미리보기 만들기]를 누르기 전에 보인다. */
+    expect(html).toMatch(new RegExp(`data-sabangnet-price="missing"[^>]*>.*${SABANGNET_PRICE_REQUIRED.replace(/[()]/g, '\\$&')}`));
+    expect(html).not.toContain('data-sabangnet-price="readback"');
   });
 
-  it('연결할 항목 이름은 상품 수정 화면의 말이다: 사방넷 판매가는 할인가, TAG가는 판매가이고 옵션은 옵션명·옵션값이다(M-03·M-04)', () => {
-    const headers = ['상품명', '판매가', 'TAG가', '옵션제목(1)', '옵션상세명칭(1)'];
+  const mappingHtml = (headers: string[]) => {
     const { targets, status } = suggestSabangnetTargets(headers);
-    const html = renderToStaticMarkup(
+    return { targets, html: renderToStaticMarkup(
       <SabangnetMappingStep
         inspection={{ id: 'batch', fileName: 'sabangnet.xlsx', headerRow: 1, rowCount: 1, columns: headers.map((header) => ({ header, sample: '' })), ips: [{ id: 'maple', title: '메이플스토리' }] }}
         targets={targets} columnStates={status} ipId="" brandIps={{}} busy={false}
         onTarget={() => {}} onIp={() => {}} onBrandIp={() => {}} onPreview={() => {}}
       />,
-    );
+    ) };
+  };
+  const readback = (html: string) => html.match(/data-sabangnet-price="readback"[^>]*>([^<]*)</)?.[1].replaceAll('&#x27;', "'");
+
+  it('연결할 항목 이름은 어느 파일에나 맞는 말이다: 사방넷 판매가는 고객이 내는 금액, TAG가는 할인 전 금액이고 옵션은 옵션명·옵션값이다(M-03·M-04)', () => {
+    const { html, targets } = mappingHtml(['상품명', '판매가', 'TAG가', '옵션제목(1)', '옵션상세명칭(1)']);
     const options = [...html.matchAll(/<option[^>]*>([^<]*)<\/option>/g)].map((match) => match[1]);
-    for (const label of ['할인가(고객이 내는 금액)', '판매가(할인 전 금액)', '옵션명 1', '옵션값 1', '옵션명 2', '옵션값 2']) expect(options, label).toContain(label);
-    for (const stale of ['옵션 축', '판매가(고객 결제 금액)', 'TAG가(할인 전 판매가)']) expect(html, stale).not.toContain(stale);
-    /* 자동 인식은 그대로다: 판매가 열 → 할인가(고객이 내는 금액), TAG가 열 → 판매가(할인 전 금액). */
+    for (const label of ['고객이 내는 금액(사방넷 판매가)', '할인 전 금액(TAG가 · 있을 때만)', '옵션명 1', '옵션값 1', '옵션명 2', '옵션값 2']) expect(options, label).toContain(label);
+    /* '할인가'·'판매가'라는 이름은 TAG가가 더 클 때만 맞아, 판매가 열만 있는 파일에서 "판매가가 할인가에 잘못 연결됐다"로 읽혔다. */
+    for (const stale of ['옵션 축', '판매가(고객 결제 금액)', 'TAG가(할인 전 판매가)', '할인가(고객이 내는 금액)', '판매가(할인 전 금액)']) expect(html, stale).not.toContain(stale);
+    /* 자동 인식은 그대로다: 판매가 열 → 고객이 내는 금액, TAG가 열 → 할인 전 금액. */
     expect(targets).toEqual(['name', 'price', 'compareAtPrice', 'optionTitle1', 'optionValues1']);
+  });
+
+  it('표 아래 한 줄이 지금 연결로 판매가·즉시할인이 어떻게 들어가는지 되읽는다', () => {
+    expect(readback(mappingHtml(['상품명', '판매가', 'TAG가']).html))
+      .toBe("고객은 '판매가' 열의 금액을 냅니다. 'TAG가' 열이 더 크면 그 금액이 판매가, 차액이 즉시할인이 되고, 아니면 할인 없이 '판매가' 열의 금액이 판매가입니다.");
+    /* TAG가 열이 없는 파일: 판매가 열이 그대로 판매가라는 것을 말해, 드롭다운을 바꿀 까닭이 없다. */
+    const only = mappingHtml(['상품명', '판매가']).html;
+    expect(readback(only)).toBe("'판매가' 열의 금액이 그대로 판매가가 됩니다. 할인은 없습니다.");
+    expect(only).not.toContain('data-sabangnet-price="missing"');
   });
 });

@@ -60,6 +60,19 @@ it('건너뛸 상품이 섞인 미리보기와 영수증을 그대로 넘긴다'
   mocks.rpc.mockResolvedValueOnce({ data: { ...receipt, state: 'rejected', goodsCount: 0, error: 'goods_bulk_all_skipped' }, error: null });
   expect(await commitGoodsBulkAction(id, identity)).toHaveProperty('value.error', 'goods_bulk_all_skipped');
 });
+/* 리뷰 6: 기간 할인 걸기는 DB가 상품마다의 이유 없이 미리보기부터 거절한다. 미리보기는 명령을 알므로 그 명령에서 건너뛰는 이유를 모두 말한다. */
+it('기간 할인을 걸 상품이 하나도 없으면 건너뛰는 이유 넷을 모두 말하고, 다른 명령에는 할인 이야기를 하지 않는다', async () => {
+  const all = { code: '23514', message: 'goods_bulk_all_skipped' };
+  const discount = { kind: 'goods', ids: ['good-a'], command: 'discount', values: { mode: 'amount', value: 500, startsAt: '2026-12-01T01:00:00.000Z', endsAt: '2026-12-07T14:59:00.000Z' } };
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: all });
+  const result = await previewGoodsBulkAction(id, discount, identity);
+  expect(result).toMatchObject({ error: goodsBulkError('goods_bulk_all_skipped', 'discount'), authChanged: false, uncertain: false });
+  for (const reason of ['기간이 겹치는 할인', '기간 없는 즉시할인', '사용 중인 옵션이 없는', '할인가가 1원 미만']) expect('error' in result ? result.error : '', reason).toContain(reason);
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: all });
+  expect(await previewGoodsBulkAction(id, { ...discount, command: 'discount_stop', values: {} }, identity)).toMatchObject({ error: '멈출 기간 할인이 없습니다. 고른 상품은 보관됐거나, 진행 중이거나 예정된 기간 할인이 없습니다.' });
+  mocks.rpc.mockResolvedValueOnce({ data: null, error: all });
+  expect(await previewGoodsBulkAction(id, request, identity)).toMatchObject({ error: '바꿀 수 있는 상품이 없습니다. 상품의 지금 상태를 확인한 뒤 다시 해주세요.' });
+});
 /* B-09: 오류는 무엇이 문제인지와 다음에 할 일을 함께 말한다. 결과를 모를 때는 어드민 공통 문장을 쓴다. */
 it('오류 문구는 고칠 방법까지 말하고, 결과를 모르면 [저장됐는지 확인]으로 보낸다', async () => {
   expect(await previewGoodsBulkAction(id, { ...request, values: { stock: 0 } }, identity)).toEqual({ error: '바꿀 내용의 형식이 맞지 않습니다. 새로고침한 뒤 상품을 다시 골라주세요.' });

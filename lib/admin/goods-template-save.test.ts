@@ -4,7 +4,8 @@ import { goodsBenefitsError } from './goods-benefits-messages';
 import { goodsSizeChartError } from './goods-size-chart-messages';
 import {
   CHANGED_BY_OTHER, SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE, TEMPLATE_CLOSE_DIRTY_CONFIRM, TEMPLATE_DISCARD_INPUT_CONFIRM,
-  findSavedTemplate, reopenClosedDialog, templateArchiveConfirm, templateCloseUnknownConfirm, templateExcerpt,
+  TEMPLATE_SAVE_OVER_LATEST_LABEL, TEMPLATE_SAVE_OVER_LATEST_NOTE,
+  findSavedTemplate, reopenClosedDialog, templateArchiveConfirm, templateCloseUnknownConfirm, templateExcerpt, templateSavedKind, templateSavedNotice,
 } from './goods-template-save';
 
 /* 사이즈·A/S·이벤트 템플릿 관리와 상품의 같은 안내 패널이 함께 쓰는 말(PR 2 낱말 표)과 최신 내용 찾기. */
@@ -43,6 +44,26 @@ describe('세 화면이 함께 쓰는 말', () => {
   it('저장됐는지 모르는 채 닫을 때는 닫은 뒤 무엇을 할지까지 말한다', () => {
     expect(templateCloseUnknownConfirm(false).message).toBe('닫으면 목록을 다시 불러옵니다. 방금 저장하려던 내용이 목록에 있는지 확인해 주세요. 목록에 없으면 다시 적어야 합니다.');
     expect(templateCloseUnknownConfirm(true).message).toBe('닫으면 목록을 다시 불러옵니다. 방금 저장하려던 내용이 목록에 있는지 확인해 주세요. 목록에 없으면 같은 템플릿을 다시 열어 [저장됐는지 확인]을 눌러 주세요.');
+  });
+
+  /* S4: 새로 등록하던 템플릿은 목록에 없으니 '같은 템플릿을 다시 열' 줄이 없다. 등록 버튼을 다시 누르면 확인 안내가 뜬다. */
+  it('새로 등록하던 템플릿은 등록 버튼을 다시 누르라고 말한다', () => {
+    expect(templateCloseUnknownConfirm(true, '사이즈 템플릿 등록').message).toBe('닫으면 목록을 다시 불러옵니다. 방금 저장하려던 내용이 목록에 있는지 확인해 주세요. 목록에 없으면 [사이즈 템플릿 등록]을 다시 눌러 [저장됐는지 확인]을 눌러 주세요.');
+    expect(templateCloseUnknownConfirm(false, '이벤트 템플릿 등록').message).toContain('목록에 없으면 다시 적어야 합니다.');
+  });
+
+  /* S5: '최신 내용 위에'는 합쳐진다는 뜻으로 읽힌다. 다른 사람이 저장한 내용이 통째로 바뀐다고 버튼 이름과 한 줄로 말한다. */
+  it('다른 사람이 먼저 바꾼 템플릿을 내 입력으로 저장하는 버튼은 덮어쓴다고 말한다', () => {
+    expect(TEMPLATE_SAVE_OVER_LATEST_LABEL).toBe('내 입력으로 덮어쓰기');
+    expect(TEMPLATE_SAVE_OVER_LATEST_NOTE).toBe('[내 입력으로 덮어쓰기]를 누르면 다른 사람이 저장한 내용이 사라지고 내 입력으로 바뀝니다.');
+  });
+
+  /* G5: 보관·복원한 템플릿은 지금 보는 목록에서 사라진다. 어디서 다시 보는지까지 말한다(사진 보관함과 같은 말). */
+  it('저장·보관·복원 뒤의 결과 한 줄', () => {
+    expect([templateSavedKind(false, false), templateSavedKind(true, true), templateSavedKind(false, true), templateSavedKind(true, false)]).toEqual(['saved', 'saved', 'archived', 'restored']);
+    expect(templateSavedNotice('saved')).toBe('템플릿을 저장했습니다.');
+    expect(templateSavedNotice('archived')).toBe("보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있습니다.");
+    expect(templateSavedNotice('restored')).toBe("복원했습니다. 보관 상태 '사용 중' 목록에서 볼 수 있습니다.");
   });
 
   it('[보관]·[복원]은 보관 상태만 바꾼다고 말한다', () => {

@@ -20,7 +20,7 @@ import { Button, buttonVariants } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
 
 const emptyPage: GoodsPhotoPage = { rows: [], total: 0, page: 1, pageSize: 20 };
-export const GOODS_PHOTO_LIBRARY_PURPOSE = '여러 상품에 다시 쓸 사진을 모아 두는 곳입니다. 상품 편집기의 상품 이미지 타일에 올린 사진도 여기에 자동으로 등록됩니다.';
+export const GOODS_PHOTO_LIBRARY_PURPOSE = '여러 상품에 다시 쓸 사진을 모아 두는 곳입니다. 상품 등록 화면의 상품 이미지 칸에 올린 사진도 여기에 들어옵니다.';
 /** [사진 업로드] 옆 한 줄. 사진 보관함은 상품 이미지와 같은 한도(lib/admin/artwork의 GOODS_ARTWORK_MAX_BYTES)로 받는다. */
 export const GOODS_PHOTO_UPLOAD_GUIDE = `한 번에 ${GOODS_PHOTO_UPLOAD_LIMIT}장 · 장당 ${GOODS_ARTWORK_MAX_BYTES / (1024 * 1024)}MB 이하 JPEG·PNG·WebP`;
 const UPLOAD_GUIDE_ID = 'goods-photo-upload-guide';
@@ -158,8 +158,9 @@ export const loadGoodsPhotoPickerPage: AdminPickerLoader<GoodsPhoto> = async ({ 
 /**
  * 사진 보관함에서 사진을 골라 넣는 창(공용 선택창의 격자 배치).
  * 기본은 한 장을 고르면 닫힌다. `multiple`이면 [완료]를 누를 때까지 열려 있어 여러 장을 이어서 고른다.
+ * 여러 장 고르기에서는 고른 사진이 어느 자리에 들어갔는지 보이고(`placeOf`), 창에서 방금 넣은 사진은 창 안에서 다시 뺀다(`onDeselect`).
  */
-export function GoodsPhotoPicker({ onClose, onSelect, multiple = false, pickedPaths, remaining }: {
+export function GoodsPhotoPicker({ onClose, onSelect, multiple = false, pickedPaths, remaining, nextIsMain = false, placeOf, onDeselect, deselectBlocked }: {
   onClose: () => void;
   onSelect: (photo: GoodsPhoto) => void;
   /** 여러 장 고르기. 고른 사진은 그때마다 `onSelect`로 넘기고 창은 [완료]로 닫는다. */
@@ -168,25 +169,37 @@ export function GoodsPhotoPicker({ onClose, onSelect, multiple = false, pickedPa
   pickedPaths?: readonly string[];
   /** 더 넣을 수 있는 장수. 창에 남은 자리를 보이고, 0이 되면 나머지 사진의 [선택]을 잠근다. */
   remaining?: number;
+  /** 대표 이미지 칸이 비어 있어 다음에 고르는 사진이 대표 이미지가 되는가. 그렇다고 창에서 미리 알린다. */
+  nextIsMain?: boolean;
+  /** 넣은 사진이 들어간 자리의 이름(예: '대표 이미지', '추가 이미지 2'). 주면 '선택됨' 대신 그 이름을 보인다. */
+  placeOf?: (photo: GoodsPhoto) => string | null;
+  /** 넣은 사진을 창에서 다시 뺀다. 주면 뺄 수 있는 사진에 [빼기]가 보인다. */
+  onDeselect?: (photo: GoodsPhoto) => void;
+  /** 이 사진을 창에서 뺄 수 없으면 그 까닭(까닭 없이 [빼기]만 숨기려면 빈 글자). 뺄 수 있으면 null. */
+  deselectBlocked?: (photo: GoodsPhoto) => string | null;
 }) {
   /* 사진마다 경로가 하나라(DB unique) 경로를 줄의 키로 쓴다. 상품 폼의 경로와 앞머리 표기가 달라도 같은 사진으로 본다. */
   const picked = (pickedPaths ?? []).map(normalizePublicMediaPath);
   const full = remaining !== undefined && remaining <= 0;
   return <AdminPickerDialog<GoodsPhoto>
     title="사진 보관함에서 고르기"
-    description={remaining === undefined ? undefined : full ? '자리가 다 찼습니다. [완료]를 눌러 닫아 주세요.' : `고르는 대로 바로 들어갑니다. 남은 자리 ${remaining}장.`}
+    description={remaining === undefined ? undefined : full ? '자리가 다 찼습니다. [완료]를 눌러 닫아 주세요.'
+      : `빈 칸에 앞에서부터 들어갑니다. 남은 자리 ${remaining}장.${nextIsMain ? ' 다음에 고르는 사진이 대표 이미지가 됩니다.' : ''}`}
+    deselectBlocked={deselectBlocked}
     emptyText="고를 수 있는 사진이 없습니다."
     excludedNote="보관한 사진은 목록에서 뺐습니다."
     layout="grid"
     load={loadGoodsPhotoPickerPage}
     multiple={multiple}
     onClose={onClose}
+    onDeselect={onDeselect}
     onSelect={onSelect}
     rowBlocked={full ? photo => picked.includes(normalizePublicMediaPath(photo.imagePath)) ? null : '자리 없음' : undefined}
     rowKey={photo => normalizePublicMediaPath(photo.imagePath)}
     rowView={photo => ({ title: photo.name, meta: photo.references.length ? `연결 ${photo.references.length}건` : undefined, imageUrl: publicMediaUrl(photo.imagePath) })}
     searchPlaceholder="사진 이름"
     selectedKeys={picked}
+    selectedLabel={placeOf}
     unit="장"
   />;
 }

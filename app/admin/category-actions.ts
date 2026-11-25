@@ -81,7 +81,7 @@ function mapRpcError(error: { code?: unknown; message?: unknown }): string {
   if (descriptor.includes('category_has_goods')) return '상품이 연결된 카테고리 아래에는 하위 카테고리를 둘 수 없습니다. 다른 상위 카테고리를 고르거나, 그 카테고리의 상품을 다른 카테고리로 옮긴 뒤 다시 저장해주세요.';
   if (descriptor.includes('category_has_active_children')) return '보관하지 않은 하위 카테고리가 있습니다. 하위 카테고리를 먼저 보관하거나 다른 곳으로 옮겨주세요.';
   if (descriptor.includes('category_erp_code_taken')) return '다른 카테고리가 이미 쓰는 ERP 코드입니다. 코드를 확인해 다시 적어주세요.';
-  if (descriptor.includes('category_activation_unready')) return '지금은 바꿀 수 없습니다. 새로고침해 이 카드에 적힌 이유를 확인해주세요.';
+  if (descriptor.includes('category_activation_unready')) return '지금은 바꿀 수 없습니다. 새로고침한 뒤 다시 눌러주세요. 버튼이 잠겨 있으면 그 아래에 이유가 적혀 있습니다.';
   if (descriptor.includes('category_archived')) return '보관한 카테고리는 상품에 연결할 수 없습니다. 다른 카테고리를 골라주세요.';
   if (descriptor.includes('category_not_leaf')) return '하위 카테고리가 있는 카테고리는 상품에 연결할 수 없습니다. 마지막 단계 카테고리를 골라주세요.';
   /* ADR-0044: 대표 카테고리 바꾸기는 공개 중 상품의 대표 카테고리를 비우지 못한다. */

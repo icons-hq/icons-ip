@@ -70,7 +70,8 @@ function MappingRow({ row, draft, onDraftChange }: {
   return <TableRow>
     <TableHead scope="row" className="h-auto pt-3 pb-2 align-top text-sm font-normal wrap-anywhere whitespace-normal text-foreground">
       {row.label}
-      <code className="ml-1 rounded bg-muted px-1 py-0.5 text-xs">{row.code}</code>
+      {/* ERP 코드를 적는 표라 이름표 없는 코드는 "이미 ERP 코드가 있다"로 읽힌다 — 다른 선택창처럼 무엇의 코드인지 적는다. */}
+      <small className="block text-xs text-muted-foreground" data-category-erp="category-code">카테고리 코드 {row.code}</small>
     </TableHead>
     {field('erpCode', 'ERP 코드')}
     {field('erpName', 'ERP 품명')}

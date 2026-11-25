@@ -4,6 +4,7 @@ import { startTransition, useEffect, useRef, useState } from 'react';
 import { loadGoodsSizeChartAction, saveGoodsSizeChartAction, type GoodsSizeResult } from '@/app/admin/goods-size-chart-actions';
 import { GOODS_SIZE_TEMPLATES_PATH, emptyGoodsSizeChartValues, parseGoodsSizeChart, parseGoodsSizeChartValues, type GoodsSizeChartSnapshot, type GoodsSizeChartValues } from '@/lib/goods-size-chart';
 import { goodsSizeChartError } from '@/lib/admin/goods-size-chart-messages';
+import { adminConfirm } from '@/lib/admin/confirm';
 import { parseGoodsSizeDraft, type GoodsSizeSaveRequest } from '@/lib/admin/goods-size-chart-draft';
 import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { GoodSizeChart } from '@/components/shop/GoodSizeChart';
@@ -98,6 +99,13 @@ export function GoodSizeChartPanel({ goodId, accountId }: { goodId: string; acco
       setMessage('저장하지 않은 표를 복구했습니다. 내용을 확인하고 저장해 주세요.'); setError(false);
     }
   }
+  /** [최신 저장본으로 바꾸기]는 작성한 표를 버린다. 작성한 표가 최신 저장본과 다르면 사라진다고 먼저 묻는다(화면 규칙 7). */
+  async function replaceWithLatest() {
+    if (!latest || recoveryPending) return;
+    if (JSON.stringify(values) !== JSON.stringify(latest.values)
+      && !await adminConfirm({ title: '작성한 표를 버리고 최신 저장본으로 바꿀까요?', message: '지금 작성한 표가 사라집니다.', confirmLabel: '최신 저장본으로 바꾸기' })) return;
+    acceptLatest(false);
+  }
   function acceptLatest(keepInput: boolean) {
     if (!latest || recoveryPending) return;
     setSnapshot(latest); setBaseRevision(latest.revision); setConflict(false);
@@ -125,7 +133,7 @@ export function GoodSizeChartPanel({ goodId, accountId }: { goodId: string; acco
         <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={pending || uncertain || recoveryBlocked} onClick={() => startTransition(() => refresh())}>최신 저장본 확인</button>
       </div>
     </form>
-    {latest ? <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/40 p-4" aria-label="최신 사이즈 저장본" data-goods-size-latest=""><h3 className="text-sm font-medium">최신 저장본 · {latest.values.enabled ? '표시' : '표시 안 함'}</h3><GoodSizeChart chart={parseGoodsSizeChart(latest.values.chart)} /><div className="flex flex-wrap gap-2"><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => acceptLatest(true)}>최신 저장본 기준으로 작성한 표 유지</button><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => acceptLatest(false)}>최신 저장본으로 바꾸기</button></div></section> : null}
+    {latest ? <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/40 p-4" aria-label="최신 사이즈 저장본" data-goods-size-latest=""><h3 className="text-sm font-medium">최신 저장본 · {latest.values.enabled ? '표시' : '표시 안 함'}</h3><GoodSizeChart chart={parseGoodsSizeChart(latest.values.chart)} /><div className="flex flex-wrap gap-2"><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => acceptLatest(true)}>최신 저장본 기준으로 작성한 표 유지</button><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => { void replaceWithLatest(); }}>최신 저장본으로 바꾸기</button></div></section> : null}
     {preview ? <details className={DETAILS_CLASS} data-goods-size-preview="" open><summary className={SUMMARY_CLASS}>저장 전 사이즈 안내 미리보기</summary><div className="flex min-w-0 flex-col gap-3 border-t p-3">{!values.enabled ? <p className="text-muted-foreground">고객 화면 표시를 ‘표시 안 함’으로 두었습니다. 저장해도 보이지 않습니다.</p> : null}<GoodSizeChart chart={preview} /></div></details> : null}
     {/* 적어 둔 표가 있으면 선택창이 바꾸기 전에 묻는다. 고른 표는 [사이즈 안내 저장]을 눌러야 상품에 저장된다. */}
     {templates ? <GoodsSizeTemplatePicker current={values.chart} onClose={() => setTemplates(false)} onSelect={template => { change({ enabled: values.enabled, chart: structuredClone(template.chart) }); setMessage(`‘${template.name}’ 템플릿을 가져왔습니다. 고객 화면 표시를 확인하고 [사이즈 안내 저장]을 눌러 주세요.`); setError(false); }} /> : null}

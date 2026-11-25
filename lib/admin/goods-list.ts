@@ -1,7 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import type { Stock } from '@/lib/data';
 import { customerServiceDate } from './customer-service-list';
-import { GOODS_READINESS_REASONS, goodsReadinessAnchor, type AdminGoodsReadiness, type GoodsReadinessFilter, type GoodsReadinessTarget } from './goods-readiness';
+import { GOODS_READINESS_REASONS, goodReadinessReasonAnchor, goodsReadinessAnchor, type AdminGoodsReadiness, type GoodsReadinessFilter, type GoodsReadinessTarget } from './goods-readiness';
 import type { GoodsListOptionStock } from './goods-list-inline';
 import { parseGoodsVariantSupply, preorderUnavailableLabel } from '@/lib/goods-preorders';
 import { goodsSalePeriodState, goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
@@ -128,7 +128,7 @@ export interface AdminGoodSummary {
   inlineOptions?: GoodsListOptionStock[] | null;
   /** 고객 상세(`/shop/<상품 자동코드>`)가 열리는 상품(공개·미보관·판매 제한 없음·IP 공개). 아니면 상품명 옆 아이콘이 편집기 미리보기로 간다(R15). */
   customerVisible?: boolean;
-  /** 판매 가능 수량이 0인 예약판매 상품의 고객 화면 문구(`goodsListPreorderSaleLabel`). 있으면 상태 배지가 품절 대신 이 문구다. */
+  /** 판매 가능 수량이 0인 예약판매 상품의 예약 상태(`goodsListPreorderSaleLabel` — 접수 전은 '예약 접수 전', 나머지는 고객 화면 문구). 있으면 상태 배지가 품절 대신 이 문구다. */
   preorderSaleLabel?: string | null;
   /** 판매기간 밖 상품의 고객 화면 문구(`goodsListSalePeriodLabel`) — 시작 전 '판매 예정', 끝난 뒤 '판매 종료'. 있으면 상태 배지가 판매중·품절 대신 이 문구다. */
   salePeriodLabel?: string | null;
@@ -143,15 +143,25 @@ export function goodsListSalePeriodLabel(startsAt: string | null, endsAt: string
   return goodsSaleUnavailableLabel({ startsAt, endsAt, state, calculatedAt: new Date(now).toISOString(), nextChangeAt: null });
 }
 /**
- * 사용 옵션이 모두 예약판매이고 지금 주문받을 물량이 없는 상품의 상태 문구 — 고객 카드·상세와 같은 판정(`preorderUnavailableLabel`)이라
- * 접수 전은 '판매 예정', 물량이 다 차면 '예약 물량 마감', 접수가 끝나거나 멈추면 '예약 접수 종료'·'예약 접수 중지'다.
+ * 예약 접수가 아직 시작되지 않은 상품의 목록 배지. 고객 화면은 이 상품을 '판매 예정'이라 부르지만, 목록의 '판매 예정' 건수 칸·판매기간 조건은
+ * 판매기간 시작 전 상품만 센다(예약판매 상품에는 판매기간이 없다). 같은 이름이면 배지가 붙은 상품이 그 칸에 없어 집계가 틀린 것으로 읽히므로
+ * 목록에서는 '예약 접수 종료'·'예약 접수 중지'·'예약 물량 마감'과 한 벌인 이름으로 따로 부른다.
+ */
+export const GOODS_LIST_PREORDER_NOT_OPEN_LABEL = '예약 접수 전';
+/** 고객 화면이 접수 전 예약판매를 부르는 말(`preorderUnavailableLabel`). 목록에서만 위 이름으로 바꾼다. */
+const CUSTOMER_PREORDER_NOT_OPEN_LABEL = '판매 예정';
+/**
+ * 사용 옵션이 모두 예약판매이고 지금 주문받을 물량이 없는 상품의 상태 문구 — 고객 카드·상세와 같은 판정(`preorderUnavailableLabel`)이다.
+ * 물량이 다 차면 '예약 물량 마감', 접수가 끝나거나 멈추면 '예약 접수 종료'·'예약 접수 중지'로 고객 화면과 같은 말이고,
+ * 접수 전만 고객 화면의 '판매 예정' 대신 '예약 접수 전'이다(`GOODS_LIST_PREORDER_NOT_OPEN_LABEL`).
  * 일반 재고 옵션이 섞였거나 예약 상태를 하나라도 읽지 못하면 null이고, 그때 목록 배지는 지금처럼 품절이다.
  */
 export function goodsListPreorderSaleLabel(supplies: readonly unknown[]): string | null {
   const parsed = supplies.map(parseGoodsVariantSupply);
   const options = parsed.flatMap(supply => supply ? [{ stockQty: supply.availableQty, supply }] : []);
   if (!options.length || options.length !== parsed.length) return null;
-  return preorderUnavailableLabel(options, options.every(option => option.stockQty <= 0));
+  const label = preorderUnavailableLabel(options, options.every(option => option.stockQty <= 0));
+  return label === CUSTOMER_PREORDER_NOT_OPEN_LABEL ? GOODS_LIST_PREORDER_NOT_OPEN_LABEL : label;
 }
 /** 품절(재고 0)·소량 재고 칸의 건수. 키는 판매상태 필터 값이고, 재고 조건만 뺀 같은 검색 조건에서 센다 — 숫자가 곧 그 칸을 눌렀을 때의 목록 개수다. */
 export type GoodsListStockCounts = Record<'out_of_stock' | 'low', number>;
@@ -274,8 +284,13 @@ export function goodsConsoleFilterValues(filters: GoodsListFilters) {
     salePeriod: filters.salePeriod ?? 'all',
   };
 }
-export function goodEditorHref(filters: GoodsListFilters, id: string, target?: GoodsReadinessTarget): string {
-  return `${goodsListHref(filters)}&${new URLSearchParams({ goodId: id })}${target ? `#${goodsReadinessAnchor(target)}` : ""}`;
+/**
+ * 상품 수정 화면 주소. `to`가 준비 사유면 그 사유의 칸으로(편집기 판매 준비 카드와 같은 자리 — `goodReadinessReasonAnchor`),
+ * 영역 이름이면 그 영역으로 간다. 접힌 카드는 편집기가 주소의 자리를 읽어 펼친다(`GoodWorkspaceNavigation`).
+ */
+export function goodEditorHref(filters: GoodsListFilters, id: string, to?: GoodsReadinessTarget | Pick<AdminGoodsReadiness['reasons'][number], 'code' | 'target'>): string {
+  const anchor = !to ? '' : typeof to === 'string' ? goodsReadinessAnchor(to) : goodReadinessReasonAnchor(to);
+  return `${goodsListHref(filters)}&${new URLSearchParams({ goodId: id })}${anchor ? `#${anchor}` : ""}`;
 }
 /** 고객 화면이 아직 열리지 않는 상품의 미리보기 목적지: 편집기의 '공개 화면 미리보기'(`<details id="good-preview">`). */
 export function goodPreviewHref(filters: GoodsListFilters, id: string): string {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planGoodsWorkbookImport, type GoodsWorkbookContext } from './goods-workbook';
+import { goodsWorkbookStoredPrice, planGoodsWorkbookImport, type GoodsWorkbookContext } from './goods-workbook';
 import {
   convertSabangnetRows,
   decodeSabangnetText,
@@ -7,8 +7,10 @@ import {
   parseRememberedSabangnetTargets,
   parseSabangnetCsv,
   rememberSabangnetTargets,
+  sabangnetPriceReadback,
   SABANGNET_GALLERY_LIMIT,
   SABANGNET_KC_WARNING,
+  SABANGNET_PRICE_REQUIRED,
   SABANGNET_TARGETS,
   suggestSabangnetBrandIps,
   suggestSabangnetTargets,
@@ -72,20 +74,56 @@ describe('사방넷 열 이름 인식', () => {
   it('필수 상품명과 단일 항목 중복 연결을 막는다', () => {
     expect(validateSabangnetTargets(['ignore'], ['메모'])).toContain('상품명');
     expect(validateSabangnetTargets(['name', 'price', 'price'], ['상품명', '판매가', '할인가'])).toContain('판매가, 할인가');
-    expect(validateSabangnetTargets(['name', 'gallery', 'gallery'], ['상품명', '부가1', '부가2'])).toBeNull();
+    expect(validateSabangnetTargets(['name', 'price', 'gallery', 'gallery'], ['상품명', '판매가', '부가1', '부가2'])).toBeNull();
     expect(validateSabangnetTargets(['name', 'drop'], ['상품명', 'x'])).toContain('알 수 없는');
     expect(validateSabangnetTargets(['name'], ['상품명', '판매가'])).toContain('다시 올려');
+  });
+
+  /* 빈 판매가는 0원으로 읽는다. 금액 열이 빠진 채(또는 TAG가만 연결한 채) 미리보기를 만들면 상품이 모두 0원 초안이 된다. */
+  it('고객이 내는 금액 열이 없으면 미리보기를 만들지 않는다 — TAG가만 연결해도 마찬가지다', () => {
+    expect(validateSabangnetTargets(['name', 'ignore'], ['상품명', '판매가'])).toBe(SABANGNET_PRICE_REQUIRED);
+    expect(validateSabangnetTargets(['name', 'compareAtPrice'], ['상품명', '판매가'])).toBe(SABANGNET_PRICE_REQUIRED);
+    expect(validateSabangnetTargets(['name', 'gallery', 'gallery'], ['상품명', '부가1', '부가2'])).toBe(SABANGNET_PRICE_REQUIRED);
+    expect(SABANGNET_PRICE_REQUIRED).toBe('고객이 내는 금액(사방넷 판매가)으로 쓸 열을 골라 주세요. 이 열이 없으면 상품이 모두 0원으로 만들어집니다.');
+    expect(validateSabangnetTargets(['name', 'price'], ['상품명', '판매가'])).toBeNull();
   });
 });
 
 describe('연결할 엑스스퀘어 항목 이름(M-03·M-04)', () => {
   const label = (key: string) => SABANGNET_TARGETS.find((target) => target.key === key)?.label;
+  /* 금액이 실제로 어떻게 들어가는지: 사방넷 판매가·TAG가 → 상품의 판매가·즉시할인·고객이 내는 금액. */
+  const priced = (cells: Record<string, string>) => {
+    const { rows, warnings } = convert([sheetRow(5, { 상품명: '머그', ...cells })]);
+    const stored = goodsWorkbookStoredPrice(rows[0].values);
+    return { salePrice: rows[0].values.salePrice, instantDiscount: rows[0].values.instantDiscount, pays: stored.price, regular: stored.compareAtPrice, warnings: warnings.get(5) ?? [] };
+  };
 
-  it('사방넷 판매가는 상품 수정 화면의 할인가, TAG가는 판매가라 부르고 옵션은 옵션명·옵션값이라 부른다', () => {
-    expect(label('price')).toBe('할인가(고객이 내는 금액)');
-    expect(label('compareAtPrice')).toBe('판매가(할인 전 금액)');
+  it('옵션은 옵션명·옵션값이라 부르고, 금액 두 항목의 이름에 쓰지 않는 옛 말이 없다', () => {
     expect([label('optionTitle1'), label('optionValues1'), label('optionTitle2'), label('optionValues2')]).toEqual(['옵션명 1', '옵션값 1', '옵션명 2', '옵션값 2']);
-    expect(SABANGNET_TARGETS.filter((target) => /옵션 축|고객 결제 금액|할인 전 판매가/.test(target.label))).toEqual([]);
+    expect(SABANGNET_TARGETS.filter((target) => /옵션 축|고객 결제 금액|할인 전 판매가|^할인가|^판매가/.test(target.label))).toEqual([]);
+  });
+
+  /* 이름이 변환과 맞는지를 본다. '할인가'·'판매가'라는 이름은 TAG가가 더 클 때만 맞았다. */
+  it("사방넷 판매가 열의 이름은 '고객이 내는 금액'이다 — TAG가가 있든 없든 크든 작든 고객은 그 금액을 낸다", () => {
+    expect(label('price')).toBe('고객이 내는 금액(사방넷 판매가)');
+    expect(priced({ 판매가: '15000' })).toMatchObject({ salePrice: '15000', instantDiscount: '', pays: 15000, regular: null });
+    expect(priced({ 판매가: '15000', TAG가: '18000' })).toMatchObject({ salePrice: '18000', instantDiscount: '3000', pays: 15000, regular: 18000 });
+    expect(priced({ 판매가: '15000', TAG가: '15000' })).toMatchObject({ salePrice: '15000', instantDiscount: '', pays: 15000, regular: null });
+    expect(priced({ 판매가: '15000', TAG가: '12000' })).toMatchObject({ salePrice: '15000', instantDiscount: '', pays: 15000, regular: null });
+  });
+
+  it("TAG가 열의 이름은 '할인 전 금액(있을 때만)'이다 — 사방넷 판매가보다 클 때만 판매가가 되고, 그 밖에는 쓰이지 않는다", () => {
+    expect(label('compareAtPrice')).toBe('할인 전 금액(TAG가 · 있을 때만)');
+    /* 판매가 열만 있는 파일: 그 금액이 판매가이고 할인이 없다. */
+    const headers = ['상품명', '판매가'];
+    const only = convertSabangnetRows({ headers, targets: suggestSabangnetTargets(headers).targets, ipId: 'maple', rows: [{ row: 2, cells: ['머그', '15,000원'] }] });
+    expect(only.rows[0].values).toMatchObject({ salePrice: '15000', instantDiscount: '' });
+    expect(goodsWorkbookStoredPrice(only.rows[0].values)).toEqual({ price: 15000, compareAtPrice: null });
+    expect(only.warnings.size).toBe(0);
+    /* 숫자가 아닌 TAG가는 할인 없이 가져오고 알린다. */
+    expect(priced({ 판매가: '15000', TAG가: '문의' })).toMatchObject({ salePrice: '15000', instantDiscount: '', pays: 15000, warnings: ['TAG가를 숫자로 읽지 못해 즉시할인 없이 가져왔습니다.'] });
+    /* 금액 칸이 빈 줄은 TAG가가 있어도 0원이다 — 열이 통째로 빠진 경우는 연결 검사가 막고, 빈 줄은 미리보기·적용 확인창의 0원 경고가 잡는다. */
+    expect(priced({ TAG가: '18000' })).toMatchObject({ salePrice: '', instantDiscount: '', pays: 0, regular: null });
   });
 
   it('이름만 바뀌었다: 열 이름 자동 연결·저장 값(판매가=고객이 내는 금액, TAG가=할인 전)은 그대로다', () => {
@@ -94,8 +132,19 @@ describe('연결할 엑스스퀘어 항목 이름(M-03·M-04)', () => {
     expect(rows[0].values).toMatchObject({ salePrice: '18000', instantDiscount: '3000' });
   });
 
+  it('열 연결 표 아래 한 줄은 지금 연결로 금액이 어떻게 들어가는지를 연결한 열 이름으로 되읽는다', () => {
+    expect(sabangnetPriceReadback(['상품명', '판매가', 'TAG가'], ['name', 'price', 'compareAtPrice']))
+      .toBe("고객은 '판매가' 열의 금액을 냅니다. 'TAG가' 열이 더 크면 그 금액이 판매가, 차액이 즉시할인이 되고, 아니면 할인 없이 '판매가' 열의 금액이 판매가입니다.");
+    expect(sabangnetPriceReadback(['상품명', '판매가'], ['name', 'price'])).toBe("'판매가' 열의 금액이 그대로 판매가가 됩니다. 할인은 없습니다.");
+    /* 운영자가 이름을 바꾼 열·이름 없는 열도 그 열로 말한다. */
+    expect(sabangnetPriceReadback(['상품명', ' 결제금액 ', ''], ['name', 'price', 'compareAtPrice'])).toContain("'결제금액' 열의 금액을 냅니다. '3번째' 열이 더 크면");
+    /* 금액 열을 고르지 않았으면 되읽을 것이 없다 — 화면은 무엇을 골라야 하는지를 보인다. */
+    expect(sabangnetPriceReadback(['상품명', 'TAG가'], ['name', 'compareAtPrice'])).toBeNull();
+    expect(sabangnetPriceReadback(['상품명'], ['name'])).toBeNull();
+  });
+
   it('중복 연결 오류도 새 이름으로 말한다', () => {
-    expect(validateSabangnetTargets(['name', 'price', 'price'], ['상품명', '판매가', '결제금액'])).toBe('할인가(고객이 내는 금액)에 두 개 이상의 열을 연결했습니다: 판매가, 결제금액');
+    expect(validateSabangnetTargets(['name', 'price', 'price'], ['상품명', '판매가', '결제금액'])).toBe('고객이 내는 금액(사방넷 판매가)에 두 개 이상의 열을 연결했습니다: 판매가, 결제금액');
     expect(validateSabangnetTargets(['name', 'optionTitle1', 'optionTitle1'], ['상품명', '옵션제목(1)', '옵션제목1'])).toContain('옵션명 1에 두 개 이상');
   });
 

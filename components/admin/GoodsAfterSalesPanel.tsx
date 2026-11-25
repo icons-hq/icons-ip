@@ -3,8 +3,9 @@ import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { loadGoodsAfterSalesAction, saveGoodsAfterSalesAction, type GoodsAfterSalesResult } from '@/app/admin/goods-after-sales-actions';
 import { GOODS_AFTER_SALES_TEMPLATES_PATH, parseGoodsAfterSalesValues, type GoodsAfterSalesSnapshot, type GoodsAfterSalesValues } from '@/lib/goods-after-sales';
-import { goodsAfterSalesError, goodsAfterSalesProblem } from '@/lib/admin/goods-after-sales-messages';
-import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
+import { adminConfirm } from '@/lib/admin/confirm';
+import { GOODS_AFTER_SALES_CLEAR_CONFIRM, goodsAfterSalesError, goodsAfterSalesProblem, sameGoodsAfterSales } from '@/lib/admin/goods-after-sales-messages';
+import { RELOAD_SAVED_CONFIRM, SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
 import { GoodsAfterSalesTemplatePicker } from './GoodsAfterSalesTemplatePicker';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
@@ -24,6 +25,9 @@ export function GoodsAfterSalesPanel({ goodId }: { goodId: string }) {
   }, [goodId]);
   async function reload() {
     if (busy.current || uncertain) return;
+    /* 적은 내용이 저장된 것과 다르면 사라진다고 먼저 묻는다(화면 규칙 7). */
+    if (snapshot && !sameGoodsAfterSales(values, snapshot) && !await adminConfirm(RELOAD_SAVED_CONFIRM)) return;
+    if (busy.current) return;
     const sequence = ++readSequence.current;
     busy.current = true; setPending(true);
     try {
@@ -48,16 +52,22 @@ export function GoodsAfterSalesPanel({ goodId }: { goodId: string }) {
     if (result.ok) { accept(result.value); setError(false); setMessage(result.value.phone ? 'A/S 안내와 판매자 특이사항을 저장했습니다.' : '상품 상세의 A/S 안내와 판매자 특이사항을 해제했습니다.'); }
     else { setError(true); setMessage(result.uncertain ? SAVE_UNKNOWN_MESSAGE : result.error); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) request.current = null; if (result.conflict) setConflict(true); }
   }
+  /** [안내 해제]는 누르는 즉시 빈 값으로 저장해 상품 상세의 안내를 내린다. 무엇이 사라지는지 말하고 확인받는다. */
+  async function clear() {
+    if (busy.current || !snapshot || conflict || !await adminConfirm(GOODS_AFTER_SALES_CLEAR_CONFIRM)) return;
+    void save(true);
+  }
   return <div className="flex min-w-0 flex-col gap-4 text-sm" data-goods-after-sales="">
     <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
-      <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={!snapshot || pending || uncertain || conflict}>
-        <GoodsAfterSalesFields values={values} onChange={setValues} />
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button aria-haspopup="dialog" className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>A/S 템플릿 고르기</button><Link className="text-sm underline underline-offset-4" href={GOODS_AFTER_SALES_TEMPLATES_PATH} target="_blank" rel="noreferrer">A/S 템플릿 관리 ↗</Link></div>
+      {/* 다른 사람이 먼저 바꿔 저장이 멈춘 동안에는 칸을 잠그지 않고 읽기 전용으로 둔다 — 적어 둔 내용을 긁어 복사해 둘 수 있어야 한다. */}
+      <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={!snapshot || pending || uncertain}>
+        <GoodsAfterSalesFields values={values} onChange={setValues} readOnly={conflict} />
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button aria-haspopup="dialog" className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={conflict} onClick={() => setTemplates(true)}>A/S 템플릿 고르기</button><Link className="text-sm underline underline-offset-4" href={GOODS_AFTER_SALES_TEMPLATES_PATH} target="_blank" rel="noreferrer">A/S 템플릿 관리 ↗</Link></div>
       </fieldset>
       {message ? <p className={error ? 'text-sm text-destructive' : 'text-sm text-[var(--wc-success)]'} role={error ? 'alert' : 'status'}>{message}</p> : null}
       <div className="flex flex-wrap gap-2">
         {uncertain ? <button className={buttonVariants()} data-slot="button" type="button" disabled={pending} onClick={() => void save()}>{SAVE_CHECK_LABEL}</button> : <button className={buttonVariants()} data-slot="button" type="submit" disabled={!snapshot || pending || conflict}>안내 저장</button>}
-        <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={!snapshot || !snapshot.phone || pending || uncertain || conflict} onClick={() => void save(true)}>안내 해제</button>
+        <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={!snapshot || !snapshot.phone || pending || uncertain || conflict} onClick={() => void clear()}>안내 해제</button>
         <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={pending || uncertain} onClick={() => void reload()}>저장된 내용으로 다시 불러오기</button>
       </div>
     </form>

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { GOODS_LIST_DATE_FIELDS, GOODS_LIST_SEARCH_FIELDS, GOODS_LIST_SEARCH_HINTS, GOODS_LIST_SORT_OPTIONS, GOODS_LIST_STOCK_OPTIONS, goodsConsoleFilterValues, goodsListHref, goodsListPreorderSaleLabel, goodsListSalePeriodLabel, goodsListSearchChoices, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
+import { parseGoodsVariantSupply, preorderUnavailableLabel } from '@/lib/goods-preorders';
+import { GOODS_READINESS_REASONS, goodReadinessReasonAnchor, type GoodsReadinessReasonCode } from './goods-readiness';
+import { GOODS_LIST_DATE_FIELDS, GOODS_LIST_PREORDER_NOT_OPEN_LABEL, GOODS_LIST_SEARCH_FIELDS, GOODS_LIST_SEARCH_HINTS, GOODS_LIST_SORT_OPTIONS, GOODS_LIST_STOCK_OPTIONS, goodsConsoleFilterValues, goodsListHref, goodsListPreorderSaleLabel, goodsListSalePeriodLabel, goodsListSearchChoices, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
 
 describe('goods list navigation', () => {
   it('상품번호(시스템 순번)와 상품 URL을 다른 검색 대상으로 두고, 예전 상품번호순 주소는 새 상품번호순으로 연다(S36-009·S36-X02)', () => {
@@ -108,6 +110,19 @@ describe('goods list navigation', () => {
     expect(next.searchParams.has('goodId')).toBe(false);
     expect(goodEditorHref(filters, 'g100', 'kc')).toContain('#good-operation-kc');
   });
+  /* 목록의 준비 사유 링크는 편집기 판매 준비 카드의 같은 사유와 같은 자리로 간다. 사유 표의 대상(target)만 따르면 세 사유가 그 칸이 아닌 기본 정보로 간다. */
+  it('준비 사유를 주면 상품 수정에서 그 사유의 칸으로 가는 주소를 만든다(편집기와 같은 자리)', () => {
+    const filters = normalizeGoodsListFilters({});
+    const anchor = (code: GoodsReadinessReasonCode) => goodEditorHref(filters, 'g100', { code, target: GOODS_READINESS_REASONS[code].target }).split('#')[1];
+    expect(anchor('stopped')).toBe('good-section-information');
+    expect(anchor('image_missing')).toBe('good-section-images');
+    expect(anchor('category_missing')).toBe('good-section-category');
+    for (const code of Object.keys(GOODS_READINESS_REASONS) as GoodsReadinessReasonCode[])
+      expect(anchor(code), code).toBe(goodReadinessReasonAnchor({ code, target: GOODS_READINESS_REASONS[code].target }));
+    /* 영역 이름으로 부르던 곳(옵션별 재고 수정 링크)은 그대로다. */
+    expect(goodEditorHref(filters, 'g100', 'variants')).toContain('#good-section-variants');
+    expect(goodEditorHref(filters, 'g100')).not.toContain('#');
+  });
 });
 
 describe('goodsListPreorderSaleLabel', () => {
@@ -116,8 +131,12 @@ describe('goodsListPreorderSaleLabel', () => {
     startsAt: state === 'scheduled' ? '2026-12-02T02:00:00.000Z' : '2026-11-20T02:00:00.000Z', endsAt: state === 'closed' ? '2026-11-24T14:59:00.000Z' : '2026-12-13T14:59:00.000Z',
     expectedShipDate: '2026-12-14', calculatedAt: at, nextChangeAt: state === 'scheduled' ? '2026-12-02T02:00:00.000Z' : null, ...extra });
   const stock = { mode: 'stock', availableQty: 0, policyId: null, policyRevision: null, state: 'stock', startsAt: null, endsAt: null, expectedShipDate: null, calculatedAt: at, nextChangeAt: null };
-  it('예약판매만 있고 주문받을 물량이 없으면 고객 화면과 같은 예약 상태를 돌려준다', () => {
-    expect(goodsListPreorderSaleLabel([preorder('scheduled'), preorder('scheduled')])).toBe('판매 예정');
+  it('예약판매만 있고 주문받을 물량이 없으면 예약 상태를 돌려준다 — 접수 전만 고객 화면의 판매 예정 대신 예약 접수 전이다', () => {
+    /* '판매 예정' 건수 칸·판매기간 조건은 판매기간 시작 전만 센다. 접수 전 예약판매를 같은 이름으로 부르면 배지가 붙은 상품이 그 칸에 없다. */
+    expect(goodsListPreorderSaleLabel([preorder('scheduled'), preorder('scheduled')])).toBe('예약 접수 전');
+    expect(GOODS_LIST_PREORDER_NOT_OPEN_LABEL).toBe('예약 접수 전');
+    /* 고객 화면 문구는 그대로다 — 목록에서만 이름을 옮긴다. */
+    expect(preorderUnavailableLabel([{ stockQty: 0, supply: parseGoodsVariantSupply(preorder('scheduled'))! }], true)).toBe('판매 예정');
     expect(goodsListPreorderSaleLabel([preorder('open')])).toBe('예약 물량 마감');
     expect(goodsListPreorderSaleLabel([preorder('closed')])).toBe('예약 접수 종료');
     expect(goodsListPreorderSaleLabel([preorder('stopped')])).toBe('예약 접수 중지');

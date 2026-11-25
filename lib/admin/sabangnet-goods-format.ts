@@ -80,11 +80,12 @@ export const SABANGNET_TARGETS: readonly {
   { key: 'ignore', label: '가져오지 않음', multiple: true },
   { key: 'name', label: '상품명' },
   { key: 'code', label: '상품 자동코드' },
-  // 사방넷 판매가는 고객이 내는 금액이라 상품 수정 화면의 '할인가'다. TAG가는 할인 전 금액이라 그 화면의 '판매가'다.
-  // TAG가가 더 클 때만 판매가는 TAG가, 차액은 즉시할인이 된다(상품 엑셀 v8과 같은 뜻). 사방넷 판매가만 연결하면 그 금액이 판매가이고 할인은 없다.
-  // 이름은 화면의 말이다 — 저장 값(price·compareAtPrice)과 변환은 그대로다.
-  { key: 'price', label: '할인가(고객이 내는 금액)' },
-  { key: 'compareAtPrice', label: '판매가(할인 전 금액)' },
+  // 이름은 어느 경우에나 맞는 말로 쓴다. 사방넷 판매가는 늘 고객이 내는 금액이다(할인이 걸리면 할인가, 아니면 판매가).
+  // TAG가는 사방넷 판매가보다 클 때만 할인 전 금액으로 쓰인다 — 그때 판매가는 TAG가, 차액은 즉시할인이다(상품 엑셀 v8과 같은 뜻).
+  // TAG가가 없거나 같거나 작으면 사방넷 판매가가 그대로 판매가이고 할인은 없다. '할인가'·'판매가'라고 부르면 이 절반의 경우에 틀린다.
+  // 저장 값(price·compareAtPrice)과 변환은 그대로다. 연결한 결과는 화면이 `sabangnetPriceReadback` 한 줄로 되읽는다.
+  { key: 'price', label: '고객이 내는 금액(사방넷 판매가)' },
+  { key: 'compareAtPrice', label: '할인 전 금액(TAG가 · 있을 때만)' },
   { key: 'nameEn', label: '영문 상품명' },
   { key: 'searchKeywords', label: '검색 키워드' },
   { key: 'optionTitle1', label: '옵션명 1' },
@@ -237,6 +238,13 @@ export function suggestSabangnetTargets(
   return { targets, status };
 }
 
+/**
+ * 고객이 내는 금액 열이 없으면 상품이 모두 0원 초안이 된다(빈 판매가는 0원으로 읽는다). TAG가만 연결해도 마찬가지라
+ * 미리보기를 만들기 전에 막는다.
+ */
+export const SABANGNET_PRICE_REQUIRED =
+  '고객이 내는 금액(사방넷 판매가)으로 쓸 열을 골라 주세요. 이 열이 없으면 상품이 모두 0원으로 만들어집니다.';
+
 export function validateSabangnetTargets(
   targets: readonly unknown[],
   headers: readonly string[],
@@ -252,7 +260,28 @@ export function validateSabangnetTargets(
     if (columns.length > 1)
       return `${target.label}에 두 개 이상의 열을 연결했습니다: ${columns.join(', ')}`;
   }
+  if (!targets.includes('price')) return SABANGNET_PRICE_REQUIRED;
   return null;
+}
+
+/**
+ * 열 연결 표 아래의 금액 되읽기 한 줄. 지금 연결로 금액이 어떻게 들어가는지를 연결한 열 이름으로 말한다(`convertSabangnetRows`와 같은 규칙).
+ * 고객이 내는 금액 열을 아직 고르지 않았으면 null이고, 그때 화면은 `SABANGNET_PRICE_REQUIRED`를 보인다.
+ */
+export function sabangnetPriceReadback(
+  headers: readonly string[],
+  targets: readonly SabangnetTarget[],
+): string | null {
+  const column = (target: SabangnetTarget) => {
+    const index = targets.indexOf(target);
+    return index < 0 ? null : headers[index]?.trim() || `${index + 1}번째`;
+  };
+  const price = column('price');
+  if (!price) return null;
+  const tag = column('compareAtPrice');
+  return tag
+    ? `고객은 '${price}' 열의 금액을 냅니다. '${tag}' 열이 더 크면 그 금액이 판매가, 차액이 즉시할인이 되고, 아니면 할인 없이 '${price}' 열의 금액이 판매가입니다.`
+    : `'${price}' 열의 금액이 그대로 판매가가 됩니다. 할인은 없습니다.`;
 }
 
 export function rememberSabangnetTargets(

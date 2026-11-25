@@ -132,10 +132,14 @@ describe('주문 후 제작 입력', () => {
     expect(html).not.toMatch(/<input type="checkbox"[^>]*required=""/);
   });
 
-  /* 옛 확인 체크가 말하던 것 가운데 화면에 보이지 않는 결과는 켰을 때 한 줄에 사실로 남긴다. */
-  it('켜면 함께 쓸 수 없는 설정과 화면에 보이지 않는 결과(출고·취소)를 한 줄로 알린다', () => {
-    const note = renderProduction(production({ enabled: true })).match(/data-good-production-note=""[^>]*>([^<]*)</)?.[1];
-    expect(note).toBe('예약판매와는 함께 쓸 수 없습니다. 제작 시작·완료는 주문 상세에서 기록하고, 완료하기 전에는 출고지시와 발송을 할 수 없습니다. 제작을 시작한 주문의 취소는 자동으로 처리되지 않고 담당자가 확인합니다.');
+  /* 옛 확인 체크가 말하던 것 가운데 화면에 보이지 않는 결과는 켰을 때 사실로 남긴다. */
+  it('켜면 함께 쓸 수 없는 설정과 출고 순서를 한 줄로 알리고, 취소 규칙은 고객 안내 칸 아래에 둔다', () => {
+    const html = renderProduction(production({ enabled: true }));
+    const note = html.match(/data-good-production-note=""[^>]*>([^<]*)</)?.[1];
+    expect(note).toBe('예약판매와는 함께 쓸 수 없습니다. 제작 시작·완료는 주문 상세에서 기록하고, 완료하기 전에는 출고지시와 발송을 할 수 없습니다.');
+    /* S10: 취소 규칙으로 운영자가 할 일은 고객에게 알릴지 정하는 것뿐이다. 고객 화면은 발송 예정 기간만 말하므로, 알리려면 적는 칸 아래에서 말한다. */
+    expect(html).toContain('상품 상세·주문서·주문 상세에 보입니다. 제작을 시작한 주문은 고객이 바로 취소할 수 없고 담당자가 확인합니다. 고객에게 알리려면 여기에 적어 주세요.');
+    expect(html.split('담당자가 확인합니다').length).toBe(2);
   });
 });
 

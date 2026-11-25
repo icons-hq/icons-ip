@@ -10,7 +10,9 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_NUMBER_INPUT_CLASS, GoodChoiceCard, GoodChoiceCards, GoodReadback } from './GoodEditorParts';
 import { AdminField } from './console/AdminKit';
 import { GOOD_FIELDS_B_HELP } from '@/lib/admin/help/good-fields-b';
-import { GOODS_FULFILLMENT_SAVE_UNCERTAIN } from '@/lib/admin/goods-fulfillment-messages';
+import { FULFILLMENT_AMOUNT_INVALID, FULFILLMENT_METHOD_REQUIRED, GOODS_FULFILLMENT_SAVE_UNCERTAIN } from '@/lib/admin/goods-fulfillment-messages';
+import { adminConfirm } from '@/lib/admin/confirm';
+import { RELOAD_SAVED_CONFIRM } from '@/lib/admin/goods-template-save';
 const FIELD_LABEL_CLASS = 'flex min-w-0 flex-col gap-2 text-sm font-medium text-foreground';
 const CHECK_LABEL_CLASS = 'flex cursor-pointer items-start gap-2 text-sm [&>input]:mt-0.5';
 const shippingMethods = ['parcel', 'quick', 'pickup', 'direct', 'freight'] as const;
@@ -44,6 +46,10 @@ export function GoodsFulfillmentDraftFields({ draft, onChange, onUpload, fieldId
  /* 택배 외 방식과 직접 전달은 출고지에서 연락처·인계 장소·수령 절차를 켜 둬야 주문할 수 있다. */
  const needsOriginSetup = draft.mode === 'no_delivery' || draft.mode === 'shipping' && draft.methods.some(m => m.enabled && m.method !== 'parcel');
  const readback = fulfillmentReadback(draft);
+ /* 뺀 파일을 다시 넣으려면 다시 올려야 한다. 무엇이 빠지는지 말하고 확인받는다(화면 규칙 7). */
+ const excludeFile = async (file: DigitalFile) => {
+  if (await adminConfirm({ title: `‘${file.name}’ 파일을 새 주문에서 뺄까요?`, message: '저장하면 새 주문부터 이 파일을 받을 수 없습니다. 이미 받은 주문은 그대로입니다. 다시 넣으려면 파일을 다시 올려야 합니다.', confirmLabel: '새 주문에서 제외' })) onChange({ ...draft, files: draft.files.filter(item => item.id !== file.id) });
+ };
  const modeCard = (mode: Draft['mode'], title: string, description: string) => <GoodChoiceCard name={`${fieldId}-mode`} value={mode} checked={draft.mode === mode} onChange={() => onChange({ ...draft, mode })} title={title} description={description} />;
  return <>
    <GoodChoiceCards legend="상품 제공 방식">
@@ -60,7 +66,7 @@ export function GoodsFulfillmentDraftFields({ draft, onChange, onUpload, fieldId
     <AdminField label="제공 파일" inputId={`${fieldId}-file`} help={GOOD_FIELDS_B_HELP.digitalFiles} hint="PDF·ZIP·PNG·JPG·MP3·MP4·TXT 파일, 최대 10개, 개당 50MB까지 올릴 수 있습니다.">
       <input className={`${GOOD_INPUT_CLASS} file:mr-3 file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground`} data-slot="input" id={`${fieldId}-file`} type="file" accept={Object.keys(DIGITAL_MIME_EXTENSIONS).join(',')} disabled={draft.files.length >= 10} onChange={e => { const file = e.target.files?.[0]; e.target.value = ''; onUpload(file); }} />
     </AdminField>
-    <ul className="flex min-w-0 flex-col gap-1.5 text-sm">{draft.files.map(f => <li className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 wrap-anywhere" key={f.id}>{f.name} · <span className="tabular-nums">{(f.size / 1024).toFixed(1)}KB</span> <button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" onClick={() => onChange({ ...draft, files: draft.files.filter(item => item.id !== f.id) })}>새 주문에서 제외</button></li>)}</ul>
+    <ul className="flex min-w-0 flex-col gap-1.5 text-sm">{draft.files.map(f => <li className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 wrap-anywhere" key={f.id}>{f.name} · <span className="tabular-nums">{(f.size / 1024).toFixed(1)}KB</span> <button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" onClick={() => { void excludeFile(f); }}>새 주문에서 제외</button></li>)}</ul>
    </div> : null}
    {needsOriginSetup ? <p className="text-sm text-muted-foreground" data-good-fulfillment-origin-note="">택배 외 방식은 <a className="text-foreground underline underline-offset-4" href="/admin/settings/origins" target="_blank" rel="noreferrer">배송정보 관리</a>에서 출고지의 연락처·인계 장소·수령 절차를 먼저 켜 둬야 주문할 수 있습니다. 추가 배송비는 선결제로만 받고, 현장에서 따로 받지 않습니다.</p> : null}
    <AdminField label="고객 안내 (선택)" inputId={`${fieldId}-note`} hint="상품 상세의 제공 방식과 주문서의 받을 방식 아래에 보입니다.">
@@ -78,7 +84,11 @@ function Panel({ goodId, disabledReason, showDisabledReason = true, identity, sc
  const fieldId = useId();
  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
  async function read() {
-  if (busy.current || uncertain || pendingFile) return; const ticket = scope.capture(); if (!ticket) return; busy.current = true; setPending(true);
+  if (busy.current || uncertain || pendingFile) return;
+  /* 적은 내용이 저장된 설정과 다르면 사라진다고 먼저 묻는다(화면 규칙 7). */
+  if (draft && settings && JSON.stringify(draft) !== JSON.stringify(draftOf(settings)) && !await adminConfirm(RELOAD_SAVED_CONFIRM)) return;
+  if (busy.current) return;
+  const ticket = scope.capture(); if (!ticket) return; busy.current = true; setPending(true);
   try { const result = await readGoodsFulfillmentAction(goodId); if (!alive.current || !scope.canApply(ticket)) return;
    if ('settings' in result) { setSettings(result.settings); setDraft(draftOf(result.settings)); setMessage('현재 배송·제공 설정을 불러왔습니다.'); } else setMessage(result.error);
   } finally { busy.current = false; if (alive.current) setPending(false); }
@@ -111,13 +121,15 @@ function Panel({ goodId, disabledReason, showDisabledReason = true, identity, sc
  async function save() {
   if (!draft || !settings || disabledReason || pendingFile || busy.current) return; const ticket = scope.capture(); if (!ticket) return;
   const selected = draft.methods.filter(m => m.enabled);
-  if (draft.mode === 'shipping' && (!selected.length || selected.some(m => !/^\d+$/.test(m.amount) || !/^\d+$/.test(m.installation)))) { setMessage('받을 방식과 0 이상의 원 단위 비용을 입력해주세요.'); return; }
+  if (draft.mode === 'shipping' && !selected.length) { setMessage(FULFILLMENT_METHOD_REQUIRED); return; }
+  if (draft.mode === 'shipping' && selected.some(m => !/^\d+$/.test(m.amount) || !/^\d+$/.test(m.installation))) { setMessage(FULFILLMENT_AMOUNT_INVALID); return; }
   const methods = draft.mode === 'shipping' ? selected.map(m => ({ method: m.method, feeAmount: m.method === 'parcel' ? null : m.method === 'pickup' ? 0 : Number(m.amount), feeBasis: m.method === 'parcel' ? 'per_order' : m.basis, installationFee: m.method === 'pickup' ? 0 : Number(m.installation) })) : [{ method: draft.mode === 'digital' ? 'digital' : 'none', feeAmount: 0, feeBasis: 'per_order', installationFee: 0 }];
   const request = dispatched.current ?? { values: { mode: draft.mode, methods, files: draft.mode === 'digital' ? draft.files : [], publicNote: draft.publicNote }, revision: settings.revision, operation: crypto.randomUUID() };
   dispatched.current = request; busy.current = true; setPending(true);
   try { const result = await saveGoodsFulfillmentAction(goodId, request.values, request.revision, request.operation, identity); if (!alive.current || !scope.canApply(ticket)) return;
    if ('settings' in result && result.settings) { setSettings(result.settings); setDraft(draftOf(result.settings)); dispatched.current = null; setUncertain(false); setMessage('배송·제공 설정을 저장했습니다. 기존 주문의 방식·금액·파일은 유지됩니다.'); }
-   else { setMessage(result.error ?? '결과를 확인하지 못했습니다.'); setUncertain(uncertain || Boolean(result.uncertain)); if (!uncertain && !result.uncertain) dispatched.current = null; }
+   /* 저장되지 않았다는 답을 받았으면 잠금을 푼다(앞서 결과를 모르던 저장을 다시 보낸 경우에도). 안내가 누르라고 하는 [현재 배송·제공 설정 불러오기]를 누를 수 있어야 한다. */
+   else { setMessage(result.error ?? '결과를 확인하지 못했습니다.'); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) dispatched.current = null; }
   } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage(GOODS_FULFILLMENT_SAVE_UNCERTAIN); } }
   finally { busy.current = false; if (alive.current) setPending(false); }
  }

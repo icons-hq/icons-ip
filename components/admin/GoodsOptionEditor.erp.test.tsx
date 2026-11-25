@@ -199,6 +199,27 @@ describe('옵션 줄의 ERP 품목 고르기', () => {
     expect(onErpItemSelect).toHaveBeenCalledExactlyOnceWith(item);
   });
 
+  /* G4: 옵션이 많은 상품에서 줄마다 같은 검색을 되풀이하지 않게, 버튼에 그 줄에 적힌 글과 표 전체를 넘긴다. */
+  it('버튼에 그 줄에 적힌 ERP 품명·ERP 코드와 표의 모든 줄을 넘겨, 선택창이 그 글로 열리고 아래의 빈 옵션으로 이어서 고르게 한다', () => {
+    rows[0] = { ...rows[0], erpName: '', erpCode: null };
+    const [red, blue] = pickButtons();
+    expect(red.props.rowText).toBe('');
+    expect(blue.props.rowText).toBe('아크릴 키링');
+    expect([red.props.queueKey, blue.props.queueKey]).toEqual([savedRed, savedBlue]);
+    expect(red.props.queue).toBe(blue.props.queue);
+    expect(red.props.queue!.map((entry) => [entry.key, entry.target, entry.empty, entry.currentCode])).toEqual([
+      [savedRed, '옵션 1(빨강)', true, null], [savedBlue, '옵션 2(파랑)', false, '000123'],
+    ]);
+    /* 표에서 읽은 줄도 그 줄의 버튼과 같은 일을 한다. */
+    expect(red.props.queue![0].blockedReason?.(item)).toBe('다른 옵션에 넣은 품목');
+    red.props.queue![0].onSelect({ ...item, code: '000999', name: '아크릴 키링 레드', barcode: null });
+    expect(rows[0]).toMatchObject({ erpCode: '000999', erpName: '아크릴 키링 레드' });
+    /* ERP 품명이 없고 ERP 코드만 적은 줄은 그 코드로 찾는다. */
+    rows[1] = { ...rows[1], erpName: ' ', erpCode: ' 000124 ' };
+    expect(pickButtons()[1].props.rowText).toBe('000124');
+    expect(pickButtons()[1].props.queue![1]).toMatchObject({ empty: false, currentCode: '000124' });
+  });
+
   it('같은 상품의 다른 옵션이 쓰는 품목은 선택창에서 고를 수 없고, 자기 줄의 품목은 다시 고를 수 있다', () => {
     const [red, blue] = pickButtons();
     expect(red.props.blockedReason?.(item)).toBe('다른 옵션에 넣은 품목');
@@ -229,7 +250,7 @@ describe('옵션 줄의 ERP 품목 고르기', () => {
     pickButtons()[0].props.onSelect(item);
     const [picked] = summaries();
     expect(summaries()).toHaveLength(1);
-    expect(picked.props.children).toBe('고른 ERP 품목 · 000123 · 바코드 0880000000123');
+    expect(picked.props.children).toBe('ERP 품목에서 가져왔습니다 · 000123 · 바코드 0880000000123');
     expect(picked.props.className).toContain('text-muted-foreground');
     expect(picked.props['data-tone']).toBeUndefined();
 
@@ -250,7 +271,7 @@ describe('옵션 줄의 ERP 품목 고르기', () => {
     pickButtons()[0].props.onSelect(item);
     expect(rows[0]).toMatchObject({ erpCode: '000123', barcode: '4900000000011' });
     const [picked] = summaries();
-    expect(picked.props.children).toBe('고른 ERP 품목 · 000123 · 바코드는 적어 둔 값을 그대로 뒀습니다. ERP 품목의 바코드는 0880000000123입니다.');
+    expect(picked.props.children).toBe('ERP 품목에서 가져왔습니다 · 000123 · 바코드는 적어 둔 값을 그대로 뒀습니다. ERP 품목의 바코드는 0880000000123입니다.');
     expect(picked.props['data-tone']).toBe('warning');
     expect(picked.props.className).toContain('text-[var(--wc-warning)]');
   });

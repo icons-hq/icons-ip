@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useLayoutEffect, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react';
 import { resolveGoodsAnnouncementSaveAction, saveGoodsAnnouncementAction, type GoodsAnnouncementActionState } from '@/app/admin/goods-announcement-actions';
 import { announcementKstInput, GOODS_ANNOUNCEMENT_CATEGORIES, GOODS_ANNOUNCEMENT_CHECK_LABEL, GOODS_ANNOUNCEMENT_DEVICES, GOODS_ANNOUNCEMENT_GOOD_LIMIT, GOODS_ANNOUNCEMENT_PLACEMENTS,
-  GOODS_ANNOUNCEMENT_POPUP_CONFIRM, GOODS_ANNOUNCEMENT_RETRY_LABEL, GOODS_ANNOUNCEMENT_UNKNOWN_MESSAGE, GOODS_ANNOUNCEMENTS_PATH, goodsAnnouncementOutcome,
+  GOODS_ANNOUNCEMENT_POPUP_CONFIRM, GOODS_ANNOUNCEMENT_RETRY_LABEL, GOODS_ANNOUNCEMENT_STORAGE_UNAVAILABLE, GOODS_ANNOUNCEMENT_UNKNOWN_MESSAGE, GOODS_ANNOUNCEMENTS_PATH, goodsAnnouncementOutcome,
   type GoodsAnnouncement, type GoodsAnnouncementDevice, type GoodsAnnouncementPlacement } from '@/lib/admin/goods-announcements';
 import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { GoodsDescription } from '@/components/shop/GoodsDescription';
@@ -67,9 +67,9 @@ function PlacementSketch({ placement }: { placement: GoodsAnnouncementPlacement 
     {placement === 'bottom' ? notice : null}
   </span>;
 }
-function EditorFields({ announcement, action, pending, checking, state, backHref, uncertain, locked, canResolve, resolve, retry }: {
+function EditorFields({ announcement, action, pending, checking, state, backHref, uncertain, locked, canResolve, resolve, retry, openedAt }: {
   announcement: GoodsAnnouncement; action: (form: FormData) => void; pending: boolean; checking: boolean; state: GoodsAnnouncementActionState; backHref: string;
-  uncertain: boolean; locked: boolean; canResolve: boolean; resolve: () => void; retry: () => void;
+  uncertain: boolean; locked: boolean; canResolve: boolean; resolve: () => void; retry: () => void; openedAt?: number;
 }) {
   const [title, setTitle] = useState(announcement.title); const [body, setBody] = useState(announcement.body);
   const [format, setFormat] = useState(announcement.format); const [category, setCategory] = useState(announcement.category);
@@ -91,7 +91,7 @@ function EditorFields({ announcement, action, pending, checking, state, backHref
   const popupIntent = popupSelected && popupChanged ? 'set' : !popupSelected && announcement.popup.selected ? 'clear' : 'preserve';
   const errors = state.errors ?? {}; const warnings = format === 'html' ? sanitizeGoodsDescription(body, { imagePaths: [] }).warnings : [];
   const outcome = goodsAnnouncementOutcome({ enabled, allGoods, goodCount: goods.length, placement, device, period: usePeriod ? { startsAt, endsAt } : null,
-    popup: popupSelected ? { startsAt: popupStartsAt, endsAt: popupEndsAt } : null, popupSelectedNow: announcement.popup.selected });
+    popup: popupSelected ? { startsAt: popupStartsAt, endsAt: popupEndsAt } : null, popupSelectedNow: announcement.popup.selected, now: openedAt });
   /* 결과를 모르는 저장은 이 탭에 보관되어 다시 열면 확인할 수 있다. 입력이 사라진다고 단정하지 않는다.
      칸을 고친 것은 formRef가 잡는다 — 적용 상품처럼 숨은 칸(goodIds)만 바뀌어도 값 속성이 바뀌어 미저장으로 본다(lib/admin/leave-guard의 MutationObserver). */
   const { formRef } = useAdminLeaveGuard({ dirty: uncertain, blocked: pending, message: uncertain ? ADMIN_LEAVE_RECOVERABLE_MESSAGE : undefined });
@@ -164,6 +164,8 @@ export function GoodsAnnouncementEditor({ announcement, backHref, accountId, per
   const [fixtureRequest, setFixtureRequest] = useState<GoodsAnnouncementPendingSave | null>(null);
   /* 지금 기다리는 일이 저장인지 확인인지. 버튼 글자만 바꾼다. */
   const [checking, setChecking] = useState(false);
+  /* 전시 기간이 이미 지났는지는 화면을 연 시각으로 본다(그리는 동안 시계를 읽지 않는다 — 연관상품 편집 화면과 같다). */
+  const [openedAt] = useState(() => Date.now());
   const request = useRef<{ operation: GoodsAnnouncementPendingSave; form: FormData } | null>(null);
   const busy = useRef(false), mounted = useRef(true);
   const draft = useCsEditorDraft({ accountId, scope: 'goods-announcement-save', recordId: announcement.id,
@@ -234,11 +236,11 @@ export function GoodsAnnouncementEditor({ announcement, backHref, accountId, per
     {persistPending && draft.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정이 바뀌었거나 다시 로그인해서 편집을 잠갔습니다. 앞서 저장하려던 내용은 이 브라우저에서 지웠습니다. 화면을 새로고침해 주세요.</p> : <>
       {persistPending && !draft.ready ? <p className="text-sm text-muted-foreground" role="status">로그인 상태를 확인하고 있습니다.</p> : null}
       {/* 보관하지 못해도 저장은 된다. 화면을 떠났다 돌아와 결과를 다시 확인하지 못한다는 것만 알린다. */}
-      {persistPending && draft.unavailable ? <p className="text-sm text-muted-foreground" role="status" data-announcement="storage-unavailable">이 브라우저에서는 저장 결과를 다시 확인할 수 없습니다.</p> : null}
+      {persistPending && draft.unavailable ? <p className="text-sm text-muted-foreground" role="status" data-announcement="storage-unavailable">{GOODS_ANNOUNCEMENT_STORAGE_UNAVAILABLE}</p> : null}
       {recovered ? <AdminNotice tone="warning"><p role="status">앞서 누른 저장이 됐는지 아직 모릅니다. [{GOODS_ANNOUNCEMENT_CHECK_LABEL}]을 눌러 주세요. 로그아웃하거나 다시 로그인하면 확인할 수 없게 됩니다.</p><Button className="mt-2" size="sm" variant="outline" type="button" disabled={pending || locked} onClick={restoreAndCheck}>{GOODS_ANNOUNCEMENT_CHECK_LABEL}</Button></AdminNotice> : null}
       {/* 저장을 보내는 동안에는 접어 둔 내용을 보이지 않는다(곧 사라진다). 결과를 모를 때와 화면을 다시 연 뒤에만 보인다. */}
       {stored && (uncertain || !pending) ? <details className="rounded-lg border bg-muted/40 px-4 py-3 text-sm"><summary className="cursor-pointer font-medium">앞서 저장하려던 내용</summary><dl className="mt-3 grid gap-3">{goodsAnnouncementPendingRows(stored.entries).map(row => <div className="grid gap-1" key={row.field}><dt className="text-xs text-muted-foreground">{row.label}</dt><dd className="whitespace-pre-wrap wrap-anywhere">{row.value}</dd></div>)}</dl></details> : null}
-      <EditorFields key={`${current.id}:${current.revision}`} announcement={current} action={form => execute(form)} pending={pending} checking={checking} state={state} backHref={backHref} uncertain={unresolved} locked={locked} canResolve={!locked && !recovered && Boolean(stored)} resolve={() => execute(undefined, true)} retry={() => execute()} />
+      <EditorFields key={`${current.id}:${current.revision}`} announcement={current} action={form => execute(form)} pending={pending} checking={checking} state={state} backHref={backHref} uncertain={unresolved} locked={locked} canResolve={!locked && !recovered && Boolean(stored)} resolve={() => execute(undefined, true)} retry={() => execute()} openedAt={openedAt} />
     </>}
   </section>;
 }

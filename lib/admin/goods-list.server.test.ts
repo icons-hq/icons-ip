@@ -79,7 +79,7 @@ describe('goods workspace server boundary', () => {
     expect(result.goods[1].inlineOptions).toEqual([{ variantId: 'v2', name: '블루', code: 'V-2', stockQty: 1 }, { variantId: 'v3', name: '레드', code: 'V-3', stockQty: 2 }]);
     expect(mocks.selects).toContain('goods_variants:id,good_id,stock_qty,name,code');
   });
-  it('판매 가능 0개인 전시 상품만 예약 상태를 읽어, 예약판매만 있는 상품에 고객 화면과 같은 문구를 싣는다', async () => {
+  it('판매 가능 0개인 전시 상품만 예약 상태를 읽어, 예약판매만 있는 상품에 예약 상태 문구를 싣는다(접수 전은 예약 접수 전)', async () => {
     const at = '2026-11-25T03:00:00.000Z';
     const scheduled = { mode: 'preorder', availableQty: 0, policyId: 'a1000000-0000-4000-8000-000000000001', policyRevision: 1, state: 'scheduled',
       startsAt: '2026-12-02T02:00:00.000Z', endsAt: '2026-12-13T14:59:00.000Z', expectedShipDate: '2026-12-14', calculatedAt: at, nextChangeAt: '2026-12-02T02:00:00.000Z' };
@@ -96,7 +96,7 @@ describe('goods workspace server boundary', () => {
     const result = await loadAdminGoodsList(normalizeGoodsListFilters({}));
     expect(mocks.selects).toContain('goods_variants:good_id,supply:goods_variant_supply');
     expect(mocks.inFilters).toEqual(['good_id:pre,mixed']);
-    expect(result.goods.map(good => [good.id, good.preorderSaleLabel])).toEqual([['pre', '판매 예정'], ['mixed', null], ['draft', null], ['stopped', null], ['selling', null]]);
+    expect(result.goods.map(good => [good.id, good.preorderSaleLabel])).toEqual([['pre', '예약 접수 전'], ['mixed', null], ['draft', null], ['stopped', null], ['selling', null]]);
     // 예약 상태를 읽지 못하면 배지는 지금처럼 품절이다.
     mocks.supplies = null;
     expect((await loadAdminGoodsList(normalizeGoodsListFilters({}))).goods[0].preorderSaleLabel).toBeNull();

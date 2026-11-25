@@ -38,7 +38,7 @@ describe('상품 공지 저장 액션', () => {
   it('응답 유실과 결과 없음은 미확정으로 남기고 결과 재조회 뒤 홈도 갱신한다', async () => {
     mocks.rpc.mockRejectedValueOnce(new Error('network'));
     const lost = await saveGoodsAnnouncementAction({}, form());
-    expect(lost.outcome).toBe('unknown'); expect(lost.errors?.form).toBe('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');
+    expect(lost.outcome).toBe('unknown'); expect(lost.errors?.form).toBe('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]으로 먼저 확인하고, 저장되지 않았으면 [다시 저장]을 누릅니다. 같은 내용이 두 번 저장되지 않습니다.');
     mocks.rpc.mockResolvedValueOnce({ data: null, error: null });
     const none = await resolveGoodsAnnouncementSaveAction({}, String(form().get('operationId')), ID, ACCOUNT);
     expect(none.outcome).toBe('unknown'); expect(none.errors?.form).toBe('아직 저장되지 않았습니다. [다시 저장]을 눌러 주세요.');
@@ -53,7 +53,7 @@ describe('상품 공지 저장 액션', () => {
     expect(await reject({ message: 'operator_capability_required', code: '42501' })).toMatchObject({ outcome: 'rejected', errors: { form: expect.stringContaining('매니저 관리') } });
     expect(await reject({ message: 'invalid_goods_announcement', code: '22023' })).toMatchObject({ outcome: 'rejected', errors: { form: '공지를 저장하지 못했습니다. 적은 내용은 그대로 있습니다. 칸마다 내용을 확인한 뒤 다시 저장해 주세요.' } });
     /* 거절인지 알 수 없는 오류는 저장하지 못했다고 단정하지 않는다. */
-    expect(await reject({ message: 'timeout' })).toMatchObject({ outcome: 'unknown', errors: { form: '저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.' } });
+    expect(await reject({ message: 'timeout' })).toMatchObject({ outcome: 'unknown', errors: { form: '저장됐는지 확인하지 못했습니다. [저장됐는지 확인]으로 먼저 확인하고, 저장되지 않았으면 [다시 저장]을 누릅니다. 같은 내용이 두 번 저장되지 않습니다.' } });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
     expect((await resolveGoodsAnnouncementSaveAction({}, String(form().get('operationId')), ID, ACCOUNT)).errors?.form).toBe('저장됐는지 확인하지 못했습니다. 잠시 뒤 [저장됐는지 확인]을 다시 눌러 주세요.');
     expect((await saveGoodsAnnouncementAction({}, form())).message).toBe('공지를 저장했습니다.');

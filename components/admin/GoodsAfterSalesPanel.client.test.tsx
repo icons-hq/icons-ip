@@ -1,5 +1,5 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const hooks = vi.hoisted(() => ({ state: [] as unknown[], index: 0, refs: [] as { current: unknown }[], refIndex: 0, effects: [] as (() => void | (() => void))[] }));
 const mocks = vi.hoisted(() => ({ save: vi.fn(), load: vi.fn() }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'), useEffect: (effect: () => void | (() => void)) => { hooks.effects.push(effect); },
@@ -12,6 +12,7 @@ import { GoodsAfterSalesPanel } from './GoodsAfterSalesPanel';
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
 import { GoodsAfterSalesTemplatePicker } from './GoodsAfterSalesTemplatePicker';
 import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
 import type { GoodsAfterSalesTemplate, GoodsAfterSalesValues } from '@/lib/goods-after-sales';
 const values = { phone: '02-123', guide: 'A/S 안내', sellerSpecialNotes: '배송 기간' };
 const snapshot = { ...values, goodId: 'good-1', goodName: '상품', revision: 1, updatedAt: '2026-10-13T14:00:00Z' };
@@ -22,7 +23,9 @@ function render() { hooks.index = 0; hooks.refIndex = 0; hooks.effects = []; ret
 function button(label: string) { const element = all(render()).find(item => item.type === 'button' && text(item) === label); if (!element) throw new Error(label); return element; }
 function submit() { const form = all(render()).find(item => item.type === 'form'); if (!form) throw new Error('missing form'); form.props.onSubmit?.({ preventDefault: () => {} }); }
 async function settle() { for (let i = 0; i < 18; i++) await Promise.resolve(); }
-beforeEach(() => { vi.clearAllMocks(); hooks.state = [{ ...snapshot }, { ...values }]; hooks.refs = []; hooks.effects = []; });
+let confirm: ReturnType<typeof stubAdminConfirm>;
+beforeEach(() => { vi.clearAllMocks(); hooks.state = [{ ...snapshot }, { ...values }]; hooks.refs = []; hooks.effects = []; confirm = stubAdminConfirm(true); });
+afterEach(() => { confirm.restore(); });
 it('keeps an unknown write on one fixed request and blocks same-render double submission', async () => {
   let finish!: (value: unknown) => void;
   mocks.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce({ ok: true, value: { ...snapshot, revision: 2 } });
@@ -86,6 +89,40 @@ it('retries an uncertain clear using its fixed empty request even when the forme
   expect(mocks.save.mock.calls[0]).toEqual(['good-1', { phone: '', guide: '', sellerSpecialNotes: '' }, 1, expect.any(String)]);
   expect(mocks.save.mock.calls[1]).toEqual(mocks.save.mock.calls[0]);
   expect(text(render())).toContain('상품 상세의 A/S 안내와 판매자 특이사항을 해제했습니다.');
+});
+
+/* G6(2026-11-25 리뷰, 화면 규칙 7): 내용을 지우거나 덮는 버튼은 누르기 전에 무엇이 사라지는지 말한다. */
+it('[안내 해제]는 고객 화면에서 내려가는 것과 지워지는 것을 말하고 확인받은 뒤에만 저장한다', async () => {
+  confirm.restore(); confirm = stubAdminConfirm(false);
+  button('안내 해제').props.onClick?.(); await settle();
+  expect(confirm).toHaveBeenCalledExactlyOnceWith('상품 상세에서 A/S 안내와 판매자 특이사항이 내려갑니다. 적어 둔 내용도 지워집니다.');
+  expect(mocks.save).not.toHaveBeenCalled(); expect(hooks.state[1]).toEqual(values);
+  confirm.restore(); confirm = stubAdminConfirm(true);
+  mocks.save.mockResolvedValue({ ok: true, value: { ...snapshot, phone: '', guide: '', sellerSpecialNotes: '', revision: 2 } });
+  button('안내 해제').props.onClick?.(); await settle();
+  expect(mocks.save).toHaveBeenCalledExactlyOnceWith('good-1', { phone: '', guide: '', sellerSpecialNotes: '' }, 1, expect.any(String));
+});
+it('[저장된 내용으로 다시 불러오기]는 적은 내용이 저장된 것과 다를 때만 사라진다고 묻는다', async () => {
+  mocks.load.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 2 } });
+  button('저장된 내용으로 다시 불러오기').props.onClick?.(); await settle();
+  expect(confirm).not.toHaveBeenCalled(); expect(mocks.load).toHaveBeenCalledOnce();
+  hooks.state[1] = { ...values, guide: '고치던 안내' };
+  confirm.restore(); confirm = stubAdminConfirm(false);
+  button('저장된 내용으로 다시 불러오기').props.onClick?.(); await settle();
+  expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적은 내용이 사라집니다.');
+  expect(mocks.load).toHaveBeenCalledOnce(); expect(hooks.state[1]).toEqual({ ...values, guide: '고치던 안내' });
+  confirm.restore(); confirm = stubAdminConfirm(true);
+  button('저장된 내용으로 다시 불러오기').props.onClick?.(); await settle();
+  expect(mocks.load).toHaveBeenCalledTimes(2); expect(hooks.state[1]).toMatchObject(values);
+});
+/* S8: 다른 사람이 먼저 바꿔 저장이 멈춘 동안에도 적어 둔 내용을 긁어 복사할 수 있어야 한다(1,300자짜리 안내). 잠그지 않고 읽기 전용으로 둔다. */
+it('다른 사람이 먼저 바꾼 뒤에는 칸을 잠그지 않고 읽기 전용으로 두고, 템플릿 고르기와 저장만 막는다', async () => {
+  mocks.save.mockResolvedValue({ ok: false, conflict: true, error: '다른 사람이 먼저 바꿨습니다.' });
+  submit(); await settle();
+  const tree = all(render());
+  expect(tree.find(item => item.type === 'fieldset')?.props.disabled).toBe(false);
+  expect(tree.filter(item => item.type === 'textarea' || item.type === 'input').map(item => (item.props as { readOnly?: boolean }).readOnly)).toEqual([true, true, true]);
+  expect(button('A/S 템플릿 고르기').props.disabled).toBe(true); expect(button('안내 저장').props.disabled).toBe(true);
 });
 
 it('템플릿은 공용 선택창에서 고르고, 지금 적어 둔 안내를 선택창에 알려 바꾸기 전에 묻게 한다', () => {

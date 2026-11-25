@@ -1,5 +1,5 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const hooks = vi.hoisted(() => ({ state: [] as unknown[], index: 0, refs: [] as { current: unknown }[], refIndex: 0, effects: [] as (() => void | (() => void))[] }));
 const mocks = vi.hoisted(() => ({ save: vi.fn(), load: vi.fn(), capture: vi.fn(), restore: vi.fn(), discard: vi.fn(), recovery: null as unknown }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'), useId: () => ':size-test:',
@@ -13,6 +13,7 @@ import { GoodSizeChartPanel } from './GoodSizeChartPanel';
 import { GoodsSizeChartFields } from './GoodsSizeChartFields';
 import { GoodsSizeTemplatePicker } from './GoodsSizeTemplatePicker';
 import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import type { GoodsSizeChart, GoodsSizeTemplate } from '@/lib/goods-size-chart';
 const chart: GoodsSizeChart = { unit: 'cm', sizes: ['단일'], measurements: [{ name: '둘레', values: ['42.7'] }], note: '' };
@@ -29,7 +30,24 @@ function submit() { all(render()).find(node => node.type === 'form')?.props.onSu
 function note(value: string) { all(render()).find(node => node.type === 'textarea')?.props.onChange?.({ target: { value } }); }
 async function settle() { for (let i = 0; i < 24; i++) await Promise.resolve(); }
 async function mount() { render(); for (const effect of [...hooks.effects]) effect(); await settle(); }
-beforeEach(() => { vi.clearAllMocks(); hooks.state = []; hooks.refs = []; hooks.effects = []; mocks.recovery = null; mocks.load.mockResolvedValue({ ok: true, value: snapshot }); mocks.discard.mockImplementation(() => { mocks.recovery = null; }); });
+let confirm: ReturnType<typeof stubAdminConfirm>;
+beforeEach(() => { vi.clearAllMocks(); hooks.state = []; hooks.refs = []; hooks.effects = []; mocks.recovery = null; mocks.load.mockResolvedValue({ ok: true, value: snapshot }); mocks.discard.mockImplementation(() => { mocks.recovery = null; }); confirm = stubAdminConfirm(true); });
+afterEach(() => { confirm.restore(); });
+/* G6(화면 규칙 7): 작성한 표를 버리는 버튼은 무엇이 사라지는지 말하고 확인받는다. 작성한 표가 최신 저장본과 같으면 묻지 않는다. */
+it('[최신 저장본으로 바꾸기]는 작성한 표가 최신 저장본과 다를 때만 사라진다고 묻는다', async () => {
+  await mount(); note('작성 중 안내');
+  const latest = { ...snapshot, revision: 2, values: { ...values, chart: { ...chart, note: '다른 담당자 안내' } } };
+  mocks.load.mockResolvedValue({ ok: true, value: latest });
+  button('최신 저장본 확인').props.onClick?.(); await settle();
+  confirm.restore(); confirm = stubAdminConfirm(false);
+  button('최신 저장본으로 바꾸기').props.onClick?.(); await settle();
+  expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 작성한 표가 사라집니다.');
+  expect(all(render()).find(node => node.type === 'textarea')?.props.value).toBe('작성 중 안내');
+  confirm.restore(); confirm = stubAdminConfirm(true);
+  button('최신 저장본으로 바꾸기').props.onClick?.(); await settle();
+  expect(all(render()).find(node => node.type === 'textarea')?.props.value).toBe('다른 담당자 안내');
+  expect(text(render())).toContain('최신 저장본으로 바꿨습니다.');
+});
 it('keeps the same operation during unknown outcome and blocks double submission or a replacing read', async () => {
   await mount(); let finish!: (value: unknown) => void;
   mocks.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce({ ok: true, value: { ...snapshot, revision: 2 } });

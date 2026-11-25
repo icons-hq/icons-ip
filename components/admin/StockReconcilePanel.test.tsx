@@ -83,6 +83,10 @@ describe('재고 파일 대조 화면', () => {
     expect(fresh).toContain('옵션 2개 재고 반영');
     expect(fresh).toContain('value="재고 파일 대조 · 서원 재고.xlsx"');
     expect(fresh).toContain('value="2031-05-01T10:00"');
+    /* 사유를 비우면 반영 버튼이 잠긴다 — 칸 이름이 필수라고 말하고, 예시 글이 무엇을 적는지 보인다(설명 줄은 두지 않는다). */
+    expect(fresh).toContain('<label class="text-sm leading-snug font-medium" for="stock-reconcile-reason">반영 사유 (필수)</label>');
+    expect(fresh).toMatch(/<input(?=[^>]*id="stock-reconcile-reason")(?=[^>]*required)(?=[^>]*placeholder="예: 서원 11\/12 09시 재고 대조")/);
+    expect(fresh).not.toContain('감사 기록에 남습니다');
     const stale = renderToStaticMarkup(<StockReconcilePanel origins={[]} initialSnapshot={snapshot} now="2031-05-02T01:00:00Z" />);
     expect(stale).toContain('24시간이 지난 미리보기는 반영할 수 없습니다');
     expect(stale).not.toContain('옵션 2개 재고 반영');

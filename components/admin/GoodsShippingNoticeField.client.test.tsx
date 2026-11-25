@@ -19,7 +19,7 @@ import { AdminPickerDialog, type AdminPickerPanelProps } from './console/AdminPi
 import { GoodsShippingNoticeField, type GoodsShippingNoticeOption } from './GoodsShippingNoticeField';
 
 type Fn = (...args: unknown[]) => unknown;
-type Props = { children?: ReactNode; type?: string; onClick?: Fn; 'data-goods-shipping-notice-unlisted'?: string };
+type Props = { children?: ReactNode; type?: string; onClick?: Fn; 'data-goods-shipping-notice-unlisted'?: string; 'data-goods-shipping-notice-replaced'?: string };
 type BoxProps = Parameters<typeof AdminPickedBox>[0];
 type DialogProps = AdminPickerPanelProps<GoodsShippingNoticeOption> & { title: string };
 
@@ -46,6 +46,8 @@ const dialog = () => render().find((item) => item.type === AdminPickerDialog) as
 const reset = () => render().find((item) => item.type === 'button' && texts(item).join('') === '기본 안내로 되돌리기');
 const unlisted = () => render().find((item) => item.props['data-goods-shipping-notice-unlisted'] !== undefined);
 const open = () => { box().props.onOpen(); return dialog()!.props; };
+const restore = () => render().find((item) => item.type === 'button' && texts(item).join('') === '원래 안내로');
+const replaced = () => render().find((item) => item.props['data-goods-shipping-notice-replaced'] !== undefined);
 
 beforeEach(() => { hooks.state = []; hooks.refs = []; hooks.effects = []; props = {}; });
 
@@ -116,5 +118,48 @@ describe('목록에 없는 예전 안내', () => {
     reset()!.props.onClick!();
     expect(box().props.text).toBe('기본 안내');
     expect(unlisted()).toBeUndefined();
+  });
+
+  /*
+   * G2(2026-11-25 리뷰, 화면 규칙 7): 목록에 없는 안내는 선택창으로 다시 고를 수 없다. 무심코 [기본 안내로 되돌리기]를 누르면
+   * 다른 수정까지 버리고 새로고침해야 돌아올 수 있었다. 바꾼 동안에는 [원래 안내로]로 되돌린다.
+   */
+  it('목록에 없는 안내를 다른 것으로 바꾼 동안에는 [원래 안내로]가 보이고, 누르면 처음 값으로 돌아온다', () => {
+    props = { value: 'figure@0', currentName: '피규어 안내' };
+    /* 바꾸기 전에는 되돌릴 것이 없다. */
+    expect(restore()).toBeUndefined(); expect(replaced()).toBeUndefined();
+    reset()!.props.onClick!();
+    expect(box().props).toMatchObject({ value: '', text: '기본 안내' });
+    expect(texts(replaced()!).join('')).toBe('원래 쓰던 안내(피규어 안내)는 템플릿 목록에 없어 [템플릿 고르기]로는 다시 고를 수 없습니다. 되돌리려면 [원래 안내로]를 누릅니다.');
+    const dispatchEvent = vi.fn();
+    (box().props.inputRef as { current: unknown }).current = { dispatchEvent };
+    expect(restore()!.props.type).toBe('button');
+    restore()!.props.onClick!();
+    expect(box().props).toMatchObject({ value: 'figure@0', text: '피규어 안내' });
+    /* 되돌린 값도 숨은 칸에서 input 이벤트로 알린다(요약·미리보기·이탈 경고가 다시 읽는다). */
+    expect(dispatchEvent).toHaveBeenCalledTimes(1);
+    expect(restore()).toBeUndefined(); expect(replaced()).toBeUndefined();
+    expect(texts(unlisted()!).join('')).toContain('바꾸지 않으면 저장해도 그대로 유지됩니다.');
+    /* 다른 템플릿을 고른 뒤에도 되돌릴 수 있다. */
+    open().onSelect(options[0]);
+    expect(box().props.value).toBe('basic@2');
+    restore()!.props.onClick!();
+    expect(box().props.value).toBe('figure@0');
+  });
+
+  it('저장에 실패해 폼을 다시 그린 뒤에도 저장돼 있는 안내로 되돌릴 수 있다', () => {
+    /* 편집기는 다시 그릴 때 제출했던 값(기본 안내)을 처음 값으로 준다. 되돌릴 곳은 저장돼 있는 값이다. */
+    props = { value: '', savedValue: 'figure@0', currentName: '피규어 안내' };
+    expect(box().props).toMatchObject({ value: '', text: '기본 안내' });
+    restore()!.props.onClick!();
+    expect(box().props).toMatchObject({ value: 'figure@0', text: '피규어 안내' });
+  });
+
+  it('저장돼 있는 안내가 목록에 있으면 선택창에서 다시 고르면 되므로 [원래 안내로]를 두지 않는다', () => {
+    props = { value: 'figure@1', currentName: '피규어 안내' };
+    open().onSelect(options[0]);
+    expect(restore()).toBeUndefined(); expect(replaced()).toBeUndefined();
+    reset()!.props.onClick!();
+    expect(restore()).toBeUndefined();
   });
 });

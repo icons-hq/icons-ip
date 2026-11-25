@@ -242,6 +242,8 @@ describe('대표 카테고리 바꾸기', () => {
     elements = render();
     const picker = elements.find((item) => item.type === AdminGoodsPicker)!;
     expect(picker.props.title).toBe('상품 고르기');
+    /* 상품 조회가 보관한 상품을 빼므로 뺐다고 한 줄로 알린다(화면 규칙 2, 동영상·연관상품의 같은 창과 같은 말). */
+    expect((picker.props as { excludedNote?: string }).excludedNote).toBe('보관한 상품은 목록에서 뺐습니다.');
     picker.props.onSelect?.(good() as never);
     picker.props.onClose?.();
     elements = render();

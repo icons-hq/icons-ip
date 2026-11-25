@@ -24,6 +24,7 @@ vi.mock('./screens/CustomerServiceDialog', () => ({ CustomerServiceDialog: ({ ch
 
 import Link from 'next/link';
 import type { GoodsBulkCommand, GoodsBulkFormFields, GoodsBulkGood, GoodsBulkPreview, GoodsBulkRequest } from '@/lib/admin/goods-bulk';
+import { AdminNotice } from './console/AdminKit';
 import { Button } from './kit/ui/button';
 import { GoodsBulkForm, GoodsBulkPreviewTable, GoodsBulkSkippedList, GoodsBulkToolbar } from './GoodsBulkToolbar';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
@@ -141,7 +142,8 @@ it('건너뛸 상품이 섞여도 나머지를 저장하고, 저장 뒤에도 �
   await flush();
   expect(mocks.commit).toHaveBeenCalledExactlyOnceWith(mocks.preview.mock.calls[0][0], identity);
   const tree = render(['good-a', 'good-b']);
-  expect(text(tree)).toContain('상품 1개를 바꿨습니다. 건너뛴 상품 1개는 아래에 있습니다.');
+  /* 창이 닫힌 뒤에 남는 한 줄이라 무엇을 바꿨는지(공개로)를 앞에 붙인다. */
+  expect(text(tree)).toContain('공개로 · 상품 1개를 바꿨습니다. 건너뛴 상품 1개는 아래에 있습니다.');
   expect(nodes(tree).find(node => node.type === GoodsBulkSkippedList)?.props).toMatchObject({ command: 'publish', skipped: [{ id: 'good-b', reason: 'goods_category_required' }] });
   expect(nodes(tree).some(node => node.type === CustomerServiceDialog)).toBe(false);
   expect(completed).toHaveBeenCalledTimes(1);
@@ -170,7 +172,12 @@ it('저장 응답이 끊기면 [저장됐는지 확인]·[그만두고 다시 �
   click(nodes(render(['good-a'])), '변경사항 저장');
   await flush();
   const tree = render(['good-a']);
-  expect(text(tree)).toContain('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');
+  /* 같은 두 문장을 상태 줄과 알림 상자에 두 번 적지 않는다 — 알림 상자(제목 + 한 줄)만 남는다. */
+  const notice = nodes(tree).find(node => node.type === AdminNotice)!;
+  expect(notice.props.title).toBe('저장됐는지 확인하지 못했습니다.');
+  expect(text(notice.props.children as ReactNode)).toContain('[저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');
+  expect(text(tree).split('같은 내용이 두 번 저장되지 않습니다.')).toHaveLength(2);
+  expect(nodes(tree).filter(node => node.type === 'p' && node.props.role === 'status')).toHaveLength(0);
   expect(labels(nodes(tree))).toEqual(expect.arrayContaining(['저장됐는지 확인', '그만두고 다시 하기']));
   for (const stale of ['처리 결과 조회', '미처리 요청', '요청번호', '진행 기록']) expect(text(tree)).not.toContain(stale);
   const operationId = mocks.preview.mock.calls[0][0];
@@ -179,5 +186,57 @@ it('저장 응답이 끊기면 [저장됐는지 확인]·[그만두고 다시 �
   await flush();
   expect(mocks.read).toHaveBeenCalledExactlyOnceWith(operationId, identity, false);
   expect(mocks.commit).toHaveBeenCalledTimes(1);
-  expect(text(render(['good-a']))).toContain('상품 1개를 바꿨습니다.');
+  expect(text(render(['good-a']))).toContain('판매중으로 · 상품 1개를 바꿨습니다.');
+});
+
+/* 리뷰 7: 거절되면 아무것도 바뀌지 않았다. "다시 확인해주세요"라고 말하면서 창과 적어 둔 값을 없애지 않는다. */
+it('저장이 거절되면 창과 적어 둔 금액·방식을 그대로 두고 입력 단계로 돌아가 이유를 창 안에 보인다', async () => {
+  mocks.preview.mockImplementation(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, [good('good-a', { nextPrice: 1500, nextMin: 1500, nextMax: 1500 })]));
+  mocks.commit.mockImplementation(async (operationId: string) => ({ value: { state: 'rejected', operationId, goodsCount: 0, groupsCount: 0, error: 'goods_bulk_changed' } }));
+  click(nodes(await settled(['good-a'])), '판매가 변경');
+  form(nodes(render(['good-a']))).onFields({ mode: 'increase', value: '500' });
+  form(nodes(render(['good-a']))).onSubmit();
+  await flush();
+  (nodes(render(['good-a'])).find(node => node.type === 'input' && node.props.type === 'checkbox')!.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+  click(nodes(render(['good-a'])), '변경사항 저장');
+  await flush();
+  const tree = render(['good-a']);
+  const all = nodes(tree);
+  /* 창은 열려 있고(제목은 입력 단계의 이름), 표 대신 입력이 다시 보이며, 적어 둔 값이 남아 있다. */
+  expect(all.find(node => node.type === CustomerServiceDialog)?.props.title).toBe('판매가 변경');
+  expect(all.some(node => node.type === GoodsBulkPreviewTable)).toBe(false);
+  expect(form(all).fields).toMatchObject({ mode: 'increase', value: '500' });
+  expect(text(tree)).toContain('확인한 뒤에 상품·옵션·재고가 바뀌어 아무것도 바꾸지 않았습니다. 지금 내용으로 다시 확인해주세요.');
+  expect(text(tree)).not.toContain('바꿨습니다.');
+  expect(completed).not.toHaveBeenCalled();
+  expect(all.some(node => node.type === AdminNotice)).toBe(false);
+  /* 그 자리에서 [변경 내용 확인]을 다시 누르면 같은 값으로 새로 확인한다. 확인 체크는 다시 받는다. */
+  form(all).onSubmit();
+  await flush();
+  expect(mocks.preview).toHaveBeenCalledTimes(2);
+  expect(mocks.preview.mock.calls[1][1]).toEqual(mocks.preview.mock.calls[0][1]);
+  expect(mocks.preview.mock.calls[1][0]).not.toBe(mocks.preview.mock.calls[0][0]);
+  const again = nodes(render(['good-a']));
+  expect(again.some(node => node.type === GoodsBulkPreviewTable)).toBe(true);
+  expect(button(again, '변경사항 저장').props.disabled).toBe(true);
+});
+
+/* 그만두기(sealed)는 저장하지 않기로 한 것이라 창을 닫는다. */
+it('[그만두고 다시 하기]로 그만두면 창을 닫고 그만뒀다고 알린다', async () => {
+  mocks.preview.mockImplementation(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, [good('good-a')]));
+  mocks.commit.mockRejectedValue(new Error('network'));
+  click(nodes(await settled(['good-a'])), '판매상태 변경');
+  form(nodes(render(['good-a']))).onSubmit();
+  await flush();
+  (nodes(render(['good-a'])).find(node => node.type === 'input' && node.props.type === 'checkbox')!.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+  click(nodes(render(['good-a'])), '변경사항 저장');
+  await flush();
+  const operationId = mocks.preview.mock.calls[0][0];
+  mocks.read.mockResolvedValue({ value: { state: 'sealed', operationId, goodsCount: 0, groupsCount: 0, error: null } });
+  click(nodes(render(['good-a'])), '그만두고 다시 하기');
+  await flush();
+  expect(mocks.read).toHaveBeenCalledExactlyOnceWith(operationId, identity, true);
+  const tree = render(['good-a']);
+  expect(nodes(tree).some(node => node.type === CustomerServiceDialog)).toBe(false);
+  expect(text(tree)).toContain('저장하지 않고 그만뒀습니다. 지금 내용으로 처음부터 다시 해주세요.');
 });

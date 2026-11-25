@@ -15,7 +15,9 @@ export const CATALOG_PERMISSION_MESSAGE = '상품 관리 권한이 없습니다.
 export const SAVE_FAILED_MESSAGE = '저장하지 못했습니다. 적은 내용은 그대로 있습니다. 잠시 뒤 다시 저장해 주세요.';
 
 /* 템플릿 편집 창(사이즈·A/S·이벤트)이 함께 쓰는 버튼 이름과 확인창. 세 화면이 같은 일을 같은 말로 부른다. */
-export const TEMPLATE_SAVE_OVER_LATEST_LABEL = '최신 내용 위에 내 입력으로 저장';
+export const TEMPLATE_SAVE_OVER_LATEST_LABEL = '내 입력으로 덮어쓰기';
+/** [내 입력으로 덮어쓰기] 위의 한 줄. 합쳐지는 것이 아니라 다른 사람이 저장한 내용이 통째로 내 입력으로 바뀐다(되돌릴 수 없다). */
+export const TEMPLATE_SAVE_OVER_LATEST_NOTE = `[${TEMPLATE_SAVE_OVER_LATEST_LABEL}]를 누르면 다른 사람이 저장한 내용이 사라지고 내 입력으로 바뀝니다.`;
 export const TEMPLATE_DISCARD_INPUT_LABEL = '내 입력 버리기';
 export const TEMPLATE_LATEST_UNREAD_MESSAGE = '지금 저장된 내용을 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.';
 /** 적은 내용이 있는 채로 창을 닫을 때. 등록 팝업(AdminCreateDialogButton의 confirmDiscard)도 이 상수를 쓴다. */
@@ -23,9 +25,12 @@ export const TEMPLATE_CLOSE_DIRTY_CONFIRM = { title: '적은 내용을 저장하
 /**
  * 저장됐는지 모르는 채 닫을 때. 닫으면 목록을 다시 불러온다.
  * `keptInBrowser`: 저장하려던 내용이 브라우저에 보관돼 다시 열어 확인할 수 있는 화면(사이즈)이면 true, 닫으면 입력이 사라지는 화면이면 false.
+ * `registerLabel`: 새로 등록하던 템플릿이면 그 등록 버튼의 이름. 목록에 없는 템플릿은 다시 열 줄이 없으므로 등록 버튼을 다시 누르라고 말한다.
  */
-export function templateCloseUnknownConfirm(keptInBrowser: boolean) {
-  const next = keptInBrowser ? `목록에 없으면 같은 템플릿을 다시 열어 [${SAVE_CHECK_LABEL}]을 눌러 주세요.` : '목록에 없으면 다시 적어야 합니다.';
+export function templateCloseUnknownConfirm(keptInBrowser: boolean, registerLabel?: string) {
+  const next = !keptInBrowser ? '목록에 없으면 다시 적어야 합니다.'
+    : registerLabel ? `목록에 없으면 [${registerLabel}]을 다시 눌러 [${SAVE_CHECK_LABEL}]을 눌러 주세요.`
+      : `목록에 없으면 같은 템플릿을 다시 열어 [${SAVE_CHECK_LABEL}]을 눌러 주세요.`;
   return { title: '저장됐는지 모르는 채 닫을까요?', message: `닫으면 목록을 다시 불러옵니다. 방금 저장하려던 내용이 목록에 있는지 확인해 주세요. ${next}`, confirmLabel: '닫기' };
 }
 export const TEMPLATE_DISCARD_INPUT_CONFIRM = { title: '내 입력을 버릴까요?', message: '지금 적은 내용이 사라지고, 다른 사람이 저장한 내용이 그대로 남습니다.', confirmLabel: TEMPLATE_DISCARD_INPUT_LABEL } as const;
@@ -33,6 +38,27 @@ export const TEMPLATE_DISCARD_INPUT_CONFIRM = { title: '내 입력을 버릴까�
 export function templateArchiveConfirm(archive: boolean) {
   const verb = archive ? '보관' : '복원';
   return { title: `고친 내용은 저장하지 않고 ${verb}할까요?`, message: `[${verb}]은 보관 상태만 바꿉니다. 지금 고친 내용은 사라지니, 남기려면 먼저 저장해 주세요.`, confirmLabel: `저장하지 않고 ${verb}` };
+}
+
+/**
+ * 적은 내용이 저장된 것과 다른데 저장된 내용을 다시 불러올 때(상품의 A/S·사은품 안내, 수령 방식, 주문 후 제작). 적은 내용이 사라진다고 먼저 묻는다(화면 규칙 7).
+ * 고친 것이 없으면 묻지 않는다.
+ */
+export const RELOAD_SAVED_CONFIRM = { title: '적은 내용을 버리고 저장된 내용을 불러올까요?', message: '지금 적은 내용이 사라집니다.', confirmLabel: '저장된 내용 불러오기' } as const;
+
+/** 편집 창을 닫으며 목록에 알리는 것: 저장했는지, 보관했는지, 복원했는지. */
+export type TemplateSavedKind = 'saved' | 'archived' | 'restored';
+/** 저장한 보관 상태가 목록에서 보던 것과 달라졌으면 보관·복원, 같으면 저장이다. */
+export function templateSavedKind(wasArchived: boolean, archived: boolean): TemplateSavedKind {
+  return archived === wasArchived ? 'saved' : archived ? 'archived' : 'restored';
+}
+/**
+ * 저장·보관·복원 뒤 목록 위에 보이는 결과 한 줄. 보관·복원한 템플릿은 지금 보는 목록에서 사라지므로 어디서 다시 보는지까지 말한다
+ * (사진 보관함과 같은 말이다).
+ */
+export function templateSavedNotice(kind: TemplateSavedKind): string {
+  return kind === 'archived' ? "보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있습니다."
+    : kind === 'restored' ? "복원했습니다. 보관 상태 '사용 중' 목록에서 볼 수 있습니다." : '템플릿을 저장했습니다.';
 }
 
 /**

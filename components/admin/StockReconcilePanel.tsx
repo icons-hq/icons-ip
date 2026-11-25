@@ -453,9 +453,10 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
       {!snapshot.appliedAt ? expired ? <AdminNotice tone="warning">24시간이 지난 미리보기는 반영할 수 없습니다. 파일을 다시 올려 미리보기 해주세요.</AdminNotice>
         : <div className="flex flex-col gap-3 print:hidden">
           <div className="flex max-w-[35rem] min-w-0 flex-col gap-2">
-            <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-reason">반영 사유</label>
-            <Input id="stock-reconcile-reason" value={reason} maxLength={STOCK_RECONCILE_REASON_LIMIT} disabled={busy}
-              onChange={(event) => setReason(event.target.value)} />
+            {/* 비우면 아래 주 버튼이 잠긴다 — 왜 잠겼는지 칸 이름이 말하고, 무엇을 적는지는 예시 글이 보인다. */}
+            <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-reason">반영 사유 (필수)</label>
+            <Input id="stock-reconcile-reason" value={reason} maxLength={STOCK_RECONCILE_REASON_LIMIT} disabled={busy} required
+              placeholder="예: 서원 11/12 09시 재고 대조" onChange={(event) => setReason(event.target.value)} />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* 거절된 미리보기는 값이 낡았다. 다시 미리보기한 뒤에 반영한다. */}

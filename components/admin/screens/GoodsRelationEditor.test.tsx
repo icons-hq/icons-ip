@@ -3,7 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { GoodsRelation, GoodsRelationDraft, GoodsRelationGood, GoodsRelationGoodVisibility, GoodsRelationKind, GoodsRelationValues } from '@/lib/admin/goods-relations';
 
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, pending: false }));
-const mocks = vi.hoisted(() => ({ save: vi.fn() }));
+const mocks = vi.hoisted(() => ({ save: vi.fn(), guard: null as null | { dirty?: boolean; blocked?: boolean; message?: string } }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
   useState: (initial: unknown) => {
     const index = hooks.index++;
@@ -16,8 +16,11 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('@/app/admin/goods-relation-actions', () => ({ saveGoodsRelationAction: mocks.save, findGoodsForRelationAction: vi.fn() }));
 vi.mock('../GoodsRelationVisualEditor', () => ({ GoodsRelationVisualEditor: () => null }));
+/* 이탈 경고에 넘긴 값을 본다(경고 자체의 동작은 lib/admin/leave-guard.test.ts가 본다). */
+vi.mock('../useAdminLeaveGuard', () => ({ useAdminLeaveGuard: (options: { dirty?: boolean; blocked?: boolean; message?: string }) => { mocks.guard = options; return { formRef: () => {}, dirty: Boolean(options.dirty) }; } }));
 import { GoodsRelationEditor } from './GoodsRelationEditor';
 import { GoodsRelationProductPicker } from './GoodsRelationProductPicker';
+import { GoodsRelationVisualEditor } from '../GoodsRelationVisualEditor';
 import Link from 'next/link';
 import { GoodReadback } from '../GoodEditorParts';
 import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
@@ -235,8 +238,24 @@ describe('저장하면 고객에게 보이는지 한 줄로 알린다(R1·R8·R1
     expect(readback()).toBe('전시중지라 저장해도 고객에게 보이지 않습니다.');
     choose('전시');
     expect(readback()).toBe('저장하면 대표 상품 상세에 보입니다.');
+    /* S3(2026-11-25 리뷰): 이미지형·코디인데 이미지나 이미지 설명이 없으면 서버가 저장을 거절한다. "저장하면 … 보입니다"라고 말하지 않고 그것부터 말한다. */
     choose('이미지형');
+    expect(readback()).toBe('이미지형은 이미지가 있어야 합니다. 이미지를 올리거나 표시 방식을 목록형으로 바꿔 주세요.');
+    const visual = () => render().find(node => node.type === GoodsRelationVisualEditor)!.props as unknown as { value: ReturnType<typeof relationVisualDraft>; onChange: (next: ReturnType<typeof relationVisualDraft>) => void };
+    visual().onChange({ ...visual().value, imagePath: IMAGE });
+    expect(readback()).toBe('이미지 설명을 적어 주세요.');
+    visual().onChange({ ...visual().value, alt: '거실에 놓은 모습' });
     expect(readback()).toBe('저장하면 상품 2개 상세에 보입니다.');
+  });
+
+  it('이미지 없는 코디 상품은 보인다고 말하지 않고 코디 이미지를 올리라고 말한다', () => {
+    draft = { ...initial('codi'), goods: [good('a'), good('b')] };
+    expect(readback()).toBe('코디 이미지를 올려 주세요.');
+    /* 상품 수·전시 기간처럼 먼저 고쳐야 하는 것이 있으면 그것이 먼저다. */
+    draft = { ...draft, goods: [good('a')] }; hooks.values = [];
+    expect(readback()).toBe('상품을 2개 이상 담아야 저장할 수 있습니다.');
+    draft = { ...initial('codi'), goods: [good('a'), good('b')], visual: { ...relationVisualDraft(), imagePath: IMAGE, alt: '코디 사진' } }; hooks.values = [];
+    expect(readback()).toBe('지금 상품 2개 상세에 보입니다.');
   });
 
   it('저장된 그대로면 지금 상태를, 고친 내용이 있으면 저장한 뒤를 말한다', async () => {
@@ -334,6 +353,30 @@ describe('다른 구성 저장 결과 복구', () => {
     expect(render().find(node => node.type === 'fieldset')?.props.disabled).toBe(false);
     expect(text(render())).toContain('연관상품을 저장했습니다.');
     expect(text(render())).not.toContain('저장하지 않은 변경이 있습니다.');
+  });
+
+  /* G7(2026-11-25 리뷰): 저장 결과를 모를 때 [목록]이 보이는데 눌러도 아무 일도 없었다(이탈 경고가 막힌 화면의 링크 클릭을 조용히 버렸다). 막지 않고 묻는다. */
+  it('저장 결과를 모르는 동안에는 떠나는 것을 막지 않고, 다시 확인할 수 없다는 것을 묻는다', async () => {
+    render();
+    expect(mocks.guard).toMatchObject({ dirty: false, blocked: false, message: undefined });
+    mocks.save.mockRejectedValueOnce(new Error('offline'));
+    submit(); await flush();
+    render();
+    expect(mocks.guard).toEqual({ dirty: true, blocked: false, message: '저장됐는지 아직 모릅니다. 이 화면을 떠나면 여기서는 다시 확인할 수 없고, 저장되지 않았으면 적은 내용이 사라집니다. 떠난 뒤에는 연관상품 목록에서 저장됐는지 확인해 주세요. 이동할까요?' });
+    /* 칸은 그대로 잠겨 있고 [목록]은 링크로 남아 있다. */
+    expect(render().find(node => node.type === 'fieldset')?.props.disabled).toBe(true);
+    expect(render().some(node => node.type === Link && text(node) === '목록')).toBe(true);
+    /* 저장됐는지 확인되면 경고가 풀린다. */
+    mocks.save.mockImplementationOnce(async (request: Request) => ({ saved: saved(request) }));
+    submit(); await flush();
+    render();
+    expect(mocks.guard).toMatchObject({ dirty: false, blocked: false, message: undefined });
+  });
+
+  it('저장을 보내는 동안에는 결과를 잃지 않게 떠나는 것을 막는다', () => {
+    hooks.pending = true;
+    render();
+    expect(mocks.guard).toMatchObject({ blocked: true });
   });
 
   it('다른 사람이 먼저 바꿨는지는 문구가 아니라 conflict 값으로 알고 [최신 내용 다시 열기]를 보인다(R10)', async () => {
