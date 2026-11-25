@@ -23,6 +23,11 @@ begin;
 --     재가입 차단 값(이메일·소셜 계정의 HMAC, 원문 없음)을 1년 남기고, 처리 3일 뒤 정리 잡이 이메일 원문(프로필·Auth)을 지운다.
 --     차단 기간에는 같은 이메일(대소문자·공백 무관)·소셜 계정의 새 가입이 거절되고 기간이 지나면 풀린다. 처리 1년 뒤 정리 잡이
 --     마케팅 동의 원장·성별·활동 기록 동의 행을 지운다
+--   · 검토 반영(20261126104000): 쓴 쿠폰(적용·사용 취소된 사용 기록이 가리키는 쿠폰)은 남고, 좋아요·내 차단·도움돼요·등급 기록·주문서 초안·
+--     쿠폰 선택·처리 끝난 신고(처리 중인 신고는 1년 뒤)·마케팅 발송 대상 연결·로그인 진행 기록·일회용 토큰·2단계 인증 수단·비밀번호·전화를
+--     지운다. 처리한 회원에게는 문의 답변 등 앱 알림을 만들지 않고(답변 메일 주소는 3일 동안 남는다), 처리 뒤 남은 토큰으로 생긴 위시·팔로우는
+--     3일 뒤 정리 잡이 다시 지운다. 로그인 연결에 담긴 이메일도 막고, 로그인 연결 추가·계정 이메일 변경도 같은 판정으로 막으며, 판정이
+--     실패하면 막지 않는다(fail open). 백필과 같은 다시 지우기(sweep)는 멱등이다
 -- ============================================================================
 
 select 1/case when (
@@ -81,7 +86,13 @@ select 1/case when (
         'private.reject_withdrawn_member_signup()'::regprocedure,
         'private.erase_withdrawn_member_signin_data(uuid)'::regprocedure,
         'private.erase_withdrawn_member_personal_data(uuid)'::regprocedure,
-        'private.erase_withdrawn_member_email(uuid)'::regprocedure,
+        'private.erase_withdrawn_member_email(uuid,uuid)'::regprocedure,
+        'private.withdrawn_signin_blocked(text,text,text)'::regprocedure,
+        'private.reject_withdrawn_member_identity()'::regprocedure,
+        'private.skip_withdrawn_member_notification()'::regprocedure,
+        'private.sweep_withdrawn_member_data(uuid,uuid)'::regprocedure,
+        'private.finish_withdrawn_member_erasure(uuid)'::regprocedure,
+        'private.purge_auth_audit_log(integer)'::regprocedure,
         'private.run_member_withdrawal_retention(integer)'::regprocedure]) p)
   and (select bool_and(p.prosecdef and p.proconfig @> array['search_path=""']) from pg_proc p where p.oid in (
         'private.withdrawn_signin_digest(text,text)'::regprocedure,
@@ -89,7 +100,13 @@ select 1/case when (
         'private.reject_withdrawn_member_signup()'::regprocedure,
         'private.erase_withdrawn_member_signin_data(uuid)'::regprocedure,
         'private.erase_withdrawn_member_personal_data(uuid)'::regprocedure,
-        'private.erase_withdrawn_member_email(uuid)'::regprocedure,
+        'private.erase_withdrawn_member_email(uuid,uuid)'::regprocedure,
+        'private.withdrawn_signin_blocked(text,text,text)'::regprocedure,
+        'private.reject_withdrawn_member_identity()'::regprocedure,
+        'private.skip_withdrawn_member_notification()'::regprocedure,
+        'private.sweep_withdrawn_member_data(uuid,uuid)'::regprocedure,
+        'private.finish_withdrawn_member_erasure(uuid)'::regprocedure,
+        'private.purge_auth_audit_log(integer)'::regprocedure,
         'private.run_member_withdrawal_retention(integer)'::regprocedure))
   and (select bool_and(c.relrowsecurity) from pg_class c
     where c.oid in ('private.withdrawn_signin_blocks'::regclass, 'private.withdrawn_signin_digest_keys'::regclass))
@@ -98,9 +115,16 @@ select 1/case when (
   and not has_table_privilege('authenticated', 'private.withdrawn_signin_digest_keys', 'select')
   and not has_table_privilege('service_role', 'private.withdrawn_signin_digest_keys', 'select')
   and (select count(*) from private.withdrawn_signin_digest_keys) = 1
+  -- 재가입 차단은 새 사용자 생성·계정 이메일 변경(auth.users BEFORE INSERT·UPDATE)과 로그인 연결 추가(auth.identities BEFORE INSERT)에,
+  -- 처리한 회원 알림 건너뛰기는 알림 입력(BEFORE INSERT)에 건다.
   and exists (select 1 from pg_trigger t where t.tgrelid = 'auth.users'::regclass
-    and t.tgname = 'reject_withdrawn_member_signup' and not t.tgisinternal)
+    and t.tgname = 'reject_withdrawn_member_signup' and not t.tgisinternal and (t.tgtype & 22) = 22)
+  and exists (select 1 from pg_trigger t where t.tgrelid = 'auth.identities'::regclass
+    and t.tgname = 'reject_withdrawn_member_identity' and not t.tgisinternal and (t.tgtype & 6) = 6)
+  and exists (select 1 from pg_trigger t where t.tgrelid = 'public.notifications'::regclass
+    and t.tgname = 'skip_withdrawn_member_notification' and not t.tgisinternal and (t.tgtype & 6) = 6)
   and (select count(*) from cron.job where jobname = 'member-withdrawal-retention' and schedule = '41 * * * *') = 1
+  and (select count(*) from cron.job where jobname = 'auth-audit-log-retention' and schedule = '53 3 * * *') = 1
 ) then 1 else 0 end as assert_sealed_acl_and_contracts;
 
 -- ---------------------------------------------------------------------------
@@ -219,6 +243,51 @@ insert into public.coin_ledger(user_id, amount, reason, attended_on)
 values (pg_temp.uid(3), 10, 'attendance', current_date), (pg_temp.uid(7), 10, 'attendance', current_date);
 insert into public.coin_balances(user_id, balance) values (pg_temp.uid(3), 10), (pg_temp.uid(7), 10);
 insert into public.coin_attendance(user_id, attended_on) values (pg_temp.uid(3), current_date), (pg_temp.uid(7), current_date);
+-- 법정 보존 경계와 나머지 삭제 범위(검토 반영). 회원 3의 것은 지우고(쓴 쿠폰과 그 사용 기록은 남김) 7의 것은 남긴다.
+update auth.users set phone = '821011112222', encrypted_password = 'wd-test-hash' where id = pg_temp.uid(3);
+update auth.users set encrypted_password = 'wd-test-hash' where id = pg_temp.uid(7);
+update auth.identities set identity_data = identity_data || '{"email":"wd-google-mail-3@example.test"}'::jsonb where provider_id = 'wd-google-3';
+insert into public.coupons(code, name, discount_type, discount_value, starts_at, recipient_segment) values
+  ('WD-ERASE-USED', 'TEST 탈퇴 처리 사용 쿠폰', 'fixed', 1000, now() - interval '1 day', 'all'),
+  ('WD-ERASE-RELEASED', 'TEST 탈퇴 처리 사용 취소 쿠폰', 'fixed', 1000, now() - interval '1 day', 'all');
+insert into public.cart_coupon_selections(user_id, user_coupon_id)
+select pg_temp.uid(3), c.id from public.user_coupons c where c.user_id = pg_temp.uid(3) and c.coupon_code = 'WD-ERASE-1';
+set local session_replication_role = replica;
+insert into public.orders(id, user_id, total, order_number, status)
+values ('a10d0de0-0000-4000-8000-000000000301', pg_temp.uid(3), 9000, '2026111819990301', 'delivered');
+insert into public.user_coupons(id, coupon_code, user_id, issued_source, status, used_at, used_order_id, usable_from) values
+  ('a10dc000-0000-4000-8000-000000000301', 'WD-ERASE-USED', pg_temp.uid(3), 'admin_grant', 'used', now(), 'a10d0de0-0000-4000-8000-000000000301', now() - interval '1 day'),
+  ('a10dc000-0000-4000-8000-000000000302', 'WD-ERASE-RELEASED', pg_temp.uid(3), 'admin_grant', 'active', null, null, now() - interval '1 day');
+insert into public.coupon_redemptions(user_coupon_id, coupon_code, user_id, order_id, discount_amount, status, released_at) values
+  ('a10dc000-0000-4000-8000-000000000301', 'WD-ERASE-USED', pg_temp.uid(3), 'a10d0de0-0000-4000-8000-000000000301', 1000, 'applied', null),
+  ('a10dc000-0000-4000-8000-000000000302', 'WD-ERASE-RELEASED', pg_temp.uid(3), 'a10d0de0-0000-4000-8000-000000000301', 1000, 'released', now());
+insert into public.posts(id, user_id, text) values ('a10d9050-0000-4000-8000-000000000007', pg_temp.uid(7), 'TEST 탈퇴 처리 글');
+insert into public.likes(post_id, user_id) values
+  ('a10d9050-0000-4000-8000-000000000007', pg_temp.uid(3)), ('a10d9050-0000-4000-8000-000000000007', pg_temp.uid(7));
+insert into public.blocks(user_id, blocked_user_id) values (pg_temp.uid(3), pg_temp.uid(7)), (pg_temp.uid(7), pg_temp.uid(3));
+insert into private.review_helpful_votes(review_id, user_id) values
+  ('a10d4e00-0000-4000-8000-000000000001', pg_temp.uid(3)), ('a10d4e00-0000-4000-8000-000000000001', pg_temp.uid(7));
+insert into public.loyalty_grade_events(user_id, previous_grade, next_grade, reason) values
+  (pg_temp.uid(3), 'welcome', 'silver', 'recalculation'), (pg_temp.uid(7), 'welcome', 'silver', 'recalculation');
+insert into private.checkout_drafts(user_id, source, lines, expires_at, scrubbed_at) values
+  (pg_temp.uid(3), 'selection', '[]'::jsonb, now() + interval '1 hour', now()), (pg_temp.uid(7), 'selection', '[]'::jsonb, now() + interval '1 hour', now());
+insert into public.reports(target_type, target_id, reporter_id, reason, status) values
+  ('user', pg_temp.uid(7)::text, pg_temp.uid(3), 'TEST 처리 끝난 신고', 'resolved'),
+  ('user', pg_temp.uid(7)::text, pg_temp.uid(3), 'TEST 처리 중인 신고', 'open'),
+  ('user', pg_temp.uid(3)::text, pg_temp.uid(7), 'TEST 다른 회원 신고', 'resolved');
+insert into private.marketing_runs(id, campaign_id, scheduled_at) values
+  ('a10dca00-0000-4000-8000-000000000003', gen_random_uuid(), now()), ('a10dca00-0000-4000-8000-000000000007', gen_random_uuid(), now());
+insert into private.marketing_recipients(run_id, customer_id, state) values
+  ('a10dca00-0000-4000-8000-000000000003', pg_temp.uid(3), 'sent'), ('a10dca00-0000-4000-8000-000000000007', pg_temp.uid(7), 'sent');
+insert into auth.flow_state(id, user_id, provider_type, authentication_method) values
+  (gen_random_uuid(), pg_temp.uid(3), 'google', 'oauth'), (gen_random_uuid(), pg_temp.uid(7), 'google', 'oauth');
+insert into auth.one_time_tokens(id, user_id, token_type, token_hash, relates_to) values
+  (gen_random_uuid(), pg_temp.uid(3), 'recovery_token', 'wd-token-3', 'withdrawal-3@example.test'),
+  (gen_random_uuid(), pg_temp.uid(7), 'recovery_token', 'wd-token-7', 'withdrawal-7@example.test');
+insert into auth.mfa_factors(id, user_id, friendly_name, factor_type, status, created_at, updated_at, phone) values
+  (gen_random_uuid(), pg_temp.uid(3), 'wd-phone-3', 'phone', 'verified', now(), now(), '821099990003'),
+  (gen_random_uuid(), pg_temp.uid(7), 'wd-phone-7', 'phone', 'verified', now(), now(), '821099990007');
+set local session_replication_role = origin;
 insert into auth.sessions(id, user_id, created_at, updated_at) values
   ('a10d5e55-0000-4000-8000-000000000301', pg_temp.uid(3), now(), now()),
   ('a10d5e55-0000-4000-8000-000000000302', pg_temp.uid(3), now(), now()),
@@ -338,20 +407,42 @@ select 1/case when (select suspended_at is not null and suspension_reason = '탈
   and not exists (select 1 from public.notifications where user_id = pg_temp.uid(3))
   and not exists (select 1 from public.ip_follows where user_id = pg_temp.uid(3))
   and (select fans_count from public.ips where id = 'withdrawal-ip') = 1
-  and not exists (select 1 from public.user_coupons where user_id = pg_temp.uid(3))
+  and not exists (select 1 from public.user_coupons where user_id = pg_temp.uid(3) and coupon_code = 'WD-ERASE-1')
   and not exists (select 1 from public.coin_ledger where user_id = pg_temp.uid(3))
   and not exists (select 1 from public.coin_balances where user_id = pg_temp.uid(3))
   and not exists (select 1 from public.coin_attendance where user_id = pg_temp.uid(3))
   and not exists (select 1 from auth.identities where user_id = pg_temp.uid(3))
   and (select raw_user_meta_data = '{}'::jsonb and raw_app_meta_data = '{"providers":[]}'::jsonb
     from auth.users where id = pg_temp.uid(3))
-  -- 재가입 차단 값: 이메일·소셜 계정(구글) 두 개를 처리 시각부터 1년. 원문은 없다.
+  -- 법정 보존 경계: 주문 할인에 쓴 쿠폰과 사용 취소된 쿠폰(사용 기록이 가리킨다)·사용 기록·주문은 남는다.
+  and (select array_agg(coupon_code order by coupon_code) from public.user_coupons where user_id = pg_temp.uid(3))
+    = array['WD-ERASE-RELEASED', 'WD-ERASE-USED']
+  and (select count(*) from public.coupon_redemptions where user_id = pg_temp.uid(3)) = 2
+  and exists (select 1 from public.orders where id = 'a10d0de0-0000-4000-8000-000000000301')
+  and not exists (select 1 from public.cart_coupon_selections where user_id = pg_temp.uid(3))
+  and not exists (select 1 from public.likes where user_id = pg_temp.uid(3))
+  and not exists (select 1 from public.blocks where user_id = pg_temp.uid(3))
+  and exists (select 1 from public.blocks where user_id = pg_temp.uid(7) and blocked_user_id = pg_temp.uid(3))
+  and not exists (select 1 from private.review_helpful_votes where user_id = pg_temp.uid(3))
+  and not exists (select 1 from public.loyalty_grade_events where user_id = pg_temp.uid(3))
+  and not exists (select 1 from private.checkout_drafts where user_id = pg_temp.uid(3))
+  -- 처리가 끝난 신고만 지우고 처리 중인 신고는 대상 검토를 위해 남긴다. 다른 회원이 낸 신고는 그대로다.
+  and (select array_agg(status::text) from public.reports where reporter_id = pg_temp.uid(3)) = array['open']
+  and exists (select 1 from public.reports where reporter_id = pg_temp.uid(7) and target_id = pg_temp.uid(3)::text)
+  and not exists (select 1 from private.marketing_recipients where customer_id = pg_temp.uid(3))
+  and exists (select 1 from private.marketing_recipients where run_id = 'a10dca00-0000-4000-8000-000000000003' and customer_id is null)
+  and not exists (select 1 from auth.flow_state where user_id = pg_temp.uid(3))
+  and not exists (select 1 from auth.one_time_tokens where user_id = pg_temp.uid(3))
+  and not exists (select 1 from auth.mfa_factors where user_id = pg_temp.uid(3))
+  and (select phone is null and encrypted_password = '' from auth.users where id = pg_temp.uid(3))
+  -- 재가입 차단 값: 계정 이메일·로그인 연결의 이메일·소셜 계정(구글) 세 개를 처리 시각부터 1년. 원문은 없다.
   and (select count(*) from private.withdrawn_signin_blocks b
     where b.digest in (private.withdrawn_signin_digest('email', 'withdrawal-3@example.test'),
+        private.withdrawn_signin_digest('email', 'wd-google-mail-3@example.test'),
         private.withdrawn_signin_digest('identity', 'google:wd-google-3'))
       and b.blocked_at = (select processed_at from private.member_withdrawal_processings where user_id = pg_temp.uid(3))
-      and b.blocked_until = b.blocked_at + interval '1 year') = 2
-  and (select count(*) from private.withdrawn_signin_blocks) = 2
+      and b.blocked_until = b.blocked_at + interval '1 year') = 3
+  and (select count(*) from private.withdrawn_signin_blocks) = 3
   -- 이메일 원문은 처리 결과 안내를 위해 3일 동안 남는다. Auth 사용자·문의도 남는다.
   and exists (select 1 from public.profiles where id = pg_temp.uid(3) and email = 'withdrawal-3@example.test')
   and exists (select 1 from auth.users where id = pg_temp.uid(3) and banned_until is null and email = 'withdrawal-3@example.test')
@@ -375,6 +466,16 @@ select 1/case when exists (select 1 from public.address_book_entries where user_
   and exists (select 1 from public.coin_ledger where user_id = pg_temp.uid(7))
   and exists (select 1 from public.coin_balances where user_id = pg_temp.uid(7))
   and exists (select 1 from auth.identities where user_id = pg_temp.uid(7))
+  and exists (select 1 from public.likes where user_id = pg_temp.uid(7))
+  and exists (select 1 from private.review_helpful_votes where user_id = pg_temp.uid(7))
+  and exists (select 1 from public.loyalty_grade_events where user_id = pg_temp.uid(7))
+  and exists (select 1 from private.checkout_drafts where user_id = pg_temp.uid(7))
+  and exists (select 1 from public.reports where reporter_id = pg_temp.uid(7))
+  and exists (select 1 from private.marketing_recipients where customer_id = pg_temp.uid(7))
+  and exists (select 1 from auth.flow_state where user_id = pg_temp.uid(7))
+  and exists (select 1 from auth.one_time_tokens where user_id = pg_temp.uid(7))
+  and exists (select 1 from auth.mfa_factors where user_id = pg_temp.uid(7))
+  and (select encrypted_password = 'wd-test-hash' from auth.users where id = pg_temp.uid(7))
   then 1 else 0 end as other_member_untouched;
 -- 코인 원장의 추가 전용 가드는 탈퇴 처리 밖에서는 그대로다.
 select pg_temp.expect_error(format('delete from public.coin_ledger where user_id = %L', pg_temp.uid(7)), 'coin_ledger_append_only');
@@ -416,6 +517,31 @@ select 1/case when (select count(*) = 1 and min(inquiry_reference) = :ref3 and b
   and not exists (select 1 from public.audit_log where target = 'profile:' || pg_temp.uid(3)
     and (diff::text like '%문의 탈퇴 요청 확인%' or diff::text like '%01011112222%' or diff::text like '%821011112222%' or diff::text like '%세종대로%'))
   then 1 else 0 end as processing_record_and_audit;
+
+-- ---------------------------------------------------------------------------
+-- 처리 뒤 생기는 행(검토 반영): 문의 답변은 남겨 둔 이메일로만 가고 앱 알림은 만들지 않는다(다른 회원 알림은 그대로).
+-- 처리 직후 남은 access token으로 들어온 위시·팔로우는 처리 3일 뒤 정리 잡이 지운다(아래 정리 잡 구간에서 확인).
+-- ---------------------------------------------------------------------------
+select id as inquiry3 from public.inquiries where user_id = pg_temp.uid(3) \gset
+select pg_temp.as_actor(pg_temp.uid(1));
+set local role authenticated;
+select recipient_email as answered_recipient3 from public.admin_answer_inquiry(:'inquiry3', '탈퇴 요청을 처리했습니다.', '{}'::text[]) \gset
+reset role;
+select pg_temp.as_actor(pg_temp.uid(3));
+set local role authenticated;
+insert into public.wishlists(user_id, good_id) values (pg_temp.uid(3), 'withdrawal-goods-2');
+select public.follow_ip('withdrawal-ip') as leftover_fans \gset
+reset role;
+insert into public.notifications(user_id, type, title, body, link_path, source_type, source_id, dedupe_key) values
+  (pg_temp.uid(3), 'announcement', 'TEST 공지', 'TEST 처리 뒤 알림', '/', 'test', 'withdrawal', 'test:after-withdrawal'),
+  (pg_temp.uid(7), 'announcement', 'TEST 공지', 'TEST 처리 뒤 알림', '/', 'test', 'withdrawal', 'test:after-withdrawal');
+select 1/case when :'answered_recipient3' = 'withdrawal-3@example.test'
+  and exists (select 1 from public.inquiry_messages m where m.inquiry_id = :'inquiry3' and m.author = 'staff')
+  and not exists (select 1 from public.notifications where user_id = pg_temp.uid(3))
+  and exists (select 1 from public.notifications where user_id = pg_temp.uid(7) and dedupe_key = 'test:after-withdrawal')
+  and exists (select 1 from public.wishlists where user_id = pg_temp.uid(3))
+  and :leftover_fans = 2 and (select fans_count from public.ips where id = 'withdrawal-ip') = 2
+  then 1 else 0 end as answer_skips_app_notification_and_leftover_rows_wait;
 
 -- ---------------------------------------------------------------------------
 -- 멱등: 다시 부르면 처음 기록을 돌려주고, 그 사이 생긴 세션만 끊는다
@@ -617,6 +743,24 @@ select 1/case when (select nickname like '탈퇴한 회원 %' and birth_date is 
   and (select not avatar_erase_pending from private.member_withdrawal_processings where user_id = pg_temp.uid(11))
   then 1 else 0 end as backfill_is_idempotent;
 
+-- migration 백필·3일 정리 잡이 쓰는 다시 지우기(sweep): 처리 기록만 있는 회원 11의 로그인 연결·위시를 지우고 재가입 차단 값을 남긴다.
+-- 두 번째 호출은 지울 것이 없어 감사를 더 남기지 않는다. 처리 기록이 없는 회원은 null이다.
+insert into auth.identities(provider_id, user_id, identity_data, provider, created_at, updated_at)
+values ('wd-kakao-11', pg_temp.uid(11), '{"sub":"wd-kakao-11"}', 'kakao', now(), now());
+insert into public.wishlists(user_id, good_id) values (pg_temp.uid(11), 'withdrawal-goods');
+select private.sweep_withdrawn_member_data(pg_temp.uid(11), null) as swept11 \gset
+select private.sweep_withdrawn_member_data(pg_temp.uid(11), null) as swept11_again \gset
+select 1/case when (:'swept11'::jsonb) = jsonb_build_object('wishlistItems', 1, 'cartItems', 0, 'notifications', 0, 'follows', 0, 'coupons', 0, 'loginIdentities', 1)
+  and ((:'swept11_again'::jsonb)->>'loginIdentities')::integer = 0 and ((:'swept11_again'::jsonb)->>'wishlistItems')::integer = 0
+  and not exists (select 1 from auth.identities where user_id = pg_temp.uid(11))
+  and not exists (select 1 from public.wishlists where user_id = pg_temp.uid(11))
+  and exists (select 1 from private.withdrawn_signin_blocks where digest = private.withdrawn_signin_digest('identity', 'kakao:wd-kakao-11'))
+  and exists (select 1 from private.withdrawn_signin_blocks where digest = private.withdrawn_signin_digest('email', 'withdrawal-11@example.test'))
+  and (select count(*) from public.audit_log where action = 'admin.member.withdrawal_personal_data_erased'
+    and target = 'profile:' || pg_temp.uid(11) and actor_id is null) = 1
+  and private.sweep_withdrawn_member_data(pg_temp.uid(7), null) is null
+  then 1 else 0 end as sweep_is_idempotent;
+
 with r as (insert into private.account_deletion_requests(subject_user_id, idempotency_key, status)
   values (pg_temp.uid(10), gen_random_uuid(), 'awaiting_email_intent') returning deletion_event_id)
 insert into private.account_action_fences(subject_user_id, deletion_event_id) select pg_temp.uid(10), deletion_event_id from r;
@@ -726,6 +870,15 @@ select 1/case when (private.run_member_withdrawal_retention(100))->>'emailsErase
 update private.member_withdrawal_processings set processed_at = processed_at - interval '4 days' where user_id = pg_temp.uid(3);
 select private.run_member_withdrawal_retention(100) as retention_run \gset
 select 1/case when (:'retention_run'::jsonb)->>'emailsErased' = '1'
+  and ((:'retention_run'::jsonb)->>'followups')::integer = 1
+  -- 그 사이 생긴 위시·팔로우를 다시 지우고 팬 수도 되돌린다(감사는 운영자 없이 지운 개수).
+  and not exists (select 1 from public.wishlists where user_id = pg_temp.uid(3))
+  and not exists (select 1 from public.ip_follows where user_id = pg_temp.uid(3))
+  and (select fans_count from public.ips where id = 'withdrawal-ip') = 1
+  and (select count(*) from public.audit_log where action = 'admin.member.withdrawal_personal_data_erased'
+    and target = 'profile:' || pg_temp.uid(3) and actor_id is null
+    and diff = jsonb_build_object('wishlistItems', 1, 'cartItems', 0, 'notifications', 0, 'follows', 1, 'coupons', 0, 'loginIdentities', 0)) = 1
+  and (select followup_erased_at is not null from private.member_withdrawal_processings where user_id = pg_temp.uid(3))
   and (select email is null from public.profiles where id = pg_temp.uid(3))
   and (select email is null and banned_until is not null from auth.users where id = pg_temp.uid(3))
   and (select email_erased_at is not null from private.member_withdrawal_processings where user_id = pg_temp.uid(3))
@@ -736,8 +889,10 @@ select 1/case when (:'retention_run'::jsonb)->>'emailsErased' = '1'
   and (select email = 'withdrawal-9@example.test' from public.profiles where id = pg_temp.uid(9))
   and (select email = 'withdrawal-8@example.test' from auth.users where id = pg_temp.uid(8))
   then 1 else 0 end as email_erased_after_three_days;
-select 1/case when (private.run_member_withdrawal_retention(100))->>'emailsErased' = '0'
+select private.run_member_withdrawal_retention(100) as retention_again \gset
+select 1/case when (:'retention_again'::jsonb)->>'emailsErased' = '0' and (:'retention_again'::jsonb)->>'followups' = '0'
   and (select count(*) from public.audit_log where action = 'admin.member.withdrawal_email_erased' and target = 'profile:' || pg_temp.uid(3)) = 1
+  and (select count(*) from public.audit_log where action = 'admin.member.withdrawal_personal_data_erased' and target = 'profile:' || pg_temp.uid(3)) = 1
   then 1 else 0 end as email_erasure_runs_once;
 
 -- 재가입 차단: 같은 이메일(대소문자·공백 무관)·같은 소셜 계정의 새 가입은 거절하고, 다른 이메일은 그대로 가입한다.
@@ -755,6 +910,27 @@ select 1/case when exists (select 1 from public.profiles where id = pg_temp.uid(
   and exists (select 1 from public.profiles where id = pg_temp.uid(24))
   and not exists (select 1 from auth.users where id in (pg_temp.uid(21), pg_temp.uid(22)))
   then 1 else 0 end as withdrawn_email_and_social_signup_blocked;
+
+-- 로그인 연결에 담긴 이메일로도 가입할 수 없고, 새 사용자 없이 재사용하는 경로(기존 계정에 소셜 계정·같은 이메일의 로그인 연결 추가,
+-- 계정 이메일 변경)도 같은 판정으로 막는다. 막히지 않은 값의 연결 추가·이메일 변경은 그대로 된다.
+select pg_temp.expect_error(format($q$insert into auth.users(id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data)
+  values (%L, 'authenticated', 'authenticated', 'wd-google-mail-3@example.test', now(), '{"provider":"email","providers":["email"]}', '{}')$q$,
+  pg_temp.uid(26)), 'withdrawn_member_signup_blocked');
+select pg_temp.expect_error(format($q$insert into auth.identities(provider_id, user_id, identity_data, provider, created_at, updated_at)
+  values ('wd-google-3', %L, '{"sub":"wd-google-3"}', 'google', now(), now())$q$, pg_temp.uid(23)), 'withdrawn_member_signup_blocked');
+select pg_temp.expect_error(format($q$insert into auth.identities(provider_id, user_id, identity_data, provider, created_at, updated_at)
+  values ('wd-other-23', %L, '{"sub":"wd-other-23","email":"Withdrawal-3@example.test"}', 'google', now(), now())$q$, pg_temp.uid(23)),
+  'withdrawn_member_signup_blocked');
+select pg_temp.expect_error(format($q$update auth.users set email = 'withdrawal-3@example.test' where id = %L$q$, pg_temp.uid(23)),
+  'withdrawn_member_signup_blocked');
+insert into auth.identities(provider_id, user_id, identity_data, provider, created_at, updated_at)
+values ('wd-fresh-23', pg_temp.uid(23), '{"sub":"wd-fresh-23","email":"fresh-23@example.test"}', 'google', now(), now());
+update auth.users set email = 'fresh-23-changed@example.test' where id = pg_temp.uid(23);
+select 1/case when (select email = 'fresh-23-changed@example.test' from auth.users where id = pg_temp.uid(23))
+  and (select email = 'fresh-23-changed@example.test' from public.profiles where id = pg_temp.uid(23))
+  and (select array_agg(provider_id) from auth.identities where user_id = pg_temp.uid(23)) = array['wd-fresh-23']
+  and not exists (select 1 from auth.users where id = pg_temp.uid(26))
+  then 1 else 0 end as identity_link_and_email_change_blocked;
 
 -- 차단 기간(1년)이 지나면 같은 이메일로 다시 가입할 수 있고, 정리 잡이 지난 값을 지운다. 소셜 계정 차단은 그대로다.
 update private.withdrawn_signin_blocks set blocked_at = blocked_at - interval '2 years', blocked_until = clock_timestamp() - interval '1 second'
@@ -780,6 +956,28 @@ select 1/case when ((:'retention_year'::jsonb)->>'retentionPurged')::integer = 1
   and exists (select 1 from private.customer_marketing_consents where user_id = pg_temp.uid(7))
   and (select count(*) from public.audit_log where action = 'admin.member.withdrawal_retention_purged' and target = 'profile:' || pg_temp.uid(3)) = 1
   and ((private.run_member_withdrawal_retention(100))->>'retentionPurged')::integer = 0
+  -- 처리 중이던 신고도 1년 뒤 지운다. 다른 회원이 낸 신고는 그대로다.
+  and not exists (select 1 from public.reports where reporter_id = pg_temp.uid(3))
+  and exists (select 1 from public.reports where reporter_id = pg_temp.uid(7))
   then 1 else 0 end as consent_records_purged_after_one_year;
+
+-- GoTrue 접속 기록(이메일·IP)은 3개월이 지나면 지운다(방침 제3조 '서비스 접속에 관한 기록 3개월'). 3개월이 안 된 기록은 남는다.
+insert into auth.audit_log_entries(id, payload, created_at, ip_address) values
+  ('a10dad00-0000-4000-8000-000000000001', '{"actor_username":"withdrawal-3@example.test"}', now() - interval '4 months', '127.0.0.1'),
+  ('a10dad00-0000-4000-8000-000000000002', '{"actor_username":"withdrawal-7@example.test"}', now() - interval '1 month', '127.0.0.1');
+select private.purge_auth_audit_log(50000) as audit_purged \gset
+select 1/case when :audit_purged >= 1
+  and not exists (select 1 from auth.audit_log_entries where id = 'a10dad00-0000-4000-8000-000000000001')
+  and exists (select 1 from auth.audit_log_entries where id = 'a10dad00-0000-4000-8000-000000000002')
+  then 1 else 0 end as auth_audit_log_purged_after_three_months;
+
+-- 판정이 실패하면 막지 않는다(fail open): 비밀키 칸을 잠시 읽을 수 없게 하면 막힌 소셜 계정의 가입도 통과하고, 되돌리면 다시 막는다.
+alter table private.withdrawn_signin_digest_keys rename column secret to secret_unavailable;
+insert into auth.users(id, aud, role, email, raw_app_meta_data, raw_user_meta_data)
+values (pg_temp.uid(27), 'authenticated', 'authenticated', null, '{"provider":"google","providers":["google"]}', '{"sub":"wd-google-3","provider_id":"wd-google-3"}');
+alter table private.withdrawn_signin_digest_keys rename column secret_unavailable to secret;
+select 1/case when exists (select 1 from auth.users where id = pg_temp.uid(27))
+  and private.withdrawn_signin_blocked(null, 'google', 'wd-google-3')
+  then 1 else 0 end as signin_block_fails_open;
 
 rollback;

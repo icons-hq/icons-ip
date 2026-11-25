@@ -280,7 +280,7 @@ describe('이용약관', () => {
   it('제7조는 탈퇴 처리의 파기 범위·이메일 보관·게시물·재가입 제한을 실제 동작과 같게 밝힌다', () => {
     const body = terms.articles.find((article) => article.heading.includes('회원 탈퇴'))!.paragraphs!.join('\n');
     expect(body).toContain('개인정보처리방침 제3조가 정한 정보를 제외한 개인정보를 지체 없이 파기합니다');
-    expect(body).toContain('이메일 주소는 탈퇴 처리일부터 3일 동안 보관한 뒤 파기합니다');
+    expect(body).toContain('1:1 문의로 받은 탈퇴는 처리 결과를 문의 답변으로 알리기 위해 이메일 주소를 탈퇴 처리일부터 3일 동안 보관한 뒤 파기합니다');
     expect(body).toContain('쓰지 않은 쿠폰과 적립금은 더 이상 사용할 수 없습니다');
     expect(body).toContain('작성자를 "탈퇴한 회원"으로 표시해 남습니다');
     expect(body).toContain('1년 동안은 같은 이메일 주소나 같은 소셜 로그인 계정으로 다시 가입할 수 없습니다');
@@ -406,9 +406,15 @@ describe('개인정보처리방침', () => {
     for (const item of ['위시리스트', '장바구니', '알림함', 'IP 팔로우', '쓰지 않은 쿠폰', '출석 코인', '소셜 로그인 연결 정보', '성인 인증 기록']) {
       expect(closing, item).toContain(item);
     }
-    expect(closing).toContain('계정 이메일 주소는 탈퇴 처리 결과를 알리기 위해 탈퇴 처리일부터 3일 동안 보관한 뒤 파기합니다');
+    expect(closing).toContain('계정 이메일 주소는 1:1 문의로 받은 탈퇴의 처리 결과를 문의 답변으로 알리기 위해 탈퇴 처리일부터 3일 동안 보관한 뒤 파기하며, 카카오계정 탈퇴 알림을 근거로 처리한 경우에는 처리할 때 바로 파기합니다');
+    /* 검토 반영: 처리 뒤 앱 알림 없음·3일 안 재파기, 성별·활동 동의 기록 1년, 처리 중인 신고, 2단계 인증 수단, 접속 기록 3개월(이메일 포함). */
+    for (const text of ['처리가 끝난 신고 기록', '2단계 인증 수단', '탈퇴를 처리한 뒤에는 앱 알림을 보내지 않습니다', '탈퇴 처리일부터 3일 안에 함께 파기합니다',
+      '성별·활동 기록 선택 동의의 철회 기록(동의 여부·일시)', '처리 중인 것은 대상 게시물 검토를 마치기 위해 탈퇴 처리일부터 최대 1년',
+      '로그인·인증 처리 기록(일시, IP 주소, 이메일 주소)은 위 표의 서비스 접속에 관한 기록으로 3개월 동안 보관한 뒤 파기합니다']) {
+      expect(closing, text).toContain(text);
+    }
     expect(closing).toContain('복원할 수 없게 변환한 값을 탈퇴 처리일부터 1년 동안 보관');
-    expect(closing).toContain('마케팅 정보 수신 동의·철회 기록(수단·동의 여부·일시)은 동의 철회 사실을 확인하기 위해 탈퇴 처리일부터 1년');
+    expect(closing).toContain('마케팅 정보 수신 동의·철회 기록(수단·동의 여부·일시)과 성별·활동 기록 선택 동의의 철회 기록(동의 여부·일시)은 동의 철회 사실을 확인하기 위해 탈퇴 처리일부터 1년');
     expect(closing).toContain('작성자는 "탈퇴한 회원"으로 표시됩니다');
     expect(closing).not.toContain('다른 회원 정보와 함께 회원 탈퇴 시 파기합니다');
     expect(privacy.articles.find((article) => article.heading.startsWith('제2조 ('))!.list)

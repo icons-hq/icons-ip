@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { INQUIRY_WITHDRAWAL_SCOPE } from '@/lib/account-deletion';
 import {
+  KAKAO_UNLINK_WITHDRAWAL_EXTRA_EFFECT,
   kakaoUnlinkWithdrawalConfirmMessage,
   MEMBER_WITHDRAWAL_EFFECTS,
   MEMBER_WITHDRAWAL_RETAINED,
@@ -206,6 +207,10 @@ describe('카카오 알림 근거', () => {
     const message = kakaoUnlinkWithdrawalConfirmMessage(UNLINK);
     expect(message).toMatch(/^카카오 연결 해제 알림 · 카카오계정 탈퇴 · 2026\. 11\. 19\./);
     expect(message).toContain('카카오 로그인 연결');
+    /* 카카오 근거는 답변할 문의가 없어 이메일을 처리 때 바로 지운다(문의 근거만 3일). */
+    expect(message).toContain('답변할 문의가 없어 계정 이메일도 바로 지웁니다');
+    expect(KAKAO_UNLINK_WITHDRAWAL_EXTRA_EFFECT).toContain('계정 이메일 바로 삭제');
+    expect(MEMBER_WITHDRAWAL_EFFECTS.join('\n')).toContain('카카오 알림 처리는 답변할 문의가 없어 처리 때 바로 삭제');
     expect(message).toContain('되돌릴 수 없고');
   });
 

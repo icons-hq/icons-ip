@@ -31,7 +31,7 @@ describe('고객 상세 · 탈퇴 요청 처리', () => {
     expect(html).toMatch(/<details(?![^>]*\sopen)[^>]*data-member-withdrawal="pending"/);
     for (const text of ['배송지 관리(주소록) 삭제', '인증한 휴대폰 번호', '마케팅 정보 수신 동의 전 수단 철회', '재로그인 차단',
       '법에 따라 보관하거나 지우지 않는 다음 항목은 남습니다', '거래 기록', '문의 번호', '처리 메모', '개인정보는 적지 마세요',
-      '위시리스트·장바구니·알림함·IP 팔로우·쓰지 않은 쿠폰·출석 코인 삭제', '3일 동안 둔 뒤 자동 삭제']) expect(html).toContain(text);
+      '위시리스트·장바구니·알림함·IP 팔로우·쓰지 않은 쿠폰·출석 코인·처리가 끝난 신고 삭제', '3일 동안 둔 뒤 자동 삭제']) expect(html).toContain(text);
     expect(html).not.toContain('완전 삭제가 아니라');
     expect(html).toMatch(/<input(?=[^>]*required)(?=[^>]*inputMode="numeric")[^>]*name="inquiryReference"/);
     expect(html).toMatch(/<textarea(?=[^>]*required)(?=[^>]*maxLength="200")[^>]*name="note"/);

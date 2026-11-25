@@ -19,7 +19,8 @@ begin;
 --   · 연결만 끊은 회원은 1:1 문의로 기존 경로에서 처리되고 그 문서·감사 모양은 문의 탈퇴 그대로, 대기 목록에서 빠진다
 --   · 근거 검사: 근거와 다른 칸 조합은 표가 거절하고, 처리 기록이 있는 동안 근거 해제 행은 지울 수 없으며 회원 삭제는 막지 않는다
 --   · 20261126104000: 근거와 무관하게 남은 로그인 연결(이메일 identity 포함)·Auth 프로필 정보도 지우고(loginIdentities),
---     카카오 계정은 재가입 차단 값으로 막는다. 이메일 원문은 처리 3일 뒤 정리 잡이 지운다
+--     카카오 계정은 재가입 차단 값으로 막는다. 카카오 근거는 답변할 문의가 없어 이메일 원문을 처리 때 바로 지운다(감사에 basis·운영자).
+--     문의 근거는 처리 결과 답변 메일을 위해 이메일을 남기고 3일 뒤 정리 잡이 지운다
 -- ============================================================================
 
 select 1/case when (
@@ -217,15 +218,18 @@ select 1/case when (select suspended_at is not null and suspension_reason = '탈
   and not exists (select 1 from public.address_book_entries where user_id = pg_temp.uid(3))
   and (select bool_and(not agreed and source = 'member_withdrawal') from private.customer_marketing_consents where user_id = pg_temp.uid(3))
   and not exists (select 1 from auth.sessions where user_id = pg_temp.uid(3))
-  -- 카카오 identity와 user metadata 전체를 지우고 공급자 목록을 비운다(20261126104000). 계정과 이메일 원문은 처리 3일 뒤까지 남는다.
+  -- 카카오 identity와 user metadata 전체를 지우고 공급자 목록을 비운다(20261126104000). 카카오 근거는 이메일 원문도 처리 때 바로 지운다.
   and not exists (select 1 from auth.identities where user_id = pg_temp.uid(3))
   and (select raw_app_meta_data from auth.users where id = pg_temp.uid(3)) = '{"providers":[]}'::jsonb
   and (select raw_user_meta_data from auth.users where id = pg_temp.uid(3)) = '{}'::jsonb
-  and (select email from auth.users where id = pg_temp.uid(3)) = 'kakao-wd-3@example.test'
+  and (select email from auth.users where id = pg_temp.uid(3)) is null
   -- 같은 카카오 계정·이메일의 재가입 차단 값이 남는다.
   and (select count(*) from private.withdrawn_signin_blocks where digest in (
       private.withdrawn_signin_digest('identity', 'kakao:9100000003'), private.withdrawn_signin_digest('email', 'kakao-wd-3@example.test'))) = 2
-  and exists (select 1 from public.profiles where id = pg_temp.uid(3) and email = 'kakao-wd-3@example.test')
+  and exists (select 1 from public.profiles where id = pg_temp.uid(3) and email is null)
+  and (select email_erased_at is not null and email_erased_at >= processed_at from private.member_withdrawal_processings where user_id = pg_temp.uid(3))
+  and (select count(*) from public.audit_log where action = 'admin.member.withdrawal_email_erased' and target = 'profile:' || pg_temp.uid(3)
+    and actor_id = pg_temp.uid(1) and diff = jsonb_build_object('basis', 'kakao_unlink')) = 1
   -- 다른 회원은 그대로.
   and exists (select 1 from public.address_book_entries where user_id = pg_temp.uid(7))
   and exists (select 1 from auth.sessions where user_id = pg_temp.uid(7))
@@ -305,6 +309,7 @@ select 1/case when (:'processed8'::jsonb)->>'status' = 'processed'
   and ((:'processed8'::jsonb)->'erased'->>'loginIdentities')::integer = 1
   and not exists (select 1 from auth.identities where user_id = pg_temp.uid(8))
   and (select raw_app_meta_data from auth.users where id = pg_temp.uid(8)) = '{"providers":[]}'::jsonb
+  and (select email is null from auth.users where id = pg_temp.uid(8))
   then 1 else 0 end as all_login_identities_erased;
 
 -- ---------------------------------------------------------------------------
@@ -331,6 +336,9 @@ select 1/case when (:'processed4'::jsonb)->>'status' = 'processed'
     where action = 'admin.member.withdrawal_processed' and target = 'profile:' || pg_temp.uid(4))
   and (select suspension_reason = '탈퇴 요청 처리 · 문의 #' || :ref4 || ' · 1:1 문의 탈퇴 요청 확인' from public.profiles where id = pg_temp.uid(4))
   and (select array_agg(e->>'userId') from jsonb_array_elements(:'queue_after'::jsonb) e) = array[pg_temp.uid(5)::text]
+  -- 문의 근거는 처리 결과 답변 메일을 위해 이메일 원문을 3일 동안 남긴다.
+  and (select email = 'kakao-wd-4@example.test' from auth.users where id = pg_temp.uid(4))
+  and (select email_erased_at is null from private.member_withdrawal_processings where user_id = pg_temp.uid(4))
   then 1 else 0 end as unlinked_member_processed_by_inquiry;
 
 -- ---------------------------------------------------------------------------
