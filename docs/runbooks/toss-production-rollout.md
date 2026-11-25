@@ -540,7 +540,9 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
   재고·쿠폰·적립금을 잡는다. 구매자는 주문 완료 화면·메일·앱 알림으로 은행·계좌번호·금액·기한을 안내받는다.
 - 입금(`DONE`) → 웹훅(`PAYMENT_STATUS_CHANGED`·`DEPOSIT_CALLBACK`)·자동 재확인이 조회로 승인 → 결제완료(카드와 같은 경로).
 - 기한 만료에는 웹훅이 없다 — 자동 재확인 cron이 기한 + 30분 뒤 반납(`release-va:{attemptId}`)하고 만료 정리가 주문을
-  취소한다. 입금 전 고객 취소도 반납이다. 계정당 열린 입금 대기는 2건까지다.
+  취소한다. 입금 전 고객 취소도 반납이다. 계정당 열린 입금 대기는 2건까지다. 자동 재확인은 10분마다 최대 30건(시간당
+  약 180건)을 결과 불명 → 기한 + 30분 지난 입금 대기(기한 이른 순) → 기한 직후 한 번 → 기한 전 6시간 점검 순으로 고른다
+  (2026-11-26, 원장 VAC-021). 미입금 가상계좌가 한꺼번에 시간당 180건을 넘게 만료되면 그만큼 늦게 닫힌다.
 - 입금 오류 되돌림(`DONE` → `WAITING_FOR_DEPOSIT`)은 출고 보류 `deposit_reversed`를 걸고 **시스템이 끝까지 처리한다**(ADR-0049 결정 4,
   2026-11-24 개정): 고객에게 재입금 안내(메일·앱 알림·주문 상세), 재입금이 조회로 확인되면 보류 자동 해제, 입금 기한 + 30분까지 입금이
   없으면 자동 재확인 cron이 계좌를 반납하고 조회로 확인한 뒤 주문을 결제 없이 취소(재고·쿠폰·적립금 복원, 환불 행·환불 송금 감시 없음,
@@ -699,7 +701,8 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
   (`POST /api/internal/payments/goods/reconcile`, Bearer `PAYMENT_RECONCILIATION_SECRET`, 본문
   `{ "operation": "payment", "attemptId": "<uuid>", "caseRef": "<opaque 16~128자>" }` — 검토된
   한 건만 지정, **토스 attempt 전용**) ④ 10분 주기 자동 재확인 cron(`/api/cron/payment-reconciliation`
-  — `unknown`·리스가 지난 `confirming`만, 회차당 3건, 같은 attempt는 30분에 한 번, 만든 지 7일 안)
+  — `unknown`·리스가 지난 `confirming`과 가상계좌 입금 대기, 회차당 30건(5건씩 동시), 결과 불명이 입금 대기보다 먼저,
+  같은 attempt는 30분(입금 대기 10분)에 한 번, 만든 지 7일 안)
   ⑤ 운영 화면 시스템 상태(`/admin/settings/system`)의 '결제 상태 다시 확인'(`sales.manage`, 감사 기록)이다
   — 절차는 `docs/runbooks/system-health.md`. 재전송이
   소진되거나 웹훅이 아예 오지 않으면 그 건은 `unknown`으로 아래 drain 집계에 남고 ④가 다시 확인한다. 7일이 지났거나

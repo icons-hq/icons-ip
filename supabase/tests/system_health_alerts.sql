@@ -207,7 +207,7 @@ select pg_temp.picks(5,array['toss']) as pick_b \gset
 -- 뽑힌 시도는 결제사 조회 전에 끝났어도(설정 없음·claim 전 실패) 30분 동안 다시 뽑히지 않는다.
 select pg_temp.picks(5,array['toss','nicepay']) as pick_c \gset
 select pg_temp.picks(5,array['toss','nicepay']) as pick_d \gset
-select pg_temp.expect_error($$select public.service_claim_payment_reconciliation_candidates(6,array['toss'])$$,'invalid_reconciliation_candidate_filter');
+select pg_temp.expect_error($$select public.service_claim_payment_reconciliation_candidates(31,array['toss'])$$,'invalid_reconciliation_candidate_filter');
 select pg_temp.expect_error($$select public.service_claim_payment_reconciliation_candidates(1,array['korpay'])$$,'invalid_reconciliation_candidate_filter');
 select pg_temp.expect_error($$select public.service_claim_payment_reconciliation_candidates(1,null)$$,'invalid_reconciliation_candidate_filter');
 reset role;
