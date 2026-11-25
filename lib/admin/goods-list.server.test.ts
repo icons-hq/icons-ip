@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadAdminGoodsList } from './goods-list.server';
 import { goodsConsoleFilterValues, normalizeGoodsListFilters } from './goods-list';
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), visible: [] as string[], visibleError: false, selects: [] as string[], filters: [] as string[] }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), visible: [] as string[], visibleError: false, selects: [] as string[], filters: [] as string[], supplies: null as unknown[] | null, inFilters: [] as string[] }));
 const priceStates = [{ id: 'g1', price: 12000, compareAtPrice: null, activeDiscountEndsAt: null }, { id: 'g2', price: 9000, compareAtPrice: 11000, activeDiscountEndsAt: '2026-10-30T00:00:00Z' }];
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ ...mocks, rpc: (name: string, args: unknown) => ['admin_goods_ip_options', 'admin_goods_origin_options'].includes(name) ? Promise.resolve({ data: [], error: null })
   : name === 'admin_goods_list_price_states' ? Promise.resolve({ data: priceStates, error: null }) : mocks.rpc(name, args) }) }));
@@ -14,17 +14,19 @@ const counts = { all: 1000, active: 900, draft: 600, published: 300, archived: 1
 const row = { id: 'g1', code: 'CODE-1', name: '상품', ipId: 'ip', ipTitle: 'IP', imagePath: null, categoryName: '문구',
   publishedAt: null, archivedAt: null, stock: 'ok', stockQty: 0, readiness: decision };
 beforeEach(() => {
-  vi.clearAllMocks(); mocks.visible = []; mocks.visibleError = false; mocks.selects = []; mocks.filters = [];
+  vi.clearAllMocks(); mocks.visible = []; mocks.visibleError = false; mocks.selects = []; mocks.filters = []; mocks.supplies = null; mocks.inFilters = [];
   mocks.from.mockImplementation((table: string) => {
     const rows = table === 'goods_variants' ? [{ id: 'v1', good_id: 'g1', stock_qty: 7, name: '기본', code: 'V-1' }, { id: 'v2', good_id: 'g2', stock_qty: 1, name: '블루', code: 'V-2' },
       { id: 'v3', good_id: 'g2', stock_qty: 2, name: '레드', code: 'V-3' }]
       : table === 'goods' ? mocks.visible.map(id => ({ id })) : [];
     const result = Promise.resolve(table === 'goods' && mocks.visibleError ? { data: null, error: { message: 'denied' } } : { data: rows, error: null });
-    const builder = { select: (columns: string) => { mocks.selects.push(`${table}:${columns}`); return builder; }, order: () => builder, in: () => builder,
+    let columns = '';
+    const builder = { select: (selected: string) => { columns = selected; mocks.selects.push(`${table}:${selected}`); return builder; }, order: () => builder,
+      in: (column: string, values: string[]) => { if (columns.includes('supply')) mocks.inFilters.push(`${column}:${values.join(',')}`); return builder; },
       is: (column: string, value: unknown) => { mocks.filters.push(`${table}:is:${column}:${value}`); return builder; },
       not: (column: string, op: string, value: unknown) => { mocks.filters.push(`${table}:not:${column}:${op}:${value}`); return builder; },
       eq: (column: string, value: unknown) => { mocks.filters.push(`${table}:eq:${column}:${value}`); return builder; },
-      limit: () => result, range: () => Promise.resolve({ data: [], error: null }), then: result.then.bind(result) };
+      limit: () => columns.includes('supply') ? Promise.resolve(mocks.supplies ? { data: mocks.supplies, error: null } : { data: null, error: { message: 'denied' } }) : result, range: () => Promise.resolve({ data: [], error: null }), then: result.then.bind(result) };
     return builder;
   });
 });
@@ -73,6 +75,28 @@ describe('goods workspace server boundary', () => {
     // 옵션이 여럿이면 옵션별 재고 창이 옵션 이름·옵션 자동코드·실재고를 상품 수정의 옵션 순서로 받는다(1014-106).
     expect(result.goods[1].inlineOptions).toEqual([{ variantId: 'v2', name: '블루', code: 'V-2', stockQty: 1 }, { variantId: 'v3', name: '레드', code: 'V-3', stockQty: 2 }]);
     expect(mocks.selects).toContain('goods_variants:id,good_id,stock_qty,name,code');
+  });
+  it('판매 가능 0개인 전시 상품만 예약 상태를 읽어, 예약판매만 있는 상품에 고객 화면과 같은 문구를 싣는다', async () => {
+    const at = '2026-11-25T03:00:00.000Z';
+    const scheduled = { mode: 'preorder', availableQty: 0, policyId: 'a1000000-0000-4000-8000-000000000001', policyRevision: 1, state: 'scheduled',
+      startsAt: '2026-12-02T02:00:00.000Z', endsAt: '2026-12-13T14:59:00.000Z', expectedShipDate: '2026-12-14', calculatedAt: at, nextChangeAt: '2026-12-02T02:00:00.000Z' };
+    const stock = { mode: 'stock', availableQty: 0, policyId: null, policyRevision: null, state: 'stock', startsAt: null, endsAt: null, expectedShipDate: null, calculatedAt: at, nextChangeAt: null };
+    const published = { ...decision, state: 'blocked', publication: 'published', reasonCodes: ['stock_unavailable'], blockingCodes: ['stock_unavailable'] };
+    mocks.supplies = [{ good_id: 'pre', supply: scheduled }, { good_id: 'pre', supply: scheduled }, { good_id: 'mixed', supply: scheduled }, { good_id: 'mixed', supply: stock }];
+    mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, total: 5, rows: [
+      { ...row, id: 'pre', publishedAt: '2026-11-19T00:00:00Z', readiness: published },
+      { ...row, id: 'mixed', publishedAt: '2026-11-19T00:00:00Z', readiness: published },
+      { ...row, id: 'draft', readiness: decision },
+      { ...row, id: 'stopped', publishedAt: '2026-11-19T00:00:00Z', stock: 'soldout', readiness: published },
+      { ...row, id: 'selling', publishedAt: '2026-11-19T00:00:00Z', readiness: { ...published, state: 'ready', availableQty: 4, reasonCodes: [], blockingCodes: [] } },
+    ] }, error: null });
+    const result = await loadAdminGoodsList(normalizeGoodsListFilters({}));
+    expect(mocks.selects).toContain('goods_variants:good_id,supply:goods_variant_supply');
+    expect(mocks.inFilters).toEqual(['good_id:pre,mixed']);
+    expect(result.goods.map(good => [good.id, good.preorderSaleLabel])).toEqual([['pre', '판매 예정'], ['mixed', null], ['draft', null], ['stopped', null], ['selling', null]]);
+    // 예약 상태를 읽지 못하면 배지는 지금처럼 품절이다.
+    mocks.supplies = null;
+    expect((await loadAdminGoodsList(normalizeGoodsListFilters({}))).goods[0].preorderSaleLabel).toBeNull();
   });
   it('corrects a page after a queue shrinks and retains all other scope', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: { statusCounts: counts, rows: [], total: 20 }, error: null }).mockResolvedValueOnce({ data: { statusCounts: counts, rows: [row], total: 20 }, error: null });
