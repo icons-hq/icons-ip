@@ -268,7 +268,9 @@ insert into public.orders(id,user_id,status,total,address,confirmed_at) values
   '{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}',now()-interval '3 days 1 hour');
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot) values
  ('0a1e0000-0000-4002-8000-000000000002','0a1e0000-0000-4001-8000-000000000002','0a1e0000-0000-4000-8000-0000000000f1','TEST 운영알림 창고',0,'{}');
-select 1/case when private.raise_fulfillment_digest_alerts(now()+interval '2 hours')=1
+-- 함수가 올린 행은 같은 문장의 부분 질의에 보이지 않으므로 먼저 실행해 값을 받는다.
+select private.raise_fulfillment_digest_alerts(now()+interval '2 hours') as raised2 \gset
+select 1/case when :'raised2'::integer=1
  and (select count(*)=1 from private.admin_operation_alerts where event_key like 'system_fulfillment_holds:%' and title like '출고 보류 1건%')
  and (select count(*)=1 from private.admin_operation_alerts where event_key like 'system_shipment_delays:%' and title like '발송 지연 2건%')
  then 1 else 0 end as assert_new_delay_alert_with_total;
