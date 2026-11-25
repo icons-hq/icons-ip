@@ -58,7 +58,6 @@ import { getBusinessInfo } from '@/lib/legal/business-info.server';
 import { kstDay } from '@/lib/admin/kst';
 import { InquiryWidget } from '@/components/screens/InquiryWidget';
 import { SiteFooter } from '@/components/shell/SiteFooter';
-import { virtualAccountTermsRevisionInEffect } from '@/lib/legal/virtual-account-terms-revision';
 import { getStorefrontBranding } from '@/lib/store-branding.server';
 import { getStorefrontNavigation } from '@/lib/store-navigation.server';
 import { getStorefrontMegaMenus } from '@/lib/storefront-mega-menu.server';
@@ -110,7 +109,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <Nav notices={notices} branding={branding} navigation={navigation} megaMenus={megaMenus} searchTerms={searchTerms} />
                 {/* tabIndex: 셸 스킵 링크(#root)가 키보드 포커스를 본문으로 실제 이동시키기 위한 타깃. */}
                 <div id="root" tabIndex={-1}>{children}<InquiryWidget /></div>
-                <SiteFooter businessInfo={businessInfo} branding={branding} copyrightYear={Number(kstDay(new Date()).slice(0, 4))} escrowNoticeVisible={virtualAccountTermsRevisionInEffect(kstDay(new Date()))} />
+                <SiteFooter businessInfo={businessInfo} branding={branding} copyrightYear={Number(kstDay(new Date()).slice(0, 4))} />
                 <Suspense fallback={null}><StoreAnalytics /></Suspense>
                 <Suspense fallback={null}><MemberActivity /></Suspense>
                 {/* 해시가 붙은 주소·링크의 대상을 고정 크롬 아래 착지선에 세운다 — 스트리밍으로 늦게 드러난 본문 포함. */}

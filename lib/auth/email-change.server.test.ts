@@ -74,11 +74,11 @@ describe('emailChangeConfig', () => {
     expect(emailChangeConfig({ EMAIL_DISPATCH_HMAC_SECRET: SECRET, VERCEL_ENV: 'preview' }, () => null)).toBeNull();
   });
 
-  it('opens in production only from the privacy revision effective date (2026-11-18 KST)', () => {
+  it('opens in production only from the privacy first edition effective date (2026-11-25 KST)', () => {
     const provider = () => ({ send: vi.fn() });
     const env = { EMAIL_DISPATCH_HMAC_SECRET: SECRET, VERCEL_ENV: 'production' };
-    expect(emailChangeConfig(env, provider, new Date('2026-11-17T14:59:59Z'))).toBeNull();
-    expect(emailChangeConfig(env, provider, new Date('2026-11-17T15:00:00Z'))?.sender.provider).toBe('resend');
+    expect(emailChangeConfig(env, provider, new Date('2026-11-24T14:59:59Z'))).toBeNull();
+    expect(emailChangeConfig(env, provider, new Date('2026-11-24T15:00:00Z'))?.sender.provider).toBe('resend');
   });
 
   it('sends through the Resend provider with an idempotency key bound to the request', async () => {
