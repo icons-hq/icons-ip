@@ -1,5 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { pathToFileURL } from 'node:url';
 
 import {
   isKorpayMerchantId,
@@ -46,88 +45,6 @@ const TOSS_CANARY_NAMES = [
 // 나이스페이는 판매 제한 굿즈 주문 전용이다 — 티켓 gate는 없다(runtime-gateway.ts).
 const NICEPAY_CREDENTIAL_NAMES = ['NICEPAY_MID', 'NICEPAY_MERCHANT_KEY'];
 
-const SHIPPING_BUNDLE_REVISION_FILE = fileURLToPath(
-  new URL('../lib/legal/shipping-bundle-wording-revision.json', import.meta.url),
-);
-const ALIMTALK_PRIVACY_REVISION_FILE = fileURLToPath(
-  new URL('../lib/legal/alimtalk-privacy-revision.json', import.meta.url),
-);
-/* 부분 반품·반품배송비 차감 약관 개정(ADR-0047)의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
-const PARTIAL_RETURN_REVISION_FILE = fileURLToPath(
-  new URL('../lib/legal/partial-return-terms-revision.json', import.meta.url),
-);
-/* 토스 가상계좌·구매안전서비스 개정(ADR-0049)의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
-const VIRTUAL_ACCOUNT_TERMS_REVISION_FILE = fileURLToPath(
-  new URL('../lib/legal/virtual-account-terms-revision.json', import.meta.url),
-);
-/* 이용약관 서비스 이름(엑스스퀘어) 개정의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
-const BRAND_NAME_REVISION_FILE = fileURLToPath(
-  new URL('../lib/legal/brand-name-revision.json', import.meta.url),
-);
-/* 개인정보처리방침 봇 차단(Cloudflare Turnstile·요청 남용 방지 기록) 개정의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
-const BOT_PROTECTION_PRIVACY_REVISION_FILE = fileURLToPath(
-  new URL('../lib/legal/bot-protection-privacy-revision.json', import.meta.url),
-);
-/* 개인정보처리방침 보호책임자(성명·직책) 개정의 날짜 파일. 같은 규칙(둘 다 null 또는 형식·7일 간격)으로 본다. */
-const PRIVACY_OFFICER_REVISION_FILE = fileURLToPath(
-  new URL('../lib/legal/privacy-officer-revision.json', import.meta.url),
-);
-
-/*
- * 약관·배송 정책 '출고지' 표기 개정(1027T-010)의 날짜 파일(lib/legal/shipping-bundle-wording-revision.json)은 앱과 이 가드가 같은
- * 값을 읽는다. 개정 날짜는 시행 뒤에도 남으므로 '공지일이 오늘보다 이르다'는 이유로 막지 않는다 — 늘 참이어야 하는 것만 본다:
- * 둘 다 null(예약 없음)이거나 둘 다 YYYY-MM-DD 이고, 시행일 >= 공지일 + 7일, 공지일 >= 법정 문서 최초 판(2026-11-06).
- * '공지일 = 실제 운영 배포일'은 런북 절차(배포 직전 날짜 커밋)로 지킨다. 해석할 수 없으면 실패한다.
- */
-const LEGAL_FIRST_EDITION = '2026-11-06';
-const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
-
-function isRealDate(value) {
-  return DATE_PATTERN.test(value) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
-}
-
-/** fileName은 오류 문구가 어느 날짜 파일인지 말하게 한다(약관 개정 날짜 파일이 둘 이상이다). */
-export function validateLegalRevisionDates(source, fileName = 'shipping-bundle-wording-revision.json') {
-  const prefix = `Invalid legal revision dates in ${fileName}`;
-  let parsed;
-  try {
-    parsed = JSON.parse(source);
-  } catch {
-    throw new Error(`${prefix}: ${fileName} is not valid JSON`);
-  }
-  const announced = parsed?.announcedDate;
-  const effective = parsed?.effectiveDate;
-  if (announced === null && effective === null) return;
-  if (typeof announced !== 'string' || typeof effective !== 'string' || !isRealDate(announced) || !isRealDate(effective)) {
-    throw new Error(`${prefix}: announcedDate and effectiveDate must both be null or both YYYY-MM-DD`);
-  }
-  if (announced < LEGAL_FIRST_EDITION) {
-    throw new Error(`${prefix}: announcedDate ${announced} is before the first edition ${LEGAL_FIRST_EDITION}`);
-  }
-  const days = (Date.parse(`${effective}T00:00:00+09:00`) - Date.parse(`${announced}T00:00:00+09:00`)) / 86_400_000;
-  if (!(days >= 7)) {
-    /* 약관 제3조·방침 제13조의 7일 사전 공지를 줄이는 것은 운영 책임자의 명시 결정이 있을 때만이다 — 날짜 파일의
-       noticeWaiver(결정 일자·결정자·사유, 10~200자)가 그 기록이다. 시행일은 그래도 공지일보다 앞설 수 없다. */
-    const waiver = parsed?.noticeWaiver;
-    const waived = typeof waiver === 'string' && waiver.trim().length >= 10 && waiver.length <= 200;
-    if (!waived || !(days >= 0)) {
-      throw new Error(`${prefix}: effectiveDate ${effective} must be at least 7 days after announcedDate ${announced}`
-        + (waived ? '' : ' (or record noticeWaiver for a shorter notice approved by the operator)'));
-    }
-  }
-}
-
-/** 날짜 파일의 개정 날짜(형식 검증 뒤). 예약이 없으면 null. */
-function legalRevisionDates(source) {
-  const parsed = JSON.parse(source);
-  return typeof parsed?.effectiveDate === 'string' ? { announcedDate: parsed.announcedDate, effectiveDate: parsed.effectiveDate } : null;
-}
-
-/** 빌드 시각의 한국 날짜(YYYY-MM-DD) — 법정 문서 개정의 시행 여부를 앱(lib/legal/*-revision.ts)과 같은 기준으로 가른다. */
-function kstToday(now = new Date()) {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(now);
-}
-
 function isPresent(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
@@ -140,7 +57,7 @@ function parseBooleanGate(environment, target, name) {
   throw new Error(`Invalid Vercel ${target} ${name}: use true, false, or leave unset`);
 }
 
-export function validateVercelBuildEnvironment(environment, options = {}) {
+export function validateVercelBuildEnvironment(environment) {
   const stagingVerified = validateStagingBuildEnvironment(environment);
   const target = environment.VERCEL_ENV;
   if (!VERCEL_TARGETS.has(target)) return { checked: false };
@@ -158,31 +75,6 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
       'KORPAY_KEY',
       'SITE_URL',
     );
-  }
-  let virtualAccountRevision = null;
-  if (target === 'production') {
-    const bundleSource = options.revisionSource ?? readFileSync(SHIPPING_BUNDLE_REVISION_FILE, 'utf8');
-    validateLegalRevisionDates(bundleSource);
-    const partialReturnSource = options.partialReturnRevisionSource ?? readFileSync(PARTIAL_RETURN_REVISION_FILE, 'utf8');
-    validateLegalRevisionDates(partialReturnSource, 'partial-return-terms-revision.json');
-    /* 개인정보처리방침 알림톡 개정(lib/legal/alimtalk-privacy-revision.json)도 같은 규칙(둘 다 null 또는 7일 이상 공지)이다. */
-    const alimtalkSource = options.alimtalkRevisionSource ?? readFileSync(ALIMTALK_PRIVACY_REVISION_FILE, 'utf8');
-    validateLegalRevisionDates(alimtalkSource, 'alimtalk-privacy-revision.json');
-    /* 가상계좌·구매안전서비스 개정(lib/legal/virtual-account-terms-revision.json — 약관·방침·배송 정책)도 같은 규칙이다. */
-    const virtualAccountSource = options.virtualAccountRevisionSource ?? readFileSync(VIRTUAL_ACCOUNT_TERMS_REVISION_FILE, 'utf8');
-    validateLegalRevisionDates(virtualAccountSource, 'virtual-account-terms-revision.json');
-    virtualAccountRevision = legalRevisionDates(virtualAccountSource);
-    /* 이용약관 서비스 이름 개정(lib/legal/brand-name-revision.json)도 같은 규칙이다. */
-    const brandNameSource = options.brandNameRevisionSource ?? readFileSync(BRAND_NAME_REVISION_FILE, 'utf8');
-    validateLegalRevisionDates(brandNameSource, 'brand-name-revision.json');
-    /* 개인정보처리방침 봇 차단 개정(lib/legal/bot-protection-privacy-revision.json)도 같은 규칙이다. */
-    const botProtectionSource = options.botProtectionPrivacyRevisionSource ?? readFileSync(BOT_PROTECTION_PRIVACY_REVISION_FILE, 'utf8');
-    validateLegalRevisionDates(botProtectionSource, 'bot-protection-privacy-revision.json');
-    /* 개인정보처리방침 보호책임자 개정(lib/legal/privacy-officer-revision.json)도 같은 규칙이다. */
-    const privacyOfficerSource = options.privacyOfficerRevisionSource ?? readFileSync(PRIVACY_OFFICER_REVISION_FILE, 'utf8');
-    validateLegalRevisionDates(privacyOfficerSource, 'privacy-officer-revision.json');
-    /* 가상계좌·계좌이체 개정과 다른 예약 개정(표기·부분 반품·알림톡)의 선후는 lib/legal/documents.ts가 시행일 순서로 정한다 —
-       어느 쪽이 먼저 시행돼도 이전 판이 직전 시행 본문을 담는다. 공지 기간은 겹쳐도 된다(사전 공지를 함께 보인다). */
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 
@@ -486,15 +378,6 @@ export function validateVercelBuildEnvironment(environment, options = {}) {
       throw new Error(
         `Invalid Vercel production ${TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME}: requires a matching Toss widget key pair `
         + `and ${TOSS_WIDGET_VARIANT_ENV_NAME}: docs/runbooks/toss-production-rollout.md`,
-      );
-    }
-    const today = options.today ?? kstToday();
-    if (!virtualAccountRevision || today < virtualAccountRevision.effectiveDate) {
-      throw new Error(
-        `Invalid Vercel production ${TOSS_VIRTUAL_ACCOUNT_ENABLED_ENV_NAME}: the virtual account legal revision `
-        + `(lib/legal/virtual-account-terms-revision.json) is not in effect on ${today}`
-        + (virtualAccountRevision ? ` (effectiveDate ${virtualAccountRevision.effectiveDate})` : ' (no revision scheduled)')
-        + ': docs/runbooks/toss-production-rollout.md',
       );
     }
   }

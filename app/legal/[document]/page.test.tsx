@@ -6,53 +6,6 @@ import Page, { generateMetadata, generateStaticParams } from './page';
 
 vi.mock('@/lib/legal/business-info.server', async () => { const {BUSINESS_INFO}=await import('@/lib/legal/business-info'); return {getBusinessInfo:async()=>BUSINESS_INFO}; });
 
-/* 운영 상수는 배포 직전에 날짜가 커밋된다(기본 null). 라우트 시험은 주입한 날짜로 세 상태를 고정한다. */
-vi.mock('@/lib/legal/shipping-bundle-wording-revision', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/legal/shipping-bundle-wording-revision')>()),
-  SHIPPING_BUNDLE_WORDING_REVISION: { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' },
-}));
-
-/* 방침 개정(휴대폰 번호 인증·이메일 변경, 2026-11-18 시행)은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험은 표기 개정 날짜로 시계를 옮기므로
-   방침이 그 개정의 영향을 받지 않는다는 것만 보도록 방침 개정 예약(알림톡 개정 포함)을 끈다. */
-vi.mock('@/lib/legal/contact-channels-privacy-revision', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/legal/contact-channels-privacy-revision')>()),
-  CONTACT_CHANNELS_PRIVACY_REVISION: null,
-}));
-vi.mock('@/lib/legal/alimtalk-privacy-revision', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/legal/alimtalk-privacy-revision')>()),
-  ALIMTALK_PRIVACY_REVISION: null,
-}));
-
-/* 부분 반품·반품배송비 차감 개정(ADR-0047)은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험의 표기 개정 날짜와 겹치지 않게 끈다. */
-vi.mock('@/lib/legal/partial-return-terms-revision', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/legal/partial-return-terms-revision')>()),
-  PARTIAL_RETURN_TERMS_REVISION: null,
-}));
-
-/* 가상계좌·구매안전서비스 개정(ADR-0049)은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험의 표기 개정 날짜와 겹치지 않게 끈다. */
-vi.mock('@/lib/legal/virtual-account-terms-revision', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/legal/virtual-account-terms-revision')>()),
-  VIRTUAL_ACCOUNT_TERMS_REVISION: null,
-}));
-
-/* 서비스 이름(엑스스퀘어) 개정은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험의 표기 개정 날짜와 겹치지 않게 끈다. */
-vi.mock('@/lib/legal/brand-name-revision', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/legal/brand-name-revision')>()),
-  BRAND_NAME_REVISION: null,
-}));
-
-/* 가입·로그인 봇 차단(Cloudflare Turnstile) 방침 개정은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험의 표기 개정 날짜와 겹치지 않게 끈다. */
-vi.mock('@/lib/legal/bot-protection-privacy-revision', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/legal/bot-protection-privacy-revision')>()),
-  BOT_PROTECTION_PRIVACY_REVISION: null,
-}));
-
-/* 개인정보 보호책임자(성명·직책) 방침 개정은 lib/legal/documents.test.ts 가 날짜별로 고정한다. 이 시험의 표기 개정 날짜와 겹치지 않게 끈다. */
-vi.mock('@/lib/legal/privacy-officer-revision', async (importOriginal) => ({
-  ...(await importOriginal<typeof import('@/lib/legal/privacy-officer-revision')>()),
-  PRIVACY_OFFICER_REVISION: null,
-}));
-
 vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
@@ -103,7 +56,7 @@ describe('/legal/[document] 라우트', () => {
     expect(html).toContain('확인 중');
   });
 
-  /* 오픈 전 최초 판(2026-11-06)이라 실제 문서에는 사전 공지·개정 안내·이전 본문이 없다.
+  /* 오픈 전 최초 판(2026-11-25)이라 실제 문서에는 사전 공지·개정 안내·이전 본문이 없다.
      오픈 뒤 첫 개정에서 다시 쓰므로 fixture로 지켜 둔다 — 실제 문서에서 사라졌다고
      컴포넌트 분기의 검증까지 함께 잃으면, 다음 공지가 조용히 렌더되지 않는다. */
   it('사전 공지가 있는 문서는 공지일·시행 예정일과 변경 내용을 본문 앞에 노출한다', () => {
@@ -140,68 +93,12 @@ describe('/legal/[document] 라우트', () => {
     expect(html).toContain(`시행 예정일 ${second.effectiveDate}`);
   });
 
-  /* '출고지' 표기 예약 개정(1027T-010)은 요청 시각(KST)으로 상태가 갈린다 — 라우트는 요청마다 오늘 날짜로 문서를 만든다.
-     시계를 공지 전날·공지일·시행일 정오(KST)에 세워 세 상태를 고정한다. */
-  describe("'출고지' 표기 개정 렌더", () => {
-    const announcedDate = '2026-11-20';
-    const effectiveDate = '2026-11-27';
-    const noonKst = (date: string, days = 0) => {
-      const at = new Date(`${date}T03:00:00Z`);
-      at.setUTCDate(at.getUTCDate() + days);
-      return at;
-    };
-    const render = async (slug: string, now: Date) => {
-      vi.useFakeTimers({ toFake: ['Date'] });
-      vi.setSystemTime(now);
-      try {
-        return renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
-      } finally {
-        vi.useRealTimers();
-      }
-    };
-
-    it.each(LEGAL_DOCUMENT_SLUGS)('%s 문서는 공지 전에는 오픈 전 최초 판(2026-11-06)만 보이고 개정 안내·이전 본문이 없다', async (slug) => {
-      const html = await render(slug, noonKst(announcedDate, -1));
-      expect(html).toContain('<p class="wc-document__effective">시행일 2026-11-06</p>');
-      for (const absent of ['개정 사전 공지', '개정 안내', '이전 정책 본문', '<details class="wc-document__previous">']) {
-        expect(html, absent).not.toContain(absent);
-      }
-    });
-
-    it('개인정보처리방침은 공지 기간·시행 뒤에도 최초 판 그대로다', async () => {
-      for (const now of [noonKst(announcedDate), noonKst(effectiveDate)]) {
-        const html = await render('privacy', now);
-        expect(html).toContain('<p class="wc-document__effective">시행일 2026-11-06</p>');
-        expect(html).not.toContain('개정 사전 공지');
-        expect(html).not.toContain('<details class="wc-document__previous">');
-      }
-    });
-
-    it.each(['terms', 'shipping'])('%s 문서는 공지 기간에 현행 본문 앞에 사전 공지(공지일·시행 예정일)를 보인다', async (slug) => {
-      const html = await render(slug, noonKst(announcedDate));
-      expect(html).toContain('<p class="wc-document__effective">시행일 2026-11-06</p>');
-      expect(html).toContain('개정 사전 공지');
-      expect(html).toContain(`공지일 ${announcedDate}`);
-      expect(html).toContain(`시행 예정일 ${effectiveDate}`);
-      expect(html.indexOf('개정 사전 공지')).toBeLessThan(html.indexOf('wc-document__body'));
-      /* 공지 기간의 현행 본문은 아직 '출고지별' 그대로다. */
-      expect(html.slice(html.indexOf('wc-document__body'))).toContain('출고지별');
-      expect(html).not.toContain('<details class="wc-document__previous">');
-    });
-
-    it.each(['terms', 'shipping'])('%s 문서는 시행일부터 배송 묶음 본문·개정 안내를 보이고 직전 본문을 이전 판으로 남긴다', async (slug) => {
-      const html = await render(slug, noonKst(effectiveDate));
-      expect(html).toContain(`<p class="wc-document__effective">시행일 ${effectiveDate}</p>`);
-      expect(html).toContain(`<aside class="wc-document__notice" aria-label="${effectiveDate} 개정 안내">`);
-      expect(html).not.toContain('개정 사전 공지');
-      const previousAt = html.indexOf('<details class="wc-document__previous">');
-      expect(previousAt).toBeGreaterThan(-1);
-      const current = html.slice(html.indexOf('wc-document__body'), previousAt);
-      expect(current).toContain('배송 묶음별');
-      expect(current).not.toContain('출고지');
-      expect(html.slice(previousAt)).toContain('이전 정책 본문 (시행일 2026-11-06)');
-      expect(html.slice(previousAt)).toContain('출고지별');
-    });
+  it.each(LEGAL_DOCUMENT_SLUGS)('%s 문서는 오픈 전 최초 판(2026-11-25)만 보이고 개정 안내·이전 본문·사전 공지가 없다', async (slug) => {
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
+    expect(html).toContain('<p class="wc-document__effective">시행일 2026-11-25</p>');
+    for (const absent of ['개정 사전 공지', '개정 안내', '이전 정책 본문', '<details class="wc-document__previous">']) {
+      expect(html, absent).not.toContain(absent);
+    }
   });
 
   it('개인정보처리방침은 성인 인증·주소록·결제대행사 수탁자를 본문에 담는다', async () => {

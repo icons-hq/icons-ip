@@ -1,15 +1,16 @@
-import { CONTACT_CHANNELS_PRIVACY_REVISION } from '@/lib/legal/contact-channels-privacy-revision';
+import { LEGAL_EFFECTIVE_DATES } from '@/lib/legal/documents';
 import { describe, expect, it } from 'vitest';
-import { CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE, contactChannelsLegalGateOpen, envSwitchOn } from './contact-channels';
+import { CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE, KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE, contactChannelsLegalGateOpen, envSwitchOn } from './contact-channels';
 
 describe('contactChannelsLegalGateOpen', () => {
-  /* 처리방침 개정이 공지·시행되기 전에는 운영에서 env 스위치만으로 열리지 않는다. */
-  it('keeps production closed until the privacy revision date is set and reached (KST)', () => {
+  /* 처리방침이 고지를 시행하기 전에는 운영에서 env 스위치만으로 열리지 않는다. */
+  it('keeps production closed until the privacy first edition takes effect (KST)', () => {
     const production = { VERCEL_ENV: 'production' };
-    expect(CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE).toBe('2026-11-18');
-    expect(CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE).toBe(CONTACT_CHANNELS_PRIVACY_REVISION.effectiveDate);
-    expect(contactChannelsLegalGateOpen(production, new Date('2026-11-17T14:59:59Z'))).toBe(false);
-    expect(contactChannelsLegalGateOpen(production, new Date('2026-11-17T15:00:00Z'))).toBe(true);
+    expect(CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE).toBe('2026-11-25');
+    expect(CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE).toBe(LEGAL_EFFECTIVE_DATES.privacy);
+    expect(KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE).toBe(LEGAL_EFFECTIVE_DATES.privacy);
+    expect(contactChannelsLegalGateOpen(production, new Date('2026-11-24T14:59:59Z'))).toBe(false);
+    expect(contactChannelsLegalGateOpen(production, new Date('2026-11-24T15:00:00Z'))).toBe(true);
     expect(contactChannelsLegalGateOpen(production, new Date('2026-12-01T00:00:00Z'))).toBe(true);
     expect(contactChannelsLegalGateOpen(production, new Date('2026-12-01T00:00:00Z'), null)).toBe(false);
     expect(contactChannelsLegalGateOpen(production, new Date('2026-11-19T14:59:59Z'), '2026-11-20')).toBe(false);

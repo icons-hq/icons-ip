@@ -22,10 +22,9 @@
 가입 확인 코드(1014-004)는 스위치가 없어 이 비교 대상이 아니다.
 
 **운영 법적 게이트.** 세 스위치 모두 운영(`VERCEL_ENV=production`)에서는 `lib/auth/contact-channels.ts`의 시행일(KST)이
-지나야 듣는다. 휴대폰 번호 인증은 `CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE` = 방침 개정
-(`lib/legal/contact-channels-privacy-revision.ts`, 2026-11-17 공지·**2026-11-18 시행**)의 시행일이다 — 실제 이용자가 없어 공지
-1일 뒤 시행으로 둔다는 2026-11-17 사용자 결정("시행일 값은 내일날짜로 바로 적어놔도 됨 아직 실제 사용자없음")이다. 이용자가
-생긴 뒤의 개정에는 7일 공지를 지킨다. SMS 알림·카카오톡 채널은 아직 방침에 고지가 없어
+지나야 듣는다. 휴대폰 번호 인증은 `CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE` = 개인정보처리방침 오픈 전 최초 판의 시행일
+(**2026-11-25**, `LEGAL_EFFECTIVE_DATES.privacy` — 시험이 대조)이다. 처음엔 2026-11-18 시행 예약 개정이었으나, 2026-11-25 운영
+책임자 결정으로 오픈 전 법정 문서를 개정 이력 없이 그날 작성한 최초 판 하나로 접었다. 이용자가 생긴 뒤의 개정에는 7일 공지를 지킨다. SMS 알림·카카오톡 채널은 아직 방침에 고지가 없어
 `SMS_NOTIFICATIONS_AND_KAKAO_PRIVACY_EFFECTIVE_DATE`(`null`)로 따로 닫혀 있다 — env만 켜서는 운영에서 열리지 않는다.
 Preview·로컬은 env만으로 연다.
 
@@ -246,8 +245,7 @@ Preview·스테이징 Auth도 같은 템플릿을 받으므로(기본 메일 발
 ## 7. 개인정보처리방침·동의 문구 초안
 
 **2026-11-17 반영분.** 휴대폰 번호 인증(Twilio Inc. 위탁·미국 이전)과 소셜 로그인 회원의 이메일 변경은 방침 예약 개정으로 코드에
-들어갔다(`lib/legal/contact-channels-privacy-revision.ts` + `lib/legal/documents.ts`의 `applyContactChannelsPrivacyRevision` —
-11-17 공지, 11-18부터 새 본문·이전 판 보존). 아래 초안 가운데 SMS 알림(080 수신거부·광고 문자)과 카카오톡 채널 부분은 아직
+들어갔고(11-17 공지·11-18 시행), 2026-11-25 오픈 전 최초 판(`lib/legal/documents.ts`) 본문에 접었다. 아래 초안 가운데 SMS 알림(080 수신거부·광고 문자)과 카카오톡 채널 부분은 아직
 반영되지 않은 초안이며 법무 검토 전이다. 그 개정 PR은 `pendingRevision`(공지)과
 `SMS_NOTIFICATIONS_AND_KAKAO_PRIVACY_EFFECTIVE_DATE`(시행일)를 함께 채운다.
 
@@ -553,8 +551,7 @@ forwarding')상 이 헤더는 **secret 키 요청만** 받는다 — publishable
 ### 개인정보처리방침 고지(2026-11-24 반영)
 
 Turnstile을 켜면 Cloudflare, Inc.가 접속 정보를 처리하고, 앱 한도는 가명 다이제스트(IP·이메일 HMAC)를 2일 보관한다. 이 둘은
-`lib/legal/bot-protection-privacy-revision.ts`(날짜 `bot-protection-privacy-revision.json`) 개정으로 방침 제1·2·3·5·6조에 밝혔다 — 정식 오픈 전이라
-2026-11-24 운영 책임자 결정으로 7일 공지 없이 즉시 시행(`noticeWaiver`). 운영 사이트 키(2번)는 이 개정과 **같은 운영 배포**로 켠다 — 위젯이 방침보다
+방침 제1·2·3·5·6조에 밝혔다(2026-11-24 즉시 시행 개정 → 2026-11-25 운영 책임자 결정으로 오픈 전 최초 판 `lib/legal/documents.ts` 본문에 접음). 운영 사이트 키(2번)는 이 개정과 **같은 운영 배포**로 켠다 — 위젯이 방침보다
 먼저 뜨지 않게. 2일 보관은 운영 DB의 매시 정리 작업 `auth-mail-abuse-retention`(pg_cron, 2026-11-24 active 확인)이 지킨다.
 
 ### 진행 기록

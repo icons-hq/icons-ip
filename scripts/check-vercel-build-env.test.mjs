@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
   formatVercelBuildReadback,
-  validateLegalRevisionDates,
   validateVercelBuildEnvironment,
 } from './check-vercel-build-env.mjs';
 
@@ -815,182 +814,39 @@ describe('validateVercelBuildEnvironment', () => {
   });
 });
 
-describe('legal revision date guard', () => {
-  const source = (announced, effective) => JSON.stringify({ announcedDate: announced, effectiveDate: effective });
-  const nullSource = source(null, null);
-
-  it('does nothing while no revision is reserved (both null)', () => {
-    expect(() => validateLegalRevisionDates(nullSource)).not.toThrow();
-  });
-
-  it('accepts valid dates on any build day - the dates stay in code after the effective date', () => {
-    expect(() => validateLegalRevisionDates(source('2026-11-20', '2026-11-27'))).not.toThrow();
-    for (const now of ['2026-11-20', '2026-11-21', '2026-11-30', '2027-03-01']) {
-      expect(() => validateVercelBuildEnvironment(productionEnvironment(), {
-        now: new Date(`${now}T03:00:00Z`), revisionSource: source('2026-11-20', '2026-11-27'),
-      }), now).not.toThrow();
-    }
-  });
-
-  it('checks the privacy alimtalk revision dates with the same rule', () => {
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), {
-      revisionSource: nullSource, alimtalkRevisionSource: source('2026-11-20', '2026-11-27'),
-    })).not.toThrow();
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), {
-      revisionSource: nullSource, alimtalkRevisionSource: source('2026-11-20', '2026-11-26'),
-    })).toThrow(/at least 7 days/);
-    expect(() => validateLegalRevisionDates('{ not json', 'alimtalk-privacy-revision.json')).toThrow(/alimtalk-privacy-revision.json is not valid JSON/);
-  });
-
-  it('fails when only one date is set or a date is malformed', () => {
-    expect(() => validateLegalRevisionDates(source('2026-11-20', null))).toThrow(/null or both YYYY/);
-    expect(() => validateLegalRevisionDates(source(null, '2026-11-27'))).toThrow(/null or both YYYY/);
-    expect(() => validateLegalRevisionDates(source('2026-11-2', '2026-11-27'))).toThrow(/null or both YYYY/);
-    expect(() => validateLegalRevisionDates(source('2026-02-30', '2026-11-27'))).toThrow(/null or both YYYY/);
-    expect(() => validateLegalRevisionDates('{ not json')).toThrow(/not valid JSON/);
-  });
-
-  it('fails when the notice period is shorter than 7 days or precedes the first edition', () => {
-    expect(() => validateLegalRevisionDates(source('2026-11-20', '2026-11-26'))).toThrow(/at least 7 days/);
-    expect(() => validateLegalRevisionDates(source('2026-11-01', '2026-11-08'))).toThrow(/before the first edition/);
-  });
-
-  it('runs only for production builds and reads the real file by default', () => {
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { revisionSource: source('2026-11-20', '2026-11-26') }))
-      .toThrow(/at least 7 days/);
-    expect(() => validateVercelBuildEnvironment(baseEnvironment, { revisionSource: source('2026-11-20', '2026-11-26') })).not.toThrow();
-    expect(validateVercelBuildEnvironment(productionEnvironment()).checked).toBe(true);
-  });
-
-  it('checks the partial return terms revision dates (ADR-0047) with the same rules in production builds', () => {
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { partialReturnRevisionSource: source('2026-11-20', '2026-11-26') }))
-      .toThrow(/in partial-return-terms-revision\.json: effectiveDate .* at least 7 days/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { partialReturnRevisionSource: '{ not json' }))
-      .toThrow(/partial-return-terms-revision\.json is not valid JSON/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { revisionSource: '{ not json' }))
-      .toThrow(/shipping-bundle-wording-revision\.json is not valid JSON/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { partialReturnRevisionSource: source(null, null) })).not.toThrow();
-  });
-
-  it('checks the virtual account terms revision dates (ADR-0049) with the same rules in production builds', () => {
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { virtualAccountRevisionSource: source('2026-11-24', '2026-11-30') }))
-      .toThrow(/in virtual-account-terms-revision\.json: effectiveDate .* at least 7 days/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { virtualAccountRevisionSource: '{ not json' }))
-      .toThrow(/virtual-account-terms-revision\.json is not valid JSON/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { virtualAccountRevisionSource: source('2026-11-24', null) }))
-      .toThrow(/virtual-account-terms-revision\.json: announcedDate and effectiveDate must both be null/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { virtualAccountRevisionSource: source('2026-11-24', '2026-12-01') })).not.toThrow();
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { virtualAccountRevisionSource: source(null, null) })).not.toThrow();
-    expect(() => validateVercelBuildEnvironment(baseEnvironment, { virtualAccountRevisionSource: source('2026-11-24', '2026-11-30') })).not.toThrow();
-  });
-
-  it('checks the brand name terms revision dates with the same rules in production builds', () => {
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { brandNameRevisionSource: source('2026-11-25', '2026-12-01') }))
-      .toThrow(/in brand-name-revision\.json: effectiveDate .* at least 7 days/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { brandNameRevisionSource: '{ not json' }))
-      .toThrow(/brand-name-revision\.json is not valid JSON/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { brandNameRevisionSource: source('2026-11-25', '2026-12-02') })).not.toThrow();
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { brandNameRevisionSource: source(null, null) })).not.toThrow();
-    expect(() => validateVercelBuildEnvironment(baseEnvironment, { brandNameRevisionSource: source('2026-11-25', '2026-12-01') })).not.toThrow();
-  });
-
-  it('checks the bot protection privacy revision dates with the same rules in production builds', () => {
-    const waived = (announced, effective) => JSON.stringify({
-      announcedDate: announced,
-      effectiveDate: effective,
-      noticeWaiver: '2026-11-24 운영 책임자 결정: 실사용 회원이 없어 즉시 시행',
-    });
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { botProtectionPrivacyRevisionSource: source('2026-11-25', '2026-12-01') }))
-      .toThrow(/in bot-protection-privacy-revision\.json: effectiveDate .* at least 7 days/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { botProtectionPrivacyRevisionSource: '{ not json' }))
-      .toThrow(/bot-protection-privacy-revision\.json is not valid JSON/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { botProtectionPrivacyRevisionSource: waived('2026-11-24', '2026-11-24') })).not.toThrow();
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { botProtectionPrivacyRevisionSource: waived('2026-11-24', '2026-11-23') }))
-      .toThrow(/bot-protection-privacy-revision\.json: effectiveDate 2026-11-23 must be at least 7 days/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { botProtectionPrivacyRevisionSource: source(null, null) })).not.toThrow();
-    expect(() => validateVercelBuildEnvironment(baseEnvironment, { botProtectionPrivacyRevisionSource: source('2026-11-25', '2026-12-01') })).not.toThrow();
-  });
-
-  it('checks the privacy officer revision dates with the same rules in production builds', () => {
-    const waived = (announced, effective) => JSON.stringify({
-      announcedDate: announced,
-      effectiveDate: effective,
-      noticeWaiver: '2026-11-25 운영 책임자 결정: 실사용 회원이 없어 즉시 시행',
-    });
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { privacyOfficerRevisionSource: source('2026-11-25', '2026-12-01') }))
-      .toThrow(/in privacy-officer-revision\.json: effectiveDate .* at least 7 days/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { privacyOfficerRevisionSource: '{ not json' }))
-      .toThrow(/privacy-officer-revision\.json is not valid JSON/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { privacyOfficerRevisionSource: waived('2026-11-25', '2026-11-25') })).not.toThrow();
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { privacyOfficerRevisionSource: waived('2026-11-25', '2026-11-24') }))
-      .toThrow(/privacy-officer-revision\.json: effectiveDate 2026-11-24 must be at least 7 days/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { privacyOfficerRevisionSource: source(null, null) })).not.toThrow();
-    expect(() => validateVercelBuildEnvironment(baseEnvironment, { privacyOfficerRevisionSource: source('2026-11-25', '2026-12-01') })).not.toThrow();
-  });
-
-  it('lets the virtual account revision take effect before or after the earlier revisions (documents apply them by effective date)', () => {
-    const earlier = { partialReturnRevisionSource: source('2026-11-20', '2026-11-27'), alimtalkRevisionSource: source('2026-11-23', '2026-11-30') };
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { ...earlier, virtualAccountRevisionSource: source('2026-11-24', '2026-12-01') })).not.toThrow();
-    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { ...earlier, virtualAccountRevisionSource: source('2026-11-19', '2026-11-26') })).not.toThrow();
-  });
-
-  it('accepts a notice shorter than 7 days only with a recorded operator waiver, and never an effective date before the announcement', () => {
-    const waived = (announced, effective, noticeWaiver) => JSON.stringify({ announcedDate: announced, effectiveDate: effective, noticeWaiver });
-    const decision = '2026-11-23 운영 책임자 결정: 실사용 회원이 없어 즉시 시행';
-    expect(() => validateLegalRevisionDates(waived('2026-11-23', '2026-11-23', decision), 'virtual-account-terms-revision.json')).not.toThrow();
-    expect(() => validateLegalRevisionDates(source('2026-11-23', '2026-11-23'), 'virtual-account-terms-revision.json'))
-      .toThrow(/must be at least 7 days after announcedDate 2026-11-23 \(or record noticeWaiver/);
-    expect(() => validateLegalRevisionDates(waived('2026-11-23', '2026-11-23', '짧음'), 'virtual-account-terms-revision.json'))
-      .toThrow(/or record noticeWaiver/);
-    expect(() => validateLegalRevisionDates(waived('2026-11-23', '2026-11-22', decision), 'virtual-account-terms-revision.json'))
-      .toThrow(/must be at least 7 days after announcedDate 2026-11-23$/);
-  });
-});
-
 describe('Toss virtual account switch (ADR-0049)', () => {
-  const source = (announced, effective) => JSON.stringify({ announcedDate: announced, effectiveDate: effective });
   const liveBound = {
     NEXT_PUBLIC_TOSS_CLIENT_KEY: 'live_gck_iconsdocs00000000000001',
     TOSS_SECRET_KEY: 'live_gsk_iconsdocs00000000000001',
     TOSS_WIDGET_VARIANT_KEY: 'ICONS',
   };
-  const revision = { virtualAccountRevisionSource: source('2026-11-24', '2026-12-01') };
 
   it('stays disabled by default and reads back disabled', () => {
-    const result = validateVercelBuildEnvironment(productionEnvironment(liveBound), revision);
+    const result = validateVercelBuildEnvironment(productionEnvironment(liveBound));
     expect(result.tossVirtualAccountEnabled).toBe(false);
     expect(formatVercelBuildReadback(result, 'production')).toContain('docs public key=false; Toss virtual account=disabled, Toss escrow key configured=false; NICEPAY configured=');
-    expect(validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'false' }), revision).tossVirtualAccountEnabled).toBe(false);
+    expect(validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'false' })).tossVirtualAccountEnabled).toBe(false);
   });
 
-  it('enables on the effective date with a bound key pair and reads back enabled', () => {
-    const result = validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' }), { ...revision, today: '2026-12-01' });
+  it('enables with a bound key pair and reads back enabled (the legal notice is in the first edition)', () => {
+    const result = validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' }));
     expect(result.tossVirtualAccountEnabled).toBe(true);
     expect(formatVercelBuildReadback(result, 'production')).toContain('Toss virtual account=enabled');
   });
 
   it.each(['TRUE', '1', 'yes', ' true'])('rejects a malformed switch value (%s)', (value) => {
-    expect(() => validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: value }), revision))
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: value })))
       .toThrow(/TOSS_VIRTUAL_ACCOUNT_ENABLED: use true, false, or leave unset/);
   });
 
-  it('refuses the switch before the legal revision takes effect or without a scheduled revision', () => {
-    const env = productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' });
-    expect(() => validateVercelBuildEnvironment(env, { ...revision, today: '2026-11-30' }))
-      .toThrow(/legal revision .* is not in effect on 2026-11-30 \(effectiveDate 2026-12-01\)/);
-    expect(() => validateVercelBuildEnvironment(env, { virtualAccountRevisionSource: source(null, null), today: '2026-12-01' }))
-      .toThrow(/no revision scheduled/);
-  });
-
   it('refuses the switch without a bound widget key pair', () => {
-    const options = { ...revision, today: '2026-12-01' };
-    expect(() => validateVercelBuildEnvironment(productionEnvironment({ TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' }), options))
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({ TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' })))
       .toThrow(/requires a matching Toss widget key pair and TOSS_WIDGET_VARIANT_KEY/);
     expect(() => validateVercelBuildEnvironment(productionEnvironment({
       NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
       TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
       TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true',
-    }), options)).toThrow(/requires a matching Toss widget key pair and TOSS_WIDGET_VARIANT_KEY/);
+    }))).toThrow(/requires a matching Toss widget key pair and TOSS_WIDGET_VARIANT_KEY/);
   });
 
   it('keeps the switch off in preview builds', () => {
@@ -1006,29 +862,27 @@ describe('Toss escrow API key (ADR-0049 결정 6 보강)', () => {
     TOSS_SECRET_KEY: 'live_gsk_iconsdocs00000000000001',
     TOSS_WIDGET_VARIANT_KEY: 'ICONS',
   };
-  const source = (announced, effective) => JSON.stringify({ announcedDate: announced, effectiveDate: effective });
-  const revision = { virtualAccountRevisionSource: source('2026-11-24', '2026-12-01'), today: '2026-12-01' };
 
   it('accepts an API individual-integration secret key in the payment key mode and reads back configured', () => {
-    const result = validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_ESCROW_SECRET_KEY: 'live_sk_iconsescrow0000000001' }), revision);
+    const result = validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_ESCROW_SECRET_KEY: 'live_sk_iconsescrow0000000001' }));
     expect(result.tossEscrowKeyConfigured).toBe(true);
     expect(formatVercelBuildReadback(result, 'production')).toContain('Toss escrow key configured=true;');
     expect(formatVercelBuildReadback(result, 'production')).not.toContain('live_sk_');
   });
 
   it('rejects a payment widget key, a mode mismatch, and missing payment keys', () => {
-    expect(() => validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_ESCROW_SECRET_KEY: 'live_gsk_iconsdocs00000000000001' }), revision))
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_ESCROW_SECRET_KEY: 'live_gsk_iconsdocs00000000000001' })))
       .toThrow(/TOSS_ESCROW_SECRET_KEY: use the Toss API individual-integration secret key/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_ESCROW_SECRET_KEY: 'test_sk_iconsescrow0000000001' }), revision))
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_ESCROW_SECRET_KEY: 'test_sk_iconsescrow0000000001' })))
       .toThrow(/TOSS_ESCROW_SECRET_KEY: requires a Toss widget key pair in the same mode \(payment keys are live\)/);
-    expect(() => validateVercelBuildEnvironment(productionEnvironment({ TOSS_ESCROW_SECRET_KEY: 'live_sk_iconsescrow0000000001' }), revision))
+    expect(() => validateVercelBuildEnvironment(productionEnvironment({ TOSS_ESCROW_SECRET_KEY: 'live_sk_iconsescrow0000000001' })))
       .toThrow(/requires a Toss widget key pair in the same mode \(no payment keys\)/);
   });
 
   it('is production-only and warns when virtual accounts are open without it', () => {
     expect(() => validateVercelBuildEnvironment({ ...baseEnvironment, TOSS_ESCROW_SECRET_KEY: 'test_sk_iconsescrow0000000001' }))
       .toThrow(/Invalid Vercel preview TOSS_ESCROW_SECRET_KEY: the escrow API key is production-only/);
-    const result = validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' }), revision);
+    const result = validateVercelBuildEnvironment(productionEnvironment({ ...liveBound, TOSS_VIRTUAL_ACCOUNT_ENABLED: 'true' }));
     expect(result.tossEscrowKeyConfigured).toBe(false);
     expect(result.warnings.some((warning) => warning.includes('TOSS_ESCROW_SECRET_KEY is not set'))).toBe(true);
   });
