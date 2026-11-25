@@ -50,6 +50,12 @@ import {
   botProtectionPrivacyRevisionAnnounced,
   botProtectionPrivacyRevisionInEffect,
 } from './bot-protection-privacy-revision';
+import {
+  PRIVACY_OFFICER_REVISION,
+  type PrivacyOfficerRevision,
+  privacyOfficerRevisionAnnounced,
+  privacyOfficerRevisionInEffect,
+} from './privacy-officer-revision';
 
 /** KST 달력 날짜(`YYYY-MM-DD`)를 하루 단위로 옮긴다. */
 function shiftDay(date: string, days: number): string {
@@ -63,20 +69,20 @@ function shiftDay(date: string, days: number): string {
 /* 운영 상수(SHIPPING_BUNDLE_WORDING_REVISION)는 배포 직전에 날짜가 커밋되므로 시험은 주입한 날짜로 세 상태를 고정한다. */
 const BUNDLE_REVISION: ShippingBundleWordingRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
 const { announcedDate: BUNDLE_ANNOUNCED, effectiveDate: BUNDLE_EFFECTIVE } = BUNDLE_REVISION;
-const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
+const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
+const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
+const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
+const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
 
 /* 방침 개정(휴대폰 번호 인증·이메일 변경, 카카오톡 알림톡)은 위 표기 개정과 날짜가 따로다 — 위 세트들은 방침 개정을 모두 끄고(null) 2026-11-06 최초 판을 고정한다.
    알림톡 개정은 아래 전용 describe가 날짜별로 고정한다.
    BASE_LEGAL 은 실제 시계와 무관하게 방침 최초 판을 고정한 현행 문서 셋이다(방침 본문 문구를 검사하는 시험이 시행일 뒤에도 같은 본문을 본다). */
-const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
+const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
 /* 방침 개정 상태 — 날짜는 개정 상수에서 파생한다. 표기 개정은 꺼서(null) terms·shipping 을 건드리지 않게 한다. */
 const PRIVACY_NOW = CONTACT_CHANNELS_PRIVACY_REVISION;
-const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
+const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
+const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
+const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
 
 const documents = [
   ...LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]),
@@ -263,7 +269,7 @@ describe('법정 문서 레지스트리', () => {
     expect(shippingBundleWordingRevisionAnnounced('2026-12-31', null)).toBe(false);
     expect(shippingBundleWordingRevisionInEffect('2099-01-01', null)).toBe(false);
     for (const today of ['2026-11-20', '2026-12-31', '2099-01-01']) {
-      const set = createLegalDocuments(BUSINESS_INFO, today, null, undefined, { partialReturnRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
+      const set = createLegalDocuments(BUSINESS_INFO, today, null, undefined, { partialReturnRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
       for (const slug of ['terms', 'shipping'] as const) {
         expect(set[slug].pendingRevision, `${slug} ${today}`).toBeUndefined();
         expect(set[slug].previousVersion, `${slug} ${today}`).toBeUndefined();
@@ -732,14 +738,14 @@ describe('개인정보처리방침 예약 개정 — 휴대폰 번호 인증·�
     expect(contactChannelsPrivacyRevisionInEffect('2026-11-18', PRIVACY_NOW)).toBe(true);
     expect(kstToday(new Date('2026-11-17T15:00:00Z'))).toBe('2026-11-18');
     expect(contactChannelsPrivacyRevisionInEffect('2099-01-01', null)).toBe(false);
-    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null }).privacy).toEqual(base);
+    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null }).privacy).toEqual(base);
   });
 });
 
 describe('개인정보처리방침 예약 개정 — 카카오톡 알림톡 주문 안내', () => {
   /* 날짜는 배포 직전에 JSON으로 커밋되므로 시험은 주입한 날짜로 상태를 고정한다. 휴대폰 번호 인증 개정이 시행된 본문 위에 얹는다. */
   const ALIMTALK: AlimtalkPrivacyRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
-  const at = (today: string) => createLegalDocuments(BUSINESS_INFO, today, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
+  const at = (today: string) => createLegalDocuments(BUSINESS_INFO, today, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
   const current = at(shiftDay(ALIMTALK.announcedDate, -1)).privacy;
   const during = at(ALIMTALK.announcedDate).privacy;
   const lastNotice = at(shiftDay(ALIMTALK.effectiveDate, -1)).privacy;
@@ -755,15 +761,15 @@ describe('개인정보처리방침 예약 개정 — 카카오톡 알림톡 주�
     expect(plainText(announced)).not.toContain('알림톡');
     const effective = createLegalDocuments(BUSINESS_INFO, '2026-11-30').privacy;
     expect(effective.effectiveDate).toBe('2026-11-30');
-    /* 가상계좌·계좌이체 개정(2026-11-23 즉시 시행)과 봇 차단 개정(2026-11-24 즉시 시행)이 먼저 시행돼 이전 판이 11-24 본문이다(시행일 순서). */
-    expect(effective.previousVersion?.effectiveDate).toBe('2026-11-24');
+    /* 가상계좌·계좌이체(2026-11-23)·봇 차단(2026-11-24)·보호책임자(2026-11-25) 개정이 먼저 시행돼 이전 판이 11-25 본문이다(시행일 순서). */
+    expect(effective.previousVersion?.effectiveDate).toBe('2026-11-25');
     expect(plainText(effective)).toContain('카카오톡 알림톡');
   });
 
   it('예약이 없으면(null) 지금 방침 그대로다', () => {
     expect(alimtalkPrivacyRevisionAnnounced('2030-01-01', null)).toBe(false);
     expect(alimtalkPrivacyRevisionInEffect('2030-01-01', null)).toBe(false);
-    const unreserved = createLegalDocuments(BUSINESS_INFO, '2030-01-01', null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null }).privacy;
+    const unreserved = createLegalDocuments(BUSINESS_INFO, '2030-01-01', null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null }).privacy;
     expect(unreserved.articles).toEqual(current.articles);
     expect(unreserved.effectiveDate).toBe(PRIVACY_NOW.effectiveDate);
     expect(unreserved.pendingRevision).toBeUndefined();
@@ -809,7 +815,7 @@ describe('개인정보처리방침 예약 개정 — 카카오톡 알림톡 주�
   });
 
   it('휴대폰 번호 인증 개정이 시행되지 않은 본문에는 얹을 수 없다(앵커 검사)', () => {
-    expect(() => createLegalDocuments(BUSINESS_INFO, ALIMTALK.effectiveDate, null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null })).toThrow(/alimtalk_privacy_anchor_changed/);
+    expect(() => createLegalDocuments(BUSINESS_INFO, ALIMTALK.effectiveDate, null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null })).toThrow(/alimtalk_privacy_anchor_changed/);
   });
 });
 
@@ -867,9 +873,9 @@ it("설정 연락처 변경을 모든 법정 문서에 반영한다",()=>{for(co
 describe('이용약관·배송·반품 정책 예약 개정 — 부분 반품·반품배송비 차감(ADR-0047)', () => {
   /* '출고지' 표기 개정(BUNDLE_REVISION)이 이미 시행된 뒤에 얹는다 — 날짜는 시험이 주입한다(운영 날짜는 머지 직전에 JSON으로 정한다). */
   const REVISION: PartialReturnTermsRevision = { announcedDate: shiftDay(BUNDLE_EFFECTIVE, 1), effectiveDate: shiftDay(BUNDLE_EFFECTIVE, 8) };
-  const before = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-  const during = createLegalDocuments(BUSINESS_INFO, REVISION.announcedDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-  const after = createLegalDocuments(BUSINESS_INFO, REVISION.effectiveDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
+  const before = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
+  const during = createLegalDocuments(BUSINESS_INFO, REVISION.announcedDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
+  const after = createLegalDocuments(BUSINESS_INFO, REVISION.effectiveDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
 
   it('공지 전에는 본문·공지가 그대로다', () => {
     expect(before.terms).toEqual(AFTER_BUNDLE.terms);
@@ -912,7 +918,7 @@ describe('이용약관·배송·반품 정책 예약 개정 — 부분 반품·�
     expect(partialReturnTermsRevisionAnnounced(REVISION.announcedDate, REVISION)).toBe(true);
     expect(partialReturnTermsRevisionInEffect(shiftDay(REVISION.effectiveDate, -1), REVISION)).toBe(false);
     expect(partialReturnTermsRevisionInEffect(REVISION.effectiveDate, REVISION)).toBe(true);
-    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null }).terms.articles).toEqual(AFTER_BUNDLE.terms.articles);
+    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null }).terms.articles).toEqual(AFTER_BUNDLE.terms.articles);
   });
 });
 
@@ -922,7 +928,7 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
   const PARTIAL: PartialReturnTermsRevision = { announcedDate: '2026-11-27', effectiveDate: '2026-12-04' };
   const VA: VirtualAccountTermsRevision = { announcedDate: '2026-12-05', effectiveDate: '2026-12-12' };
   const at = (today: string, virtualAccountRevision: VirtualAccountTermsRevision | null = VA) =>
-    createLegalDocuments(BUSINESS_INFO, today, BUNDLE_REVISION, PRIVACY_NOW, { partialReturnRevision: PARTIAL, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision, brandNameRevision: null, botProtectionPrivacyRevision: null });
+    createLegalDocuments(BUSINESS_INFO, today, BUNDLE_REVISION, PRIVACY_NOW, { partialReturnRevision: PARTIAL, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
   const base = at(shiftDay(VA.announcedDate, -1));
   const during = at(VA.announcedDate);
   const lastNotice = at(shiftDay(VA.effectiveDate, -1));
@@ -1046,7 +1052,7 @@ describe('이용약관·개인정보처리방침·배송·반품 정책 예약 �
   });
 
   it('다른 예약 개정 없이 최초 판 위에도 얹을 수 있다(앵커가 다른 개정에 기대지 않는다)', () => {
-    const alone = createLegalDocuments(BUSINESS_INFO, VA.effectiveDate, null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: VA, brandNameRevision: null, botProtectionPrivacyRevision: null });
+    const alone = createLegalDocuments(BUSINESS_INFO, VA.effectiveDate, null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: VA, brandNameRevision: null, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
     for (const slug of LEGAL_DOCUMENT_SLUGS) {
       expect(alone[slug].effectiveDate, slug).toBe(VA.effectiveDate);
       expect(alone[slug].previousVersion?.articles, slug).toEqual(BASE_LEGAL[slug].articles);
@@ -1073,7 +1079,7 @@ describe('이용약관 예약 개정 — 서비스 이름(엑스스퀘어)', () 
   const NEW_PURPOSE = '이 약관은 주식회사 아이콘스(이하 "회사")가 운영하는 온라인 서비스 엑스스퀘어(이하 "서비스")에서';
   const BRAND: BrandNameRevision = { announcedDate: '2026-12-10', effectiveDate: '2026-12-17' };
   const at = (today: string, brandNameRevision: BrandNameRevision | null = BRAND) =>
-    createLegalDocuments(BUSINESS_INFO, today, BUNDLE_REVISION, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision, botProtectionPrivacyRevision: null });
+    createLegalDocuments(BUSINESS_INFO, today, BUNDLE_REVISION, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision, botProtectionPrivacyRevision: null, privacyOfficerRevision: null });
   const notices = (document: LegalDocument) => [document.pendingRevision, ...(document.additionalPendingRevisions ?? [])].filter(Boolean);
   const brandNotice = (document: LegalDocument) => notices(document).find((notice) => notice!.heading.includes('엑스스퀘어'));
 
@@ -1183,6 +1189,7 @@ describe('개인정보처리방침 개정 — 가입·로그인 봇 차단(Cloud
       virtualAccountRevision: null,
       brandNameRevision: null,
       botProtectionPrivacyRevision,
+      privacyOfficerRevision: null,
     });
   const notices = (document: LegalDocument) => [document.pendingRevision, ...(document.additionalPendingRevisions ?? [])].filter(Boolean);
   const botNotice = (document: LegalDocument) => notices(document).find((notice) => notice!.heading.includes('자동 가입 방지'));
@@ -1278,6 +1285,7 @@ describe('개인정보처리방침 개정 — 가입·로그인 봇 차단(Cloud
       virtualAccountRevision: null,
       brandNameRevision: null,
       botProtectionPrivacyRevision: late,
+      privacyOfficerRevision: null,
     }).privacy;
     expect(alone.previousVersion?.articles).toEqual(BASE_LEGAL.privacy.articles);
     expect(plainText(alone)).toContain('Cloudflare, Inc.');
@@ -1291,5 +1299,95 @@ describe('개인정보처리방침 개정 — 가입·로그인 봇 차단(Cloud
     expect(botProtectionPrivacyRevisionInEffect(BOT.effectiveDate, BOT)).toBe(true);
     expect(botProtectionPrivacyRevisionInEffect('2099-01-01', null)).toBe(false);
     expect(plainText(at('2099-01-01', null).privacy)).not.toContain('Cloudflare');
+  });
+});
+
+describe('개인정보처리방침 개정 — 개인정보 보호책임자 성명·직책', () => {
+  const OFFICER: PrivacyOfficerRevision = { announcedDate: '2026-12-10', effectiveDate: '2026-12-17' };
+  const OFFICER_PARAGRAPH = '개인정보 보호책임자는 대표이사 정승준이며, 보호책임자의 연락처는 위 문의 창구와 같습니다.';
+  const at = (today: string, privacyOfficerRevision: PrivacyOfficerRevision | null = OFFICER, businessInfo = BUSINESS_INFO) =>
+    createLegalDocuments(businessInfo, today, BUNDLE_REVISION, PRIVACY_NOW, {
+      partialReturnRevision: null,
+      alimtalkPrivacyRevision: null,
+      virtualAccountRevision: null,
+      brandNameRevision: null,
+      botProtectionPrivacyRevision: null,
+      privacyOfficerRevision,
+    });
+  const notices = (document: LegalDocument) => [document.pendingRevision, ...(document.additionalPendingRevisions ?? [])].filter(Boolean);
+  const officerNotice = (document: LegalDocument) => notices(document).find((notice) => notice!.heading.includes('보호책임자'));
+  const article11 = (document: LegalDocument) => document.articles.find((item) => item.heading.startsWith('제11조 (개인정보 보호책임자'))!;
+
+  it('운영 날짜 파일은 확정값(2026-11-25 즉시 시행 — 정식 오픈 전, 운영 책임자 결정)이다', () => {
+    expect(PRIVACY_OFFICER_REVISION).toEqual({ announcedDate: '2026-11-25', effectiveDate: '2026-11-25' });
+    /* 7일보다 짧은 공지는 결정 기록(noticeWaiver)이 있어야 빌드 가드를 지난다. */
+    const dates = JSON.parse(readFileSync(new URL('./privacy-officer-revision.json', import.meta.url), 'utf8'));
+    expect(dates.noticeWaiver).toMatch(/2026-11-25 .*즉시 시행/);
+    const today = createLegalDocuments(BUSINESS_INFO, '2026-11-25').privacy;
+    expect(today.effectiveDate).toBe('2026-11-25');
+    /* 봇 차단 개정(2026-11-24 즉시 시행) 본문이 이전 판이다. */
+    expect(today.previousVersion?.effectiveDate).toBe('2026-11-24');
+    expect(article11(today).paragraphs).toContain(OFFICER_PARAGRAPH);
+    expect(plainText(today)).toContain('Cloudflare, Inc.');
+    /* 즉시 시행이라 보호책임자 사전 공지는 없고, 알림톡 개정(11-30 시행)의 공지는 그대로 보인다. */
+    expect(officerNotice(today)).toBeUndefined();
+    expect(today.pendingRevision?.heading).toBe('카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내');
+    /* 하루 전(봇 차단만 시행)에는 보호책임자 문단이 없다. */
+    expect(article11(createLegalDocuments(BUSINESS_INFO, '2026-11-24').privacy).paragraphs).not.toContain(OFFICER_PARAGRAPH);
+    /* 알림톡 개정이 이 본문 위에 얹혀도 보호책임자 문단이 남는다. */
+    expect(article11(createLegalDocuments(BUSINESS_INFO, '2026-11-30').privacy).paragraphs).toContain(OFFICER_PARAGRAPH);
+  });
+
+  it('공지 기간에는 본문을 두고 개정 예정 안내만 붙인다', () => {
+    const before = at(shiftDay(OFFICER.announcedDate, -1));
+    expect(plainText(before.privacy)).not.toContain('대표이사 정승준');
+    expect(officerNotice(before.privacy)).toBeUndefined();
+    for (const today of [OFFICER.announcedDate, shiftDay(OFFICER.effectiveDate, -1)]) {
+      const during = at(today);
+      expect(during.privacy.articles).toEqual(before.privacy.articles);
+      expect(officerNotice(during.privacy)).toMatchObject({
+        announcedDate: OFFICER.announcedDate,
+        effectiveDate: OFFICER.effectiveDate,
+        heading: '개인정보 보호책임자 표기에 따른 개정 예정 안내',
+      });
+      expect(officerNotice(during.terms)).toBeUndefined();
+    }
+  });
+
+  it('시행일부터 제11조에만 보호책임자 문단이 들어가고 직전 본문을 이전 판으로 보존한다', () => {
+    const before = at(shiftDay(OFFICER.effectiveDate, -1));
+    const after = at(OFFICER.effectiveDate);
+    expect(after.privacy.effectiveDate).toBe(OFFICER.effectiveDate);
+    expect(after.privacy.previousVersion).toEqual({ effectiveDate: before.privacy.effectiveDate, articles: before.privacy.articles });
+    expect(after.privacy.revisionChanges).toEqual(officerNotice(before.privacy)!.changes);
+    expect(after.privacy.revisionChanges?.[0]).toMatch(/^개정 사유 — /);
+
+    const changed = after.privacy.articles.filter((item, index) => JSON.stringify(item) !== JSON.stringify(before.privacy.articles[index]));
+    expect(changed.map((item) => item.heading.split(' ')[0])).toEqual(['제11조']);
+    /* '보호책임자를 지정' 문단 바로 뒤, 연락 창구 문장은 그대로 */
+    const paragraphs = article11(after.privacy).paragraphs!;
+    const anchor = paragraphs.findIndex((text) => text.includes('개인정보 보호책임자를 지정'));
+    expect(paragraphs[anchor + 1]).toBe(OFFICER_PARAGRAPH);
+    expect(paragraphs.filter((text) => text !== OFFICER_PARAGRAPH)).toEqual(article11(before.privacy).paragraphs);
+
+    expect(after.terms).toEqual(before.terms);
+    expect(after.shipping).toEqual(before.shipping);
+  });
+
+  it('연락처가 비어 있는 사업자 정보에서도 같은 자리에 넣는다', () => {
+    const noContact = { ...BUSINESS_INFO, phone: '', email: '' };
+    const paragraphs = article11(at(OFFICER.effectiveDate, OFFICER, noContact).privacy).paragraphs!;
+    expect(paragraphs[1]).toBe(OFFICER_PARAGRAPH);
+    expect(paragraphs[0]).toContain('개인정보 보호책임자를 지정합니다');
+  });
+
+  it('공지·시행은 한국 시간 날짜로 가르고, 예약이 없으면(null) 늘 현행 본문이다', () => {
+    expect(privacyOfficerRevisionAnnounced(shiftDay(OFFICER.announcedDate, -1), OFFICER)).toBe(false);
+    expect(privacyOfficerRevisionAnnounced(OFFICER.announcedDate, OFFICER)).toBe(true);
+    expect(privacyOfficerRevisionAnnounced(OFFICER.effectiveDate, OFFICER)).toBe(false);
+    expect(privacyOfficerRevisionInEffect(shiftDay(OFFICER.effectiveDate, -1), OFFICER)).toBe(false);
+    expect(privacyOfficerRevisionInEffect(OFFICER.effectiveDate, OFFICER)).toBe(true);
+    expect(privacyOfficerRevisionInEffect('2099-01-01', null)).toBe(false);
+    expect(plainText(at('2099-01-01', null).privacy)).not.toContain('대표이사 정승준');
   });
 });

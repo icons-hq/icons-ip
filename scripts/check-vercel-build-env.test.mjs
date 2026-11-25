@@ -911,6 +911,23 @@ describe('legal revision date guard', () => {
     expect(() => validateVercelBuildEnvironment(baseEnvironment, { botProtectionPrivacyRevisionSource: source('2026-11-25', '2026-12-01') })).not.toThrow();
   });
 
+  it('checks the privacy officer revision dates with the same rules in production builds', () => {
+    const waived = (announced, effective) => JSON.stringify({
+      announcedDate: announced,
+      effectiveDate: effective,
+      noticeWaiver: '2026-11-25 운영 책임자 결정: 실사용 회원이 없어 즉시 시행',
+    });
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { privacyOfficerRevisionSource: source('2026-11-25', '2026-12-01') }))
+      .toThrow(/in privacy-officer-revision\.json: effectiveDate .* at least 7 days/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { privacyOfficerRevisionSource: '{ not json' }))
+      .toThrow(/privacy-officer-revision\.json is not valid JSON/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { privacyOfficerRevisionSource: waived('2026-11-25', '2026-11-25') })).not.toThrow();
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { privacyOfficerRevisionSource: waived('2026-11-25', '2026-11-24') }))
+      .toThrow(/privacy-officer-revision\.json: effectiveDate 2026-11-24 must be at least 7 days/);
+    expect(() => validateVercelBuildEnvironment(productionEnvironment(), { privacyOfficerRevisionSource: source(null, null) })).not.toThrow();
+    expect(() => validateVercelBuildEnvironment(baseEnvironment, { privacyOfficerRevisionSource: source('2026-11-25', '2026-12-01') })).not.toThrow();
+  });
+
   it('lets the virtual account revision take effect before or after the earlier revisions (documents apply them by effective date)', () => {
     const earlier = { partialReturnRevisionSource: source('2026-11-20', '2026-11-27'), alimtalkRevisionSource: source('2026-11-23', '2026-11-30') };
     expect(() => validateVercelBuildEnvironment(productionEnvironment(), { ...earlier, virtualAccountRevisionSource: source('2026-11-24', '2026-12-01') })).not.toThrow();

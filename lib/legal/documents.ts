@@ -50,6 +50,12 @@ import {
   botProtectionPrivacyRevisionInEffect,
   type BotProtectionPrivacyRevision,
 } from './bot-protection-privacy-revision';
+import {
+  PRIVACY_OFFICER_REVISION,
+  privacyOfficerRevisionAnnounced,
+  privacyOfficerRevisionInEffect,
+  type PrivacyOfficerRevision,
+} from './privacy-officer-revision';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
@@ -818,6 +824,52 @@ function applyBotProtectionPrivacyRevision(document: LegalDocument, today: strin
   }
 }
 
+/* 개정(개인정보처리방침) — 개인정보 보호책임자의 성명·직책(lib/legal/privacy-officer-revision.ts).
+ * 제11조의 '보호책임자를 지정' 문단(연락처가 있을 때·없을 때 두 문장 모두 이 구절을 담는다) 바로 뒤에 보호책임자 문단을 넣는다.
+ * 연락 창구 문장은 바꾸지 않는다 — 보호책임자의 연락처는 그 창구와 같다. 다른 예약 개정은 제11조를 건드리지 않으므로 어느 순서로도
+ * 시행일 상태를 만들 수 있고, 앵커가 정확히 하나가 아니면 시행일 상태를 만드는 순간 던진다. */
+const PRIVACY_OFFICER_ARTICLE_PREFIX = '제11조 (개인정보 보호책임자';
+const PRIVACY_OFFICER_ANCHOR = '개인정보 보호책임자를 지정';
+const PRIVACY_OFFICER_PARAGRAPH = '개인정보 보호책임자는 대표이사 정승준이며, 보호책임자의 연락처는 위 문의 창구와 같습니다.';
+const PRIVACY_OFFICER_CHANGES: string[] = [
+  '개정 사유 — 개인정보 처리에 관한 업무를 총괄하는 개인정보 보호책임자가 누구인지 밝힙니다. 보호책임자에게 연락하는 문의 창구는 바뀌지 않습니다.',
+  '제11조(개인정보 보호책임자와 문의처)에 개인정보 보호책임자의 성명과 직책(대표이사 정승준)을 적습니다.',
+];
+
+/** 현행 방침 조문의 깊은 사본에 보호책임자 개정을 적용한 조문 목록. 앵커가 정확히 하나가 아니면 던진다. */
+function revisePrivacyOfficerArticles(source: LegalArticle[]): LegalArticle[] {
+  const articles: LegalArticle[] = structuredClone(source);
+  const found = articles.filter((item) => item.heading.startsWith(PRIVACY_OFFICER_ARTICLE_PREFIX));
+  if (found.length !== 1) throw new Error(`privacy_officer_anchor_changed:article:${PRIVACY_OFFICER_ARTICLE_PREFIX}`);
+  const paragraphs = found[0]!.paragraphs;
+  const matches = paragraphs?.filter((text) => text.includes(PRIVACY_OFFICER_ANCHOR)) ?? [];
+  if (!paragraphs || matches.length !== 1) throw new Error(`privacy_officer_anchor_changed:paragraph:${PRIVACY_OFFICER_ANCHOR}`);
+  if (paragraphs.includes(PRIVACY_OFFICER_PARAGRAPH)) throw new Error('privacy_officer_anchor_changed:duplicate');
+  paragraphs.splice(paragraphs.indexOf(matches[0]!) + 1, 0, PRIVACY_OFFICER_PARAGRAPH);
+  return articles;
+}
+
+/**
+ * 보호책임자 개정을 날짜(KST)에 맞춰 방침에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문.
+ * 시행 뒤에도 다른 예약 개정의 사전 공지(pendingRevision)는 지우지 않는다.
+ */
+function applyPrivacyOfficerRevision(document: LegalDocument, today: string, revision: PrivacyOfficerRevision | null): void {
+  if (revision && privacyOfficerRevisionInEffect(today, revision)) {
+    const articles = revisePrivacyOfficerArticles(document.articles);
+    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
+    document.articles = articles;
+    document.effectiveDate = revision.effectiveDate;
+    document.revisionChanges = PRIVACY_OFFICER_CHANGES;
+  } else if (revision && privacyOfficerRevisionAnnounced(today, revision)) {
+    addPendingRevision(document, {
+      announcedDate: revision.announcedDate,
+      effectiveDate: revision.effectiveDate,
+      heading: '개인정보 보호책임자 표기에 따른 개정 예정 안내',
+      changes: PRIVACY_OFFICER_CHANGES,
+    });
+  }
+}
+
 /** today(KST `YYYY-MM-DD`)는 예약 개정의 공지·시행 여부만 가른다 — 테스트는 날짜를 넘겨 각 상태를 고정한다. */
 export function createLegalDocuments(
   businessInfo:BusinessInfo=BUSINESS_INFO,
@@ -834,12 +886,14 @@ export function createLegalDocuments(
     virtualAccountRevision = VIRTUAL_ACCOUNT_TERMS_REVISION,
     brandNameRevision = BRAND_NAME_REVISION,
     botProtectionPrivacyRevision = BOT_PROTECTION_PRIVACY_REVISION,
+    privacyOfficerRevision = PRIVACY_OFFICER_REVISION,
   }: {
     partialReturnRevision?: PartialReturnTermsRevision | null;
     alimtalkPrivacyRevision?: AlimtalkPrivacyRevision | null;
     virtualAccountRevision?: VirtualAccountTermsRevision | null;
     brandNameRevision?: BrandNameRevision | null;
     botProtectionPrivacyRevision?: BotProtectionPrivacyRevision | null;
+    privacyOfficerRevision?: PrivacyOfficerRevision | null;
   } = {},
 ) {
 /* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
@@ -1501,7 +1555,7 @@ const shipping: LegalDocument = {
 applyShippingBundleWordingRevision(terms, 'terms', today, shippingBundleRevision);
 applyShippingBundleWordingRevision(shipping, 'shipping', today, shippingBundleRevision);
 applyContactChannelsPrivacyRevision(privacy, today, contactChannelsPrivacyRevision);
-/* 알림톡·부분 반품·가상계좌(계좌이체 포함)·서비스 이름·봇 차단 개정은 **시행일 순서로** 얹는다 — 늦게 시행되는 개정이 앞선 개정의 본문 위에서 돌고,
+/* 알림톡·부분 반품·가상계좌(계좌이체 포함)·서비스 이름·봇 차단·보호책임자 개정은 **시행일 순서로** 얹는다 — 늦게 시행되는 개정이 앞선 개정의 본문 위에서 돌고,
    이전 판(previousVersion)이 직전 시행 본문을 담는다. 시행일이 같으면 아래 나열 순서다(Array.sort는 안정 정렬). 세 개정의 앵커는
    서로가 바꾸는 문장·행을 쓰지 않으므로 어느 순서로도 본문을 만들 수 있다. 회사 계좌 무통장 입금 본문은 그대로다. */
 const NO_REVISION = '9999-12-31';
@@ -1532,6 +1586,10 @@ const scheduledRevisions: { effectiveDate: string; apply: () => void }[] = [
   {
     effectiveDate: botProtectionPrivacyRevision?.effectiveDate ?? NO_REVISION,
     apply: () => applyBotProtectionPrivacyRevision(privacy, today, botProtectionPrivacyRevision),
+  },
+  {
+    effectiveDate: privacyOfficerRevision?.effectiveDate ?? NO_REVISION,
+    apply: () => applyPrivacyOfficerRevision(privacy, today, privacyOfficerRevision),
   },
 ];
 for (const revision of [...scheduledRevisions].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))) revision.apply();
