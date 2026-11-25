@@ -3,6 +3,8 @@ import { AlertTriangle, CheckCircle2, Info, OctagonAlert, type LucideIcon } from
 import { Badge } from '@/components/admin/kit/ui/badge';
 import type { AdminTone } from '@/lib/admin/status-tone';
 import { AdminPageHeading } from './admin-shell-title';
+import { AdminHelpTip } from './AdminHelpTip';
+import type { AdminHelp } from '@/lib/admin/help/types';
 
 /*
  * 운영 화면의 골격 부품 — 색·위계(ADR-0029). API는 그대로이고 모양은 kit Card·Badge·Field와 같은 클래스다.
@@ -49,9 +51,14 @@ export function AdminFormGrid({ children }: { children: ReactNode }) {
 }
 
 /** Inputs use `${inputId}-hint` / `${inputId}-error` for aria-describedby. */
-export function AdminField({ label, inputId, hint, error, children }: { label: string; inputId: string; hint?: string; error?: string; children: ReactNode }) {
+export function AdminField({ label, inputId, hint, help, error, children }: {
+  label: string; inputId: string; hint?: string; error?: string; children: ReactNode;
+  /** 칸 이름 옆 "?" 도움말(화면 규칙 3). 늘 보여야 하는 한 줄은 `hint`에 둔다. */
+  help?: AdminHelp | string;
+}) {
+  const name = <label className="text-sm leading-snug font-medium text-foreground" htmlFor={inputId}>{label}</label>;
   return <div className="group/field flex min-w-0 flex-col gap-2 data-[invalid=true]:text-destructive" data-admin-kit="field" data-invalid={error ? 'true' : undefined}>
-    <label className="text-sm leading-snug font-medium text-foreground" htmlFor={inputId}>{label}</label>
+    {help ? <div className="flex min-w-0 items-center gap-1">{name}<AdminHelpTip help={help} label={label} /></div> : name}
     {children}
     {hint ? <p className="text-sm leading-normal text-muted-foreground" id={`${inputId}-hint`}>{hint}</p> : null}
     {error ? <p className="text-sm text-destructive" id={`${inputId}-error`} role="alert">{error}</p> : null}

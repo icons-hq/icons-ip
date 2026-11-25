@@ -1,4 +1,6 @@
 import type { ComponentProps, ReactNode } from 'react';
+import { AdminHelpTip } from './console/AdminHelpTip';
+import type { AdminHelp } from '@/lib/admin/help/types';
 
 /*
  * 상품 등록·수정 편집기의 작은 공용 부품 — 템플릿 룩(ADR-0028).
@@ -28,9 +30,13 @@ export const GOOD_TABLE_FRAME_CLASS = 'min-w-0 max-w-full overflow-x-auto rounde
  * 설정함/설정안함 같은 하나 고르기. 네이티브 라디오라 폼 제출·기본값이 그대로이고, legend는 흐름 안에 있어
  * 라벨(라디오와 글자 전체)이 누르는 자리를 덮지 않는다(10/27 회의 R11).
  */
-export function GoodChoiceGroup({ legend, children, className = '', ...props }: Omit<ComponentProps<'fieldset'>, 'children'> & { legend: ReactNode; children: ReactNode }) {
+export function GoodChoiceGroup({ legend, help, children, className = '', ...props }: Omit<ComponentProps<'fieldset'>, 'children'> & {
+  legend: ReactNode; children: ReactNode;
+  /** 묶음 이름 옆 "?" 도움말(화면 규칙 3). legend가 글자일 때만 쓴다. */
+  help?: AdminHelp | string;
+}) {
   return <fieldset className={`m-0 min-w-0 border-0 p-0 ${className}`.trim()} data-good-choice="" {...props}>
-    <legend className="float-left mb-2 w-full p-0 text-sm leading-snug font-medium text-foreground">{legend}</legend>
+    <legend className="float-left mb-2 flex w-full items-center gap-1 p-0 text-sm leading-snug font-medium text-foreground">{legend}{help && typeof legend === 'string' ? <AdminHelpTip help={help} label={legend} /> : null}</legend>
     <div className="clear-both flex flex-wrap items-center gap-x-6 gap-y-1">{children}</div>
   </fieldset>;
 }

@@ -9,6 +9,8 @@ import { EMPTY_GOOD_WORKSPACE_SECTIONS, GOOD_WORKSPACE_ERROR_SECTIONS, type Good
 import { initialGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import type { AdminGoodsKc, GoodsKcModelInput } from '@/lib/admin/goods-kc';
 import { AdminStatusBadge } from './console/AdminKit';
+import { AdminHelpTip } from './console/AdminHelpTip';
+import type { AdminHelp } from '@/lib/admin/help/types';
 
 /*
  * 상품 작성 화면의 키 밖 상태(10/27 회의 R13·R14).
@@ -341,8 +343,10 @@ export function GoodOperationDisabledNotice({ reason, unsaved = false }: { reaso
  * 운영 섹션. 'separate'는 저장된 상품의 독립 패널이고, 'inline'은 기본 입력과 함께 원자 저장되는 등록 화면 섹션(KC·예약판매)이다.
  * 저장 전에는 나머지 패널을 카드로 늘어놓지 않고 이어서 설정 카드(GoodSection)에 이름만 보인다(D6·R13).
  */
-export function GoodOperationSection({ id, title, description, children, mode = 'separate', defaultOpen = false, notice, separateLabel = false }: {
+export function GoodOperationSection({ id, title, description, children, mode = 'separate', defaultOpen = false, notice, separateLabel = false, help }: {
   id: string; title: string; description?: string; children?: ReactNode; mode?: 'separate' | 'inline'; defaultOpen?: boolean;
+  /** 제목 옆 "?" 도움말(화면 규칙 3). */
+  help?: AdminHelp | string;
   /** 패널 맨 위에 보일 잠금 이유(GoodOperationDisabledNotice). */
   notice?: ReactNode;
   /** 이어서 설정 카드 밖에 놓인 패널에 "별도 저장"을 표시한다. 카드 안에서는 머리의 한 문장이 대신한다. */
@@ -357,7 +361,7 @@ export function GoodOperationSection({ id, title, description, children, mode = 
   return <details id={`good-operation-${id}`} className={OPERATION_SECTION_CLASS} data-good-operation={mode} tabIndex={-1} {...openProps}>
     <summary className={OPERATION_SUMMARY_CLASS}>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-base leading-snug font-medium text-foreground" data-good-operation-title="">{title}</span>
+        <span className="flex min-w-0 items-center gap-1"><span className="text-base leading-snug font-medium text-foreground" data-good-operation-title="">{title}</span>{help ? <GoodSummaryHelp help={help} label={title} /> : null}</span>
         {modeLabel ? <span className="text-sm text-muted-foreground" data-good-operation-mode="">{modeLabel}</span> : null}
       </span>
       {OPERATION_CHEVRON}
@@ -389,14 +393,15 @@ export function GoodOperationGroup({ id, title, names, defaultOpen = false, chil
  * 카드 안의 접힌 줄(현재 값 한 줄 요약 + 변경). 네이티브 details라 접어도 입력이 DOM에 남아 저장·임시저장·자동복구가 같은 값을 읽는다.
  * `id`는 오류·판매 준비 링크의 대상이자 펼침 상태 열쇠다.
  */
-export function GoodFoldedRow({ id, title, summary, errorCount = 0, isDefault = false, defaultOpen = false, children }: {
-  id: string; title: string; summary: ReactNode; errorCount?: number;
+export function GoodFoldedRow({ id, title, summary, help, errorCount = 0, isDefault = false, defaultOpen = false, children }: {
+  id: string; title: string; summary: ReactNode; errorCount?: number; help?: AdminHelp | string;
   /** 기본값 그대로면 건드릴 것 없음을 표시한다. */
   isDefault?: boolean; defaultOpen?: boolean; children: ReactNode;
 }) {
   return <GoodWorkspaceDetails stateId={id} id={id} aria-label={title} className="group/row min-w-0 scroll-mt-24 rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50" data-good-folded-row="" defaultOpen={defaultOpen} forceOpen={errorCount > 0} tabIndex={-1}>
     <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-3 py-2 outline-none select-none group-open/row:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
       <span className="shrink-0 text-sm font-medium text-foreground" data-good-section-title="">{title}</span>
+      {help ? <GoodSummaryHelp help={help} label={title} /> : null}
       <span className="min-w-0 flex-1 text-xs text-muted-foreground wrap-anywhere sm:text-sm" data-good-section-summary="">{errorCount ? <strong className="font-medium text-destructive">{errorCount}개 확인 필요</strong> : summary}</span>
       {isDefault && !errorCount ? <AdminStatusBadge className="shrink-0">기본값</AdminStatusBadge> : null}
       <span aria-hidden="true" className="shrink-0 text-xs font-medium text-primary group-open/row:hidden">변경</span>
@@ -407,15 +412,27 @@ export function GoodFoldedRow({ id, title, summary, errorCount = 0, isDefault = 
 }
 
 /**
+ * 접이식 줄(`<summary>`) 안의 "?" 도움말. summary 안의 버튼을 누르면 details가 함께 접히고 펴지므로, 누르기·키 입력이 summary로 올라가지 않게 막는다.
+ */
+function GoodSummaryHelp({ help, label }: { help: AdminHelp | string; label: string }) {
+  return <span className="inline-flex shrink-0" onClick={(event) => event.preventDefault()} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') event.stopPropagation(); }} onKeyUp={(event) => { if (event.key === ' ') event.preventDefault(); }}>
+    <AdminHelpTip help={help} label={label} />
+  </span>;
+}
+
+/**
  * 카드 안의 펼친 소항목(10/27 회의 R12·R13 — 판매 정보 카드의 판매기간·예약판매·구매 제한). 접지 않고 제목·현재 값 한 줄과 입력을 바로 보인다.
  * `id`는 오류·판매 준비 링크의 대상이다. `mode`는 저장 방식(상품과 함께 저장·별도 저장)을 제목 옆에 밝힌다.
  */
-export function GoodEditorSubsection({ id, title, summary, mode, errorCount = 0, children }: {
+export function GoodEditorSubsection({ id, title, summary, mode, help, errorCount = 0, children }: {
   id: string; title: string; summary?: ReactNode; mode?: string; errorCount?: number; children: ReactNode;
+  /** 제목 옆 "?" 도움말(화면 규칙 3). */
+  help?: AdminHelp | string;
 }) {
   return <section aria-labelledby={`${id}-title`} className="flex min-w-0 scroll-mt-24 flex-col gap-4 border-t pt-5 outline-none" data-good-subsection="" id={id} tabIndex={-1}>
     <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
       <h2 className="text-sm font-medium text-foreground" data-good-section-title="" id={`${id}-title`}>{title}</h2>
+      {help ? <AdminHelpTip className="self-center" help={help} label={title} /> : null}
       {mode ? <span className="text-xs text-muted-foreground" data-good-operation-mode="">{mode}</span> : null}
       {errorCount || summary ? <span className="min-w-0 text-xs text-muted-foreground wrap-anywhere" data-good-section-summary="">{errorCount ? <strong className="font-medium text-destructive">{errorCount}개 확인 필요</strong> : summary}</span> : null}
     </div>

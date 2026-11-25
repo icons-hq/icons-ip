@@ -21,7 +21,8 @@ import type { ReturnAddressOption } from '@/lib/admin/return-addresses';
 /* 기본값을 매 렌더 새 배열로 만들면 미리보기 useMemo가 매번 다시 계산된다. */
 const NO_RETURN_ADDRESSES: ReturnAddressOption[] = [];
 const NO_SUGGEST_NAMES: readonly string[] = [];
-import { GoodsSalePeriodFields } from './GoodsSalePeriodFields';
+import { GoodSaleTiming } from './GoodSaleTiming';
+import { GoodDisplayOrderField } from './GoodDisplayOrderField';
 import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { goodEditorValues, createGoodEditorDraft, goodEditorFingerprint, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS, type GoodNoticeDefaults } from '@/lib/admin/good-editor';
 import { goodsOptionStockMissing, goodsOptionStockTotals, inheritRandomOptionLimits, initialGoodsOptionRows, isSingleGoodsOption, restoreGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
@@ -72,7 +73,7 @@ import { GoodIdentifierFields } from './GoodIdentifierFields';
 import { GoodsDraftLibraryDialog } from './GoodsDraftLibraryDialog';
 import { saveGoodsDraftAction } from '@/app/admin/goods-draft-actions';
 import { collectGoodsDraftValues, validGoodsDraftIdentity, type GoodsDraft, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
-import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, GoodEditorSubsection, GoodFoldedRow, GoodWorkspaceDetails, focusGoodWorkspaceTarget, useFocusFirstGoodError, useGoodWorkspaceSections } from './GoodWorkspace';
+import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, GoodFoldedRow, GoodWorkspaceDetails, focusGoodWorkspaceTarget, useFocusFirstGoodError, useGoodWorkspaceSections } from './GoodWorkspace';
 import { GOOD_WORKSPACE_ERROR_SECTIONS, GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, goodWorkspaceKcWithTemplate, prepareGoodWorkspaceSections } from '@/lib/admin/good-workspace-sections';
 import { DEFAULT_FULFILLMENT_ORIGIN_ID } from '@/lib/admin/fulfillment-origins';
 import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodRealRegistrationBlocker, goodRemainingByCard, GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE, type GoodEditorSectionKey } from '@/lib/admin/good-workspace';
@@ -658,11 +659,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             canSearchErp={canSearchErp} onErpItemSelect={groupOwned ? undefined : applyErpItem} onRegularPriceApply={(price) => setPriceDraft((current) => ({ ...current, regularPrice: String(price) }))}
             erpNotice={<GoodsErpCategoryNotice suggestion={erpCategory} currentCategoryId={categoryId} onReplace={setCategoryId} onReview={() => focusGoodWorkspaceTarget('good-section-category', 'categoryId')} />} />
         </div>
-        <GoodEditorSubsection title="판매기간" id="good-section-period" errorCount={errorCount('period')} summary={values.salePeriodEnabled === 'true' ? `${values.saleStartsAt?.replace('T', ' ') || '시작 미입력'} ~ ${values.saleEndsAt?.replace('T', ' ') || '종료 미입력'} · KST` : '설정안함'}>
-          <GoodsSalePeriodFields values={values} error={errors.saleStartsAt} onChange={patch => { setValues(current => ({ ...current, ...patch })); setDirty(true); }} />
-        </GoodEditorSubsection>
-        {/* 예약판매 입력은 이름이 없고 소속 폼을 뗐다(GOOD_DETACHED_FORM_ID). Enter로 상품이 저장되지 않게 막고, 자동복구는 이 안의 입력을 수정으로 세지 않는다. */}
-        {preorderSlot ? <div className="contents" data-good-preorder-slot="" onKeyDown={(event) => { if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.preventDefault(); }}>{preorderSlot}</div> : null}
+        <GoodSaleTiming values={values} error={errors.saleStartsAt} errorCount={errorCount('period')} preorderSlot={preorderSlot}
+          onChange={patch => { setValues(current => ({ ...current, ...patch })); setDirty(true); }} />
         <GoodsPurchaseLimitFields quantityReadOnly={aggregationOwned} values={initial} current={values} errors={errors} rows={rows} onRowsChange={setRows} randomSale={randomSale} />
         <GoodsSaleRestrictionFields values={initial} current={values} errors={errors} />
       </GoodEditorSection>
@@ -735,7 +733,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <h2 className="text-sm font-medium text-foreground" id="good-search-settings-title">검색설정·상품 자동코드</h2>
           <AdminFormGrid>
             <Field readOnly={groupOwned} defaultValue={initial.nameEn} error={errors.nameEn} label="영문 상품명 (선택)" name="nameEn" maxLength={200} />
-            <Field defaultValue={initial.displayOrder} error={errors.displayOrder} label="진열 순서 (선택)" name="displayOrder" min={0} type="number" />
+            <GoodDisplayOrderField defaultValue={initial.displayOrder} error={errors.displayOrder} goodId={selected?.id ?? null} />
           </AdminFormGrid>
           <OwnedFields locked={groupOwned} fields={['searchKeywords']} values={initial}><TextArea
             defaultValue={initial.searchKeywords}
