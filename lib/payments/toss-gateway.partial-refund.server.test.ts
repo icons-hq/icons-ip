@@ -170,7 +170,9 @@ describe('토스 부분 취소', () => {
       expect(toss.calls[1]).toMatchObject({
         url: CANCEL_URL,
         body: { cancelReason: '엑스스퀘어 반품 환불(반품배송비 차감)', cancelAmount: 27_000,
-          refundReceiveAccount: { bank: '88', accountNumber: '110123456789', holderName: '김토스' } },
+          refundReceiveAccount: { bank: '88', accountNumber: '110123456789', holderName: '김토스' },
+          // 잔액 전제 — 앞 취소가 반영돼 잔액이 움직였으면 결제사가 거절한다(계좌별 키는 계좌가 바뀐 재시도를 걸러 주지 못한다).
+          refundableAmount: 30_000 },
       });
       expect(toss.calls[1].idempotencyKey).toMatch(new RegExp(`^${CANCEL_KEY}:va-[0-9a-f]{16}$`));
       // 계좌가 바뀌면 키도 바뀐다 — 틀린 계좌로 거절된 첫 응답이 재생되지 않는다.
@@ -197,6 +199,28 @@ describe('토스 부분 취소', () => {
       expect(toss.calls).toHaveLength(2);
     });
 
+    it('계좌를 바꾼 재시도가 잔액 전제로 거절되면 앞 취소의 반영으로 닫거나, 반영이 아니면 운영자 확인이다', async () => {
+      // 앞 재시도(계좌 A)가 이미 반영됐다 — 계좌 B 요청은 잔액이 달라 거절되고, 조회가 이 취소의 반영을 확인한다.
+      const applied = server([json(200, va()), json(400, { code: 'NOT_MATCHES_REFUNDABLE_AMOUNT', message: '잔액 결과가 일치하지 않습니다.' }),
+        json(200, vaCanceled(3000))]);
+      await expect(gateway(applied.fetchImpl).refund(request({ refundReceiveAccount: ACCOUNT }))).resolves.toMatchObject({
+        outcome: 'approved', refundedAmount: 27_000, balanceAfter: 3000,
+      });
+      // 잔액이 다른 이유로 움직였다 — 돈을 더 움직이지 않고 운영자 확인.
+      const moved = server([json(200, va()), json(400, { code: 'NOT_MATCHES_REFUNDABLE_AMOUNT', message: '잔액 결과가 일치하지 않습니다.' }),
+        json(200, vaCanceled(25_000))]);
+      await expect(gateway(moved.fetchImpl).refund(request({ refundReceiveAccount: ACCOUNT }))).resolves.toMatchObject({
+        outcome: 'needs_review', reasonCode: 'provider_balance_mismatch',
+      });
+      expect(moved.calls).toHaveLength(3);
+    });
+
+    it('카드 부분 취소에는 잔액 전제를 싣지 않는다(지금 그대로)', async () => {
+      const toss = server([json(200, payment()), json(200, partiallyCanceled(3000)), json(200, partiallyCanceled(3000))]);
+      await gateway(toss.fetchImpl).refund(request());
+      expect(toss.calls[1].body).toEqual({ cancelReason: '엑스스퀘어 반품 환불(반품배송비 차감)', cancelAmount: 27_000 });
+    });
+
     it('은행 송금이 이미 실패했으면 부분 환불 완료로 닫지 않는다', async () => {
       const toss = server([json(200, va()), json(200, vaCanceled(3000, 'FAILED')), json(200, vaCanceled(3000, 'FAILED'))]);
       await expect(gateway(toss.fetchImpl).refund(request({ refundReceiveAccount: ACCOUNT }))).resolves.toMatchObject({
@@ -209,7 +233,7 @@ describe('토스 부분 취소', () => {
       await expect(gateway(toss.fetchImpl).refund(request({
         amount: 3000, idempotencyKey: `refund:${ATTEMPT.id}:remainder:r1`, partial: { expectedBalanceBefore: 3000 }, refundReceiveAccount: ACCOUNT,
       }))).resolves.toMatchObject({ outcome: 'approved', refundedAmount: 3000, balanceAfter: 0 });
-      expect(toss.calls[1]).toMatchObject({ body: { cancelAmount: 3000, refundReceiveAccount: { bank: '88' } } });
+      expect(toss.calls[1]).toMatchObject({ body: { cancelAmount: 3000, refundReceiveAccount: { bank: '88' }, refundableAmount: 3000 } });
       expect(toss.calls[1].idempotencyKey).toMatch(new RegExp(`^refund:${ATTEMPT.id}:remainder:r1:va-[0-9a-f]{16}$`));
     });
   });

@@ -49,6 +49,11 @@ export interface OrderPartialCancellationDependencies {
     /** 부분 반품의 반품 요청 id — 입금된 가상계좌 환불이 이 요청에서 구매자가 입력한 환급 계좌를 먼저 쓴다(재고 부족 부분 취소는 없음). */
     claimId?: string | null;
   }): Promise<RefundOutcome>;
+  /**
+   * 결제확인필요(needs_review) 원장을 다시 확인하기 전에 처리 중으로 옮긴다(2026-11-25 — 부분 반품 계좌 변경과 동시 재시도를 막는다).
+   * 'processing'이면 결제사를 부른다. 그 밖은 지금 원장 상태다.
+   */
+  beginRetry(input: { id: string; actorId: string }): Promise<string>;
   complete(input: { id: string; actorId: string; refundedAmount: number; paymentKey: string; transactionKey: string }): Promise<void>;
   reject(input: { id: string; actorId: string }): Promise<void>;
   markNeedsReview(input: { id: string; actorId: string; code: OrderPartialCancellationCode }): Promise<void>;
@@ -156,6 +161,11 @@ function createDefaultDependencies(): OrderPartialCancellationDependencies {
       const { sendVirtualAccountRefundAccountEmail } = await import('../email/transactional.server');
       await sendVirtualAccountRefundAccountEmail(claimId);
     },
+    async beginRetry({ id, actorId }) {
+      const { data, error } = await service.rpc('service_begin_order_partial_cancellation_retry', { p_id: id, p_actor_id: actorId });
+      if (error || typeof data !== 'string') throw new Error('partial cancellation retry start failed');
+      return data;
+    },
     async complete({ id, actorId, refundedAmount, paymentKey, transactionKey }) {
       const { error } = await service.rpc('service_complete_order_partial_cancellation', {
         p_id: id,
@@ -246,6 +256,23 @@ export async function reconcileOrderPartialCancellation(
     || row.refundAmount > row.balanceBefore
   ) {
     return needsReview(dependencies, target, 'payment_evidence_invalid');
+  }
+
+  /*
+   * 결제확인필요에서 다시 확인할 때는 결제사를 부르기 전에 원장을 처리 중으로 옮긴다(반품 요청도 처리 중이 된다). 그동안 구매자·운영자가
+   * 환급 계좌를 바꾸지 못한다 — 가상계좌 부분 취소의 멱등키는 계좌마다 달라, 계좌가 바뀐 재시도는 결제사 멱등성으로 걸러지지 않는다.
+   * 옮기지 못하면 결제사를 부르지 않는다.
+   */
+  if (row.state === 'needs_review') {
+    let begun: string;
+    try {
+      begun = await dependencies.beginRetry({ id: target.id, actorId: target.actorId });
+    } catch {
+      return { ok: false, code: 'local_state_unavailable' };
+    }
+    if (begun === 'completed') return { ok: true, status: 'already_completed' };
+    if (begun === 'rejected') return { ok: false, code: 'partial_cancel_rejected' };
+    if (begun !== 'processing') return { ok: false, code: 'not_ready' };
   }
 
   let refund: RefundOutcome;

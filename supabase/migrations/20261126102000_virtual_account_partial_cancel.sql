@@ -16,10 +16,14 @@
 -- 2. 막는 판정 세 곳(부분 취소 private.order_partial_cancellation_blockers, 부분 반품 private.order_partial_return_order_blocker, 반품배송비
 --    차감 private.return_fee_deduction_plan)의 가상계좌 조건이 이 판정을 쓴다. 부분 반품의 환급 계좌 입력 차단
 --    (private.order_claim_virtual_account_refund_blocker)도 같은 판정으로 연다 — 부분 반품 환불도 결제사 부분 취소라 계좌가 필요하다.
+--    단 부분 반품은 부분 환불 원장이 계좌 사유로 멈췄을 때만 계좌를 받는다(처리 중·결과 불명 등은 막는다 — 리뷰 2026-11-25).
 -- 3. 은행 환불 감시: 가상계좌 부분 환불(토스 부분 취소 원장 completed)도 감시를 연다. 앞 환불의 감시가 끝났으면(completed·resolved) 새 환불로
 --    다시 연다(전액 환불 트리거도 같다 — 부분 환불 뒤 남은 잔액 취소). 작업자에게 결제사에 남아야 할 잔액(expectedBalance)을 함께 준다 —
---    부분 환불 뒤면 PARTIAL_CANCELED·그 잔액이 맞는 상태다.
--- 앱(결제사 호출)은 같은 날 lib/payments/toss-gateway.server.ts가 결제 조회의 useEscrow를 다시 확인하고 refundReceiveAccount를 싣는다.
+--    부분 환불 뒤면 PARTIAL_CANCELED·그 잔액, 반품배송비 차감 반품 뒤면 PARTIAL_CANCELED·차감액이 맞는 상태다.
+-- 4. 부분 반품 재시도: 결제확인필요 원장은 결제사를 부르기 전에 처리 중으로 옮긴다(service_begin_order_partial_cancellation_retry — 그동안
+--    반품 요청도 처리 중이라 환급 계좌 변경·동시 재시도가 막힌다). 원장이 결제확인필요에 머문 채 사유만 바뀌어도 반품 요청 사유를 옮긴다.
+-- 앱(결제사 호출)은 같은 날 lib/payments/toss-gateway.server.ts가 결제 조회의 useEscrow를 다시 확인하고 refundReceiveAccount와 잔액 전제
+-- (refundableAmount)를 싣는다 — 계좌별 멱등키가 계좌를 바꾼 재시도를 걸러 주지 못하므로, 잔액이 움직였으면 결제사가 거절하게 한다.
 -- 기존 함수는 현재 정의(pg_get_functiondef)에서 앵커만 치환한다(앵커 개수가 다르면 실패).
 -- ==========================================================================
 
@@ -94,7 +98,21 @@ select private.va_partial_patch(
     $r$    -- 부분 반품은 결제사 부분 취소라 에스크로가 아님이 확인된 입금 가상계좌만 받는다(20261126102000 — 부분 반품 판정과 같다).
     when private.claim_is_partial_return(p_claim.id) and not coalesce(private.toss_virtual_account_partial_cancel_ready(
         (private.order_toss_virtual_account_payment(p_order.id)->>'attemptId')::uuid), false)
-      then 'refund_account_payment_unavailable'$r$)));
+      then 'refund_account_payment_unavailable'
+    -- 부분 반품 환불은 부분 환불 원장이 진행한다(요청 상태보다 원장이 먼저다). 결제사 부분 취소를 부르는 중(processing)이면 기다리고,
+    -- 계좌 말고 다른 사유로 멈췄거나(결과 불명 등 — 결제사가 앞 계좌로 환불했을 수 있다) 이미 적용·송금 대기면 바꾸지 않는다.
+    -- 원장이 계좌 사유로 멈췄을 때만 계좌를 받는다 — 계좌가 바뀌면 멱등키도 바뀌어 같은 부분 환불이 두 번 나갈 수 있기 때문이다.
+    when private.claim_is_partial_return(p_claim.id) and exists (
+        select 1 from private.order_partial_cancellations as head
+        where head.claim_id = p_claim.id and head.state = 'processing')
+      then 'refund_account_refund_in_progress'
+    when private.claim_is_partial_return(p_claim.id) and exists (
+        select 1 from private.order_partial_cancellations as head
+        where head.claim_id = p_claim.id and head.state <> 'rejected'
+          and (head.state in ('completed', 'awaiting_transfer')
+            or (head.state = 'needs_review' and head.last_error_code is distinct from 'provider_refund_account_required'
+              and head.last_error_code is distinct from 'provider_refund_account_invalid')))
+      then 'refund_account_finance_started'$r$)));
 
 -- ---------------------------------------------------------------------------
 -- 3. 은행 환불 감시 — 가상계좌 부분 환불도 감시하고, 끝난 감시는 새 환불로 다시 연다
@@ -159,22 +177,78 @@ select private.va_partial_patch('private.virtual_account_refund_watch_opened()':
     -- 가상계좌 부분 환불(20261126102000) 뒤 끝난 감시는 남은 잔액 환불로 다시 연다. 송금 확인 전·실패 감시는 그대로 둔다.
     where private.virtual_account_refund_watches.state in ('completed', 'resolved');$r$)));
 
--- 작업자에게 결제사에 남아야 할 잔액을 준다: 결제 원장이 아직 paid(부분 환불만 있었다)면 결제 금액 − 적용된 토스 부분 취소 합계, 아니면 0.
+-- 작업자에게 결제사에 남아야 할 잔액을 준다(결제사 실제 잔액과 같은 식):
+--  · 결제 원장 paid(부분 환불만 있었다): 결제 금액 − 적용된 토스 부분 취소 합계 − 결제사 부분 취소를 확인한 반품배송비 차감 환불액
+--  · refunded(전액·남은 잔액 환불 끝): 반품배송비 차감으로 결제사에 남긴 금액(차감 없음 0) — 차감 반품은 PARTIAL_CANCELED·차감액이 맞다
+--  · canceled(입금 없이 닫힘) 등: 0
 select private.va_partial_patch('public.service_claim_virtual_account_refund_watches(integer)'::regprocedure, pg_catalog.jsonb_build_array(
   pg_catalog.jsonb_build_array(
     $a$'amount', attempt.amount$a$,
     $a$'amount', attempt.amount,
     'expectedBalance', coalesce((
-      select case when payment.status = 'paid' and refunded.total > 0 then greatest(payment.amount - refunded.total, 0) else 0 end
+      select case
+        when payment.status = 'paid' and refunded.total + coalesce(deduction.refund_amount, 0) > 0
+          then greatest(payment.amount - refunded.total - coalesce(deduction.refund_amount, 0), 0)
+        when payment.status = 'refunded' then coalesce(deduction.deduction_amount, 0)
+        else 0 end
       from public.payments as payment
       cross join lateral (
         select coalesce(sum(head.refund_amount), 0)::bigint as total
         from private.order_partial_cancellations as head
         where head.payment_id = payment.id and head.provider = 'toss' and head.applied_at is not null) as refunded
+      left join private.claim_refund_deductions as deduction
+        on deduction.payment_id = payment.id and deduction.state in ('provider_confirmed', 'applied')
       where payment.id = leased.payment_id), 0)$a$)));
 
 -- ---------------------------------------------------------------------------
--- 4. 운영자 계약 재등록(재정의한 함수)
+-- 4. 부분 반품 재시도 — 결제사를 부르기 전에 원장을 처리 중으로 옮기고, 결제확인필요 사유가 바뀌면 반품 요청에도 옮긴다
+-- ---------------------------------------------------------------------------
+-- 결제확인필요(needs_review) 원장을 다시 확인할 때 결제사를 부르기 전에 처리 중으로 옮긴다(주문 → 원장 잠금 순서, 다른 서비스 함수와 같다).
+-- 그동안 반품 요청도 처리 중이 되어(상태 동기화) 구매자·운영자의 환급 계좌 변경과 동시 재시도가 막힌다. processing = 이번 호출이 결제사를
+-- 부른다 / 그 밖 = 지금 원장 상태(처리 중이면 이미 다른 호출이 진행 중이거나 앞 호출이 끝나지 않았다 — 같은 멱등키로 다시 확인해도 된다).
+create function public.service_begin_order_partial_cancellation_retry(p_id uuid, p_actor_id uuid)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $function$
+declare
+  head private.order_partial_cancellations;
+begin
+  perform private.require_partial_cancellation_actor(p_actor_id);
+  select * into head from private.order_partial_cancellations where id = p_id;
+  if not found then
+    raise no_data_found using message = 'partial_cancellation_not_found';
+  end if;
+  perform 1 from public.orders where id = head.order_id for update;
+  select * into head from private.order_partial_cancellations where id = p_id for update;
+  if head.state <> 'needs_review' then
+    return head.state;
+  end if;
+  update private.order_partial_cancellations set state = 'processing', last_error_code = null where id = p_id;
+  insert into public.audit_log(actor_id, action, target, diff)
+  values (p_actor_id, 'admin.order.partial_cancellation_retry_started', 'order:' || head.order_id::text,
+    pg_catalog.jsonb_build_object('partialCancellationId', p_id, 'from', 'needs_review', 'to', 'processing',
+      'previousCode', head.last_error_code));
+  return 'processing';
+end;
+$function$;
+revoke all on function public.service_begin_order_partial_cancellation_retry(uuid, uuid) from public, anon, authenticated, service_role;
+grant execute on function public.service_begin_order_partial_cancellation_retry(uuid, uuid) to service_role;
+
+-- 원장이 결제확인필요에 머문 채 사유만 바뀌어도(예: 계좌 없음 → 결제사가 계좌 거절) 반품 요청의 사유를 함께 바꾼다 — 구매자 알림(사유별)과
+-- 화면 안내가 지금 사유를 따르게 한다.
+select private.va_partial_patch('private.sync_partial_return_claim()'::regprocedure, pg_catalog.jsonb_build_array(
+  pg_catalog.jsonb_build_array(
+    $r$  if new.reason_code <> 'return' or new.state is not distinct from old.state then return null; end if;$r$,
+    $r$  if new.reason_code <> 'return' or (new.state is not distinct from old.state
+      and new.last_error_code is not distinct from old.last_error_code) then return null; end if;$r$)));
+drop trigger order_partial_cancellations_return_claim on private.order_partial_cancellations;
+create trigger order_partial_cancellations_return_claim after update of state, last_error_code on private.order_partial_cancellations
+  for each row execute function private.sync_partial_return_claim();
+
+-- ---------------------------------------------------------------------------
+-- 5. 운영자 계약 재등록(재정의한 함수)
 -- ---------------------------------------------------------------------------
 do $register$
 declare
@@ -187,7 +261,8 @@ begin
     'private.return_fee_deduction_plan(uuid)'::regprocedure,
     'private.order_claim_virtual_account_refund_blocker(public.order_cancellation_requests,public.orders)'::regprocedure,
     'private.virtual_account_refund_watch_opened()'::regprocedure,
-    'public.service_claim_virtual_account_refund_watches(integer)'::regprocedure
+    'public.service_claim_virtual_account_refund_watches(integer)'::regprocedure,
+    'private.sync_partial_return_claim()'::regprocedure
   ] loop
     select * into v_contract from private.operator_rpc_contracts as contract
     where contract.signature::regprocedure = v_function;
