@@ -4,7 +4,7 @@
 
 2026-09-09 승인 정책은 [ADR-0017](../adr/0017-order-claim-intake-and-origin-collections.md)을 따른다. 사용자 승인 뒤 PR #452의 main `a2d021a`에서 production DB·앱과 공개 정책·FAQ를 반영했고, 최신 main `abed200`의 [Actions 34309609698](https://github.com/icons-hq/icons-ip/actions/runs/34309609698)도 성공했다. 아래 운영 절차를 별도 법무 검토나 개별 고객 통지 완료의 증거로 사용하지 않는다. 티켓 취소 정책에는 적용하지 않는다.
 
-[Production](https://iconsip.com)과 [고정 staging](https://icons-ip-staging.vercel.app/admin)의 배포·로그인 준비는 확인했다. staging은 합성 이력으로 연습하며 실제 PG·창고를 호출하지 않는다. 계정과 다음 main 보존·운영팀 인수 상태는 [staging.md](staging.md)를 따른다.
+[Production](https://xsquare.kr)과 [고정 staging](https://icons-ip-staging.vercel.app/admin)의 배포·로그인 준비는 확인했다. staging은 합성 이력으로 연습하며 실제 PG·창고를 호출하지 않는다. 계정과 다음 main 보존·운영팀 인수 상태는 [staging.md](staging.md)를 따른다.
 
 PR #407의 혼합 출고지 P1은 [승인된 A 계약의 배포·공시 근거](https://github.com/icons-hq/icons-ip/pull/407#discussion_r3964523088)로 resolve했고, 중복 PR #407·#435는 merge 없이 종료했다. 실제 창고의 두 출고지 인수, 일부 배송의 CS 수동 검토 및 단일 교환 재출고 운송장 한계는 [#453](https://github.com/icons-hq/icons-ip/issues/453)에 OPEN으로 남긴다. 이 review 종료나 공개 게시를 운영팀 S1~S5 또는 #410의 사람 S2 완료로 해석하지 않는다.
 
