@@ -4,6 +4,7 @@ import { customerServiceDate } from './customer-service-list';
 import { GOODS_READINESS_REASONS, goodsReadinessAnchor, type AdminGoodsReadiness, type GoodsReadinessFilter, type GoodsReadinessTarget } from './goods-readiness';
 import type { GoodsListOptionStock } from './goods-list-inline';
 import { parseGoodsVariantSupply, preorderUnavailableLabel } from '@/lib/goods-preorders';
+import { goodsSalePeriodState, goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 
 export const GOODS_LIST_PATH = '/admin/catalog/goods';
 export const GOODS_LIST_PAGE_SIZE = 50;
@@ -120,6 +121,17 @@ export interface AdminGoodSummary {
   customerVisible?: boolean;
   /** 판매 가능 수량이 0인 예약판매 상품의 고객 화면 문구(`goodsListPreorderSaleLabel`). 있으면 상태 배지가 품절 대신 이 문구다. */
   preorderSaleLabel?: string | null;
+  /** 판매기간 밖 상품의 고객 화면 문구(`goodsListSalePeriodLabel`) — 시작 전 '판매 예정', 끝난 뒤 '판매 종료'. 있으면 상태 배지가 판매중·품절 대신 이 문구다. */
+  salePeriodLabel?: string | null;
+}
+/**
+ * 판매기간 밖 상품의 상태 문구 — 고객 카드·상세와 같은 판정(`goodsSalePeriodState`·`goodsSaleUnavailableLabel`)이라 시작 전은 '판매 예정',
+ * 끝난 뒤는 '판매 종료'다. 목록의 판매대기·판매종료 보기와 같은 시각 기준이다. 판매기간이 없거나 판매 중이면 null이다.
+ */
+export function goodsListSalePeriodLabel(startsAt: string | null, endsAt: string | null, now: number): string | null {
+  if (!startsAt && !endsAt) return null;
+  const state = goodsSalePeriodState(startsAt, endsAt, now);
+  return goodsSaleUnavailableLabel({ startsAt, endsAt, state, calculatedAt: new Date(now).toISOString(), nextChangeAt: null });
 }
 /**
  * 사용 옵션이 모두 예약판매이고 지금 주문받을 물량이 없는 상품의 상태 문구 — 고객 카드·상세와 같은 판정(`preorderUnavailableLabel`)이라

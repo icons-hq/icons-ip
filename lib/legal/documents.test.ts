@@ -99,7 +99,7 @@ describe('법정 문서 레지스트리', () => {
   it('CONTEXT.md가 금지한 어휘를 본문에 쓰지 않는다', () => {
     for (const document of documents) {
       const text = plainText(document);
-      for (const word of ['상품', '가챠', '뽑기', '확률', '충전', '천장']) {
+      for (const word of ['굿즈', '카드팩', '가챠', '뽑기', '확률', '충전', '천장']) {
         expect(text, `${document.slug} · ${word}`).not.toMatch(new RegExp(word));
       }
     }
@@ -151,14 +151,14 @@ describe('법정 문서 레지스트리', () => {
     expect(koreanLegalDate('2026-11-06')).toBe('2026년 11월 6일');
   });
 
-  /* 결제대행사는 서버가 주문 단위로 정한다(ADR-0013) — 2026-11-25부터 19금 굿즈 주문도 토스페이먼츠(ADR-0053). */
-  it('지급방법과 처리위탁이 실제 결제대행사(19금 굿즈 주문도 토스페이먼츠)를 밝힌다', () => {
+  /* 결제대행사는 서버가 주문 단위로 정한다(ADR-0013) — 2026-11-25부터 19금 상품 주문도 토스페이먼츠(ADR-0053). */
+  it('지급방법과 처리위탁이 실제 결제대행사(19금 상품 주문도 토스페이먼츠)를 밝힌다', () => {
     const termsPayment = LEGAL_DOCUMENTS.terms.articles
       .find((article) => article.heading.includes('지급방법'))!
       .paragraphs!.join('\n');
-    expect(termsPayment).toMatch(/굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해/);
+    expect(termsPayment).toMatch(/상품과 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해/);
     expect(termsPayment).not.toMatch(/나이스정보통신/);
-    expect(termsPayment).not.toMatch(/19금 굿즈가 담긴 주문에는 제공하지 않습니다/);
+    expect(termsPayment).not.toMatch(/19금 상품이 담긴 주문에는 제공하지 않습니다/);
 
     const processorRows = LEGAL_DOCUMENTS.privacy.articles
       .find((article) => article.heading.includes('위탁'))!
@@ -217,7 +217,7 @@ describe('승인된 배송 중 접수 정책과 고객지원 안내', () => {
     expect(text).toContain('1:1 문의(/my/inquiries)');
     expect(text).toContain('문의 접수만으로 환급이 승인되거나');
     /* 표기('출고지별'→'배송 묶음별', 1027T-010)는 개정 시행일로 바뀐다 — 오늘 날짜와 무관한 공통 부분만 본다. */
-    expect(text).toContain('반송 대상 굿즈와 수량의 실제 입고');
+    expect(text).toContain('반송 대상 상품과 수량의 실제 입고');
     expect(text).toContain('교환품 전체의 실제 배송 완료');
     expect(text).toContain('기존 신청 기한이 자동으로 연장되지는 않습니다');
     expect(text).not.toContain('취소는 발송 전');
@@ -230,55 +230,21 @@ describe('이용약관', () => {
   const terms = LEGAL_DOCUMENTS.terms;
   const text = plainText(terms);
 
-  it('무상 카드 리워드 모델을 약관에 고정한다', () => {
-    expect(text).toMatch(/카드팩/);
-    expect(text).toMatch(/무상/);
-    expect(text).toMatch(/유상으로 판매하지 않습니다/);
-  });
-
-  /*
-   * 사용자-facing 공시 화면이 없다. 이행할 수 없는 공개 의무를 약관에 지지 않는다(ADR-0003·0004).
-   * 동시에 결제가 카드팩을 무상 지급할 수 있다는 사실(confirm_order_payment의 order_paid 트리거)을
-   * 부정하지 않는다 — "대금 지급 경로가 없다"고 쓰면 실제 동작과 정반대가 된다.
-   * 발급 후 구성 변경(ADR-0004)도 고지 대상이다.
-   */
-  it('개봉 결과의 결정 주체와 무상 지급 조건을 사실대로 밝힌다', () => {
-    const cardArticle = terms.articles.find((article) => article.heading.includes('카드팩'));
-    const body = cardArticle?.paragraphs?.join('\n') ?? '';
-
-    expect(body).toMatch(/서버가 결정/);
-    expect(body).toMatch(/판매하지 않습니다/);
-    expect(body).toMatch(/조건을 충족하면 카드팩이 대가 없이 지급될 수 있습니다/);
-    expect(body).toMatch(/개봉 시점의 구성/);
-    expect(body).not.toMatch(/공개합니다/);
-    expect(body).not.toMatch(/영향을 줄 수 있는 경로는 없습니다/);
-  });
-
-  it('교환·마켓이 아직 제공되지 않는다는 사실을 밝힌다', () => {
-    expect(text).toMatch(/교환/);
-    expect(text).toMatch(/마켓/);
-    expect(text).toMatch(/제공하지 않습니다/);
+  /* 카드·카드팩·참여형 게임·마켓·트레이드는 2026-11-24 일반 쇼핑몰 전환으로 지웠다(ADR-0052). 약관에도 그 조항과 언급이 없다. */
+  it('카드·카드팩·마켓·트레이드 조항과 언급이 없고, 조문 번호가 이어진다', () => {
+    for (const word of ['카드팩', '수집형', '개봉', '트레이드', '마켓', '리워드', '카드 이미지']) expect(text, word).not.toContain(word);
+    expect(terms.articles.map((article) => article.heading.split(' ')[0])).toEqual([
+      '제1조', '제2조', '제3조', '제4조', '제5조', '제6조', '제7조', '제8조', '제9조', '제10조', '제11조', '제11조의2', '제12조',
+      '제13조', '제14조', '제15조', '제16조', '제16조의2', '제16조의3', '제17조', '제18조', '제19조', '제20조', '제21조', '제22조',
+    ]);
+    expect(article(terms, '제17조 ').heading).toBe('제17조 (팝업 티켓)');
+    /* 청약철회 조문이 팝업 티켓 조문(제17조)을 가리킨다. */
+    expect(article(terms, '제15조 ').closing!.join('\n')).toContain('팝업 티켓의 취소·환불은 제17조를 따릅니다.');
+    expect(article(terms, '제2조 ').list).toContain('"상품"이란 회사가 판매하는 실물 공식 라이선스 재화를 말합니다.');
   });
 
   it('공급받은 날부터 7일 청약철회를 명시한다', () => {
     expect(text).toMatch(/공급받은 날부터 7일/);
-  });
-
-  /*
-   * finalize_order_cancellation_with_provider_evidence가 source='order_paid' ·
-   * consumed_at is null인 카드팩에 revoked_at을 찍어 회수한다. 회수 사실을 약관이
-   * 밝히지 않으면 이용자는 /packs에서 사라진 카드팩의 근거를 어디서도 찾을 수 없다.
-   */
-  it('청약철회 시 미개봉 카드팩이 회수된다는 사실을 밝힌다', () => {
-    const cardArticle = terms.articles.find((article) => article.heading.includes('카드팩'));
-    const body = cardArticle?.paragraphs?.join('\n') ?? '';
-
-    expect(body).toMatch(/청약철회가 처리되면 회수/);
-    expect(body).toMatch(/개봉하지 않은 카드팩/);
-    /* 이미 개봉한 카드팩과 그 카드는 보존된다(ADR-0003·0004). 반대로 적으면 사실과 어긋난다. */
-    expect(body).toMatch(/이미 개봉해 카드를 받은 카드팩과 그 카드는 회수하지 않습니다/);
-    /* 만료되지 않는다는 문장이 회수 고지와 충돌하지 않아야 한다. */
-    expect(body).toMatch(/시간이 지나 만료되지 않으며/);
   });
 
   /* #188 · ADR-0009 — 게이트가 생겼다. 앱 폼과 profiles 트리거가 만 14세 미만 생년월일
@@ -338,12 +304,12 @@ describe('개인정보처리방침', () => {
   it('주소록의 수집 항목·시점·목적·보유 기간·자가 열람 경로를 밝힌다', () => {
     const article = (prefix: string) => privacy.articles.find((item) => item.heading.startsWith(prefix))!;
     const rows = article('제1조 ').table!.rows;
-    const order = rows.findIndex((row) => row[0] === '굿즈 주문·배송');
+    const order = rows.findIndex((row) => row[0] === '상품 주문·배송');
     expect(rows[order + 1]?.[0]).toBe('주소록 (선택)');
     expect(rows[order + 1]?.[1]).toBe('배송지 이름, 받는 분 이름, 연락처, 우편번호, 주소');
     expect(rows[order + 1]?.[2]).toMatch(/배송지를 저장한 경우/);
     /* 주문 배송지 행은 그대로다 — 주소록은 주문에 저장되는 배송지를 대신하지 않는다. */
-    expect(rows[order]).toEqual(['굿즈 주문·배송', '수령인 이름, 연락처, 우편번호, 주소, 배송 요청사항', '주문 시']);
+    expect(rows[order]).toEqual(['상품 주문·배송', '수령인 이름, 연락처, 우편번호, 주소, 배송 요청사항', '주문 시']);
     expect(article('제2조 ').list!.join('\n')).toMatch(/주소록\)를 주문서에 불러오는/);
     expect(article('제3조 ').closing!.join('\n')).toMatch(/주소록에 저장한 배송지는 회원이 배송지 관리에서 언제든 직접 삭제할 수 있으며, 회사가 회원 탈퇴를 처리하면 지체 없이 파기합니다/);
     expect(article('제3조 ').closing!.join('\n')).toMatch(/이미 한 주문의 배송지는 주문 정보의 일부로/);
@@ -523,18 +489,18 @@ describe('배송·반품 정책', () => {
     expect(text).toContain('배송 묶음별');
     expect(text).not.toContain('출고지');
     expect(text).toContain('할인 전');
-    expect(text).toContain('굿즈당 한 번');
+    expect(text).toContain('상품당 한 번');
     /* 배송비 금액은 상품 상세·주문 화면이 출고지 설정에서 고지한다 — 배송 안내 표는 금액을 복제하지 않는다. */
     const delivery = plainText({ ...shipping, articles: [shipping.articles[0]!] });
     expect(delivery).not.toContain('3,000원');
     expect(delivery).not.toContain('50,000원 이상');
   });
 
-  /* 부분 반품(ADR-0047) — 주문 전체 또는 고른 굿즈·수량 단위로 청약철회하고, 그 굿즈에 배분된 금액을 환급한다. */
-  it('일부 굿즈·수량 반품과 그 환급 범위를 안내한다', () => {
-    expect(text).toMatch(/청약철회는 주문 전체 또는 고른 굿즈·수량 단위로 신청할 수 있습니다/);
-    expect(text).toMatch(/그 굿즈만 담긴 배송 묶음의 배송비를 환급/);
-    expect(text).toMatch(/일부만 반송하고 싶다면 주문 상세의 반품 신청에서 반송할 굿즈와 수량을 골라주세요/);
+  /* 부분 반품(ADR-0047) — 주문 전체 또는 고른 상품·수량 단위로 청약철회하고, 그 상품에 배분된 금액을 환급한다. */
+  it('일부 상품·수량 반품과 그 환급 범위를 안내한다', () => {
+    expect(text).toMatch(/청약철회는 주문 전체 또는 고른 상품·수량 단위로 신청할 수 있습니다/);
+    expect(text).toMatch(/그 상품만 담긴 배송 묶음의 배송비를 환급/);
+    expect(text).toMatch(/일부만 반송하고 싶다면 주문 상세의 반품 신청에서 반송할 상품과 수량을 골라주세요/);
     expect(text).not.toMatch(/청약철회는 주문 단위로만 신청할 수 있습니다/);
   });
 
@@ -592,11 +558,11 @@ describe('오픈 전 최초 판(2026-11-25)이 담는 내용', () => {
     expect(article(terms, '제16조의2 ').paragraphs![0]).toContain('환급·재배송은 배송 묶음별 실물 회수를 모두 확인한 뒤 진행합니다.');
   });
 
-  it('이용약관은 일부 굿즈 청약철회와 단순 변심 반품배송비 차감을 밝힌다', () => {
+  it('이용약관은 일부 상품 청약철회와 단순 변심 반품배송비 차감을 밝힌다', () => {
     const effects = article(terms, '제16조 ').paragraphs!.join('\n');
     expect(effects).toContain('단순 변심에 따른 반품의 반환 비용(반품배송비)은 환급액에서 차감할 수 있습니다');
-    expect(effects).toContain('청약철회는 주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다');
-    expect(article(terms, '제16조의2 ').paragraphs!.join('\n')).toContain('반품은 한 주문에 담긴 굿즈 중 일부 굿즈·수량만 신청할 수 있고, 교환은 주문 단위로 처리됩니다');
+    expect(effects).toContain('청약철회는 주문 전체 또는 이용자가 고른 상품·수량 단위로 할 수 있습니다');
+    expect(article(terms, '제16조의2 ').paragraphs!.join('\n')).toContain('반품은 한 주문에 담긴 상품 중 일부 상품·수량만 신청할 수 있고, 교환은 주문 단위로 처리됩니다');
   });
 
   it('방침 제1조는 휴대폰 번호 인증·이메일 변경·IP 팔로우·가상계좌 환급 계좌·자동 가입 방지 확인을 제자리에 담는다', () => {

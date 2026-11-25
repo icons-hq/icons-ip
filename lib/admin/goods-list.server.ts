@@ -12,7 +12,7 @@ import { loadAdminGoodsVariants } from './goods-variants.server';
 import { loadAdminGoodsReadiness, parseGoodsReadiness } from './goods-readiness.server';
 import { imageBg, imageUrlFromBg, publicMediaUrl } from '@/lib/media';
 import type { Ip, Stock } from '@/lib/data';
-import { goodsListPageSize, goodsListPreorderSaleLabel, goodsConsoleFilterValues, type AdminGoodsListData, type GoodsListFilters, type GoodsListSaleStateCounts, type GoodsListStockCounts } from './goods-list';
+import { goodsListPageSize, goodsListPreorderSaleLabel, goodsListSalePeriodLabel, goodsConsoleFilterValues, type AdminGoodsListData, type GoodsListFilters, type GoodsListSaleStateCounts, type GoodsListStockCounts } from './goods-list';
 import type { GoodsListOptionStock } from './goods-list-inline';
 import { parseGoodsInstantDiscountState, type GoodsInstantDiscountState } from './goods-price-editor';
 
@@ -70,11 +70,14 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
   const pageIds = rows.map(({ good }) => good.id);
   /* 품절 배지가 붙을 수 있는 상품(전시 중·판매중지 아님·판매 가능 0개)만 예약 상태를 읽는다. */
   const soldOutIds = rows.filter(({ good, readiness }) => good.publishedAt && !good.archivedAt && good.stock !== 'soldout' && readiness.availableQty === 0).map(({ good }) => good.id);
-  const [inline, customerVisible, preorderLabels] = await Promise.all([loadGoodsListInlineValues(pageIds), loadGoodsListCustomerVisibility(pageIds), loadGoodsListPreorderSaleLabels(soldOutIds)]);
+  /* 판매기간 배지는 판매중지가 아닌 전시 상품에만 붙는다. */
+  const sellingIds = rows.filter(({ good }) => good.publishedAt && !good.archivedAt && good.stock !== 'soldout').map(({ good }) => good.id);
+  const [inline, customerVisible, preorderLabels, salePeriodLabels] = await Promise.all([loadGoodsListInlineValues(pageIds), loadGoodsListCustomerVisibility(pageIds),
+    loadGoodsListPreorderSaleLabels(soldOutIds), loadGoodsListSalePeriodLabels(sellingIds)]);
   return { filters, total, pageSize, counts, stockCounts: parseGoodsStockCounts(result.data.stockCounts), saleStateCounts: parseGoodsSaleStateCounts(result.data.saleStateCounts),
     ips, categories, origins, checkedAt: result.data.checkedAt,
     goods: rows.map(({ good, readiness }) => {
-      return { ...inline.get(good.id), preorderSaleLabel: preorderLabels.get(good.id) ?? null, id: good.id, productNo: productNumber(good.productNo), code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
+      return { ...inline.get(good.id), preorderSaleLabel: preorderLabels.get(good.id) ?? null, salePeriodLabel: salePeriodLabels.get(good.id) ?? null, id: good.id, productNo: productNumber(good.productNo), code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
         publishedAt: good.publishedAt, archivedAt: good.archivedAt, stock: good.stock, stockQty: good.stockQty,
         createdAt: good.createdAt, updatedAt: good.updatedAt,
         activeStockQty: good.readiness.activeStockQty, lowStockOptionCount: good.readiness.lowStockOptionCount,
@@ -115,6 +118,23 @@ async function loadGoodsListPreorderSaleLabels(ids: string[]) {
     for (const [goodId, values] of supplies) {
       const label = goodsListPreorderSaleLabel(values);
       if (label) labels.set(goodId, label);
+    }
+  } catch { labels.clear(); }
+  return labels;
+}
+
+/* 판매기간 밖 상품(시작 전·종료 후)은 판매중·품절이 아니라 고객 화면과 같은 '판매 예정'·'판매 종료'로 보인다. 판매기간은 상품의 시작·종료
+   시각 그대로 읽어(판매대기·판매종료 보기 건수와 같은 기준) 지금 시각으로 판정한다. 읽지 못하면 배지는 지금처럼 판매중·품절이다. */
+async function loadGoodsListSalePeriodLabels(ids: string[], now = Date.now()) {
+  const labels = new Map<string, string>();
+  if (!ids.length) return labels;
+  try {
+    const client = await createClient();
+    const result = await client.from('goods').select('id,sale_starts_at,sale_ends_at').in('id', ids);
+    if (result.error || !Array.isArray(result.data)) return labels;
+    for (const row of result.data as { id: string; sale_starts_at: string | null; sale_ends_at: string | null }[]) {
+      const label = goodsListSalePeriodLabel(row.sale_starts_at, row.sale_ends_at, now);
+      if (label) labels.set(row.id, label);
     }
   } catch { labels.clear(); }
   return labels;
