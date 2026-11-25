@@ -42,6 +42,7 @@ export const PG_CRON_JOB_LABELS: Readonly<Record<string, string>> = {
   'settle-delivered-orders': '배송완료 주문 자동 거래확정',
   'close-stale-answered-inquiries': '답변 완료 문의 자동 종료',
   'purge-expired-claim-refund-accounts': '환불 계좌 보관 기간 정리',
+  'member-withdrawal-retention': '탈퇴 회원 이메일·재가입 방지 정보 정리',
   'expire-store-credits': '적립금 만료',
   'admin-operation-alerts-retention': '운영 알림 보존 정리',
   'goods-transaction-quote-cleanup': '주문서 금액 계산 기록 정리',
