@@ -295,7 +295,7 @@ export function GoodSection({
             <h3 className="text-base leading-snug font-medium">판매 준비</h3>
             {readiness ? <>
               <AdminStatusBadge tone={statusTone('publication', readiness.publication)}>게시 · {{ draft: '초안', published: '공개', archived: '보관', unknown: '확인 필요' }[readiness.publication]}</AdminStatusBadge>
-              <AdminStatusBadge tone={statusTone('operation', readiness.operation)}>운영 · {{ active: '정상', stopped: '판매 중지', unknown: '확인 필요' }[readiness.operation]}</AdminStatusBadge>
+              <AdminStatusBadge tone={statusTone('operation', readiness.operation)}>운영 · {{ active: '정상', stopped: '판매중지', unknown: '확인 필요' }[readiness.operation]}</AdminStatusBadge>
               <AdminStatusBadge tone={statusTone('readiness', saleSettings)}>판매 설정 · {saleSettings === 'ready' ? '준비 완료' : '확인 필요'}</AdminStatusBadge>
               <AdminStatusBadge tone={statusTone('readiness', { current: 'ready', required: 'review_required', legacy_unrecorded: 'review_required', unknown: 'unknown' }[readiness.publicReview])}>공개 검토 · {{ current: 'KC 검토 완료', required: 'KC 검토 필요', legacy_unrecorded: '기존 공개 · KC 미기록', unknown: '확인 필요' }[readiness.publicReview]}</AdminStatusBadge>
               <span className="ml-auto text-sm tabular-nums">판매 가능 재고 {readiness.availableQty === null ? '확인 필요' : `${readiness.availableQty.toLocaleString('ko-KR')}개`}</span>

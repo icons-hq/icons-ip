@@ -38,7 +38,7 @@ describe('붙여넣기·CSV 표 읽기', () => {
   it('닫는 큰따옴표가 없는 셀은 원문 그대로 두고 뒤 행을 한 셀로 합치지 않는다', () => {
     const parsed = parseErpDelimitedTable('품번\t품명\nA1\t"곰돌이 키링\nA2\t토끼\nA3\t고양이');
     expect(parsed.rows).toEqual([['품번', '품명'], ['A1', '"곰돌이 키링'], ['A2', '토끼'], ['A3', '고양이']]);
-    expect(parsed.warnings).toEqual(['닫는 큰따옴표가 없는 셀 1개(2행)는 따옴표를 포함해 적힌 그대로 읽었습니다. 값을 확인해주세요.']);
+    expect(parsed.warnings).toEqual(['닫는 큰따옴표가 없는 셀 1개(2번째 줄)는 따옴표를 포함해 적힌 그대로 읽었습니다. 값을 확인해주세요.']);
     expect(parseErpDelimitedText('A,"B\nC,D')).toEqual([['A', '"B'], ['C', 'D']]);
   });
 

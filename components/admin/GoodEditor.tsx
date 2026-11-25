@@ -6,7 +6,7 @@ import { AlertTriangle, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 import { GROUP_COMMON_FIELDS, type GoodsEditorOwnership } from '@/lib/admin/goods-group-common';
 import type { ReactNode } from 'react';
 import type { GoodShippingRegionSummary } from '@/lib/admin/good-shipping-summary';
-import { categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
+import { categoryPath, categoryTreeOrder, type AdminCategoryNode } from '@/lib/admin/category';
 import { goodDetailHref } from '@/lib/goods-display';
 import type { GoodsShippingNoticeOption } from '@/components/admin/GoodsShippingNoticeField';
 
@@ -39,7 +39,7 @@ import { GOOD_EDITOR_HELP } from '@/lib/admin/help/good-editor';
 import { GoodsClaimPolicyFields } from './GoodsClaimPolicyFields';
 import { GoodsAttributeEditor } from './GoodsAttributeEditor';
 import { goodsAttributeSubmissionReady } from '@/lib/admin/goods-attributes';
-import { GoodAdditionalCategoryField, GoodCategoryField, categoryTreeOrder } from './GoodCategoryFields';
+import { GoodAdditionalCategoryField, GoodCategoryField } from './GoodCategoryFields';
 import { preorderPlanHasInput, type PreorderPlan } from '@/lib/admin/goods-preorders';
 import { GoodsShippingNoticeField } from './GoodsShippingNoticeField';
 import type { GoodShippingPolicy } from '@/lib/fulfillment';
@@ -206,14 +206,14 @@ const EDITOR_TAB_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm f
 const SAVE_BAR_BUTTON_CLASS = 'max-md:h-7 max-md:gap-1 max-md:px-1.5 max-md:text-[0.8rem]';
 const SHARED_QUANTITY_FIELDS = ['orderQuantityLimitEnabled','minOrderQty','maxOrderQty','memberPurchaseLimitEnabled','memberLifetimeQtyLimit'];
 /*
- * 판매상태(goods.stock)가 실제로 바꾸는 것만 쓴다. 판매 중지(soldout)는 재고와 상관없이 고객 화면에 품절로 보이고 DB 주문 판정도 거절한다.
+ * 판매상태(goods.stock)가 실제로 바꾸는 것만 쓴다. 판매중지(soldout)는 재고와 상관없이 고객 화면에 품절로 보이고 DB 주문 판정도 거절한다.
  * 소량 재고(low)는 구매를 막지 않고 수량으로 자동 정해지지도 않는다 — 고객에게는 장바구니의 '재고 N개 남음'으로만 보인다(components/screens/Cart).
  * 재고수량이 0이면 판매상태와 상관없이 품절로 읽는다(lib/catalog toGood · ProductCard의 stockQty <= 0).
  */
 const STOCK_EFFECT = {
-  ok: '정상으로 판매합니다. 재고수량이 0이 되면 자동으로 품절로 보입니다.',
+  ok: '그대로 팝니다. 재고수량이 0이 되면 자동으로 품절로 보입니다.',
   low: '그대로 살 수 있고, 장바구니에 남은 재고 수가 보입니다. 재고가 줄어도 이 상태로 자동으로 바뀌지는 않아 직접 골라야 합니다.',
-  soldout: '재고가 있어도 고객 화면에 품절로 보이고 살 수 없습니다. 다시 팔려면 정상 판매로 바꿉니다.',
+  soldout: '재고가 있어도 고객 화면에 품절로 보이고 살 수 없습니다. 다시 팔려면 판매중으로 바꿉니다.',
 } satisfies Record<keyof typeof ADMIN_STOCK_LABELS, string>;
 
 /** 이벤트 대상이 저장 막대의 [실제 등록] 버튼(또는 그 안)인가. 공개 제출은 이 버튼을 직접 눌렀을 때만 받는다. */
@@ -323,7 +323,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       const current = readAdminFormData(form);
       if (current) setDirty(goodEditorFingerprint(current) !== goodEditorFingerprint(submitted));
       setLocalSaveMessage({ text: '입력 내용을 내 계정에 임시저장했습니다. 다른 기기에서도 불러올 수 있습니다.', ok: true });
-    } catch { setLocalSaveMessage({ text: '저장 여부를 확인하지 못했습니다. 임시저장 불러오기에서 확인해주세요. 입력은 유지됩니다.', ok: false }); }
+    } catch { setLocalSaveMessage({ text: '임시저장됐는지 확인하지 못했습니다. 임시저장 메뉴의 [임시저장 고르기]에서 확인해주세요. 입력은 그대로 있습니다.', ok: false }); }
     finally { draftOperation.current = false; setDraftBusy(false); }
   }
   const draftSaved = Boolean(localSaveMessage?.ok);
@@ -688,7 +688,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             savedCodes={{ goodCode: selected?.code ?? null, options: variants }}
             optionImport={{ accountId, target: selected ? { ...selected, variants } : null, databaseVersion: JSON.stringify([selected, variants]),
               categories: optionImportCategories,
-              pending: pending || draftBusy, blockedReason: groupOwned ? '그룹 구성에서 옵션을 관리합니다.' : selected?.archivedAt ? '보관된 상품에는 옵션을 불러올 수 없습니다.' : locked ? '다른 상품 옵션을 불러오려면 먼저 상품을 비공개 초안으로 전환해주세요.' : null,
+              pending: pending || draftBusy, blockedReason: groupOwned ? '그룹 구성에서 옵션을 관리합니다.' : selected?.archivedAt ? '보관된 상품에는 옵션을 불러올 수 없습니다.' : locked ? '다른 상품 옵션을 불러오려면 먼저 상품을 초안으로 전환해주세요.' : null,
               onApplied: () => { setDirty(true); setOptionImportRevision(value => value + 1); } }}
             canSearchErp={canSearchErp} onErpItemSelect={groupOwned ? undefined : applyErpItem} onRegularPriceApply={(price) => setPriceDraft((current) => ({ ...current, regularPrice: String(price) }))}
             erpNotice={<GoodsErpCategoryNotice suggestion={erpCategory} currentCategoryId={categoryId} onReplace={setCategoryId} onReview={() => focusGoodWorkspaceTarget('good-section-category', 'categoryId')} />} />
@@ -756,7 +756,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       </GoodEditorSection>
 
       {/* 7. 추가 설정(접힘): 대부분의 상품은 기본값 그대로다. 접혀도 입력은 DOM에 남는다. */}
-      <GoodEditorSection title="추가 설정" id="good-section-information" defaultOpen={false} errorCount={errorCount('information')} summary={`표시문구 ${formatGoodBadgeText(parseGoodBadgeText(values.badge ?? '').badges) || '없음'} · ${ADMIN_STOCK_LABELS[values.stock as keyof typeof ADMIN_STOCK_LABELS] ?? '정상 판매'} · ${values.code || suggestedCode || '상품 자동코드 자동 생성'}`}>
+      <GoodEditorSection title="추가 설정" id="good-section-information" defaultOpen={false} errorCount={errorCount('information')} summary={`표시문구 ${formatGoodBadgeText(parseGoodBadgeText(values.badge ?? '').badges) || '없음'} · ${ADMIN_STOCK_LABELS[values.stock as keyof typeof ADMIN_STOCK_LABELS] ?? ADMIN_STOCK_LABELS.ok} · ${values.code || suggestedCode || '상품 자동코드 자동 생성'}`}>
         <AdminFormGrid>
           <GoodBadgesField defaultValue={initial.badge} error={errors.badge} />
           <div className="flex min-w-0 flex-col gap-2">
@@ -814,7 +814,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger aria-label="임시저장 메뉴" className={`${buttonVariants({ variant: 'secondary', size: 'icon' })} rounded-l-none border-l border-l-background/60 max-md:size-7`} disabled={pending || draftBusy}><ChevronUp aria-hidden="true" /></DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-auto min-w-44" side="top">
-                <DropdownMenuItem onClick={() => setDraftOpen(true)}>임시저장 불러오기</DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setDraftOpen(true)}>임시저장 고르기</DropdownMenuItem>
                 {draftIdentity ? <DropdownMenuItem onClick={() => { void saveServerDraft(true); }}>새 임시저장으로 저장</DropdownMenuItem> : null}
               </DropdownMenuContent>
             </DropdownMenu>

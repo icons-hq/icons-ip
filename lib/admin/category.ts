@@ -188,6 +188,29 @@ export function isCategoryLeaf(nodes: readonly Pick<AdminCategoryNode, 'id' | 'p
   return !nodes.some((node) => node.parentId === id && !node.archivedAt);
 }
 
+/**
+ * 카테고리 관리 화면과 같은 순서(상위 → 하위, 같은 단계는 노출 순서 → 코드)로 매긴 번호.
+ * 상위가 목록에 없는 카테고리는 맨 위 단계로 본다. 선택창이 같은 상위 아래의 카테고리를 이어서 보이는 데 쓴다.
+ */
+export function categoryTreeOrder(categories: readonly Pick<AdminCategoryNode, 'id' | 'parentId' | 'sortOrder' | 'code'>[]): Map<string, number> {
+  const ids = new Set(categories.map((category) => category.id));
+  const children = new Map<string, Pick<AdminCategoryNode, 'id' | 'parentId' | 'sortOrder' | 'code'>[]>();
+  for (const category of categories) {
+    const parent = category.parentId && ids.has(category.parentId) ? category.parentId : '';
+    children.set(parent, [...(children.get(parent) ?? []), category]);
+  }
+  const order = new Map<string, number>();
+  const visit = (parent: string) => {
+    for (const category of [...(children.get(parent) ?? [])].sort((left, right) => left.sortOrder - right.sortOrder || left.code.localeCompare(right.code))) {
+      if (order.has(category.id)) continue;
+      order.set(category.id, order.size);
+      visit(category.id);
+    }
+  };
+  visit('');
+  return order;
+}
+
 export function categoryPath(nodes: readonly Pick<AdminCategoryNode, 'id' | 'parentId' | 'name'>[], id: string): string[] {
   const byId = new Map(nodes.map((node) => [node.id, node]));
   const result: string[] = [];

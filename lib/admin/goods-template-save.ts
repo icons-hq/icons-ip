@@ -18,6 +18,7 @@ export const SAVE_FAILED_MESSAGE = '저장하지 못했습니다. 적은 내용�
 export const TEMPLATE_SAVE_OVER_LATEST_LABEL = '최신 내용 위에 내 입력으로 저장';
 export const TEMPLATE_DISCARD_INPUT_LABEL = '내 입력 버리기';
 export const TEMPLATE_LATEST_UNREAD_MESSAGE = '지금 저장된 내용을 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.';
+/** 적은 내용이 있는 채로 창을 닫을 때. 등록 팝업(AdminCreateDialogButton의 confirmDiscard)도 이 상수를 쓴다. */
 export const TEMPLATE_CLOSE_DIRTY_CONFIRM = { title: '적은 내용을 저장하지 않고 닫을까요?', message: '지금 적은 내용이 사라집니다.', confirmLabel: '저장하지 않고 닫기' } as const;
 /**
  * 저장됐는지 모르는 채 닫을 때. 닫으면 목록을 다시 불러온다.

@@ -514,11 +514,11 @@ describe('GoodSection', () => {
       expect(tone(html, '판매 설정 · 준비 완료')).toBe('success');
       expect(tone(html, '공개 검토 · KC 검토 필요')).toBe('warning');
       const stopped = renderGoodSection(draft, {}, { readiness: { ...kcBlocked, operation: 'stopped', reasons: [reason('draft'), reason('stopped'), reason('kc_required', 'review')] } });
-      expect(tone(stopped, '운영 · 판매 중지')).toBe('danger');
+      expect(tone(stopped, '운영 · 판매중지')).toBe('danger');
       expect(tone(stopped, '판매 설정 · 확인 필요')).toBe('warning');
       /* 서버가 막는 항목이 다른 확인 항목보다 먼저다. */
       expect(card(stopped)).toContain('다음 할 일 · KC 검토 필요');
-      expect(card(stopped)).toContain('운영자가 판매 중지</a>');
+      expect(card(stopped)).toContain('판매상태가 판매중지</a>');
     });
 
     it('막는 항목이 없으면 공개로 전환이 주 행동 하나다', () => {
@@ -979,7 +979,7 @@ describe('GoodSection', () => {
     const bar = create.slice(create.indexOf('data-good-workspace-save'), create.indexOf('</form>'));
     expect(bar).toContain('aria-label="임시저장 메뉴"');
     expect(bar).toMatch(/data-good-draft-button=""[^>]*>임시저장</);
-    expect(bar).not.toContain('>임시저장 불러오기<');
+    expect(bar).not.toContain('>임시저장 고르기<');
     expect(bar).not.toContain('>새 임시저장으로 저장<');
     for (const label of ['미리보기', '실제 등록', '취소']) expect(bar).toContain(label);
     for (const gone of ['저장하기', '저장 후 공개', '입력 임시저장']) expect(bar).not.toContain(gone);
@@ -1066,7 +1066,7 @@ describe('GoodSection', () => {
     const html = renderGoodSection(good);
 
     expect(html).not.toContain('shop-cart-button');
-    const preview = html.slice(html.indexOf('공개 화면 미리보기'), html.indexOf('실재고 조정'));
+    const preview = html.slice(html.indexOf('공개 화면 미리보기'), html.indexOf('재고수량 조정'));
     expect(preview).not.toContain('<form');
   });
 

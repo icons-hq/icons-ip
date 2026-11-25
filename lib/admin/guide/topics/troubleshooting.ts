@@ -75,7 +75,7 @@ const KC_PUBLISH_CASES: AdminGuideErrorCase[] = [
 
 const STOCK_CASES: AdminGuideErrorCase[] = [
   {
-    quote: '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.',
+    quote: '재고수량이 그사이 바뀌었습니다. 최신 수량을 확인한 뒤 다시 조정해주세요.',
     sourceFile: 'app/admin/actions.ts',
     cause: '입력하는 사이 다른 운영자의 조정이나 고객 주문으로 수량이 먼저 바뀌었습니다.',
     fix: '화면에 새로 보이는 지금 수량을 확인하고 조정 수량을 다시 입력합니다.',
@@ -152,8 +152,8 @@ const ARCHIVE_CASES: AdminGuideErrorCase[] = [
   {
     quote: '판매 가능한 재고가 남아 있어 굿즈를 보관할 수 없습니다.',
     sourceFile: 'app/admin/archive-actions.ts',
-    cause: '실재고가 남아 있는 굿즈를 보관하려 했습니다.',
-    fix: '판매만 멈추려면 보관 대신 판매 중지를 씁니다. 엑스스퀘어에 배정된 물량을 실제로 회수했을 때만, 그 근거를 남겨 재고를 조정한 뒤 보관합니다.',
+    cause: '재고수량이 남아 있는 굿즈를 보관하려 했습니다.',
+    fix: '판매만 멈추려면 보관 대신 판매상태를 판매중지로 바꿉니다. 엑스스퀘어에 배정된 물량을 실제로 회수했을 때만, 그 근거를 남겨 재고를 조정한 뒤 보관합니다.',
   },
   {
     quote: '예전 카드팩 발급 정책에 연결된 굿즈는 보관할 수 없습니다. 개발팀에 정책 정리를 요청해주세요.',
@@ -284,7 +284,7 @@ export const TROUBLESHOOTING_TOPIC: AdminGuideTopic = {
     },
     { id: 'catalog', heading: '상품·IP 등록과 이미지', table: errorTable(CATALOG_CASES) },
     { id: 'kc-publish', heading: '상품 KC 검토와 공개', table: errorTable(KC_PUBLISH_CASES) },
-    { id: 'stock', heading: '실재고 조정', table: errorTable(STOCK_CASES) },
+    { id: 'stock', heading: '재고수량 조정', table: errorTable(STOCK_CASES) },
     { id: 'orders', heading: '주문·배송', table: errorTable(ORDER_CASES) },
     { id: 'bank', heading: '무통장 입금', table: errorTable(BANK_CASES) },
     { id: 'archive', heading: '보관', table: errorTable(ARCHIVE_CASES) },

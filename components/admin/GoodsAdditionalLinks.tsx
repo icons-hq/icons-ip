@@ -17,7 +17,7 @@ import { AdminGoodsPicker, type AdminGoodsPickerRow } from './AdminGoodsPicker';
  */
 
 /** 두 화면(저장 전 등록·저장된 상품)이 같은 한 줄 안내를 쓴다. 품절·판매 중지 상품은 연결해 둬도 고객에게 보이지 않는다(저장 함수의 판매 가능 조건과 같다). */
-export const GOODS_ADDITIONAL_INTRO = '연결한 상품은 각자의 옵션·가격 그대로 팔립니다. 품절·판매 중지 상품은 고객에게 보이지 않습니다.';
+export const GOODS_ADDITIONAL_INTRO = '연결한 상품은 각자의 옵션·가격 그대로 팔립니다. 품절·판매중지 상품은 고객에게 보이지 않습니다.';
 
 /** 이 창에서 연결하지 못한 이유(상품 이름 뒤에 붙인다). 조건은 저장 함수(admin_save_goods_additional)가 쓰는 '지금 고객이 살 수 있음'과 같다. */
 export const ADDITIONAL_NOT_SELLABLE_REASON = '지금 고객이 살 수 없는 상품이라 연결할 수 없습니다. 공개 상태·판매기간·재고·판매상태·판매 제한을 확인해주세요.';
@@ -76,7 +76,7 @@ export function GoodsAdditionalLinks({ baseGoodId, items, onChange, disabled = f
     {open ? <AdminGoodsPicker
       blockedReason={disabled ? '저장하는 중이라 지금은 고를 수 없습니다. 끝난 뒤 다시 열어주세요.' : null}
       description="고른 상품은 연결 목록 맨 뒤에 붙습니다."
-      excludedNote="지금 고객이 살 수 없는 상품(공개 전·판매기간 밖·품절·판매 중지·판매 제한)은 목록에서 뺐습니다."
+      excludedNote="지금 고객이 살 수 없는 상품(공개 전·판매기간 밖·품절·판매중지·판매 제한)은 목록에서 뺐습니다."
       load={load}
       footer={problem ? <p className="text-sm text-destructive wrap-anywhere" role="alert">{problem}</p> : null}
       multiple

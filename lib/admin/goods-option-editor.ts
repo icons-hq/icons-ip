@@ -428,7 +428,7 @@ export function collapseGoodsOptionRows(rows: readonly GoodsOptionRow[]): GoodsO
 export function goodsOptionCollapseNotice(rows: readonly GoodsOptionRow[]): string {
   const [first, ...rest] = rows;
   return `'${GOODS_OPTION_NONE_LABEL}'으로 바꾸면 첫 옵션(${first?.name ?? ''})만 옵션값 없이 남습니다. 첫 옵션의 재고수량·옵션 자동코드·ERP 정보는 그대로입니다.`
-    + (first?.isActive === false ? ' 첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 추가 설정의 판매상태를 판매 중지로 바꿔주세요.' : '')
+    + (first?.isActive === false ? ' 첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 추가 설정의 판매상태를 판매중지로 바꿔주세요.' : '')
     + (rest.length ? ` 나머지 옵션 ${rest.length}개(${optionNameList(rest)})는 목록에서 빠지고 재고 입력도 사라집니다.` : '')
     + (rest.some((row) => row.id) ? ` ${GOODS_OPTION_REMOVAL_NOTE}` : '');
 }

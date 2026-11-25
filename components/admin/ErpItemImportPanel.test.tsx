@@ -284,7 +284,7 @@ describe('ERP 품목 반입 패널', () => {
     button(render(), '붙여넣은 표 확인').props.onClick?.();
     const tree = render();
     expect(text(tree)).toContain('올릴 수 있는 품목 3건');
-    expect(text(tree)).toContain('닫는 큰따옴표가 없는 셀 1개(2행)는 따옴표를 포함해 적힌 그대로 읽었습니다.');
+    expect(text(tree)).toContain('닫는 큰따옴표가 없는 셀 1개(2번째 줄)는 따옴표를 포함해 적힌 그대로 읽었습니다.');
   });
 
   it('열을 직접 바꾸면 그 열 기준으로 다시 미리보기하고, 필수 열이 없으면 반입을 막는다', () => {

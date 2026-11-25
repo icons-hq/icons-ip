@@ -46,12 +46,12 @@ describe('ERP 품목 선택창 조회', () => {
 
 describe('ERP 품목 선택창의 줄', () => {
   it('품명 아래에 고르면 들어갈 ERP 코드·바코드와 ERP 분류·판매가를 보인다', () => {
-    expect(erpItemRowView(item)).toEqual({ title: '아크릴 키링', meta: '000123 · 바코드 0880000000123 · 문구 > 키링 · 판매가 12,000원' });
+    expect(erpItemRowView(item)).toEqual({ title: '아크릴 키링', meta: '000123 · 바코드 0880000000123 · 문구 > 키링 · ERP 판매가 12,000원' });
   });
 
   it('바코드가 없는 품목은 없다고 적고, 분류·판매가가 없으면 그 자리를 비운다', () => {
     expect(erpItemRowView(bare)).toEqual({ title: '키링 거치대', meta: 'K-2 · 바코드 없음' });
-    expect(erpItemRowView({ ...bare, salePrice: 0 }).meta).toBe('K-2 · 바코드 없음 · 판매가 0원');
+    expect(erpItemRowView({ ...bare, salePrice: 0 }).meta).toBe('K-2 · 바코드 없음 · ERP 판매가 0원');
   });
 });
 

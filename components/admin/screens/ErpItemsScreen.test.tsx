@@ -7,7 +7,7 @@ import { ErpItemsScreen } from './ErpItemsScreen';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/app/admin/erp-item-actions', () => ({
   importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), countErpItemClearsAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), setErpCategoryMappingsAction: vi.fn(),
-  searchErpItemsAction: vi.fn(), deleteErpItemsAction: vi.fn(), previewErpLinkedGoodsAction: vi.fn(), commitErpLinkedGoodsAction: vi.fn(),
+  deleteErpItemsAction: vi.fn(), previewErpLinkedGoodsAction: vi.fn(), commitErpLinkedGoodsAction: vi.fn(),
 }));
 
 const node = (id: string, name: string, parentId: string | null, extra: Partial<AdminCategoryNode> = {}): AdminCategoryNode => ({

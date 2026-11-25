@@ -264,6 +264,71 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(goodsOptionLimitNotices('옵션명', { orderMaxQty: 7, memberMaxQty: null })).toEqual([`'옵션명'은 한 번에 7개까지 주문할 수 있습니다.`]);
   });
 
+  /*
+   * 2026-11-25 상품 관리 나머지 화면 정리(화면 규칙 PR 2): 가이드가 대괄호로 적은 버튼 이름은 화면 코드에 적힌 그대로다.
+   * 화면 이름을 바꾸면 여기가 깨지니 가이드(lib/admin/guide/topics/goods-sales.ts)도 함께 고친다.
+   */
+  it('상품 관리 화면 정리 뒤의 버튼 이름을 화면 그대로 적는다(2026-11-25 화면 규칙)', () => {
+    const buttons: readonly (readonly [file: string, name: string])[] = [
+      /* 상품 목록·일괄 변경 */
+      ['components/admin/screens/GoodsListScreen.tsx', '엑셀로 내려받기'],
+      ['components/admin/screens/GoodsListScreen.tsx', '엑셀로 등록·수정'],
+      ['app/admin/(shell)/catalog/goods/export/page.tsx', '엑셀 파일 내려받기'],
+      ['components/admin/GoodsBulkToolbar.tsx', '전시상태 변경'],
+      ['components/admin/GoodsBulkToolbar.tsx', '판매상태 변경'],
+      ['components/admin/GoodsBulkToolbar.tsx', '기간 할인'],
+      ['components/admin/GoodsBulkToolbar.tsx', 'IP 전체 기간 할인'],
+      ['components/admin/GoodsBulkToolbar.tsx', '더보기'],
+      ['lib/admin/goods-bulk.ts', '판매가 변경'],
+      ['lib/admin/goods-bulk.ts', '판매중으로'],
+      ['lib/admin/goods-bulk.ts', '판매중지로'],
+      ['lib/admin/goods-bulk.ts', '저장됐는지 확인'],
+      ['lib/admin/goods-bulk.ts', '그만두고 다시 하기'],
+      /* 템플릿·사진·임시저장·카테고리 */
+      ['components/admin/GoodsImageGrid.tsx', '사진 보관함에서 고르기'],
+      ['components/admin/GoodsBenefitsPanel.tsx', '이벤트 템플릿 고르기'],
+      ['components/admin/GoodsAfterSalesPanel.tsx', 'A/S 템플릿 고르기'],
+      ['components/admin/GoodSizeChartPanel.tsx', '사이즈 템플릿 고르기'],
+      ['lib/admin/goods-template-save.ts', '최신 내용 위에 내 입력으로 저장'],
+      ['lib/admin/goods-template-save.ts', '내 입력 버리기'],
+      ['components/admin/screens/CategoryTemplatesScreen.tsx', '자주 쓰는 카테고리 등록'],
+      ['components/admin/GoodEditor.tsx', '임시저장 고르기'],
+      ['components/admin/screens/GoodsAttributeSchemaScreen.tsx', '가져올 카테고리 고르기'],
+      ['components/admin/screens/CategoryScreen.tsx', '상위 카테고리 고르기'],
+      ['components/admin/screens/CategoryScreen.tsx', '직접 바꾸기'],
+      ['components/admin/screens/CategoryScreen.tsx', '카테고리 목록 내려받기'],
+      ['components/admin/screens/CategoryScreen.tsx', '미분류로 되돌리기'],
+      ['components/admin/screens/CategoryScreen.tsx', '상품 고르기'],
+      /* 공지·고시·연관상품 */
+      ['components/admin/screens/GoodsAnnouncementEditor.tsx', '이 공지를 홈 팝업으로 띄우기'],
+      ['components/admin/screens/GoodsAnnouncementEditor.tsx', '저장된 공지 다시 열기'],
+      ['lib/admin/goods-announcements.ts', '다시 저장'],
+      ['components/admin/CountryNameFinder.tsx', '원산지 고르기'],
+      ['components/admin/screens/GoodsRelationEditor.tsx', '최신 내용 다시 열기'],
+      ['components/admin/screens/GoodsRelationEditor.tsx', '고객 화면 미리보기'],
+      /* ERP·엑셀 */
+      ['components/admin/ErpItemPicker.tsx', 'ERP 품목 고르기'],
+      ['components/admin/ErpCategoryMappingPanel.tsx', '카테고리 고르기'],
+      ['components/admin/ErpCategoryMappingPanel.tsx', '연결 저장'],
+      ['components/admin/ErpCategoryMappingPanel.tsx', '선택한 분류 연결'],
+      ['components/admin/CategoryCodeFinder.tsx', '카테고리 코드 고르기'],
+      ['components/admin/CategoryCodeFinder.tsx', '코드 복사'],
+    ];
+    for (const [file, name] of buttons) {
+      expect(repoFile(file), `${file} · ${name}`).toContain(name);
+      expect(text, `가이드 · [${name}]`).toContain(`[${name}]`);
+    }
+    /* 개수가 들어가는 버튼. */
+    expect(repoFile('components/admin/screens/CategoryTemplatesScreen.tsx')).toContain('개 등록`');
+    expect(text).toContain('[N개 등록]');
+    expect(repoFile('components/admin/StockReconcilePanel.tsx')).toContain('줄 미리보기');
+    expect(text).toContain('[N줄 미리보기]');
+    /* 옛 이름이 남지 않는다. */
+    for (const stale of ['[처리 결과 조회]로 이미 처리됐는지', 'IP 전체 즉시할인', '엑셀 일괄작업', '판매대기 보기', '임시저장 불러오기', '최신 편성 다시 열기', 'ERP 분류 매핑', '사용 설정 저장', '국가·지역 찾기', '같은 요청 다시 저장']) {
+      expect(text, stale).not.toContain(stale);
+    }
+  });
+
   it('할인 결과 표기와 숫자 입력 동작을 안내한다(R18)', () => {
     expect(repoFile('lib/admin/goods-price-editor.ts')).toContain("'할인가 X원 (Y원, Z% 할인)'");
     expect(text).toContain('할인가 X원 (Y원, Z% 할인)');
@@ -284,7 +349,9 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(repoFile('components/admin/CategoryAssignmentField.tsx')).toContain('등록된 카테고리가 없습니다. 카테고리 관리에서 먼저 등록하세요.');
     expect(text).toContain('등록된 카테고리가 없습니다');
     expect(text).not.toContain('기존 8종');
-    expect(repoFile('components/admin/ErpCategoryMappingPanel.tsx')).toContain('이름만 같고 경로가 다르면 연결하지 않습니다.');
+    /* 자동 연결 설명은 연결 표의 "?" 하나에 모았다(화면 규칙 3). 문구는 도움말 묶음에 있고 표가 그 도움말을 단다. */
+    expect(repoFile('components/admin/ErpCategoryMappingPanel.tsx')).toContain('help={ERP_ITEMS_HELP.autoLink}');
+    expect(repoFile('lib/admin/help/erp-items.ts')).toContain('이름만 같고 경로가 다르면 연결하지 않습니다.');
     expect(text).toContain('이름만 같고 경로가 다르면 연결하지 않습니다');
     expect(text).not.toContain('같은 이름으로 연결');
   });
@@ -313,15 +380,19 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
 
   it('상품 목록의 선택 유지·상품번호 열·판매기간 필터·그룹상품 메뉴 숨김을 안내한다(R11·R15·R16·R21)', () => {
     expect(repoFile('components/admin/marketing/MarketingLinksGoodsGrid.tsx')).toContain('선택 해제');
-    expect(repoFile('components/admin/screens/GoodsListFiltersForm.tsx')).toContain('판매대기 (시작 전)');
+    expect(repoFile('components/admin/screens/GoodsListFiltersForm.tsx')).toContain('<option value="scheduled">판매 예정</option>');
     expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain("label: '상품번호'");
     const groups = ADMIN_SCREENS.filter((screen) => screen.href.startsWith('/admin/catalog/groups'));
     expect(groups.length).toBeGreaterThan(0);
     expect(groups.every((screen) => screen.navHidden)).toBe(true);
     expect(text).toContain('선택 해제');
-    expect(text).toContain('상품 URL을 누르면');
+    /* 고객 화면은 상품명 옆 아이콘으로 연다(상품 URL 열은 기본으로 숨긴다). */
+    expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain('data-goods-list="customer-link"');
+    expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain("{ key: 'goodId', label: '상품 URL'");
+    expect(text).toContain('상품명 옆 아이콘을 누르면');
+    expect(text).toContain('상품 URL 열은 기본으로 숨겨져 있고 조회항목 설정에서 켤 수 있으며');
     expect(text).toContain('상품번호나 상품명을 누르면 상품 수정이 열립니다');
-    expect(text).toContain('판매대기(시작 전)');
+    expect(text).toContain('판매 예정(시작 전)');
     expect(text).toContain('사이드바에서 숨겼습니다');
   });
 
@@ -334,17 +405,20 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(text).toContain('고객 화면에는 둘 다 품절로 보입니다');
   });
 
-  it('판매대기·품절·소량 재고·판매중지·판매종료 칸의 건수 범위와 소량 재고 기준을 화면과 같게 안내한다(SHEET-036)', () => {
-    const basis = '품절·소량 재고·판매중지는 판매상태 조건과 페이지를, 판매대기·판매종료는 판매기간 조건과 페이지를 제외한 같은 검색 조건으로 계산';
+  it('판매 예정·품절(재고 0)·소량 재고·판매중지·판매 종료 칸의 건수 범위와 소량 재고 기준을 화면과 같게 안내한다(SHEET-036)', () => {
+    const basis = '품절(재고 0)·소량 재고·판매중지는 판매상태 조건과 페이지를, 판매 예정·판매 종료는 판매기간 조건과 페이지를 제외한 같은 검색 조건으로 계산';
     expect(text).toContain(basis);
-    expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain(basis.replace('품절·소량 재고·판매중지는', '품절·소량 재고·판매중지 건수는').replace('판매대기·판매종료는', '판매대기·판매종료 건수는'));
-    for (const label of ['판매대기 보기', '판매중지 보기', '판매종료 보기']) {
+    /* 화면은 기준을 문장으로 적지 않고 칸 이름과 그 칸이 거는 조건 축으로 말한다(화면 규칙 '글보다 화면'). 가이드의 설명이 그 이름·축과 같은지 본다. */
+    const screen = repoFile('components/admin/screens/GoodsListScreen.tsx');
+    for (const [label, axis] of [['판매 예정', 'salePeriod'], ['품절(재고 0)', 'stock'], ['소량 재고', 'stock'], ['판매중지', 'stock'], ['판매 종료', 'salePeriod']] as const) {
       expect(text).toContain(label);
-      expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain(`label: '${label}'`);
+      expect(screen).toContain(`{ label: '${label}', axis: '${axis}'`);
     }
-    expect(text).toContain('수량으로 자동 분류하지 않습니다');
+    /* 소량 재고의 기준은 그 칸의 "?"가 말한다. 가이드는 같은 문장을 쓴다. */
+    expect(screen).toContain('help: GOODS_LIST_HELP.lowStock');
+    expect(repoFile('lib/admin/help/goods-list.ts')).toContain('남은 수량을 보고 자동으로 넣지는 않습니다.');
+    expect(text).toContain('남은 수량을 보고 자동으로 넣지는 않습니다');
     expect(text).toContain('소량 재고 건수에는 들어가지 않습니다');
-    expect(repoFile('components/admin/screens/GoodsListScreen.tsx')).toContain('수량으로 자동 분류하지 않습니다');
   });
 
   it('판매 방식(랜덤 판매) 절이 패널의 선택지·고객 은닉 범위·조건과 같다(R24·D5②)', () => {

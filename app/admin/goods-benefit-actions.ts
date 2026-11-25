@@ -6,10 +6,11 @@ import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 import { GOODS_EVENT_TEMPLATES_PATH, parseGoodsBenefitSnapshot, parseGoodsBenefitValues, parseGoodsEventTemplate, parseGoodsEventTemplatePage, type GoodsBenefitSnapshot, type GoodsBenefitValues, type GoodsEventTemplate, type GoodsEventTemplatePage } from '@/lib/goods-benefits';
 import { goodsBenefitsError } from '@/lib/admin/goods-benefits-messages';
+import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 
 export type GoodsBenefitsResult<T> = { ok: true; value: T } | { ok: false; error: string; uncertain?: boolean; conflict?: boolean };
 const unread = <T,>(): GoodsBenefitsResult<T> => ({ ok: false, error: '저장된 내용을 불러오지 못했습니다. 잠시 뒤 다시 불러와 주세요.' });
-const unknown = <T,>(): GoodsBenefitsResult<T> => ({ ok: false, error: '저장됐는지 확인하지 못했습니다. ‘같은 요청 결과 확인’을 눌러주세요. 방금 보낸 내용을 그대로 다시 보내 결과만 받아 오므로 두 번 저장되지 않습니다.', uncertain: true });
+const unknown = <T,>(): GoodsBenefitsResult<T> => ({ ok: false, error: SAVE_UNKNOWN_MESSAGE, uncertain: true });
 const validGoodId = (value: unknown): value is string => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,199}$/.test(value);
 export async function loadGoodsBenefitsAction(goodId: string): Promise<GoodsBenefitsResult<GoodsBenefitSnapshot>> {
   if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' })) return { ok: false, error: '상품 관리 권한이 필요합니다.' };

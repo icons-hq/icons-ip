@@ -147,7 +147,7 @@ describe('goods Excel planning', () => {
     for (const version of [GOODS_WORKBOOK_V3_VERSION, GOODS_WORKBOOK_V4_VERSION]) {
       const old = await parseGoodsWorkbookWithKc(await v3Workbook(exported, version));
       const plan = planGoodsWorkbookImport(old.rows, ctx)[0];
-      expect(plan.kind).toBe('error'); expect(plan.target).toBeNull(); expect(plan.errors.join(' ')).toContain('최신 양식(v8)');
+      expect(plan.kind).toBe('error'); expect(plan.target).toBeNull(); expect(plan.errors.join(' ')).toContain('양식을 새로 내려받아 고쳐 주세요');
     }
   });
   it('상품열이 같아도 직접입력형만 변경하면 기존 writer payload로 계획하고 누락 시에는 보존한다', async () => {
@@ -483,7 +483,7 @@ describe('goods Excel planning', () => {
       expect({ patch, kind: group.kind, target: group.target }).toEqual({ patch, kind: 'error', target: null });
       expect(group.errors.join()).toContain('진행 중이거나 예정된 기간 할인(2건, 2026. 12. 8. 00:00까지)이 있는 상품이라 엑셀로 판매가·즉시할인·옵션가를 바꿀 수 없습니다');
     }
-    expect(goodsWorkbookLiveDiscountError(live)).toContain('이 상품 행은 반영하지 않으니');
+    expect(goodsWorkbookLiveDiscountError(live)).toContain('이 상품의 줄은 반영하지 않으니');
     /* 기간 할인이 없는 상품은 지금처럼 바꾼다. */
     expect(planGoodsWorkbookImport([{ row: 5, values: { ...exported, salePrice: String(Number(exported.salePrice) + 1000) } }], { ...context, existing: [{ ...existing, livePriceDiscount: null }] })[0].kind).toBe('update');
   });
@@ -541,7 +541,7 @@ describe('goods Excel planning', () => {
     expect(byUrl).toMatchObject({ kind: 'error', target: null });
     // 공개로 내보낸 행이라 새 상품의 공개 조건(ADR-0044: 대표 카테고리)도 함께 알린다.
     expect(byUrl.errors).toEqual([
-      '5행: 이미 쓰는 상품 URL입니다(existing-good). 기존 상품을 고치려면 상품번호나 상품 자동코드를 그대로 두고, 새 상품이면 상품 URL을 비우거나 다른 값을 넣어 주세요.',
+      '5번째 줄: 이미 쓰는 상품 URL입니다(existing-good). 기존 상품을 고치려면 상품번호나 상품 자동코드를 그대로 두고, 새 상품이면 상품 URL을 비우거나 다른 값을 넣어 주세요.',
       GOOD_CATEGORY_PUBLISH_REQUIRED,
     ]);
     // 상품번호와 상품 자동코드가 어긋나거나, 없는 번호·숫자가 아닌 번호는 오류다.
@@ -600,7 +600,7 @@ describe('goods Excel planning', () => {
     expect(goodsWorkbookPricesFromLegacy({ price: '12000', compareAtPrice: '', variantPrice: '11000' }).errors).toEqual(['옵션 판매가는 기준 판매가보다 낮게 입력할 수 없습니다.']);
   });
   it('재고수량 빈칸은 신규·수정 모두 그 행을 거절하고, 0을 직접 적으면 저장한다(0901-015)', () => {
-    const blank = '5행: 재고수량(옵션 재고)을 입력해주세요. 재고가 없으면 0을 입력합니다.';
+    const blank = '5번째 줄: 재고수량(옵션 재고)을 입력해주세요. 재고가 없으면 0을 입력합니다.';
     const [fresh] = planGoodsWorkbookImport([row({ code: 'STOCK-NEW', stockQty: '' })], context);
     expect(fresh).toMatchObject({ kind: 'error', target: null });
     expect(fresh.errors).toContain(blank);
@@ -617,7 +617,7 @@ describe('goods Excel planning', () => {
       .toMatchObject({ kind: 'update', target: { variants: [{ id: variantId, stockQty: 0, expectedStockQty: 7 }] } });
     // 숫자가 아닌 재고는 지금처럼 정수 오류다(빈칸 오류와 겹치지 않는다).
     const text = planGoodsWorkbookImport([row({ code: 'STOCK-TEXT', stockQty: '열 개' })], context)[0];
-    expect(text.errors).toContain('5행: 옵션가·재고수량은 0~2,147,483,647 정수입니다.');
+    expect(text.errors).toContain('5번째 줄: 옵션가·재고수량은 0~2,147,483,647 정수입니다.');
     expect(text.errors).not.toContain(blank);
   });
   it('keeps errors scoped to a complete product group and allows other products', () => {
@@ -707,7 +707,7 @@ describe('goods Excel planning', () => {
         Array.from({ length: 501 }, () => row()),
         context,
       ),
-    ).toThrow('500행');
+    ).toThrow('500줄');
   });
   it('추가 이미지 9장을 v5 양식으로 왕복하고 9번째 칸만 바꾼 변경을 계획한다', async () => {
     const gallery = Array.from({ length: 9 }, (_, index) => `public-media/catalog/good/gallery-${index + 1}.webp`);

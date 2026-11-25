@@ -153,7 +153,7 @@ export function GoodsOptionImportDialog({ context, categories, currentRows, base
         rowKey={good => good.id}
         rowView={adminGoodsPickerRowView}
         searchFields={ADMIN_GOODS_PICKER_FIELDS}
-        searchPlaceholder="상품명·상품 자동코드·상품 URL"
+        searchPlaceholder="상품명·상품 자동코드"
         showImages
       /> : <>
         <section className="flex min-w-0 flex-col gap-3" aria-label="옵션을 불러오기 전 비교">

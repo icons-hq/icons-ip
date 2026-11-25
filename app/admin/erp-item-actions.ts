@@ -19,9 +19,6 @@ import {
   ERP_ITEMS_PATH,
   ERP_ITEM_DELETE_LIMIT,
   ERP_ITEM_LIMITS,
-  ERP_ITEM_SEARCH_MIN_LENGTH,
-  ERP_ITEM_SEARCH_QUERY_MAX,
-  ERP_ITEM_SUGGESTION_LIMIT,
   addErpItemClears,
   emptyErpItemClears,
   erpCategoryMappingBatchMessage,
@@ -29,11 +26,9 @@ import {
   erpItemBlankFields,
   isErpItemRejectReason,
   parseErpCategoryMappingBatch,
-  parseErpItemMatch,
   type ErpCategoryMappingEntry,
   type ErpItemBlankField,
   type ErpItemClears,
-  type ErpItemMatch,
 } from '@/lib/admin/erp-items';
 import {
   ERP_LINKED_GOODS_PREVIEW_LIMIT,
@@ -47,7 +42,6 @@ import {
 } from '@/lib/admin/erp-linked-goods';
 import { hasAdminCapability } from '@/lib/admin/access';
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 
@@ -64,29 +58,6 @@ function rpcCode(error: { code?: unknown; message?: unknown }) {
 
 function isPermissionError(code: string, descriptor: string) {
   return code === '42501' || code === '28000' || descriptor.includes('staff_required');
-}
-
-export type ErpItemSearchResult = { ok: true; items: ErpItemMatch[] } | { ok: false; error: string };
-
-/**
- * 상품 옵션 ERP 품명 입력의 제안 검색. 운영자만, 2자 미만이면 빈 결과.
- * 저장 전인 상품 편집 화면에서 백그라운드로 부르므로 세션이 끝나도 로그인 화면으로
- * 옮기지 않는다 — 입력은 그대로 두고, 저장할 때 상품 저장 액션의 공통 가드가 이동시킨다.
- */
-export async function searchErpItemsAction(queryValue: unknown): Promise<ErpItemSearchResult> {
-  try {
-    const auth = await getCurrentAdminAuthState();
-    if (!auth.isConfigured || !auth.user || !auth.isStaff || !hasAdminCapability(auth, 'catalog.manage')) return { ok: false, error: STAFF_ONLY };
-    const query = typeof queryValue === 'string' ? normalizeErpText(queryValue, true).slice(0, ERP_ITEM_SEARCH_QUERY_MAX) : '';
-    if (Array.from(query).length < ERP_ITEM_SEARCH_MIN_LENGTH) return { ok: true, items: [] };
-    const supabase = await createClient();
-    const { data, error } = await supabase.rpc('admin_search_erp_items', { p_query: query, p_limit: ERP_ITEM_SUGGESTION_LIMIT });
-    if (error || !Array.isArray(data)) return { ok: false, error: 'ERP 품목을 불러오지 못했습니다.' };
-    return { ok: true, items: data.map(parseErpItemMatch).filter((item): item is ErpItemMatch => item !== null) };
-  } catch (error) {
-    unstable_rethrow(error);
-    return { ok: false, error: 'ERP 품목을 불러오지 못했습니다.' };
-  }
 }
 
 export type ErpItemFileResult =

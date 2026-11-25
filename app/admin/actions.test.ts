@@ -705,7 +705,7 @@ describe('admin catalog actions', () => {
 
   it('adjusts stock through the audited RPC and refreshes every stock consumer', async () => {
     await expect(adjustAdminStockAction({}, stockAdjustmentForm())).resolves.toEqual({
-      message: '실재고를 조정했습니다.',
+      message: '재고수량을 조정했습니다.',
     });
 
     expect(mocks.rpc).toHaveBeenCalledWith('admin_adjust_stock', {
@@ -815,7 +815,7 @@ describe('admin catalog actions', () => {
     ['stock_out_of_range', '재고는 0개 미만이거나 허용 범위를 넘도록 조정할 수 없습니다.'],
     ['good_not_found', '상품을 찾을 수 없습니다.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
-    ['stock_changed', '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.'],
+    ['stock_changed', '재고수량이 그사이 바뀌었습니다. 최신 수량을 확인한 뒤 다시 조정해주세요.'],
     ['adjustment_conflict', '이 재고 조정은 이미 처리됐습니다. 새로고침해 최신 수량을 확인한 뒤, 더 조정할 것이 있을 때만 다시 조정해주세요.'],
   ])('maps %s stock RPC errors without exposing internals', async (rpcMessage, expected) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: rpcMessage } });

@@ -5,6 +5,7 @@ import { validGoodsGroupGoodId } from './goods-groups';
 import { GOODS_PRICE_GUARD_INTRO, GOODS_PRICE_GUARD_TITLE, formatGoodsPriceGuardList, goodsPriceGuardRows } from './goods-price-guard';
 import { parseGoodsPricePeriodInput } from './goods-price-periods';
 import { goodsOptionSaleModeErrorMessage } from './goods-option-sale-mode-messages';
+import { ADMIN_STOCK_LABELS } from './vocabulary';
 
 export const GOODS_BULK_COMMANDS = ['publish', 'unpublish', 'start', 'stop', 'archive', 'restore', 'price', 'discount', 'discount_stop', 'period', 'dissolve'] as const;
 export type GoodsBulkCommand = typeof GOODS_BULK_COMMANDS[number];
@@ -66,8 +67,8 @@ export interface GoodsBulkPreview { state: 'ready'; operationId: string; request
 export interface GoodsBulkReceipt { state: 'completed' | 'rejected' | 'unresolved' | 'sealed'; operationId: string; goodsCount: number; groupsCount: number; error: string | null; skipped?: GoodsBulkSkipped[] }
 /** 명령 이름. 선택 카드·창 제목·미리보기 요약이 함께 쓴다. */
 export const GOODS_BULK_LABELS: Record<GoodsBulkCommand, string> = { publish: '공개로', unpublish: '초안으로', start: '판매중으로', stop: '판매중지로', archive: '보관', restore: '복원', price: '판매가 변경', discount: '기간 할인 걸기', discount_stop: '기간 할인 중지', period: '판매기간 변경', dissolve: '그룹 해제' };
-/** 판매상태 값의 화면 이름(목록·건수 칸·가이드와 같은 말). */
-export const GOODS_BULK_STOCK_LABELS: Record<GoodsBulkStock, string> = { ok: '판매중', low: '소량 재고', soldout: '판매중지' };
+/** 판매상태 값의 화면 이름. 어드민 공통 이름(lib/admin/vocabulary의 ADMIN_STOCK_LABELS)을 그대로 쓴다. */
+export const GOODS_BULK_STOCK_LABELS: Record<GoodsBulkStock, string> = ADMIN_STOCK_LABELS;
 /** 결과를 모를 때의 버튼 한 쌍과 문장(어드민 공통). */
 export const GOODS_BULK_RECOVER_LABEL = '저장됐는지 확인';
 export const GOODS_BULK_SEAL_LABEL = '그만두고 다시 하기';

@@ -17,7 +17,6 @@ import {
   importErpItemsAction,
   previewErpLinkedGoodsAction,
   readErpItemFileAction,
-  searchErpItemsAction,
   setErpCategoryMappingAction,
   setErpCategoryMappingsAction,
 } from './erp-item-actions';
@@ -41,40 +40,6 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.auth.mockResolvedValue(staff);
   mocks.client.mockResolvedValue({ rpc: mocks.rpc });
-});
-
-describe('ERP 품목 제안 검색', () => {
-  it('운영자가 아니면 DB에 닿지 않고, 세션이 끝나도 상품 편집 화면을 로그인으로 옮기지 않는다', async () => {
-    for (const auth of [member, signedOut]) {
-      mocks.auth.mockResolvedValue(auth);
-      expect(await searchErpItemsAction('키링')).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
-    }
-    expect(mocks.client).not.toHaveBeenCalled();
-  });
-
-  it('2자 미만이면 검색하지 않고 빈 결과를 준다', async () => {
-    expect(await searchErpItemsAction(' 키 ')).toEqual({ ok: true, items: [] });
-    expect(await searchErpItemsAction(42)).toEqual({ ok: true, items: [] });
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it('정리한 검색어와 제안 상한으로 RPC를 부르고, 형식이 다른 행은 버린다', async () => {
-    mocks.rpc.mockResolvedValue({ data: [
-      { code: '000123', name: '아크릴 키링', category: '문구 > 키링', sale_price: 12000, barcode: '0088', mapped_category_id: CATEGORY_ID },
-      { code: '', name: '깨진 행' },
-    ], error: null });
-    expect(await searchErpItemsAction('  아크릴\n키링 ')).toEqual({ ok: true, items: [
-      { code: '000123', name: '아크릴 키링', category: '문구 > 키링', salePrice: 12000, barcode: '0088', mappedCategoryId: CATEGORY_ID },
-    ] });
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_erp_items', { p_query: '아크릴 키링', p_limit: 8 });
-  });
-
-  it('검색 오류와 연결 예외는 조용한 실패 결과로 돌려준다', async () => {
-    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'private' } });
-    expect(await searchErpItemsAction('키링')).toEqual({ ok: false, error: 'ERP 품목을 불러오지 못했습니다.' });
-    mocks.rpc.mockRejectedValueOnce(new Error('network details'));
-    expect(await searchErpItemsAction('키링')).toEqual({ ok: false, error: 'ERP 품목을 불러오지 못했습니다.' });
-  });
 });
 
 describe('ERP 품목 파일 읽기', () => {
@@ -380,10 +345,8 @@ describe('ERP 품목 삭제', () => {
 });
 
 describe('MD 반입 권한(1027T-016)', () => {
-  it('부매니저는 제안 검색·반입·분류 연결을 하고, 품목 삭제는 DB에 닿기 전에 막힌다', async () => {
+  it('부매니저는 반입·분류 연결을 하고, 품목 삭제는 DB에 닿기 전에 막힌다', async () => {
     mocks.auth.mockResolvedValue(deputy);
-    mocks.rpc.mockResolvedValueOnce({ data: [], error: null });
-    expect(await searchErpItemsAction('키링')).toEqual({ ok: true, items: [] });
     mocks.rpc.mockResolvedValueOnce({ data: { inserted: 1, updated: 0, unchanged: 0, rejected: [] }, error: null });
     expect(await importErpItemsAction([{ row: 2, code: '000123', name: '아크릴 키링' }])).toMatchObject({ ok: true, inserted: 1 });
     mocks.rpc.mockResolvedValueOnce({ data: { changed: true }, error: null });
@@ -395,7 +358,6 @@ describe('MD 반입 권한(1027T-016)', () => {
 
   it('상품 관리 권한이 없는 물류출고관리는 읽기·반입·비교를 못 한다', async () => {
     mocks.auth.mockResolvedValue(logistics);
-    expect(await searchErpItemsAction('키링')).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
     expect(await importErpItemsAction([{ row: 2, code: '000123', name: '아크릴 키링' }])).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
     expect(await previewErpLinkedGoodsAction(null)).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
     expect(mocks.client).not.toHaveBeenCalled();

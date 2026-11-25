@@ -95,7 +95,7 @@ describe('할인 프로모션 상세', () => {
     expect(html).toContain('상품별 예외');
     expect(html).toContain('16,000원 ~ 20,000원');
     expect(html).toContain('건너뜀');
-    expect(html).toContain('기간이 겹치는 즉시할인이 이미 있음');
+    expect(html).toContain('기간이 겹치는 할인이 이미 있음');
     expect(html).toMatch(/<button[^>]*>프로모션 중지<\/button>/);
     expect(html).toContain('href="/admin/sales/discount-promotions?campaign=hongsil-open"');
   });

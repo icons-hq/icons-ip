@@ -76,7 +76,7 @@ describe('ERP 품목 XLSX 읽기', () => {
   it('CSV의 닫히지 않은 큰따옴표를 원문 그대로 읽고 경고를 넘긴다', async () => {
     const read = await readErpItemFile('a.csv', Buffer.from('품번,품명\nA1,"곰돌이 키링\nA2,토끼\n'));
     expect(read.table).toEqual([['품번', '품명'], ['A1', '"곰돌이 키링'], ['A2', '토끼']]);
-    expect(read.warnings).toEqual(['닫는 큰따옴표가 없는 셀 1개(2행)는 따옴표를 포함해 적힌 그대로 읽었습니다. 값을 확인해주세요.']);
+    expect(read.warnings).toEqual(['닫는 큰따옴표가 없는 셀 1개(2번째 줄)는 따옴표를 포함해 적힌 그대로 읽었습니다. 값을 확인해주세요.']);
   });
 
   it('행 수·형식 상한을 넘으면 한국어 안내로 거절한다', async () => {

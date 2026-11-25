@@ -15,7 +15,7 @@ import { GOODS_LIST_HELP } from '@/lib/admin/help/goods-list';
 const rowOf = (html: string, id: string) => (html.split('<tr').find(part => new RegExp(`goodId=${id}["#]`).test(part)) ?? '').split('</tr>')[0];
 
 describe('goods list screen', () => {
-  it('상품 관리 권한과 현재 세션이 있으면 판매가·재고수량·판매상태를 목록에서 바로 고치고, IP 필터에서는 IP 전체 즉시할인을 연다', () => {
+  it('상품 관리 권한과 현재 세션이 있으면 판매가·재고수량·판매상태를 목록에서 바로 고치고, IP 필터에서는 IP 전체 기간 할인을 연다', () => {
     const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
     const good = { id: 'good-a', code: 'A', name: '상품 A', ipId: 'maple', ipTitle: '메이플', publishedAt: null, archivedAt: null, stock: 'ok' as const, stockQty: 7,
       activeStockQty: 7, lowStockOptionCount: 0, noticeComplete: true, priceMin: 10000, priceMax: 10000, basePrice: 10000, activeVariantCount: 1,
@@ -29,14 +29,14 @@ describe('goods list screen', () => {
     expect(html.match(/판매가 [^"]*바로 수정/g)).toHaveLength(1);
     expect(html).not.toContain('상품 할인 중 · 판매가는 상품 수정에서 변경');
     expect(html).toContain('즉시할인 중</small>');
-    // 진행·예정 즉시할인 상품은 같은 칸이 '할인 중지 후 변경' 창을 연다(1027T-025).
-    expect(html.match(/aria-label="판매가 10,000원 할인 중지 후 변경"/g)).toHaveLength(2); expect(html).toContain('할인 진행·예정');
+    // 진행 중이거나 예정된 기간 할인이 있는 상품은 같은 칸이 '할인 중지 후 변경' 창을 연다(1027T-025).
+    expect(html.match(/aria-label="판매가 10,000원 할인 중지 후 변경"/g)).toHaveLength(2); expect(html).toContain('기간 할인 있음');
     expect(html.match(/재고수량 [^"]*바로 수정/g)).toHaveLength(2);
     // 옵션을 읽지 못한(옵션별 재고 값이 없는) 여러 옵션 상품은 상세 재고 안의 상품 수정 링크로 고친다.
     expect(html).toContain('옵션별 재고 수정');
-    expect(html).toContain('IP 전체 즉시할인');
+    expect(html).toContain('IP 전체 기간 할인');
     const readOnly = renderToStaticMarkup(<GoodsListScreen data={data} bulkIdentity={identity} />);
-    expect(readOnly).not.toContain('바로 수정'); expect(readOnly).not.toContain('IP 전체 즉시할인');
+    expect(readOnly).not.toContain('바로 수정'); expect(readOnly).not.toContain('IP 전체 기간 할인');
     expect(readOnly).not.toContain('할인 중지 후 변경');
   });
   it('옵션별 재고·할인 중지 창은 표 안이 아니라 화면 수준에서 열린다 — 표의 최소 폭·칸 굵기가 창에 걸리지 않고, 상품이 목록에서 빠져도 창이 남는다(리뷰 02·21·22·60)', () => {

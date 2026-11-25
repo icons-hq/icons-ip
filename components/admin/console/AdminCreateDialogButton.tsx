@@ -5,6 +5,7 @@ import { Plus } from 'lucide-react';
 import { Button } from '@/components/admin/kit/ui/button';
 import { CustomerServiceDialog } from '@/components/admin/screens/CustomerServiceDialog';
 import { adminConfirm } from '@/lib/admin/confirm';
+import { TEMPLATE_CLOSE_DIRTY_CONFIRM } from '@/lib/admin/goods-template-save';
 
 type AdminCreateDialogBusyReport = (source: string, busy: boolean) => void;
 const AdminCreateDialogBusyReporter = createContext<AdminCreateDialogBusyReport | null>(null);
@@ -30,10 +31,8 @@ export function useAdminCreateDialogBusy(busy: boolean) {
   }, [busy, report, source]);
 }
 
-/** 닫기 전에 묻는 말. 템플릿 편집 창(lib/admin/goods-template-save.ts의 TEMPLATE_CLOSE_DIRTY_CONFIRM)과 같은 말이다. */
-export const ADMIN_CREATE_DIALOG_DISCARD_CONFIRM = {
-  title: '적은 내용을 저장하지 않고 닫을까요?', message: '지금 적은 내용이 사라집니다.', confirmLabel: '저장하지 않고 닫기',
-} as const;
+/** 닫기 전에 묻는 말. 템플릿 편집 창(사이즈·A/S·이벤트)과 같은 상수를 쓴다 — 같은 일은 같은 말로 묻는다. */
+export const ADMIN_CREATE_DIALOG_DISCARD_CONFIRM = TEMPLATE_CLOSE_DIRTY_CONFIRM;
 
 type InputControl = { name: string; type: string; value: string; checked?: boolean };
 

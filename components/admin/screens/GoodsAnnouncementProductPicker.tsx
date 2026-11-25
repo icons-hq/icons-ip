@@ -32,7 +32,7 @@ export function GoodsAnnouncementProductPicker({ value, onSelect, onDeselect, on
     load={goodsAnnouncementPickerLoader}
     rowKey={good => good.id}
     rowView={good => ({ title: good.name, meta: good.code })}
-    searchPlaceholder="상품명·상품 자동코드·상품 URL"
+    searchPlaceholder="상품명·상품 자동코드"
     excludedNote="보관한 상품은 목록에서 뺐습니다."
     multiple
     selectedKeys={[...picked]}

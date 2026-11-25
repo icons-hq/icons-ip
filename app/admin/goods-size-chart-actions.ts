@@ -7,10 +7,11 @@ import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 import { GOODS_SIZE_LIMITS, GOODS_SIZE_TEMPLATES_PATH, parseGoodsSizeChart, parseGoodsSizeChartSnapshot, parseGoodsSizeChartValues, parseGoodsSizeName, parseGoodsSizeTemplate, parseGoodsSizeTemplatePage, type GoodsSizeChart, type GoodsSizeChartSnapshot, type GoodsSizeChartValues, type GoodsSizeTemplate, type GoodsSizeTemplatePage } from '@/lib/goods-size-chart';
 import { goodsSizeChartError } from '@/lib/admin/goods-size-chart-messages';
+import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 
 export type GoodsSizeResult<T> = { ok: true; value: T } | { ok: false; error: string; uncertain?: boolean; conflict?: boolean };
 const unread = <T,>(): GoodsSizeResult<T> => ({ ok: false, error: '저장된 사이즈 안내를 불러오지 못했습니다. 다시 조회해주세요.' });
-const unknown = <T,>(): GoodsSizeResult<T> => ({ ok: false, error: '저장됐는지 확인하지 못했습니다. 입력을 바꾸지 말고 \'같은 요청 결과 확인\'을 눌러주세요. 같은 요청은 두 번 저장되지 않습니다.', uncertain: true });
+const unknown = <T,>(): GoodsSizeResult<T> => ({ ok: false, error: SAVE_UNKNOWN_MESSAGE, uncertain: true });
 const validGoodId = (value: unknown): value is string => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,199}$/.test(value);
 const validRevision = (revision: number) => Number.isInteger(revision) && revision >= 0 && revision < 2147483647;
 const knownFailure = (code?: string) => ['PT409', '23505', '23514', '22023', '42501', 'P0002'].includes(code ?? '');

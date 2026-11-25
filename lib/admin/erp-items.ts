@@ -32,10 +32,7 @@ export const ERP_ITEM_LIMITS = {
   salePrice: 2_147_483_647,
 } as const;
 
-/** 상품 옵션 ERP 품명 입력이 검색을 시작하는 글자 수. */
-export const ERP_ITEM_SEARCH_MIN_LENGTH = 2;
 export const ERP_ITEM_SEARCH_QUERY_MAX = 100;
-export const ERP_ITEM_SUGGESTION_LIMIT = 8;
 export const ERP_ITEMS_PAGE_SIZE = 50;
 
 export type ErpItemRejectReason =
@@ -159,7 +156,7 @@ function priceOrNull(value: unknown): number | null | undefined {
     : undefined;
 }
 
-/** `admin_search_erp_items` 행 → 계약 타입. 형식이 다르면 null(제안에서 조용히 뺀다). */
+/** ERP 품목 한 줄(`admin_list_erp_items`의 items 항목) → 계약 타입. 형식이 다르면 null. */
 export function parseErpItemMatch(value: unknown): ErpItemMatch | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;

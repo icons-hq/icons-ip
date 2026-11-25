@@ -64,7 +64,7 @@ async function readTargetVersion(targetId: string | null): Promise<string> {
   const client = await createClient();
   const { data, error } = await client.from('goods').select(TARGET_SELECT).eq('id', targetId).maybeSingle();
   if (error || !record(data) || data.id !== targetId || !Array.isArray(data.goods_variants)) throw new Error(LOOKUP_ERROR);
-  if (data.published_at !== null || data.archived_at !== null) throw new GoodsOptionImportError('지금 편집 중인 상품이 공개 중이거나 보관되어 다른 상품의 옵션을 불러올 수 없습니다. 비공개로 전환한 뒤 상품 화면을 다시 열어주세요.');
+  if (data.published_at !== null || data.archived_at !== null) throw new GoodsOptionImportError('지금 편집 중인 상품이 공개 중이거나 보관되어 다른 상품의 옵션을 불러올 수 없습니다. 초안으로 전환한 뒤 상품 화면을 다시 열어주세요.');
   // ERP identities live in a private table, so the same existing read RPC used by the editor supplies this part of the baseline.
   const identities = await client.rpc('admin_list_goods_variant_external_identities', { target_good_id: targetId });
   if (identities.error || !Array.isArray(identities.data) || identities.data.some(row => !record(row) || row.good_id !== targetId || typeof row.variant_id !== 'string')) throw new Error(LOOKUP_ERROR);

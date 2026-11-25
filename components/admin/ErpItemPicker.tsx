@@ -23,11 +23,11 @@ export const loadErpItems: AdminPickerLoader<ErpItemMatch> = async (request) => 
   return result.ok ? result.data : { error: result.error };
 };
 
-/** 줄 하나: 품명 아래에 고르면 들어갈 ERP 코드·바코드와, 같은 이름을 구분할 ERP 분류·판매가를 보인다. */
+/** 줄 하나: 품명 아래에 고르면 들어갈 ERP 코드·바코드와, 같은 이름을 구분할 ERP 분류·ERP 판매가를 보인다. */
 export function erpItemRowView(item: ErpItemMatch): AdminPickerRowView {
   return {
     title: item.name,
-    meta: [item.code, item.barcode ? `바코드 ${item.barcode}` : '바코드 없음', item.category, item.salePrice === null ? null : `판매가 ${formatWon(item.salePrice)}`].filter(Boolean).join(' · '),
+    meta: [item.code, item.barcode ? `바코드 ${item.barcode}` : '바코드 없음', item.category, item.salePrice === null ? null : `ERP 판매가 ${formatWon(item.salePrice)}`].filter(Boolean).join(' · '),
   };
 }
 

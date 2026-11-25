@@ -35,7 +35,7 @@ export function GoodsBenefitFields({ values, onChange, onPickPhoto, onOpenTempla
     <div className="grid min-w-0 gap-4 md:grid-cols-3" role="group" aria-label="사은품 이미지">
       {[0, 1, 2].map(index => <div className="flex min-w-0 flex-col gap-2" key={`${index}:${values.giftImagePaths[index] ?? ''}`}>
         <ArtworkUploadField kind="good" name={`giftImage${index}`} fieldId={`${fieldPrefix}-${index}`} label={`사은품 이미지 ${index + 1}`} currentPath={values.giftImagePaths[index] || null} currentUrl={values.giftImagePaths[index] ? publicMediaUrl(values.giftImagePaths[index]) : null} onPathChange={path => onChange(current => withGiftImage(current, index, path))} autoUpload allowRemove compact showCropGuide={false} showPath={false} showGuidance={index === 0} />
-        <button type="button" className={`${buttonVariants({ variant: 'outline', size: 'sm' })} self-start whitespace-normal`} data-slot="button" onClick={() => onPickPhoto(index)}>사진 보관함에서 선택</button>
+        <button type="button" className={`${buttonVariants({ variant: 'outline', size: 'sm' })} self-start whitespace-normal`} data-slot="button" onClick={() => onPickPhoto(index)}>사진 보관함에서 고르기</button>
       </div>)}
     </div>
     <p className={photoWithoutText ? 'text-xs text-warning' : 'text-xs text-muted-foreground'} data-good-benefit-photo-note={photoWithoutText ? 'needs-text' : undefined}>{photoWithoutText ? '사진을 올렸으니 사은품 설명도 적어 주세요.' : '사진은 최대 3장, 500×500 크기를 권장합니다.'}</p>

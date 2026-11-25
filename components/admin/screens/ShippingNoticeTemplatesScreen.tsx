@@ -34,7 +34,7 @@ export function ShippingNoticeTemplatesScreen({ data, focusId }: { data: Shippin
     <AdminPageHeader
       title="배송 안내 템플릿 관리"
       description="상품 상세에 보이는 배송·교환/반품 안내문과 고객센터 연락처를 템플릿으로 관리합니다."
-      actions={<AdminCreateDialogButton label="새 배송 안내 템플릿 등록" title="새 배송 안내 템플릿 등록" wide><ShippingNoticeTemplateForm /></AdminCreateDialogButton>}
+      actions={<AdminCreateDialogButton confirmDiscard label="새 배송 안내 템플릿 등록" title="새 배송 안내 템플릿 등록" wide><ShippingNoticeTemplateForm /></AdminCreateDialogButton>}
     />
     <AdminNotice tone="info">
       <strong className="font-semibold">활성 템플릿은 고칠 수 없으니, 바꾸려면 새 버전으로 등록해주세요.</strong> 필수 안내와 확인 근거를 채우면 활성화할 수 있습니다. 배송비·출고지·반품 조건은 <Link className="font-medium underline underline-offset-4" href="/admin/settings/shipping-templates">배송정보 템플릿 관리</Link>에서 정합니다.

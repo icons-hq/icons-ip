@@ -80,5 +80,5 @@ export function adminClaimCopy(copy: string): string {
     .replace(/클레임/g, ADMIN_VOCABULARY.claimRequest);
 }
 
-/** Raw stock values stay in domain storage; the console uses operator labels. */
-export const ADMIN_STOCK_LABELS = { ok: '정상 판매', low: '소량 재고', soldout: '판매 중지' } satisfies Record<import('@/lib/data').Stock, string>;
+/** 판매상태(goods.stock) 값의 화면 이름. 목록·건수 칸·일괄 변경·상품 수정·가이드가 같은 말을 쓴다(저장 값은 그대로다). */
+export const ADMIN_STOCK_LABELS = { ok: '판매중', low: '소량 재고', soldout: '판매중지' } satisfies Record<import('@/lib/data').Stock, string>;

@@ -1,5 +1,5 @@
 import { parseGoodsAttributeSubmission, type GoodsAttributeField, type GoodsAttributeKind } from '@/lib/goods-attributes';
-import { categoryPath, type AdminCategoryNode } from './category';
+import { categoryPath, categoryTreeOrder, type AdminCategoryNode } from './category';
 import { usableTemplateCategory } from './category-templates';
 import { adminPickerLocalLoader, type AdminPickerLoader } from './picker';
 export const GOODS_ATTRIBUTES_PATH = '/admin/catalog/attributes';
@@ -151,22 +151,4 @@ export function goodsAttributeCategoryLoader(categories: AdminCategoryNode[], hi
     .sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0))
     .map(category => ({ id: category.id, code: category.code, path: categoryPath(categories, category.id).join(' > ') }));
   return adminPickerLocalLoader(rows, { textOf: row => `${row.path} ${row.code}` });
-}
-function categoryTreeOrder(categories: readonly AdminCategoryNode[]): Map<string, number> {
-  const ids = new Set(categories.map(category => category.id));
-  const children = new Map<string, AdminCategoryNode[]>();
-  for (const category of categories) {
-    const parent = category.parentId && ids.has(category.parentId) ? category.parentId : '';
-    children.set(parent, [...(children.get(parent) ?? []), category]);
-  }
-  const order = new Map<string, number>();
-  const visit = (parent: string) => {
-    for (const category of [...(children.get(parent) ?? [])].sort((left, right) => left.sortOrder - right.sortOrder || left.code.localeCompare(right.code))) {
-      if (order.has(category.id)) continue;
-      order.set(category.id, order.size);
-      visit(category.id);
-    }
-  };
-  visit('');
-  return order;
 }

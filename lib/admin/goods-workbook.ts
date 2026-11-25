@@ -604,12 +604,12 @@ const KST_DATE_TIME = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul',
 export function goodsWorkbookLiveDiscountError(discount: GoodsImportLivePriceDiscount): string {
   const ends = Number.isFinite(Date.parse(discount.endsAt)) ? KST_DATE_TIME.format(new Date(discount.endsAt)) : '종료 시각 확인 필요';
   return `진행 중이거나 예정된 기간 할인(${discount.count.toLocaleString('ko-KR')}건, ${ends}까지)이 있는 상품이라 엑셀로 판매가·즉시할인·옵션가를 바꿀 수 없습니다. `
-    + '엑셀에는 기간 할인 열이 없어 바꾸면 할인이 사라지거나 겹칩니다. 이 상품 행은 반영하지 않으니, 상품 수정이나 상품 목록에서 할인을 멈춘 뒤(또는 끝난 뒤) 바꿔 주세요.';
+    + '엑셀에는 기간 할인 열이 없어 바꾸면 할인이 사라지거나 겹칩니다. 이 상품의 줄은 반영하지 않으니, 상품 수정이나 상품 목록에서 할인을 멈춘 뒤(또는 끝난 뒤) 바꿔 주세요.';
 }
 export function goodsWorkbookLiveDiscountOptionAddError(discount: GoodsImportLivePriceDiscount): string {
   const ends = Number.isFinite(Date.parse(discount.endsAt)) ? KST_DATE_TIME.format(new Date(discount.endsAt)) : '종료 시각 확인 필요';
   return `진행 중이거나 예정된 기간 할인(${discount.count.toLocaleString('ko-KR')}건, ${ends}까지)이 있는 상품이라 엑셀로 옵션을 추가하거나 다시 사용할 수 없습니다. `
-    + '새 옵션은 기간 중에도 할인 없이 팔리게 됩니다. 이 상품 행은 반영하지 않으니, 상품 수정에서 바꿔 주세요.';
+    + '새 옵션은 기간 중에도 할인 없이 팔리게 됩니다. 이 상품의 줄은 반영하지 않으니, 상품 수정에서 바꿔 주세요.';
 }
 export function planGoodsWorkbookImport(
   inputRows: GoodsWorkbookInputRow[],
@@ -617,7 +617,7 @@ export function planGoodsWorkbookImport(
 ): GoodsImportGroup[] {
   if (inputRows.length > GOODS_WORKBOOK_ROW_LIMIT)
     throw new Error(
-      '옵션 행은 파일당 최대 500행입니다. 파일을 나누어 올려주세요.',
+      '한 파일에 500줄까지 올릴 수 있습니다(옵션마다 한 줄). 파일을 나누어 올려주세요.',
     );
   const targets = inputRows.map((row) => resolveGoodsWorkbookTarget(row, context.existing));
   const rows = targets.map((target) => target.row);
@@ -652,7 +652,7 @@ export function planGoodsWorkbookImport(
     keepGalleryOutsideV3(source, record, context);
     const first = noticeFromPreset(source[0].values, context);
     const errors = source.flatMap((row) =>
-      (row.errors ?? []).map((error) => `${row.row}행: ${error}`),
+      (row.errors ?? []).map((error) => `${row.row}번째 줄: ${error}`),
     );
     const group: GoodsImportGroup = {
       key,
@@ -673,7 +673,7 @@ export function planGoodsWorkbookImport(
     };
     if (record && source.some((row) => matchedByNumberOnly.has(row.row))) group.warnings.push(MATCHED_BY_NUMBER_ONLY);
     if (record?.variants.some(variant => (!variant.archived_at || variant.is_default) && Object.keys(variant.attributes).length > 2)
-      && source.some(row => row.layout === 'v3' || row.layout === 'v4')) errors.push('3축 옵션 상품은 최신 양식(v8)으로 다시 내려받아 수정해주세요. 구형 양식에는 세 번째 옵션 축이 없어 적용할 수 없습니다.');
+      && source.some(row => row.layout === 'v3' || row.layout === 'v4')) errors.push("옵션명이 3개인 상품은 양식을 새로 내려받아 고쳐 주세요. 예전 양식에는 세 번째 옵션명 열('옵션 축 3')이 없어 반영할 수 없습니다.");
     if (!['', '예'].includes(first.kcReset)) errors.push('KC 초기화는 비워두거나 예를 선택해주세요.');
     const kcPlan = planGoodsKcWorkbookRows(context.kcRows, {
       goodCode: first.code, existing: record?.kcReview ?? null,
@@ -717,7 +717,7 @@ export function planGoodsWorkbookImport(
         || normalizeGoodsSearchKeywords(current.searchKeywords).join('\n')
           !== normalizeGoodsSearchKeywords(first.searchKeywords).join('\n')
       )
-        errors.push(`${row.row}행: 같은 상품의 상품 정보가 서로 다릅니다.`);
+        errors.push(`${row.row}번째 줄: 같은 상품의 상품 정보가 서로 다릅니다.`);
     }
     // Legacy values outside today's editing rules still survive an untouched export.
     if (record && !errors.length && kcPlan.kind === 'keep' && customInputPlan.kind === 'keep') {
@@ -930,33 +930,33 @@ export function planGoodsWorkbookImport(
       const ownCode = value.variantCode.trim().toUpperCase();
       const codeOwner = ownCode ? context.variantCodeOwners?.[ownCode] : undefined;
       if (codeOwner !== undefined && !variant && codeOwner !== (record ? str(record.good.code).toUpperCase() : '')) {
-        errors.push(`${row.row}행: 옵션 자동코드 ${ownCode}${topicParticle(ownCode)} 다른 상품(${codeOwner})의 옵션이 이미 쓰고 있습니다. 기존 행을 복사해 새 상품을 만들 때는 옵션 자동코드도 비우거나 새 값으로 바꿔 주세요.`);
+        errors.push(`${row.row}번째 줄: 옵션 자동코드 ${ownCode}${topicParticle(ownCode)} 다른 상품(${codeOwner})의 옵션이 이미 쓰고 있습니다. 있던 줄을 복사해 새 상품을 만들 때는 옵션 자동코드도 비우거나 새 값으로 바꿔 주세요.`);
       }
       const attributes: Record<string, string> = Object.create(null);
       for (const [axis, optionValue] of [[value.axis1, value.value1], [value.axis2, value.value2], [value.axis3, value.value3]]) {
         if (!axis && !optionValue) continue;
         if (Object.hasOwn(attributes, axis))
-          errors.push(`${row.row}행: 옵션 축 이름이 중복됩니다.`);
+          errors.push(`${row.row}번째 줄: 옵션명이 겹칩니다. '옵션 축' 열마다 다른 이름을 적어 주세요.`);
         attributes[axis] = optionValue;
       }
       // 0901-015: 재고는 비워 둘 수 없다(신규·수정 모두). 재고가 없으면 0을 직접 적고, 빈칸을 0으로 바꿔 덮어쓰지 않는다.
       const stockText = value.stockQty.trim();
       if (!stockText)
-        errors.push(`${row.row}행: 재고수량(옵션 재고)을 입력해주세요. 재고가 없으면 0을 입력합니다.`);
+        errors.push(`${row.row}번째 줄: 재고수량(옵션 재고)을 입력해주세요. 재고가 없으면 0을 입력합니다.`);
       if (
         !integer(value.optionPrice || '0') ||
         (stockText && !integer(stockText))
       )
         errors.push(
-          `${row.row}행: 옵션가·재고수량은 0~2,147,483,647 정수입니다.`,
+          `${row.row}번째 줄: 옵션가·재고수량은 0~2,147,483,647 정수입니다.`,
         );
       if (value.lowStockThreshold && !integer(value.lowStockThreshold))
-        errors.push(`${row.row}행: 안전재고 기준은 0~2,147,483,647 정수이거나 공란이어야 합니다.`);
+        errors.push(`${row.row}번째 줄: 안전재고 기준은 0~2,147,483,647 정수이거나 공란이어야 합니다.`);
       if (!['', '사용', '중지'].includes(value.variantActive))
-        errors.push(`${row.row}행: 옵션 사용은 사용 또는 중지로 입력해주세요.`);
+        errors.push(`${row.row}번째 줄: 옵션 사용은 사용 또는 중지로 입력해주세요.`);
       const purchaseCost = parsePurchaseCostInput({ unitCostKrw: value.purchaseCostKrw, taxBasis: value.purchaseTaxBasis });
-      if (!context.canManageCosts && (value.purchaseCostKrw || value.purchaseTaxBasis)) errors.push(`${row.row}행: 공급가(매입단가)는 관리자만 입력할 수 있습니다.`);
-      if (context.canManageCosts && !purchaseCost) errors.push(`${row.row}행: 공급가(매입단가)와 세금 구분(included/excluded/exempt)을 함께 입력하거나 함께 비워주세요.`);
+      if (!context.canManageCosts && (value.purchaseCostKrw || value.purchaseTaxBasis)) errors.push(`${row.row}번째 줄: 공급가(매입단가)는 관리자만 입력할 수 있습니다.`);
+      if (context.canManageCosts && !purchaseCost) errors.push(`${row.row}번째 줄: 공급가(매입단가)와 세금 구분(included/excluded/exempt)을 함께 입력하거나 함께 비워주세요.`);
       return {
         ...(context.canManageCosts && purchaseCost ? { purchaseCost: { ...purchaseCost, expectedRevision: variant?.purchase_cost_revision ?? null } } : {}),
         ...(variant
@@ -1079,7 +1079,7 @@ export function planGoodsWorkbookImport(
       if (!code) continue;
       const previous = seenVariantCodes.get(code);
       if (previous) {
-        const message = `옵션 자동코드 ${code}${subjectParticle(code)} ${previous.row}행과 ${row.row}행에서 겹칩니다. 옵션 자동코드는 파일 안에서도 한 번만 쓸 수 있습니다.`;
+        const message = `옵션 자동코드 ${code}${subjectParticle(code)} ${previous.row}번째 줄과 ${row.row}번째 줄에서 겹칩니다. 옵션 자동코드는 파일 안에서도 한 번만 쓸 수 있습니다.`;
         for (const target of new Set([previous.group, group])) {
           if (!target.errors.includes(message)) target.errors.push(message);
           target.kind = 'error';
@@ -1101,7 +1101,7 @@ export function partitionGoodsExports(
     const rows = Math.max(1, candidate.rows);
     if (rows > 500)
       throw new Error(
-        '한 상품의 옵션이 500행을 초과합니다. 옵션 구성을 확인해주세요.',
+        '한 상품의 옵션이 500줄을 넘습니다. 옵션 구성을 확인해주세요.',
       );
     if (count + rows > 500) {
       parts.push(current);

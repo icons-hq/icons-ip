@@ -8,7 +8,7 @@ import { addSafeWorkbookInfoSheet, addWorkbookTable, tableColumn as column } fro
 
 export class GoodsRelationsExportError extends Error {
   constructor(readonly code: 'limit' | 'changed') {
-    super(code === 'limit' ? `최대 ${GOODS_RELATIONS_EXPORT_LIMIT.toLocaleString('ko-KR')}개 편성을 받을 수 있습니다. 검색 조건을 좁혀주세요.` : '내려받는 동안 편성이나 상품 정보가 변경됐습니다. 다시 조회한 뒤 내려받아 주세요.');
+    super(code === 'limit' ? `연관상품은 한 번에 ${GOODS_RELATIONS_EXPORT_LIMIT.toLocaleString('ko-KR')}개까지 받을 수 있습니다. 검색 조건을 좁혀 주세요.` : '내려받는 동안 연관상품이나 상품 정보가 바뀌었습니다. 목록을 다시 조회한 뒤 내려받아 주세요.');
   }
 }
 
@@ -57,7 +57,7 @@ export async function buildGoodsRelationsWorkbook(snapshot: GoodsRelationsExport
     ['조회 시작 (KST)', kstDateTimeText(snapshot.startedAt)], ['내려받은 시각 (KST)', kstDateTimeText(snapshot.verifiedAt)],
     ['파일 한도', `${GOODS_RELATIONS_EXPORT_LIMIT.toLocaleString('ko-KR')}개 편성`],
     ['조회 방식', '내려받을 때 전체를 두 번 읽어 순서·값·개수가 같은지 확인했습니다. 한 시각에 고정해 찍어 둔 기록은 아닙니다.'],
-    ['공개 기준', includesOtherComposition ? '다른 구성은 표시 설정이 켜져 있고 현재 상품 외에 공개 가능한 구성이 있어야 표시됩니다. 대표 상품의 공개 여부는 다른 구성의 노출을 제한하지 않습니다. 기존 유형은 대표 포함 공개 상품 2개 이상이어야 하며, 조회 뒤 상태와 기간은 달라질 수 있습니다.' : '전시중이어도 대표 상품을 포함해 현재 공개 가능한 상품이 2개 이상이어야 표시됩니다. 조회 뒤 상태와 기간은 달라질 수 있습니다.'],
+    ['공개 기준', includesOtherComposition ? '다른 구성은 표시 설정이 켜져 있고 현재 상품 외에 공개 가능한 구성이 있어야 표시됩니다. 대표 상품의 공개 여부는 다른 구성의 노출을 제한하지 않습니다. 기존 유형은 대표 포함 공개 상품 2개 이상이어야 하며, 조회 뒤 상태와 기간은 달라질 수 있습니다. 판매 제한(19금) 상품도 공개 상품으로 세지만 고객 화면에서는 성인 인증 고객에게만 보이고, 기능 공개 관리에서 성인 상품을 숨겼으면 아무에게도 보이지 않습니다.' : '전시중이어도 대표 상품을 포함해 현재 공개 가능한 상품이 2개 이상이어야 표시됩니다. 조회 뒤 상태와 기간은 달라질 수 있습니다. 판매 제한(19금) 상품도 공개 상품으로 세지만 고객 화면에서는 성인 인증 고객에게만 보이고, 기능 공개 관리에서 성인 상품을 숨겼으면 아무에게도 보이지 않습니다.'],
     ['편집 범위', '저장된 값만 담았습니다. 이 파일을 고쳐 다시 올리는 양식이 아닙니다.'],
   ]);
   return Buffer.from(await book.xlsx.writeBuffer());
