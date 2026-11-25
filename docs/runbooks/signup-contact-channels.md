@@ -346,8 +346,10 @@ Preview·스테이징 Auth도 같은 템플릿을 받으므로(기본 메일 발
 
 ## 11. 남는 위험
 
-- 서버 액션이 부르는 GoTrue 검증·로그인은 Vercel 함수 IP로 한도가 묶인다(로그인·가입과 같은 기존 구조). 혼잡하면 정상 회원의
-  코드 확인이 `over_request_rate_limit`에 걸릴 수 있다. 코드 확인은 이제 확인 + 비밀번호 로그인 두 번을 쓴다.
+- 서버 액션이 부르는 GoTrue 가입·코드 확인·로그인과 미들웨어 세션 갱신은 회원 IP가 아니라 Vercel 함수 IP로 한도가 묶인다. 그래서
+  production 배포가 GoTrue IP 한도를 5분당 가입류 3,000·코드 확인 3,000·`/token` 9,000으로 올려 둔다(§13 'GoTrue IP 한도'). 순간 허용량(버킷 30)은
+  GoTrue 코드에 고정이라, 한 함수 IP에 1초 안에 30건 넘게 몰리면 일부가 `over_request_rate_limit`('요청이 너무 많습니다')로 떨어지고 잠시 뒤 다시
+  누르면 통과한다(초당 10·10·30건씩 다시 찬다). 코드 확인은 확인 + 비밀번호 로그인 두 번을 쓴다.
 - 가입 폼을 다른 비밀번호로 다시 제출하면(같은 미확인 계정) GoTrue는 처음 비밀번호를 유지한다(2026-11-11 로컬 격리 스택
   실측: 두 번째 비밀번호 로그인 400, 첫 비밀번호 200). 그때 코드 확인 뒤 로그인이 실패해 로그인 화면으로 가고, 처음
   비밀번호나 재설정으로 들어온다.
@@ -478,6 +480,38 @@ CAPTCHA 키를 넣기 전에는 공개 publishable 키로 `/auth/v1/signup`·`/r
 호출을 세지 못한다. 그 사이에는 Supabase의 시간당 한도(10,000통)와 `over_request_rate_limit`(IP별 가입·로그인·메일 요청 한도)만 방어선이다.
 한도를 10,000으로 올린 뒤로는 봇이 한 시간에 Resend 월 한도(50,000통)의 1/5을 쓸 수 있어, 남으면 주문 메일까지 막힌다.
 키는 오픈 전에 넣는 것을 전제로 한다.
+
+### GoTrue IP 한도(2026-11-24, 오픈 몰림 대비)
+
+**문제.** 앱의 가입·재전송·재설정·로그인·코드 확인 서버 액션, 미들웨어 세션 갱신(`lib/supabase/middleware.ts`의 `getClaims`), 소셜 로그인 코드 교환은
+GoTrue에 Vercel 함수 IP로 보인다. 2026-11-24 운영 edge 로그(하루치)에서 서버 쪽 Auth 요청은 AWS IP 190여 개에서 왔지만 5분 창마다는 4~12개에만
+실렸고, 한 IP가 최대 86%(170건 중 146건)를 실었다 — Fluid compute가 요청을 소수 인스턴스에 모은다. 그래서 IP별 한도가 사실상 앱 전체 한도처럼
+동작하고, 기본값(가입류·코드 확인 5분 30, `/token` 5분 150)이면 오픈 몰림에서 정상 회원이 429에 걸린다.
+
+**결정: 한도 값을 올린다.** production `deploy-supabase`의 Auth 동기화 단계(`ENFORCE_REQUEST_RATE_LIMITS: "true"`)가 `scripts/sync-supabase-auth.mjs`의
+`AUTH_REQUEST_RATE_LIMITS_PER_5_MINUTES`로 맞추고 읽어 확인한다. preview·staging은 기본값 그대로다. 값은 5분당 요청 수이고 GoTrue는 값/300을 초당
+채움 속도로 쓴다(버킷 30 고정, supabase/auth `internal/api/apilimiter`).
+
+| 관리 API 키 | GoTrue가 거는 경로 | 값(5분) | 초당 | 근거 |
+|---|---|---|---|---|
+| `rate_limit_otp` | `/signup`, `/recover`, `/resend`, `/otp`, `/magiclink`, `PUT /user` | 3,000 | 10 | 모두 메일을 보내는 경로라 발송사 Resend 팀 초당 한도(10건)를 넘겨도 쓸모가 없다. |
+| `rate_limit_verify` | `/verify`(가입 코드·재설정 링크 확인) | 3,000 | 10 | 확인할 코드는 메일 발송 속도를 넘지 않는다. |
+| `rate_limit_token_refresh` | `/token`(비밀번호 로그인·세션 갱신·코드 교환·id_token) | 9,000 | 30 | 로그인에 더해 세션 갱신이 같은 IP 한도를 쓴다. |
+
+`GET /user`(로그인 회원 확인)는 IP 한도가 없다. 값을 바꾸려면 그 상수를 고치고 이 표를 맞춘다.
+
+**버린 안: 회원 IP 전달(`sb-forwarded-for`).** 관리 API `security_sb_forwarded_for_enabled`를 켜고 서버 클라이언트가 `sb-forwarded-for`에 회원 IP를
+실으면 GoTrue가 그 IP로 한도를 건다(`internal/sbff`). 하지만 공식 문서([Rate limits](https://supabase.com/docs/guides/auth/rate-limits) 'IP address
+forwarding')상 이 헤더는 **secret 키 요청만** 받는다 — publishable 키와 옛 `anon`·`service_role` 키는 지원하지 않는다. secret 키는 `service_role`로
+풀리고, GoTrue `verifyCaptcha`는 관리자 역할 요청이면 CAPTCHA 검사를 건너뛴다(`internal/api/middleware.go`). 즉 앱 경로에서 Turnstile이 무력화되고
+(앱은 토큰을 직접 검증하지 않는다 — 위 '방어 두 겹' 1), secret 키를 쿠키 세션 클라이언트에 넣으면 세션 없는 호출이 RLS를 우회할 위험이 생기며,
+미들웨어 세션 갱신까지 옮기려면 모든 요청의 클라이언트에 secret 키가 들어간다. 그래서 쓰지 않는다.
+
+**남는 위험.** IP 한도는 공개 publishable 키로 직접 부르는 공격자에게도 같은 값으로 걸린다. 한 IP가 가입·재설정 메일 요청을 초당 10건(기본값의
+100배)까지 보낼 수 있어 프로젝트 시간당 메일 한도(`AUTH_EMAIL_RATE_LIMIT_PER_HOUR`)를 혼자 소진할 수 있고, `/token`은 비밀번호 대입을 IP당 초당
+30건(기본값의 60배)까지 허용한다. 코드 확인은 운영 코드가 8자리라 한 IP가 코드 유효 시간(1시간) 내내 추측해도 맞힐 확률이 약 0.04%다(CAPTCHA는
+`/verify`에 걸리지 않는다). 직접 호출 우회를 막는 것은 Auth CAPTCHA이므로 **Turnstile 키 등록(아래 사람 단계)이 오픈 전 필수**다 — 켜지면 가입류와
+비밀번호 로그인 직접 호출은 토큰 없이 거절된다. 앱 서버의 접속 IP·이메일 메일 시도 한도(위 표)는 실제 접속 IP로 세므로 이 변경과 무관하다.
 
 ### 사람 단계(Turnstile 켜기 — 코드·파이프라인은 이미 있고 키만 넣으면 된다)
 
