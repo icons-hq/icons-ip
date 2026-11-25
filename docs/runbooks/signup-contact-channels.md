@@ -560,7 +560,7 @@ CAPTCHA 대상이 아니라 통한다). 하지만 **원인에 따라 풀리는 �
 | 막는 곳 | Supabase GoTrue가 토큰을 검증하다 실패 | 앱이 먼저 거절 — 사이트 키가 있으면 토큰 없는 요청을 GoTrue를 부르기 전에 거절한다(`app/login/actions.ts`의 `captchaTokenFromForm` → `lib/auth/mail-abuse.server.ts`). 콘솔을 꺼도 풀리지 않는다 |
 | 1단계 | Supabase 콘솔 → Authentication → Attack Protection에서 CAPTCHA 끄기 | A와 같음 |
 | 2단계 | GitHub 변수 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`와 secret `TURNSTILE_SECRET_KEY`를 **둘 다** 지운다 | A와 같음 |
-| 3단계 | (없음) | Vercel **Production**의 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`를 지우고 앱을 재배포한다(사이트 키는 빌드에 박혀 있다). Actions의 `production_redeploy`(config-only 재배포)로 한다 — Supabase 설정은 건드리지 않는다 |
+| 3단계 | (없음) | Vercel **Production**의 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`를 지우고 앱을 재배포한다(사이트 키는 빌드에 박혀 있다). Actions 'CI/CD Pipeline'을 수동 실행(workflow_dispatch)해 `production_redeploy`를 켜고 `production_source_run_id`에 **현재 main 커밋의 성공한 push/main 실행 번호**를 넣는다(둘 다 필요하다, 비우면 validate-plan이 거절한다) — Supabase 설정은 건드리지 않는다 |
 | 풀리는 때 | 1단계 직후 | 3단계 재배포가 끝난 직후(위젯·토큰 요구가 앱에서 빠진다) |
 
 **왜 변수와 secret을 함께 지우나.** `scripts/sync-supabase-auth.mjs`는 secret과 사이트 키 중 하나만 있으면 실패하고(`must be set together`), 파이프라인
@@ -570,7 +570,7 @@ CAPTCHA 대상이 아니라 통한다). 하지만 **원인에 따라 풀리는 �
 
 **복구 순서**(Cloudflare가 돌아온 뒤, 이 순서를 지킨다 — 앞서 GoTrue CAPTCHA를 켜면 위젯 없는 앱이 모든 로그인을 막는다):
 1. Cloudflare 대시보드에서 위젯이 정상인지 확인하고, 키를 새로 만들었으면 위 '사람 단계' 1번처럼 비밀 키를 채팅·로그에 남기지 않고 받는다.
-2. (B였다면) Vercel Production에 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`를 다시 넣고 앱을 먼저 재배포한다(`production_redeploy`). 위젯만 그려지고 보호는 아직 없다.
+2. (B였다면) Vercel Production에 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`를 다시 넣고 앱을 먼저 재배포한다(`production_redeploy` + `production_source_run_id`, 위 3단계와 같다). 위젯만 그려지고 보호는 아직 없다.
 3. GitHub 변수 `NEXT_PUBLIC_TURNSTILE_SITE_KEY`(2번과 **같은** 값)와 secret `TURNSTILE_SECRET_KEY`를 다시 등록한다.
 4. push/main 실행을 돌린다 — 대조 단계가 통과하면 동기화 단계가 Supabase CAPTCHA를 다시 켠다. config-only 재배포는 켜지 못한다.
 5. 위 '확인'(4번)처럼 가입·로그인 통과와 위젯 토큰 없는 `curl` 거절(`captcha_failed`)을 본다. A만 겪어 키를 지우지 않았다면 콘솔에서 CAPTCHA를 켜지 말고 4번의

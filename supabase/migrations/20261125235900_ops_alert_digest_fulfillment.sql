@@ -6,21 +6,26 @@
 --   · 발송 지연: 관리자 첫 화면 '처리할 업무'의 발송 지연(발주·발송 목록 '발송 지연' 탭)과 같은 기준이다 — 발주확인된(확정·배송중) 주문의
 --     발송 전(ready) 배송 건 중 처음 약속한 출고 예정일이 있으면 그 예정일이 오늘(KST)보다 앞선 건, 없으면 발주확인 3일이 지난 건.
 -- 새 범주를 만들지 않고 기존 '시스템' 범주(설정·카운트 키 그대로)에 알림 행으로 올린다. 같은 건을 반복 알리지 않는 규칙은 메일 발송 실패와 같다:
--- event_key에 '가장 늦게 생긴 건의 시각'을 넣어, 새로 생긴 보류·새로 늦어진 배송 건이 있을 때만 새 알림 행이 올라오고(건수는 그 시점의 전체 건수),
--- 같은 상태가 이어지는 동안은 다시 올라오지 않는다. 센 알림 표식·켠 시각 이후·6시간 안 규칙은 그대로다. 메일에는 건수와 한 줄 안내만 싣는다
+-- event_key에 '가장 늦게 생긴 건의 시각'을 넣고, 지금까지 알린 가장 늦은 시각(기존 알림 행의 키)보다 늦은 건이 있을 때만 새 알림 행이 올라온다(건수는 그 시점의
+-- 전체 건수, 보류는 주문 수). 같은 상태가 이어지거나 늦은 건이 먼저 풀려도 다시 올라오지 않는다. 센 알림 표식·켠 시각 이후·6시간 안 규칙은 그대로다. 메일에는 건수와 한 줄 안내만 싣는다
 -- (주문번호·고객 정보 없음). 이 함수는 요약을 만들 때(prepare_ops_alert_digest, 같은 잠금 안) 불린다 — '시스템' 범주를 껐으면 불리지 않는다.
 begin;
 
 create function private.raise_fulfillment_digest_alerts(p_now timestamptz)
 returns integer language plpgsql volatile security definer set search_path='' as $$
 declare today_kst date:=(p_now at time zone 'Asia/Seoul')::date;made integer:=0;rows integer;
-  holds integer;last_hold timestamptz;delayed integer;last_delay timestamptz;
+  holds integer;last_hold timestamptz;delayed integer;last_delay timestamptz;seen_us bigint;now_us bigint;
 begin
   -- 해제되지 않은 출고 보류(취소된 주문의 보류는 취소 때 자동으로 닫힌다).
-  select count(*),max(h.created_at) into holds,last_hold
+  select count(distinct h.order_id),max(h.created_at) into holds,last_hold
     from private.order_fulfillment_holds h join public.orders o on o.id=h.order_id
     where h.released_at is null and o.status<>'canceled';
-  if holds>0 then
+  -- 지금까지 알린 가장 늦은 시각(기존 알림 행의 키)보다 늦은 보류가 있을 때만 올린다. 늦은 건이 먼저 풀려 '남은 건의 가장 늦은 시각'이
+  -- 줄어도 새 건이 아니므로 다시 알리지 않는다.
+  select max(substring(a.event_key from ':([0-9]+)$')::bigint) into seen_us
+    from private.admin_operation_alerts a where a.event_key like 'system_fulfillment_holds:%';
+  now_us:=(extract(epoch from last_hold)*1000000)::bigint;
+  if holds>0 and (seen_us is null or now_us>seen_us) then
     insert into private.admin_operation_alerts(event_key,category,title,href)
       values('system_fulfillment_holds:'||(extract(epoch from last_hold)*1000000)::bigint,'system',
         left('출고 보류 '||holds||'건이 풀리지 않았습니다 · 창고에 넘어간 주문은 창고에 직접 연락하세요',120),'/admin/sales/orders')
@@ -35,7 +40,10 @@ begin
     where o.status in ('confirmed','shipping') and s.status='ready'
       and case when s.original_expected_ship_date is not null then s.expected_ship_date<today_kst
         else o.confirmed_at<p_now-interval '3 days' end;
-  if delayed>0 and last_delay is not null then
+  select max(substring(a.event_key from ':([0-9]+)$')::bigint) into seen_us
+    from private.admin_operation_alerts a where a.event_key like 'system_shipment_delays:%';
+  now_us:=(extract(epoch from last_delay)*1000000)::bigint;
+  if delayed>0 and last_delay is not null and (seen_us is null or now_us>seen_us) then
     insert into private.admin_operation_alerts(event_key,category,title,href)
       values('system_shipment_delays:'||(extract(epoch from last_delay)*1000000)::bigint,'system',
         left('발송 지연 '||delayed||'건이 있습니다 · 발주확인 뒤 발송이 늦어진 배송 건',120),'/admin/sales/dispatch')

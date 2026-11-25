@@ -274,6 +274,13 @@ select 1/case when :'raised2'::integer=1
  and (select count(*)=1 from private.admin_operation_alerts where event_key like 'system_fulfillment_holds:%' and title like '출고 보류 1건%')
  and (select count(*)=1 from private.admin_operation_alerts where event_key like 'system_shipment_delays:%' and title like '발송 지연 2건%')
  then 1 else 0 end as assert_new_delay_alert_with_total;
+-- 가장 늦게 늦어진 건(주문 B)이 먼저 풀려도 새 건이 아니므로 다시 알리지 않는다(함수는 \gset으로 먼저 실행한다).
+delete from public.order_shipments where id='0a1e0000-0000-4002-8000-000000000002';
+select private.raise_fulfillment_digest_alerts(now()+interval '3 hours') as raised3 \gset
+select 1/case when :'raised3'::integer=0
+ and (select count(*)=2 from private.admin_operation_alerts where event_key like 'system_shipment_delays:%')
+ and (select count(*)=1 from private.admin_operation_alerts where event_key like 'system_fulfillment_holds:%')
+ then 1 else 0 end as assert_resolved_latest_not_realerted;
 -- 요약에 시스템 알림으로 든다(범주 '시스템'만 켜져 있다). 알림 시각을 요약 시점의 6시간 안으로 옮겨 센다.
 update private.admin_operation_alerts set created_at=now()+interval '9 hours 50 minutes'
  where event_key like 'system_fulfillment_holds:%' or event_key like 'system_shipment_delays:%';
