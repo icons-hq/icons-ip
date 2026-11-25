@@ -3,7 +3,8 @@
  *
  * 탈퇴 신청 기능(#137 Phase 1)이 꺼져 있는 동안 탈퇴는 1:1 문의로 받고, 고객 상세의 '탈퇴 요청 처리'가 DB
  * `admin_process_member_withdrawal` 한 트랜잭션으로 정지·보존 근거 없는 개인정보와 로그인 연결 삭제·로그인 세션 종료·감사를 한다.
- * 이메일 원문은 처리 결과 답변을 위해 3일 뒤, 동의 원장은 1년 뒤 DB 정리 잡이 지운다(20261126104000). 법정 보존 기록만 남는다.
+ * 이메일 원문은 문의 근거면 처리 결과 답변을 위해 3일 뒤(카카오 알림 근거는 처리 때 바로), 동의 원장은 1년 뒤 DB 정리 잡이 지운다
+ * (20261126104000). 처리한 회원에게는 앱 알림을 만들지 않고, 3일 뒤 그 사이 생긴 행을 다시 지운다. 법정 보존 기록만 남는다.
  * 카카오로만 가입한 회원이 카카오계정을 탈퇴했다는 알림을 받으면 같은 처리를 그 알림을 근거로 한다
  * (`admin_process_kakao_unlink_withdrawal`, 카카오 identity 삭제를 더함 — lib/admin/kakao-unlink-withdrawal.ts).
  * 재로그인 차단은 Supabase Auth 관리 API(ban)로 걸고 `admin_confirm_member_withdrawal_signin_block`이 DB에서 확인·기록한다.
@@ -72,16 +73,16 @@ export const MEMBER_WITHDRAWAL_EFFECTS = [
   '인증한 휴대폰 번호와 인증 요청·이력 삭제',
   '마케팅 정보 수신 동의 전 수단 철회',
   '성별(고객 통계 동의)·활동 기록 동의와 기록 삭제, 진행 중인 이메일 변경 요청·재입고 알림 신청(알린 기록 포함) 삭제',
-  '위시리스트·장바구니·알림함·IP 팔로우·쓰지 않은 쿠폰·출석 코인 삭제',
+  '위시리스트·장바구니·알림함·IP 팔로우·쓰지 않은 쿠폰·출석 코인·처리가 끝난 신고 삭제(처리 뒤에는 앱 알림을 보내지 않음)',
   `프로필 익명화(닉네임은 '${INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}'과 구분 번호로 바뀌고 생년월일·프로필 사진 파일은 삭제)`,
   '성인 인증 기록(19금 구매 확인 증빙) 삭제',
-  '소셜 로그인 연결(카카오·Google·Apple 계정 연결)과 로그인 프로필 정보 삭제',
+  '소셜 로그인 연결(카카오·Google·Apple 계정 연결)·2단계 인증 수단과 로그인 프로필 정보 삭제',
   `모든 기기 로그아웃과 재로그인 차단(같은 이메일·소셜 계정은 ${INQUIRY_WITHDRAWAL_SCOPE.rejoinBlockYears}년 동안 다시 가입할 수 없음)`,
-  `계정 이메일은 처리 결과 답변 메일을 보낼 수 있게 ${INQUIRY_WITHDRAWAL_SCOPE.emailRetentionDays}일 동안 둔 뒤 자동 삭제 — 처리한 뒤 바로 문의에 답변해주세요`,
+  `계정 이메일은 처리 결과 답변 메일을 보낼 수 있게 ${INQUIRY_WITHDRAWAL_SCOPE.emailRetentionDays}일 동안 둔 뒤 자동 삭제 — 처리한 뒤 바로 문의에 답변해주세요(카카오 알림 처리는 답변할 문의가 없어 처리 때 바로 삭제)`,
 ] as const;
 
 /** 카카오 알림으로 처리할 때 위 범위에 더하는 것. 카카오계정이 없어져 카카오 로그인이라는 목적이 영구히 끝났다. */
-export const KAKAO_UNLINK_WITHDRAWAL_EXTRA_EFFECT = '카카오 로그인 연결 삭제(카카오 회원번호·카카오 닉네임·프로필 사진 주소)';
+export const KAKAO_UNLINK_WITHDRAWAL_EXTRA_EFFECT = '카카오 로그인 연결 삭제(카카오 회원번호·카카오 닉네임·프로필 사진 주소)와 계정 이메일 바로 삭제(답변할 문의가 없음)';
 
 /** 지우지 않고 남는 것과 그 근거(고객 안내와 같은 원천 INQUIRY_WITHDRAWAL_SCOPE, 처리방침 제3조와 같은 기간). */
 export const MEMBER_WITHDRAWAL_RETAINED: readonly string[] = [
@@ -89,7 +90,7 @@ export const MEMBER_WITHDRAWAL_RETAINED: readonly string[] = [
   `${INQUIRY_WITHDRAWAL_SCOPE.inquiries}과 상담 메모(전자상거래법에 따라 3년 보관)`,
   `${INQUIRY_WITHDRAWAL_SCOPE.posts} — 지우지 않고 작성자를 '${INQUIRY_WITHDRAWAL_SCOPE.anonymizedName}'으로 표시`,
   `정지된 로그인 계정 — 이메일·로그인 연결 없이 위 기록을 잇는 회원번호만 남고, 같은 이메일·소셜 계정 재가입을 막는 값(복원할 수 없게 바꾼 값)을 ${INQUIRY_WITHDRAWAL_SCOPE.rejoinBlockYears}년 보관`,
-  `마케팅 수신 동의·철회 기록(${INQUIRY_WITHDRAWAL_SCOPE.rejoinBlockYears}년 보관)과 처리 기록·감사 기록(개인정보 원문 없음)`,
+  `마케팅 수신 동의·철회 기록과 성별·활동 기록 동의 기록, 처리 중이던 신고(${INQUIRY_WITHDRAWAL_SCOPE.rejoinBlockYears}년 보관), 처리 기록·감사 기록(개인정보 원문 없음)`,
 ];
 
 /** 운영자가 보는 진행 중 의무 이름. 고객 화면 이름과 같은 코드 계약(lib/account-deletion)이다. */
@@ -315,7 +316,7 @@ export function memberWithdrawalConfirmMessage(inquiry: MemberWithdrawalInquiry)
 export function kakaoUnlinkWithdrawalConfirmMessage(unlink: KakaoUnlinkSummary): string {
   return `카카오 연결 해제 알림 · ${kakaoUnlinkReasonLabel(unlink.reason)} · ${formatInquiryDateTime(unlink.eventAt)} 수신\n\n`
     + '이 회원은 카카오로만 가입해 다시 로그인할 수 없습니다. 이 알림을 근거로 고객을 정지하고 배송지·휴대폰 번호·마케팅 수신 동의·위시리스트·장바구니·알림함·쓰지 않은 쿠폰·카카오 로그인 연결 등을 지웁니다. 닉네임·생년월일·프로필 사진을 익명화하고 성인 인증 기록을 지운 뒤, '
-    + '모든 로그인을 끊고 재로그인을 막습니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 탈퇴를 처리할까요?';
+    + '모든 로그인을 끊고 재로그인을 막습니다. 답변할 문의가 없어 계정 이메일도 바로 지웁니다. 지운 정보는 되돌릴 수 없고, 처리한 계정은 정지를 해제할 수 없습니다. 탈퇴를 처리할까요?';
 }
 
 /** RPC 오류를 운영자 문구로. 모르는 오류는 일반 실패로 접는다. 카카오 알림 처리는 입력이 메모뿐이라 입력 오류 문구가 다르다. */
