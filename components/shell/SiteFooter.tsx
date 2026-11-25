@@ -17,7 +17,6 @@ import { SITE_FOOTER_ID } from './site-footer-jump';
 import { useCommunityStaffPreviewVisible } from './StaffPreviewAvailability';
 import { DEFAULT_STOREFRONT_BRANDING, STORE_SOCIAL_LABELS, type StorefrontBranding } from '@/lib/store-branding';
 import { AdminConsoleLink, useAdminConsoleVisible } from './AdminConsoleLink';
-import { virtualAccountTermsRevisionInEffect } from '@/lib/legal/virtual-account-terms-revision';
 
 /* X SQUARE 푸터(Figma Site Footer, ADR-0043). 한 줄 링크(약관·안내 | 고객센터·SNS) → 사업자 정보 두 줄 → (스태프 블록) → 저작권이다.
    법정 표기(상호·대표자·주소·사업자등록번호·통신판매업 신고번호·전화·이메일·호스팅)와 법정 고지 3종은 그대로 두고 접지 않는다 —
@@ -114,15 +113,15 @@ export function SiteFooter({
   businessInfo = BUSINESS_INFO,
   branding = DEFAULT_STOREFRONT_BRANDING,
   copyrightYear = new Date().getFullYear(),
-  escrowNoticeVisible = virtualAccountTermsRevisionInEffect(),
+  escrowNoticeVisible = true,
 }: {
   businessInfo?: BusinessInfoData;
   branding?: StorefrontBranding;
   /** 저작권 줄의 연도 — 서버 레이아웃이 KST 기준으로 넘긴다. */
   copyrightYear?: number;
   /**
-   * 구매안전서비스 가입 사실 표시 여부. 기본은 가상계좌 개정 시행 여부(KST 날짜)다 — 서버 레이아웃이 넘기면 그 값을 쓴다
-   * (넘기지 않으면 시행일 0시 무렵 정적 HTML과 브라우저가 다른 날짜로 계산할 수 있다).
+   * 구매안전서비스 가입 사실 표시 여부. 계좌이체·가상계좌 구매안전서비스는 법정 문서 최초 판(2026-11-25)이 고지하므로 기본은 표시다.
+   * 시험에서만 끈다.
    */
   escrowNoticeVisible?: boolean;
 }) {

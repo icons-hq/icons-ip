@@ -328,7 +328,7 @@ describe('SiteFooter 구매안전서비스 표시', () => {
     expect(createHash('sha256').update(bytes).digest('hex')).toBe('323d0b919b5793fab3f2dd0fa04ef024f99b0ef8dd51756945751332222faa3c');
   });
 
-  it('시행 전(또는 예약 없음)에는 그리지 않는다', () => {
+  it('끄면 그리지 않는다', () => {
     const html = renderToStaticMarkup(<SiteFooter copyrightYear={2026} escrowNoticeVisible={false} />);
     expect(html).not.toContain('data-footer-escrow');
     expect(html).not.toContain('구매안전');

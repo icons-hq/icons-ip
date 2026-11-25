@@ -12,7 +12,7 @@ import { loadAdminGoodsVariants } from './goods-variants.server';
 import { loadAdminGoodsReadiness, parseGoodsReadiness } from './goods-readiness.server';
 import { imageBg, imageUrlFromBg, publicMediaUrl } from '@/lib/media';
 import type { Ip, Stock } from '@/lib/data';
-import { goodsListPageSize, goodsConsoleFilterValues, type AdminGoodsListData, type GoodsListFilters, type GoodsListSaleStateCounts, type GoodsListStockCounts } from './goods-list';
+import { goodsListPageSize, goodsListPreorderSaleLabel, goodsConsoleFilterValues, type AdminGoodsListData, type GoodsListFilters, type GoodsListSaleStateCounts, type GoodsListStockCounts } from './goods-list';
 import type { GoodsListOptionStock } from './goods-list-inline';
 import { parseGoodsInstantDiscountState, type GoodsInstantDiscountState } from './goods-price-editor';
 
@@ -66,13 +66,15 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
     })(),
     loadGoodsFulfillmentOptions().then(rows => rows.map(origin => ({ id: origin.id, name: origin.name, active: origin.active }))),
   ]);
-  const pageIds = (result.data.rows as WorkspaceRow[]).map(good => good.id);
-  const [inline, customerVisible] = await Promise.all([loadGoodsListInlineValues(pageIds), loadGoodsListCustomerVisibility(pageIds)]);
+  const rows = (result.data.rows as WorkspaceRow[]).map(good => ({ good, readiness: parseGoodsReadiness(good.readiness) }));
+  const pageIds = rows.map(({ good }) => good.id);
+  /* 품절 배지가 붙을 수 있는 상품(전시 중·판매중지 아님·판매 가능 0개)만 예약 상태를 읽는다. */
+  const soldOutIds = rows.filter(({ good, readiness }) => good.publishedAt && !good.archivedAt && good.stock !== 'soldout' && readiness.availableQty === 0).map(({ good }) => good.id);
+  const [inline, customerVisible, preorderLabels] = await Promise.all([loadGoodsListInlineValues(pageIds), loadGoodsListCustomerVisibility(pageIds), loadGoodsListPreorderSaleLabels(soldOutIds)]);
   return { filters, total, pageSize, counts, stockCounts: parseGoodsStockCounts(result.data.stockCounts), saleStateCounts: parseGoodsSaleStateCounts(result.data.saleStateCounts),
     ips, categories, origins, checkedAt: result.data.checkedAt,
-    goods: (result.data.rows as WorkspaceRow[]).map(good => {
-      const readiness = parseGoodsReadiness(good.readiness);
-      return { ...inline.get(good.id), id: good.id, productNo: productNumber(good.productNo), code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
+    goods: rows.map(({ good, readiness }) => {
+      return { ...inline.get(good.id), preorderSaleLabel: preorderLabels.get(good.id) ?? null, id: good.id, productNo: productNumber(good.productNo), code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
         publishedAt: good.publishedAt, archivedAt: good.archivedAt, stock: good.stock, stockQty: good.stockQty,
         createdAt: good.createdAt, updatedAt: good.updatedAt,
         activeStockQty: good.readiness.activeStockQty, lowStockOptionCount: good.readiness.lowStockOptionCount,
@@ -97,6 +99,25 @@ async function loadGoodsListCustomerVisibility(ids: string[]) {
     for (const row of (result.data ?? []) as { id: string }[]) visible.add(row.id);
   } catch { visible.clear(); }
   return visible;
+}
+
+/* 판매 가능 수량이 0인 예약판매 상품은 품절이 아니라 고객 화면과 같은 예약 상태(접수 전 '판매 예정' 등)로 보인다.
+   예약 상태는 고객 화면이 읽는 옵션 공급 값(goods_variant_supply)과 같다. 읽지 못하거나 한도에 걸려 일부만 읽으면 배지는 지금처럼 품절이다. */
+async function loadGoodsListPreorderSaleLabels(ids: string[]) {
+  const labels = new Map<string, string>();
+  if (!ids.length) return labels;
+  try {
+    const client = await createClient();
+    const result = await client.from('goods_variants').select('good_id,supply:goods_variant_supply').in('good_id', ids).is('archived_at', null).limit(1000);
+    if (result.error || !Array.isArray(result.data) || result.data.length >= 1000) return labels;
+    const supplies = new Map<string, unknown[]>();
+    for (const row of result.data as { good_id: string; supply: unknown }[]) supplies.set(row.good_id, [...(supplies.get(row.good_id) ?? []), row.supply]);
+    for (const [goodId, values] of supplies) {
+      const label = goodsListPreorderSaleLabel(values);
+      if (label) labels.set(goodId, label);
+    }
+  } catch { labels.clear(); }
+  return labels;
 }
 
 /* 목록 바로 수정(A9)에 필요한 현재 판매가·할인 상태와 사용 옵션 재고. 한 페이지(최대 100개)만 읽는다.

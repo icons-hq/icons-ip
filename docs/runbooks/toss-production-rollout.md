@@ -576,12 +576,10 @@ MID가 아니라(`ticonsi0xvd` 등 테스트 MID) `provider_merchant_mismatch`�
    않는다) → production 재배포 → readback `Toss escrow key configured=true`. 결제 키(`TOSS_SECRET_KEY`)와 모드가 같아야 한다(라이브 전환 때
    함께 바꾼다). 이 키가 없으면 에스크로 배송 등록이 대기하고 시스템 상태의 '에스크로 배송 등록·거래 상태 확인' 작업이
    '에스크로 API 키 없음'으로 실패를 알린다. 구매자 에스크로 취소 신청 건의 환불도 이 키로 신청을 확인한다(없으면 일반 결제 취소로 간다).
-6. 법정 고지(이번 개정 확정값: 2026-11-23 즉시 시행 — 운영 책임자 결정, 날짜 파일의 `noticeWaiver`가 기록):
-   `lib/legal/virtual-account-terms-revision.json`의 시행일은 원칙상 공지일 + 7일 이상이다. 더 짧게 하려면 운영 책임자 결정을
-   `noticeWaiver`(10~200자)로 남겨야 빌드 가드가 받는다. 다른 예약 개정(표기·부분 반품·알림톡)과의 선후는 법정 문서가 시행일
-   순서로 정한다. 공지 기간은 앞선 개정의 공지와 겹쳐도 된다 — 법정 문서 화면이 사전 공지를 함께 보인다. 시행일 전에는
-   `TOSS_VIRTUAL_ACCOUNT_ENABLED`를 켤 수 없다(빌드 가드).
-   시행일부터 사이트 하단에 토스페이먼츠 공식 에스크로 인증 마크(`public/brand/toss-escrow-mark.png` — 공식 용어 문서 '에스크로'의
+6. 법정 고지: 계좌이체·가상계좌·구매안전서비스 고지는 법정 문서 오픈 전 최초 판(2026-11-25 시행, `lib/legal/documents.ts`) 본문에
+   있다(2026-11-23 즉시 시행 개정이었으나 2026-11-25 운영 책임자 결정으로 개정 이력 없이 최초 판에 접었다). 그래서 빌드 가드는 더 이상
+   법정 고지 날짜로 `TOSS_VIRTUAL_ACCOUNT_ENABLED`를 막지 않는다. 오픈 뒤 고지를 바꾸면 약관 제3조·방침 제13조대로 사전 공지한다.
+   사이트 하단에는 사이트 하단에 토스페이먼츠 공식 에스크로 인증 마크(`public/brand/toss-escrow-mark.png` — 공식 용어 문서 '에스크로'의
    다운로드 원본 그대로), 구매안전서비스 가입 문구와 '서비스 가입 사실 확인' 링크
    (`consumer.tosspayments.com/escrow/detail?mertid=iconsi0xvd`)가 보인다 — 시행 전에 이 링크에서 ICONS 가입 사실이 보이는지
    확인하고, 다르면 `components/shell/SiteFooter.tsx`의 `ESCROW_SERVICE_CHECK_HREF`를 상점관리자가 주는 주소로 바꾼다.

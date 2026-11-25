@@ -11,76 +11,16 @@ import {
   PENDING_PROCESSOR_LABEL,
   type LegalDocument,
 } from './documents';
-import {
-  CONTACT_CHANNELS_PRIVACY_REVISION,
-  contactChannelsPrivacyRevisionAnnounced,
-  contactChannelsPrivacyRevisionInEffect,
-} from './contact-channels-privacy-revision';
 import { PRIVACY_ADDRESS_BOOK_REVISION, kstToday, koreanLegalDate } from './privacy-address-book-revision';
-import {
-  ALIMTALK_PRIVACY_REVISION,
-  type AlimtalkPrivacyRevision,
-  alimtalkPrivacyRevisionAnnounced,
-  alimtalkPrivacyRevisionInEffect,
-} from './alimtalk-privacy-revision';
-import { KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE } from '../auth/contact-channels';
-import {
-  SHIPPING_BUNDLE_WORDING_REVISION,
-  type ShippingBundleWordingRevision,
-  shippingBundleWordingRevisionAnnounced,
-  shippingBundleWordingRevisionInEffect,
-} from './shipping-bundle-wording-revision';
-import { partialReturnTermsRevisionAnnounced, partialReturnTermsRevisionInEffect, type PartialReturnTermsRevision } from './partial-return-terms-revision';
-import {
-  VIRTUAL_ACCOUNT_TERMS_REVISION,
-  type VirtualAccountTermsRevision,
-  virtualAccountTermsRevisionAnnounced,
-  virtualAccountTermsRevisionInEffect,
-} from './virtual-account-terms-revision';
+import { CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE, KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE } from '../auth/contact-channels';
 import { SOCIAL_LOGIN_LABELS } from './social-login';
-import {
-  BRAND_NAME_REVISION,
-  type BrandNameRevision,
-  brandNameRevisionAnnounced,
-  brandNameRevisionInEffect,
-} from './brand-name-revision';
-import {
-  BOT_PROTECTION_PRIVACY_REVISION,
-  type BotProtectionPrivacyRevision,
-  botProtectionPrivacyRevisionAnnounced,
-  botProtectionPrivacyRevisionInEffect,
-} from './bot-protection-privacy-revision';
 
-/** KST 달력 날짜(`YYYY-MM-DD`)를 하루 단위로 옮긴다. */
-function shiftDay(date: string, days: number): string {
-  const shifted = new Date(`${date}T00:00:00Z`);
-  shifted.setUTCDate(shifted.getUTCDate() + days);
-  return shifted.toISOString().slice(0, 10);
-}
-
-/* '출고지' 표기 예약 개정(1027T-010)은 날짜(KST)로 상태가 갈린다 — 공지 전날·공지일·시행 전날·시행일을 개정 상수에서 파생해
-   고정한다(병합 때 날짜를 옮겨도 시험이 따라온다). LEGAL_DOCUMENTS(오늘 날짜)는 어느 상태든 성립해야 하는 검사에만 쓴다. */
-/* 운영 상수(SHIPPING_BUNDLE_WORDING_REVISION)는 배포 직전에 날짜가 커밋되므로 시험은 주입한 날짜로 세 상태를 고정한다. */
-const BUNDLE_REVISION: ShippingBundleWordingRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
-const { announcedDate: BUNDLE_ANNOUNCED, effectiveDate: BUNDLE_EFFECTIVE } = BUNDLE_REVISION;
-const BEFORE_BUNDLE = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-const DURING_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_ANNOUNCED, BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-const LAST_NOTICE_DAY = createLegalDocuments(BUSINESS_INFO, shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-const AFTER_BUNDLE = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-
-/* 방침 개정(휴대폰 번호 인증·이메일 변경, 카카오톡 알림톡)은 위 표기 개정과 날짜가 따로다 — 위 세트들은 방침 개정을 모두 끄고(null) 2026-11-06 최초 판을 고정한다.
-   알림톡 개정은 아래 전용 describe가 날짜별로 고정한다.
-   BASE_LEGAL 은 실제 시계와 무관하게 방침 최초 판을 고정한 현행 문서 셋이다(방침 본문 문구를 검사하는 시험이 시행일 뒤에도 같은 본문을 본다). */
-const BASE_LEGAL = createLegalDocuments(BUSINESS_INFO, '2026-11-10', null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-/* 방침 개정 상태 — 날짜는 개정 상수에서 파생한다. 표기 개정은 꺼서(null) terms·shipping 을 건드리지 않게 한다. */
-const PRIVACY_NOW = CONTACT_CHANNELS_PRIVACY_REVISION;
-const BEFORE_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, shiftDay(PRIVACY_NOW.announcedDate, -1), null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-const DURING_PRIVACY_NOTICE = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.announcedDate, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-const AFTER_PRIVACY_REVISION = createLegalDocuments(BUSINESS_INFO, PRIVACY_NOW.effectiveDate, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
+/* 연락처가 빈 사업자 정보로 만든 문서 셋 — 문의처 문장이 갈리는 두 갈래를 모두 검사한다. */
+const NO_CONTACT = createLegalDocuments({ ...BUSINESS_INFO, phone: '', email: '' });
 
 const documents = [
   ...LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]),
-  ...[BEFORE_BUNDLE, DURING_BUNDLE, AFTER_BUNDLE, AFTER_PRIVACY_REVISION].flatMap((set) => LEGAL_DOCUMENT_SLUGS.map((slug) => set[slug])),
+  ...LEGAL_DOCUMENT_SLUGS.map((slug) => NO_CONTACT[slug]),
 ];
 
 function source() {
@@ -99,6 +39,13 @@ function plainText(document: LegalDocument): string {
     ])
     .join('\n');
 }
+
+function article(document: LegalDocument, prefix: string) {
+  const found = document.articles.filter((item) => item.heading.startsWith(prefix));
+  expect(found, prefix).toHaveLength(1);
+  return found[0]!;
+}
+
 
 describe('법정 문서 레지스트리', () => {
   it('세 문서만 공개하고 슬러그로 조회한다', () => {
@@ -158,129 +105,33 @@ describe('법정 문서 레지스트리', () => {
     }
   });
 
-  /* 서비스 공개(오픈) 전이라 실사용자가 없었다 — 세 문서는 개정 안내·이전 본문 없이 2026-11-06 최초 판 하나로 시작했다.
-     오픈 뒤 개정부터는 약관 제3조·방침 제13조대로 사전 공지와 이전 본문 보존을 쓴다(아래 '출고지' 표기 개정이 첫 사례다). */
-  it('공지 전에는 오픈 전 최초 판이다 — 세 문서 모두 2026-11-06 시행이고 사전 공지·개정 안내·이전 본문이 없다', () => {
+  /* 서비스 공개(오픈) 전이라 실사용자가 없다 — 세 문서는 개정 안내·이전 본문·사전 공지 없이 2026-11-25에 작성한 최초 판 하나다.
+     오픈 뒤 개정부터는 약관 제3조·방침 제13조대로 사전 공지와 이전 본문 보존을 쓴다(렌더 경로는 라우트 시험이 fixture로 지킨다). */
+  it('오픈 전 최초 판이다 — 세 문서 모두 2026-11-25 시행이고 사전 공지·개정 안내·이전 본문이 없다', () => {
     expect(Object.keys(LEGAL_EFFECTIVE_DATES).sort()).toEqual([...LEGAL_DOCUMENT_SLUGS].sort());
 
+    for (const document of documents) {
+      expect(document.effectiveDate, document.slug).toBe('2026-11-25');
+      expect(document.effectiveDate, document.slug).toBe(LEGAL_EFFECTIVE_DATES[document.slug]);
+      expect(document.pendingRevision, document.slug).toBeUndefined();
+      expect(document.additionalPendingRevisions, document.slug).toBeUndefined();
+      expect(document.revisionChanges, document.slug).toBeUndefined();
+      expect(document.previousVersion, document.slug).toBeUndefined();
+    }
     for (const slug of LEGAL_DOCUMENT_SLUGS) {
-      const document = BEFORE_BUNDLE[slug];
-      expect(document.effectiveDate, slug).toBe('2026-11-06');
-      expect(document.effectiveDate, slug).toBe(LEGAL_EFFECTIVE_DATES[slug]);
-      expect(document.pendingRevision, slug).toBeUndefined();
-      expect(document.revisionChanges, slug).toBeUndefined();
-      expect(document.previousVersion, slug).toBeUndefined();
       /* 한 문서만 개정할 수 있도록 각 문서는 자기 슬러그의 시행일만 참조한다. */
       expect(source().match(new RegExp(`LEGAL_EFFECTIVE_DATES\\.${slug}`, 'g')), slug).toHaveLength(1);
     }
-
     expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개별 개정을 할 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
+    /* 날짜로 개정본을 고르는 장치가 남아 있지 않다. */
+    expect(source()).not.toMatch(/-revision'/);
   });
 
-  /* 1027T-010 '전부 제거' — 개인정보처리방침에는 '출고지'가 없어 이 개정과 무관하다. 어느 상태에서도 최초 판 그대로다. */
-  it('개인정보처리방침은 출고지 표기 개정과 무관하게 2026-11-06 최초 판 그대로다', () => {
-    for (const set of [BEFORE_BUNDLE, DURING_BUNDLE, LAST_NOTICE_DAY, AFTER_BUNDLE]) {
-      expect(set.privacy).toEqual(BEFORE_BUNDLE.privacy);
-      expect(plainText(set.privacy)).not.toContain('출고지');
-    }
+  it('방침을 읽는 운영 게이트(휴대폰 번호 인증·알림톡)는 최초 판 시행일을 쓴다', () => {
+    expect(CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE).toBe(LEGAL_EFFECTIVE_DATES.privacy);
+    expect(KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE).toBe(LEGAL_EFFECTIVE_DATES.privacy);
   });
 
-  /* 약관 제3조·방침 제13조 — 적용일자 7일 전부터 현행 본문과 함께 공지한다. 날짜는 병합·배포 때 정하지만 간격은 여기서 지킨다. */
-  it("'출고지' 표기 개정은 시행 7일 전 이상부터 공지하고, 공지 기간에는 현행 본문을 바꾸지 않는다", () => {
-    const days = (Date.parse(`${BUNDLE_EFFECTIVE}T00:00:00+09:00`) - Date.parse(`${BUNDLE_ANNOUNCED}T00:00:00+09:00`)) / 86_400_000;
-    expect(days, '시행 7일 전부터 공지').toBeGreaterThanOrEqual(7);
-    /* 오픈 전 최초 판(2026-11-06) 뒤의 개정이다 — 최초 판보다 앞선 날짜를 공지일로 쓰지 않는다. */
-    expect(BUNDLE_ANNOUNCED >= LEGAL_EFFECTIVE_DATES.terms && BUNDLE_ANNOUNCED >= LEGAL_EFFECTIVE_DATES.shipping).toBe(true);
-
-    for (const set of [DURING_BUNDLE, LAST_NOTICE_DAY]) {
-      for (const slug of ['terms', 'shipping'] as const) {
-        const during = set[slug];
-        /* 공지 기간의 현행 본문·시행일은 공지 전과 같다 — 사전 공지만 붙는다. */
-        expect(during.articles, slug).toEqual(BEFORE_BUNDLE[slug].articles);
-        expect(during.effectiveDate, slug).toBe('2026-11-06');
-        expect(during.previousVersion, slug).toBeUndefined();
-        expect(during.revisionChanges, slug).toBeUndefined();
-        expect(during.pendingRevision, slug).toMatchObject({
-          announcedDate: BUNDLE_ANNOUNCED,
-          effectiveDate: BUNDLE_EFFECTIVE,
-          heading: '배송 단위 표기(배송 묶음) 통일에 따른 개정 예정 안내',
-        });
-        const notice = during.pendingRevision!.changes.join('\n');
-        expect(notice, slug).toContain('개정 사유');
-        expect(notice, slug).toContain("'배송 묶음");
-        expect(notice, slug).toContain('바뀌지 않습니다');
-      }
-    }
-    expect(DURING_BUNDLE.terms.pendingRevision!.changes.join('\n')).toContain('제16조의2(반품과 교환)');
-    expect(DURING_BUNDLE.shipping.pendingRevision!.changes.join('\n')).toContain('1. 배송 안내');
-  });
-
-  /* 시행일부터 바뀐 본문이 현행이 되고, 직전 공개 본문을 이전 판으로 그대로 남긴다(약관 제3조 개정 이력). */
-  it("'출고지' 표기 개정은 시행일부터 본문에서 출고지를 배송 묶음으로 바꾸고 직전 본문을 이전 판으로 보존한다", () => {
-    for (const slug of ['terms', 'shipping'] as const) {
-      const before = BEFORE_BUNDLE[slug];
-      const after = AFTER_BUNDLE[slug];
-      expect(plainText(before), slug).toContain('출고지별');
-      expect(plainText(after), slug).not.toContain('출고지');
-      expect(plainText(after), slug).toContain('배송 묶음별');
-      expect(after.effectiveDate, slug).toBe(BUNDLE_EFFECTIVE);
-      expect(after.pendingRevision, slug).toBeUndefined();
-      expect(after.previousVersion, slug).toEqual({ effectiveDate: '2026-11-06', articles: before.articles });
-      expect(after.revisionChanges?.length, slug).toBeGreaterThan(0);
-      for (const change of after.revisionChanges!) expect(DURING_BUNDLE[slug].pendingRevision!.changes, slug).toContain(change);
-      /* 표기 말고는 바뀌지 않는다 — 조문 제목·수·표 머리글이 그대로다. */
-      expect(after.articles.map((article) => article.heading), slug).toEqual(before.articles.map((article) => article.heading));
-      expect(after.articles.map((article) => article.table?.columns ?? null), slug).toEqual(before.articles.map((article) => article.table?.columns ?? null));
-    }
-
-    const shippingRows = AFTER_BUNDLE.shipping.articles[0]!.table!.rows;
-    expect(shippingRows).toContainEqual(['배송 방법', '배송 묶음별 지정 택배사']);
-    expect(shippingRows.find(([label]) => label === '기본 배송비')?.[1]).toBe(
-      '굿즈 상세와 주문 화면에 표시된 배송 묶음별 배송 정책에 따릅니다. 배송 묶음이 다르면 배송비를 각각 더합니다.',
-    );
-    expect(shippingRows.find(([label]) => label === '무료 배송 조건')?.[1]).toMatch(/^같은 배송 묶음의 정책 적용 굿즈 할인 전 소계로 확인합니다/);
-    const procedure = AFTER_BUNDLE.shipping.articles.find((article) => article.heading.startsWith('6. '))!.list!.join('\n');
-    expect(procedure).toContain('배송 묶음별 반송 주소와 회수 방법을 안내합니다');
-    expect(procedure).toContain('배송 묶음별 반송 대상 굿즈와 수량의 실제 입고를 확인합니다');
-    expect(AFTER_BUNDLE.terms.articles.find((article) => article.heading.startsWith('제16조의2 '))!.paragraphs![0])
-      .toContain('환급·재배송은 배송 묶음별 실물 회수를 모두 확인한 뒤 진행합니다.');
-  });
-
-  it("'출고지' 표기 개정의 공지·시행은 한국 시간 날짜로 가른다", () => {
-    expect(shippingBundleWordingRevisionAnnounced(shiftDay(BUNDLE_ANNOUNCED, -1), BUNDLE_REVISION)).toBe(false);
-    expect(shippingBundleWordingRevisionAnnounced(BUNDLE_ANNOUNCED, BUNDLE_REVISION)).toBe(true);
-    expect(shippingBundleWordingRevisionAnnounced(shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION)).toBe(true);
-    expect(shippingBundleWordingRevisionAnnounced(BUNDLE_EFFECTIVE, BUNDLE_REVISION)).toBe(false);
-    expect(shippingBundleWordingRevisionInEffect(shiftDay(BUNDLE_EFFECTIVE, -1), BUNDLE_REVISION)).toBe(false);
-    expect(shippingBundleWordingRevisionInEffect(BUNDLE_EFFECTIVE, BUNDLE_REVISION)).toBe(true);
-    /* 시행일 0시(KST)는 전날 15:00 UTC다. */
-    expect(kstToday(new Date(`${shiftDay(BUNDLE_EFFECTIVE, -1)}T14:59:59Z`))).toBe(shiftDay(BUNDLE_EFFECTIVE, -1));
-    expect(kstToday(new Date(`${shiftDay(BUNDLE_EFFECTIVE, -1)}T15:00:00Z`))).toBe(BUNDLE_EFFECTIVE);
-  });
-
-  /* 예약 없음(null)이 기본이다 — 공지·개정이 모두 꺼져 어느 날짜에도 현행 본문 그대로다. 운영 날짜는 배포 직전에 커밋한다. */
-  it("'출고지' 표기 개정 예약이 없으면(null) 어느 날짜에도 공지·개정 없이 현행 본문 그대로다", () => {
-    expect(shippingBundleWordingRevisionAnnounced('2026-12-31', null)).toBe(false);
-    expect(shippingBundleWordingRevisionInEffect('2099-01-01', null)).toBe(false);
-    for (const today of ['2026-11-20', '2026-12-31', '2099-01-01']) {
-      const set = createLegalDocuments(BUSINESS_INFO, today, null, undefined, { partialReturnRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-      for (const slug of ['terms', 'shipping'] as const) {
-        expect(set[slug].pendingRevision, `${slug} ${today}`).toBeUndefined();
-        expect(set[slug].previousVersion, `${slug} ${today}`).toBeUndefined();
-        expect(set[slug].revisionChanges, `${slug} ${today}`).toBeUndefined();
-        expect(set[slug], `${slug} ${today}`).toEqual(BEFORE_BUNDLE[slug]);
-        expect(plainText(set[slug])).toContain('출고지별');
-      }
-    }
-  });
-
-  it('운영 상수에 날짜가 들어 있으면 시행일은 공지일 + 7일 이상이고 최초 판 뒤다', () => {
-    if (SHIPPING_BUNDLE_WORDING_REVISION === null) return;
-    const { announcedDate, effectiveDate } = SHIPPING_BUNDLE_WORDING_REVISION;
-    const days = (Date.parse(`${effectiveDate}T00:00:00+09:00`) - Date.parse(`${announcedDate}T00:00:00+09:00`)) / 86_400_000;
-    expect(days).toBeGreaterThanOrEqual(7);
-    expect(announcedDate >= LEGAL_EFFECTIVE_DATES.terms).toBe(true);
-  });
 
   it('오픈 전에 없던 과거 결제·개정 이력을 본문에 남기지 않는다', () => {
     for (const document of documents) {
@@ -291,8 +142,10 @@ describe('법정 문서 레지스트리', () => {
     }
   });
 
-  it('주소록은 처리방침이 고지하는 날(최초 판 시행일)부터 열리고, 시행일은 한국 시간 날짜로 센다', () => {
-    expect(PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate).toBe(LEGAL_EFFECTIVE_DATES.privacy);
+  it('주소록은 이미 열려 있고 최초 판이 그 수집을 고지한다 — 시행일은 한국 시간 날짜로 센다', () => {
+    /* 주소록은 2026-11-06에 열렸고, 2026-11-25 최초 판이 주소록 수집을 본문에 담는다. */
+    expect(PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate <= LEGAL_EFFECTIVE_DATES.privacy).toBe(true);
+    expect(plainText(LEGAL_DOCUMENTS.privacy)).toContain('주소록 (선택)');
     expect(kstToday(new Date('2026-11-05T14:59:59Z'))).toBe('2026-11-05');
     expect(kstToday(new Date('2026-11-05T15:00:00Z'))).toBe('2026-11-06');
     expect(koreanLegalDate('2026-11-06')).toBe('2026년 11월 6일');
@@ -459,7 +312,7 @@ describe('이용약관', () => {
 });
 
 describe('개인정보처리방침', () => {
-  const privacy = BASE_LEGAL.privacy;
+  const privacy = LEGAL_DOCUMENTS.privacy;
   const text = plainText(privacy);
 
   it('코드가 실제로 수집하는 항목을 기술한다', () => {
@@ -488,8 +341,7 @@ describe('개인정보처리방침', () => {
   it('성인 인증의 수집 항목·목적·보관 항목·유효기간·수탁자를 밝힌다', () => {
     const article = (prefix: string) => privacy.articles.find((item) => item.heading.startsWith(prefix))!;
     const rows = article('제1조 ').table!.rows;
-    const row = rows[rows.findIndex((item) => item[0] === '온보딩') + 1];
-    expect(row?.[0]).toBe('성인 인증 (휴대폰 본인확인)');
+    const row = rows.find((item) => item[0] === '성인 인증 (휴대폰 본인확인)');
     expect(row?.[1]).toMatch(/연계정보\(CI\), 중복가입확인정보\(DI\)/);
     expect(row?.[1]).toMatch(/19세 이상 여부 판정에만 쓰고 저장하지 않으며/);
     expect(row?.[2]).toMatch(/성인 인증을 진행한 경우/);
@@ -559,7 +411,7 @@ describe('개인정보처리방침', () => {
     const transfer = privacy.articles.find((article) => article.heading.includes('국외'));
     const receivers = transfer!.table!.rows.map((row) => row[0]);
 
-    expect(receivers).toEqual(['Supabase, Inc.', 'Vercel, Inc.', 'Resend']);
+    expect(receivers).toEqual(['Supabase, Inc.', 'Vercel, Inc.', 'Cloudflare, Inc.', 'Twilio Inc.', 'Resend']);
     for (const entity of ['Google LLC', 'Apple Inc.', '카카오']) {
       expect(receivers, entity).not.toContain(entity);
     }
@@ -616,206 +468,8 @@ describe('개인정보처리방침', () => {
   });
 });
 
-describe('개인정보처리방침 예약 개정 — 휴대폰 번호 인증·이메일 변경', () => {
-  const base = BASE_LEGAL.privacy;
-  const revised = AFTER_PRIVACY_REVISION.privacy;
-  const article = (document: LegalDocument, prefix: string) => document.articles.find((item) => item.heading.startsWith(prefix))!;
-
-  it('공지 1일·시행 1일 뒤 일정이고 최초 판 시행일은 그대로다', () => {
-    expect(PRIVACY_NOW).toEqual({ announcedDate: '2026-11-17', effectiveDate: '2026-11-18' });
-    expect(LEGAL_EFFECTIVE_DATES.privacy).toBe('2026-11-06');
-    expect(PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate).toBe(LEGAL_EFFECTIVE_DATES.privacy);
-  });
-
-  it('공지 전날까지는 최초 판 그대로다', () => {
-    expect(BEFORE_PRIVACY_NOTICE.privacy).toEqual(base);
-    expect(base.effectiveDate).toBe('2026-11-06');
-    expect(base.pendingRevision).toBeUndefined();
-    expect(base.previousVersion).toBeUndefined();
-    expect(base.revisionChanges).toBeUndefined();
-    expect(plainText(base)).not.toContain('Twilio');
-  });
-
-  it('공지일에는 본문을 바꾸지 않고 개정 사전 공지만 붙인다', () => {
-    const during = DURING_PRIVACY_NOTICE.privacy;
-    expect(during.articles).toEqual(base.articles);
-    expect(during.effectiveDate).toBe('2026-11-06');
-    expect(during.previousVersion).toBeUndefined();
-    expect(during.revisionChanges).toBeUndefined();
-    expect(during.pendingRevision).toMatchObject({
-      announcedDate: '2026-11-17',
-      effectiveDate: '2026-11-18',
-      heading: '휴대폰 번호 인증·이메일 변경 도입에 따른 개정 예정 안내',
-    });
-    expect(during.pendingRevision!.changes[0]).toContain('개정 사유');
-    expect(during.pendingRevision!.changes.length).toBeGreaterThanOrEqual(7);
-    /* terms·shipping 은 이 개정과 무관하다. */
-    expect(DURING_PRIVACY_NOTICE.terms).toEqual(BASE_LEGAL.terms);
-    expect(DURING_PRIVACY_NOTICE.shipping).toEqual(BASE_LEGAL.shipping);
-  });
-
-  it('시행일부터 개정본이 현행이 되고 직전 본문을 이전 판으로 보존한다', () => {
-    expect(revised.effectiveDate).toBe('2026-11-18');
-    expect(revised.pendingRevision).toBeUndefined();
-    expect(revised.previousVersion).toEqual({ effectiveDate: '2026-11-06', articles: base.articles });
-    expect(revised.revisionChanges).toEqual(DURING_PRIVACY_NOTICE.privacy.pendingRevision!.changes);
-    expect(revised.articles.map((item) => item.heading)).toEqual(base.articles.map((item) => item.heading));
-    expect(AFTER_PRIVACY_REVISION.terms).toEqual(BASE_LEGAL.terms);
-    expect(AFTER_PRIVACY_REVISION.shipping).toEqual(BASE_LEGAL.shipping);
-    for (const row of article(revised, '제1조 ').table!.rows) expect(row).toHaveLength(3);
-  });
-
-  it('개정본 제1조: 휴대폰 번호 인증·이메일 변경·IP 팔로우 행을 더하고 온보딩 행에서 팔로우한 IP를 뺀다', () => {
-    const rows = article(revised, '제1조 ').table!.rows;
-    const byLabel = (label: string) => rows.find((row) => row[0] === label)!;
-    expect(byLabel('휴대폰 번호 인증')[1]).toContain('휴대폰 번호(국가 번호 포함)');
-    expect(byLabel('휴대폰 번호 인증')[1]).toContain('복원할 수 없게 변환한 값');
-    expect(byLabel('이메일 변경 (선택)')[2]).toContain('Apple 이메일 가리기');
-    expect(byLabel('IP 팔로우')).toEqual(['IP 팔로우', '팔로우한 IP와 IP별 알림 설정', '회원이 IP 페이지에서 팔로우한 경우']);
-    expect(byLabel('온보딩')[1]).not.toContain('팔로우한 IP');
-    expect(byLabel('온보딩')[1]).toContain('자동 생성');
-    expect(rows.map((row) => row[0]).slice(1, 5)).toEqual(['온보딩', '휴대폰 번호 인증', '이메일 변경 (선택)', 'IP 팔로우']);
-    expect(article(base, '제1조 ').table!.rows.find((row) => row[0] === '온보딩')![1]).toContain('팔로우한 IP');
-  });
-
-  it('개정본 제2조·제3조: 목적과 보유 기간을 더하고 문자 알림·마케팅은 하지 않는다고 밝힌다', () => {
-    const purposes = article(revised, '제2조 (');
-    expect(purposes.list!.some((item) => item.startsWith('휴대폰 번호 인증을 통한 회원 연락처 확인'))).toBe(true);
-    expect(purposes.list!.length).toBe(article(base, '제2조 (').list!.length + 1);
-    expect(purposes.closing!.join('\n')).toContain('문자 메시지를 통한 알림·거래 안내·마케팅 정보 발송에는 이용하지 않습니다');
-    const retention = article(revised, '제3조 ').closing!.join('\n');
-    expect(retention).toContain('요청 2일 뒤');
-    expect(retention).toContain('발생 1년 뒤');
-    expect(retention).toContain('재인증이 필요하다는 표시만');
-    expect(retention).toContain('이메일 변경 인증 요청 기록');
-  });
-
-  it('개정본 제5조·제6조: Twilio를 위탁·국외 이전에 올리고 이메일 발송 수탁자 업무에 이메일 변경을 더한다', () => {
-    const consignment = article(revised, '제5조 ');
-    expect(consignment.table!.rows).toContainEqual(['Twilio Inc.', '휴대폰 번호 인증번호 문자 발송', '위탁계약 종료 시까지']);
-    const resend = consignment.table!.rows.find((row) => row[0] === 'Resend')!;
-    expect(resend[1]).toContain('이메일 변경 인증 메일');
-    expect(consignment.closing!.join('\n')).toContain('이메일 변경 인증 메일에는 변경할 이메일 주소');
-
-    const transfer = article(revised, '제6조 ');
-    expect(transfer.table!.rows).toContainEqual([
-      'Twilio Inc.',
-      '미국',
-      '휴대폰 번호(국가 번호 포함)와 인증번호 · 인증번호를 요청할 때 · 정보통신망을 통한 전송',
-      '휴대폰 번호 인증 문자 발송 · 위탁계약 종료 시까지',
-    ]);
-    const resendTransfer = transfer.table!.rows.find((row) => row[0] === 'Resend')!;
-    expect(resendTransfer[2]).toContain('이메일 변경 인증 메일');
-    expect(resendTransfer[3]).toContain('이메일 변경 인증 메일');
-    for (const row of consignment.table!.rows) expect(row).toHaveLength(3);
-    for (const row of transfer.table!.rows) expect(row).toHaveLength(4);
-  });
-
-  it('개정본 제7조: 휴대폰 번호를 설정 직접 수정 항목에 더하고, 제11조의 항목 나열은 그대로 둔다', () => {
-    const rights = article(revised, '제7조 ').paragraphs!.join('\n');
-    expect(rights).toContain('닉네임, 프로필 이미지, 마케팅 정보 수신 동의 여부, 휴대폰 번호는 설정 화면에서 직접');
-    expect(rights).toContain('이메일을 바꿀 수 있습니다');
-    expect(article(revised, '제11조 ')).toEqual(article(base, '제11조 '));
-  });
-
-  it('개정본에도 금지 어휘가 없고 문자 마케팅 발송을 주장하지 않는다', () => {
-    const text = plainText(revised);
-    for (const word of ['상품', '가챠', '뽑기', '확률', '충전', '천장']) expect(text, word).not.toMatch(new RegExp(word));
-    expect(text).not.toMatch(/문자[^.]*마케팅 정보를 (발송|제공)/);
-  });
-
-  it('공지·시행은 한국 시간 날짜로 가르고, 예약이 없으면(null) 늘 최초 판이다', () => {
-    expect(contactChannelsPrivacyRevisionAnnounced('2026-11-16', PRIVACY_NOW)).toBe(false);
-    expect(contactChannelsPrivacyRevisionAnnounced('2026-11-17', PRIVACY_NOW)).toBe(true);
-    expect(contactChannelsPrivacyRevisionAnnounced('2026-11-18', PRIVACY_NOW)).toBe(false);
-    expect(contactChannelsPrivacyRevisionInEffect('2026-11-17', PRIVACY_NOW)).toBe(false);
-    expect(contactChannelsPrivacyRevisionInEffect('2026-11-18', PRIVACY_NOW)).toBe(true);
-    expect(kstToday(new Date('2026-11-17T15:00:00Z'))).toBe('2026-11-18');
-    expect(contactChannelsPrivacyRevisionInEffect('2099-01-01', null)).toBe(false);
-    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null }).privacy).toEqual(base);
-  });
-});
-
-describe('개인정보처리방침 예약 개정 — 카카오톡 알림톡 주문 안내', () => {
-  /* 날짜는 배포 직전에 JSON으로 커밋되므로 시험은 주입한 날짜로 상태를 고정한다. 휴대폰 번호 인증 개정이 시행된 본문 위에 얹는다. */
-  const ALIMTALK: AlimtalkPrivacyRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
-  const at = (today: string) => createLegalDocuments(BUSINESS_INFO, today, null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-  const current = at(shiftDay(ALIMTALK.announcedDate, -1)).privacy;
-  const during = at(ALIMTALK.announcedDate).privacy;
-  const lastNotice = at(shiftDay(ALIMTALK.effectiveDate, -1)).privacy;
-  const revised = at(ALIMTALK.effectiveDate).privacy;
-  const article = (document: LegalDocument, prefix: string) => document.articles.find((item) => item.heading.startsWith(prefix))!;
-
-  it('운영 일정은 2026-11-23 공지·7일 뒤 시행이고, 운영 게이트가 같은 시행일을 읽는다', () => {
-    expect(ALIMTALK_PRIVACY_REVISION).toEqual({ announcedDate: '2026-11-23', effectiveDate: '2026-11-30' });
-    expect(KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE).toBe('2026-11-30');
-    /* 운영 상수(기본 인자) 그대로 공지·시행 상태를 만들 수 있어야 한다 — 휴대폰 번호 인증 개정이 이미 시행 중인 본문 위다. */
-    const announced = createLegalDocuments(BUSINESS_INFO, '2026-11-23').privacy;
-    expect(announced.pendingRevision?.heading).toBe('카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내');
-    expect(plainText(announced)).not.toContain('알림톡');
-    const effective = createLegalDocuments(BUSINESS_INFO, '2026-11-30').privacy;
-    expect(effective.effectiveDate).toBe('2026-11-30');
-    /* 가상계좌·계좌이체 개정(2026-11-23 즉시 시행)과 봇 차단 개정(2026-11-24 즉시 시행)이 먼저 시행돼 이전 판이 11-24 본문이다(시행일 순서). */
-    expect(effective.previousVersion?.effectiveDate).toBe('2026-11-24');
-    expect(plainText(effective)).toContain('카카오톡 알림톡');
-  });
-
-  it('예약이 없으면(null) 지금 방침 그대로다', () => {
-    expect(alimtalkPrivacyRevisionAnnounced('2030-01-01', null)).toBe(false);
-    expect(alimtalkPrivacyRevisionInEffect('2030-01-01', null)).toBe(false);
-    const unreserved = createLegalDocuments(BUSINESS_INFO, '2030-01-01', null, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null }).privacy;
-    expect(unreserved.articles).toEqual(current.articles);
-    expect(unreserved.effectiveDate).toBe(PRIVACY_NOW.effectiveDate);
-    expect(unreserved.pendingRevision).toBeUndefined();
-    expect(plainText(current)).not.toContain('알림톡');
-  });
-
-  it('공지 기간에는 본문을 바꾸지 않고 사전 공지만 붙인다', () => {
-    for (const document of [during, lastNotice]) {
-      expect(document.articles).toEqual(current.articles);
-      expect(document.effectiveDate).toBe(current.effectiveDate);
-      expect(document.pendingRevision).toMatchObject({ ...ALIMTALK, heading: '카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내' });
-      expect(document.pendingRevision!.changes[0]).toContain('개정 사유');
-    }
-  });
-
-  it('시행일부터 개정본이 현행이 되고 휴대폰 번호 인증 시행본을 이전 판으로 보존한다', () => {
-    expect(revised.effectiveDate).toBe(ALIMTALK.effectiveDate);
-    expect(revised.pendingRevision).toBeUndefined();
-    expect(revised.previousVersion).toEqual({ effectiveDate: PRIVACY_NOW.effectiveDate, articles: current.articles });
-    expect(revised.revisionChanges).toEqual(during.pendingRevision!.changes);
-    expect(revised.articles.map((item) => item.heading)).toEqual(current.articles.map((item) => item.heading));
-  });
-
-  it('제2조: 거래 안내 방법에 알림톡을 더하고, 인증 번호를 알림톡 주문 안내에만 쓴다고 바꾼다(문자·마케팅은 계속 쓰지 않는다)', () => {
-    const purposes = article(revised, '제2조 (');
-    expect(purposes.list).toContain('알림함·이메일·카카오톡 알림톡을 통한 거래 진행 안내와 서비스 공지');
-    const closing = purposes.closing!.join('\n');
-    expect(closing).toContain('주문한 회원 본인에게 주문 접수·굿즈 발송 사실을 알리는 카카오톡 알림톡 발송에만 이용합니다');
-    expect(closing).toContain('문자 메시지를 통한 알림·거래 안내와 마케팅 정보 발송에는 이용하지 않습니다');
-    expect(article(current, '제2조 (').closing!.join('\n')).toContain('거래 안내·마케팅 정보 발송에는 이용하지 않습니다');
-  });
-
-  it('제5조: 알림톡 수탁자 두 곳과 전달 항목을 밝힌다', () => {
-    const consignment = article(revised, '제5조 ');
-    const names = consignment.table!.rows.map((row) => row[0]);
-    expect(names).toContain('엔에이치엔클라우드 주식회사');
-    expect(names).toContain('주식회사 카카오');
-    expect(names.indexOf('엔에이치엔클라우드 주식회사')).toBe(names.indexOf('Resend') + 1);
-    for (const row of consignment.table!.rows) expect(row).toHaveLength(3);
-    expect(consignment.closing!.join('\n')).toContain('인증한 휴대폰 번호와 안내 내용');
-    /* 국내 수탁자라 국외 이전 표는 그대로다. */
-    expect(article(revised, '제6조 ')).toEqual(article(current, '제6조 '));
-  });
-
-  it('휴대폰 번호 인증 개정이 시행되지 않은 본문에는 얹을 수 없다(앵커 검사)', () => {
-    expect(() => createLegalDocuments(BUSINESS_INFO, ALIMTALK.effectiveDate, null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null })).toThrow(/alimtalk_privacy_anchor_changed/);
-  });
-});
-
 describe('배송·반품 정책', () => {
-  /* 시행일 뒤의 현행 본문('배송 묶음' 표기)을 본다 — 바뀐 것은 표기뿐이라 나머지 검사는 개정 전 본문에도 그대로 성립한다. */
-  const shipping = AFTER_BUNDLE.shipping;
+  const shipping = LEGAL_DOCUMENTS.shipping;
   const text = plainText(shipping);
 
   it('배송 묶음별 DB 정책 안내와 합산 기준을 설명하고 고정 금액을 복제하지 않는다', () => {
@@ -823,18 +477,18 @@ describe('배송·반품 정책', () => {
     expect(text).not.toContain('출고지');
     expect(text).toContain('할인 전');
     expect(text).toContain('굿즈당 한 번');
-    expect(text).not.toContain('3,000원');
-    expect(text).not.toContain('50,000원 이상');
+    /* 배송비 금액은 상품 상세·주문 화면이 출고지 설정에서 고지한다 — 배송 안내 표는 금액을 복제하지 않는다. */
+    const delivery = plainText({ ...shipping, articles: [shipping.articles[0]!] });
+    expect(delivery).not.toContain('3,000원');
+    expect(delivery).not.toContain('50,000원 이상');
   });
 
-  /* 주문 상세의 청약철회는 주문 단위 하나뿐이고, cancelTossPayment가 cancelAmount 없이
-     전액을 취소한다. 부분 환불은 계획 §6의 명시적 제외 항목이다 — 문서가 약속하면 안 된다. */
-  it('부분 환급을 약속하지 않고 주문 단위 전액 취소만 안내한다', () => {
-    expect(text).not.toMatch(/일부만 반품하는 경우 반품 대상 굿즈의 대금을 기준으로 환급/);
-    expect(text).toMatch(/청약철회는 주문 단위로만 신청할 수 있습니다/);
-    expect(text).toMatch(/결제금액 전액이 취소/);
-    /* 일부만 반송하려는 이용자에게 실제로 할 수 있는 행동을 남긴다. */
-    expect(text).toMatch(/일부만 반송하고 싶다면/);
+  /* 부분 반품(ADR-0047) — 주문 전체 또는 고른 굿즈·수량 단위로 청약철회하고, 그 굿즈에 배분된 금액을 환급한다. */
+  it('일부 굿즈·수량 반품과 그 환급 범위를 안내한다', () => {
+    expect(text).toMatch(/청약철회는 주문 전체 또는 고른 굿즈·수량 단위로 신청할 수 있습니다/);
+    expect(text).toMatch(/그 굿즈만 담긴 배송 묶음의 배송비를 환급/);
+    expect(text).toMatch(/일부만 반송하고 싶다면 주문 상세의 반품 신청에서 반송할 굿즈와 수량을 골라주세요/);
+    expect(text).not.toMatch(/청약철회는 주문 단위로만 신청할 수 있습니다/);
   });
 
   it('시스템이 하지 않는 배송비 공제를 고지하지 않는다', () => {
@@ -843,7 +497,8 @@ describe('배송·반품 정책', () => {
   });
 
   it('반송비 부담 주체를 사유별로 나눈다', () => {
-    expect(text).toMatch(/착불/);
+    expect(text).toMatch(/반품배송비\(편도 3,000원\)를 환급액에서 차감/);
+    expect(text).toMatch(/처음 반품할 때 한 번 왕복 6,000원/);
     expect(text).toMatch(/회사가 부담/);
   });
 
@@ -864,432 +519,84 @@ describe('배송·반품 정책', () => {
 
 it("설정 연락처 변경을 모든 법정 문서에 반영한다",()=>{for(const slug of LEGAL_DOCUMENT_SLUGS){const rendered=JSON.stringify(getLegalDocument(slug,{...BUSINESS_INFO,phone:"",email:"current@example.test"}));expect(rendered).toContain("current@example.test");expect(rendered).not.toContain(BUSINESS_INFO.phone);}});
 
-describe('이용약관·배송·반품 정책 예약 개정 — 부분 반품·반품배송비 차감(ADR-0047)', () => {
-  /* '출고지' 표기 개정(BUNDLE_REVISION)이 이미 시행된 뒤에 얹는다 — 날짜는 시험이 주입한다(운영 날짜는 머지 직전에 JSON으로 정한다). */
-  const REVISION: PartialReturnTermsRevision = { announcedDate: shiftDay(BUNDLE_EFFECTIVE, 1), effectiveDate: shiftDay(BUNDLE_EFFECTIVE, 8) };
-  const before = createLegalDocuments(BUSINESS_INFO, BUNDLE_EFFECTIVE, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-  const during = createLegalDocuments(BUSINESS_INFO, REVISION.announcedDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-  const after = createLegalDocuments(BUSINESS_INFO, REVISION.effectiveDate, BUNDLE_REVISION, null, { partialReturnRevision: REVISION, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null });
-
-  it('공지 전에는 본문·공지가 그대로다', () => {
-    expect(before.terms).toEqual(AFTER_BUNDLE.terms);
-    expect(before.shipping).toEqual(AFTER_BUNDLE.shipping);
-  });
-
-  it('공지 기간에는 현행 본문을 두고 개정 예정 안내만 붙인다', () => {
-    for (const slug of ['terms', 'shipping'] as const) {
-      expect(during[slug].articles).toEqual(AFTER_BUNDLE[slug].articles);
-      expect(during[slug].pendingRevision).toMatchObject({ announcedDate: REVISION.announcedDate, effectiveDate: REVISION.effectiveDate,
-        heading: '일부 굿즈 반품·반품배송비 차감 도입에 따른 개정 예정 안내' });
-    }
-    expect(during.privacy).toEqual(AFTER_BUNDLE.privacy);
-  });
-
-  it('시행일부터 일부 굿즈 반품·반품배송비 차감 본문이 현행이 되고 직전 본문(배송 묶음 표기)을 이전 판으로 보존한다', () => {
-    const terms = plainText(after.terms);
-    const shipping = plainText(after.shipping);
-    expect(after.terms.effectiveDate).toBe(REVISION.effectiveDate);
-    expect(after.terms.previousVersion).toEqual({ effectiveDate: BUNDLE_EFFECTIVE, articles: AFTER_BUNDLE.terms.articles });
-    expect(after.shipping.previousVersion).toEqual({ effectiveDate: BUNDLE_EFFECTIVE, articles: AFTER_BUNDLE.shipping.articles });
-    expect(terms).not.toContain('일부만 환급하는 처리는 제공하지 않습니다');
-    expect(terms).not.toContain('나머지 대금을 그대로 두는 처리는 제공하지 않습니다');
-    expect(terms).toContain('주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다');
-    expect(terms).toContain('반품배송비)은 환급액에서 차감할 수 있습니다');
-    expect(terms).toContain('배송 묶음별 실물 회수');
-    expect(shipping).not.toContain('일부 굿즈만 반품하고 나머지 대금은 그대로 두는 처리는 제공하지 않습니다');
-    expect(shipping).not.toContain('착불로 반송합니다');
-    expect(shipping).toContain('반품배송비(편도 3,000원)를 환급액에서 차감합니다');
-    expect(shipping).toContain('처음 반품할 때 한 번 왕복 6,000원');
-    expect(shipping).toContain('굿즈의 하자·파손, 오배송 등 계약내용과 다른 이행');
-    expect(shipping).toContain('일부 굿즈 반품은 주문 전체로만 신청할 수 있습니다');
-    expect(shipping).toContain('일부만 반송하고 싶다면 주문 상세의 반품 신청에서');
-    expect(after.terms.revisionChanges?.[0]).toContain('전자상거래법 제17조·제35조');
-    expect(after.privacy).toEqual(AFTER_BUNDLE.privacy);
-  });
-
-  it('공지·시행은 한국 시간 날짜로 가르고, 예약이 없으면(null) 늘 현행 본문이다', () => {
-    expect(partialReturnTermsRevisionAnnounced(shiftDay(REVISION.announcedDate, -1), REVISION)).toBe(false);
-    expect(partialReturnTermsRevisionAnnounced(REVISION.announcedDate, REVISION)).toBe(true);
-    expect(partialReturnTermsRevisionInEffect(shiftDay(REVISION.effectiveDate, -1), REVISION)).toBe(false);
-    expect(partialReturnTermsRevisionInEffect(REVISION.effectiveDate, REVISION)).toBe(true);
-    expect(createLegalDocuments(BUSINESS_INFO, '2099-01-01', BUNDLE_REVISION, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision: null, botProtectionPrivacyRevision: null }).terms.articles).toEqual(AFTER_BUNDLE.terms.articles);
-  });
-});
-
-describe('이용약관·개인정보처리방침·배송·반품 정책 예약 개정 — 토스 가상계좌·구매안전서비스(ADR-0049)', () => {
-  /* 다른 예약 개정(표기·휴대폰 번호 인증·알림톡·부분 반품)이 모두 시행된 본문 위에 얹는다 — 날짜는 시험이 주입한다(운영 날짜는 머지 직전에 JSON으로 정한다). */
-  const ALIMTALK: AlimtalkPrivacyRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-27' };
-  const PARTIAL: PartialReturnTermsRevision = { announcedDate: '2026-11-27', effectiveDate: '2026-12-04' };
-  const VA: VirtualAccountTermsRevision = { announcedDate: '2026-12-05', effectiveDate: '2026-12-12' };
-  const at = (today: string, virtualAccountRevision: VirtualAccountTermsRevision | null = VA) =>
-    createLegalDocuments(BUSINESS_INFO, today, BUNDLE_REVISION, PRIVACY_NOW, { partialReturnRevision: PARTIAL, alimtalkPrivacyRevision: ALIMTALK, virtualAccountRevision, brandNameRevision: null, botProtectionPrivacyRevision: null });
-  const base = at(shiftDay(VA.announcedDate, -1));
-  const during = at(VA.announcedDate);
-  const lastNotice = at(shiftDay(VA.effectiveDate, -1));
-  const after = at(VA.effectiveDate);
-  const article = (document: LegalDocument, heading: string) => document.articles.find((item) => item.heading === heading)!;
-
-  it('운영 날짜 파일은 확정값(2026-11-23 즉시 시행 — 운영 책임자 결정)이다', () => {
-    expect(VIRTUAL_ACCOUNT_TERMS_REVISION).toEqual({ announcedDate: '2026-11-23', effectiveDate: '2026-11-23' });
-    /* 운영 상수(기본 인자) 그대로 시행 상태와, 그 뒤 앞선 예약 개정(부분 반품 11-27·알림톡 11-30)의 시행 상태를 만들 수 있어야 한다. */
-    const today = createLegalDocuments(BUSINESS_INFO, '2026-11-23');
-    for (const slug of LEGAL_DOCUMENT_SLUGS) {
-      expect(today[slug].effectiveDate, slug).toBe('2026-11-23');
-      expect(plainText(today[slug]), slug).toContain('가상계좌');
-    }
-    expect(plainText(today.terms)).toContain('신용·체크카드, 간편결제, 계좌이체 또는 가상계좌(무통장입금)로 지급할 수 있습니다');
-    /* 즉시 시행이라 가상계좌 사전 공지는 없고, 앞선 개정의 공지는 그대로 보인다. */
-    expect(today.terms.pendingRevision?.heading).toBe('일부 굿즈 반품·반품배송비 차감 도입에 따른 개정 예정 안내');
-    expect(today.privacy.pendingRevision?.heading).toBe('카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내');
-    for (const slug of LEGAL_DOCUMENT_SLUGS) expect(today[slug].additionalPendingRevisions, slug).toBeUndefined();
-    const partial = createLegalDocuments(BUSINESS_INFO, '2026-11-27');
-    expect(partial.terms.effectiveDate).toBe('2026-11-27');
-    /* 그 사이 서비스 이름 개정(2026-11-24 즉시 시행)이 약관에 얹혀, 부분 반품 시행본의 이전 판은 11-24 본문이다. */
-    expect(partial.terms.previousVersion?.effectiveDate).toBe('2026-11-24');
-    expect(plainText(partial.terms)).toContain('계좌이체 또는 가상계좌(무통장입금)');
-    expect(plainText(partial.terms)).toContain('주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다');
-    const alimtalk = createLegalDocuments(BUSINESS_INFO, '2026-11-30');
-    expect(plainText(alimtalk.privacy)).toContain('계좌이체·가상계좌(무통장입금) 결제 처리');
-    expect(plainText(alimtalk.privacy)).toContain('카카오톡 알림톡');
-  });
-
-  it('앞선 예약 개정보다 먼저 시행되면 그 개정이 가상계좌 본문 위에 얹히고 이전 판이 시행일 순서로 이어진다', () => {
-    const early: VirtualAccountTermsRevision = { announcedDate: '2026-11-20', effectiveDate: '2026-11-20' };
-    const now = at('2026-11-20', early);
-    expect(now.terms.effectiveDate).toBe('2026-11-20');
-    expect(now.terms.pendingRevision?.heading ?? '').not.toContain('가상계좌');
-    const partialOn = at(PARTIAL.effectiveDate, early);
-    expect(partialOn.terms.effectiveDate).toBe(PARTIAL.effectiveDate);
-    expect(partialOn.terms.previousVersion?.effectiveDate).toBe('2026-11-20');
-    expect(JSON.stringify(partialOn.terms.previousVersion?.articles)).toContain('계좌이체 또는 가상계좌(무통장입금)');
-    expect(plainText(partialOn.terms)).toContain('계좌이체 또는 가상계좌(무통장입금)');
-    expect(plainText(partialOn.shipping)).toContain('가상계좌 입금 기한');
-    const alimtalkOn = at(ALIMTALK.effectiveDate, early);
-    expect(alimtalkOn.privacy.previousVersion?.effectiveDate).toBe('2026-11-20');
-    expect(plainText(alimtalkOn.privacy)).toContain('가상계좌 결제 환급 계좌');
-  });
-
-  it('공지 기간에는 세 문서의 본문을 두고 개정 예정 안내만 붙인다', () => {
-    for (const slug of LEGAL_DOCUMENT_SLUGS) {
-      for (const notice of [during, lastNotice]) {
-        expect(notice[slug].articles, slug).toEqual(base[slug].articles);
-        expect(notice[slug].effectiveDate, slug).toBe(base[slug].effectiveDate);
-        expect(notice[slug].pendingRevision, slug).toMatchObject({ announcedDate: VA.announcedDate, effectiveDate: VA.effectiveDate,
-          heading: '계좌이체·가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내' });
-      }
-      expect(base[slug].pendingRevision?.heading ?? '', slug).not.toContain('가상계좌');
-    }
-  });
-
-  it('시행일부터 이용약관 제11조가 가상계좌·구매안전서비스·환급 계좌를 밝히고, 회사 계좌 무통장 입금(제11조의2)은 그대로다', () => {
-    expect(after.terms.effectiveDate).toBe(VA.effectiveDate);
-    expect(after.terms.previousVersion).toEqual({ effectiveDate: base.terms.effectiveDate, articles: base.terms.articles });
-    const payment = article(after.terms, '제11조 (지급방법)').paragraphs!;
-    expect(payment[0]).toBe('굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해 신용·체크카드, 간편결제, 계좌이체 또는 가상계좌(무통장입금)로 지급할 수 있습니다. 계좌이체와 가상계좌는 굿즈 주문에만 제공하며, 팝업 티켓과 19금 굿즈가 담긴 주문에는 제공하지 않습니다.');
-    const confirm = payment.findIndex((text) => text.startsWith('결제의 확정은 결제대행사가'));
-    expect(payment[confirm + 1]).toContain('가상계좌 결제는 결제대행사가 입금을 확인한 때 확정되며, 기한 안에 입금되지 않으면 주문은 자동으로 취소되고 선점된 수량은 복원됩니다.');
-    expect(payment[confirm + 2]).toContain('계좌이체 또는 가상계좌로 지급하는 이용자는');
-    expect(payment[confirm + 2]).toContain('구매안전서비스(결제대금예치, 에스크로)를 선택해 이용할 수 있습니다');
-    expect(payment[confirm + 3]).toContain('환급 계좌 정보의 제공은 환급의 전제가 됩니다. 결제대행사는 환급 전에 예금주를 확인하며');
-    expect(payment[confirm + 3]).toContain('영업일 기준 2일 정도');
-    expect(payment[confirm + 4]).toBe('계좌이체로 지급한 대금을 취소·환급하는 경우 회사는 결제대행사를 통해 대금이 출금된 계좌로 돌려드리며, 별도의 환급 계좌를 받지 않습니다.');
-    expect(payment).toHaveLength(article(base.terms, '제11조 (지급방법)').paragraphs!.length + 4);
-    expect(article(after.terms, '제11조의2 (무통장 입금)')).toEqual(article(base.terms, '제11조의2 (무통장 입금)'));
-    /* 부분 반품 개정 본문은 그대로 이어진다. */
-    expect(plainText(after.terms)).toContain('주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다');
-    expect(after.terms.revisionChanges?.[1]).toContain('제11조(지급방법)');
-  });
-
-  it('시행일부터 개인정보처리방침이 가상계좌 결제 화면의 환급 계좌와 토스페이먼츠 위탁 업무를 밝힌다', () => {
-    expect(after.privacy.effectiveDate).toBe(VA.effectiveDate);
-    expect(after.privacy.previousVersion).toEqual({ effectiveDate: ALIMTALK.effectiveDate, articles: base.privacy.articles });
-    const rows = article(after.privacy, '제1조 (수집하는 개인정보 항목과 수집 방법)').table!.rows;
-    const claimRow = rows.findIndex((row) => row[0] === '취소·반품 환급 계좌');
-    expect(rows[claimRow + 1]).toEqual(['가상계좌 결제 환급 계좌', '은행, 계좌번호, 예금주 (가상계좌 발급일부터 180일 뒤 파기)', '가상계좌 결제 화면에서 이용자가 환불받을 계좌를 입력한 경우(결제대행사가 회사에 전달)']);
-    const consignment = after.privacy.articles.find((item) => item.heading.startsWith('제5조 '))!.table!.rows;
-    expect(consignment.find((row) => row[0] === '토스페이먼츠 주식회사')?.[1]).toBe('굿즈·티켓 카드·간편결제와 굿즈 계좌이체·가상계좌(무통장입금) 결제 처리, 구매안전서비스(에스크로), 현금영수증 발급, 결제 취소와 환급(환급 계좌 확인 포함) 처리');
-    /* 알림톡 개정 수탁자는 그대로 남는다. */
-    expect(consignment.some((row) => row[0] === '엔에이치엔클라우드 주식회사')).toBe(true);
-  });
-
-  it('시행일부터 배송·반품 정책이 가상계좌 입금 기한·결제 확정일·환급 계좌를 밝히고, 무통장 입금 기한 행은 그대로다', () => {
-    expect(after.shipping.effectiveDate).toBe(VA.effectiveDate);
-    expect(after.shipping.previousVersion).toEqual({ effectiveDate: base.shipping.effectiveDate, articles: base.shipping.articles });
-    const rows = article(after.shipping, '1. 배송 안내').table!.rows;
-    const bankRow = rows.findIndex((row) => row[0] === '무통장 입금 기한');
-    expect(rows[bankRow]).toEqual(article(base.shipping, '1. 배송 안내').table!.rows.find((row) => row[0] === '무통장 입금 기한'));
-    expect(rows[bankRow + 1]).toEqual(['가상계좌 입금 기한', '결제 화면과 주문 화면에 안내된 입금 기한(보통 주문 후 24시간). 기한 안에 입금되지 않으면 주문이 자동 취소되고 선점된 수량이 복원됩니다.']);
-    expect(rows.find((row) => row[0] === '배송 기간')?.[1]).toContain('무통장 입금 주문은 입금이 확인된 날이, 가상계좌 주문은 결제대행사가 입금을 확인한 날이 결제 확정일입니다.');
-    const refund = article(after.shipping, '7. 환급 계좌').paragraphs!;
-    expect(refund.at(-1)).toContain('가상계좌로 결제한 주문을 입금 뒤 취소·반품하는 경우에도');
-    expect(refund.at(-1)).toContain('가상계좌 발급일부터 180일이 지나면 파기합니다');
-    expect(refund.at(-1)).toContain('계좌이체로 결제한 주문은 환급 계좌 없이 결제대행사를 통해 대금이 출금된 계좌로 환급합니다');
-    expect(plainText(after.shipping)).toContain('배송 묶음별 지정 택배사');
-  });
-
-  it('공지 기간이 앞선 예약 개정의 공지와 겹치면 앞선 공지를 가리지 않고 둘 다 보인다', () => {
-    const overlapping: VirtualAccountTermsRevision = { announcedDate: shiftDay(PARTIAL.announcedDate, 1), effectiveDate: shiftDay(PARTIAL.effectiveDate, 1) };
-    const overlap = at(overlapping.announcedDate, overlapping);
-    for (const slug of ['terms', 'shipping'] as const) {
-      expect(overlap[slug].pendingRevision?.heading, slug).toBe('일부 굿즈 반품·반품배송비 차감 도입에 따른 개정 예정 안내');
-      expect(overlap[slug].additionalPendingRevisions, slug).toEqual([expect.objectContaining({
-        announcedDate: overlapping.announcedDate, effectiveDate: overlapping.effectiveDate,
-        heading: '계좌이체·가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내' })]);
-    }
-    /* 앞선 공지가 없는 문서(알림톡 개정은 이미 시행)는 가상계좌 공지 하나다. */
-    expect(overlap.privacy.pendingRevision?.heading).toBe('계좌이체·가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내');
-    expect(overlap.privacy.additionalPendingRevisions).toBeUndefined();
-    /* 시행일에는 앞선 개정이 이미 시행돼 이전 판이 그 개정을 담는다. */
-    const effective = at(overlapping.effectiveDate, overlapping);
-    expect(effective.terms.previousVersion?.effectiveDate).toBe(PARTIAL.effectiveDate);
-    expect(effective.terms.additionalPendingRevisions).toBeUndefined();
-  });
-
-  it('다른 예약 개정 없이 최초 판 위에도 얹을 수 있다(앵커가 다른 개정에 기대지 않는다)', () => {
-    const alone = createLegalDocuments(BUSINESS_INFO, VA.effectiveDate, null, null, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: VA, brandNameRevision: null, botProtectionPrivacyRevision: null });
-    for (const slug of LEGAL_DOCUMENT_SLUGS) {
-      expect(alone[slug].effectiveDate, slug).toBe(VA.effectiveDate);
-      expect(alone[slug].previousVersion?.articles, slug).toEqual(BASE_LEGAL[slug].articles);
-    }
-  });
-
-  it('공지·시행은 한국 시간 날짜로 가르고, 예약이 없으면(null) 늘 현행 본문이다', () => {
-    expect(virtualAccountTermsRevisionAnnounced(shiftDay(VA.announcedDate, -1), VA)).toBe(false);
-    expect(virtualAccountTermsRevisionAnnounced(VA.announcedDate, VA)).toBe(true);
-    expect(virtualAccountTermsRevisionAnnounced(VA.effectiveDate, VA)).toBe(false);
-    expect(virtualAccountTermsRevisionInEffect(shiftDay(VA.effectiveDate, -1), VA)).toBe(false);
-    expect(virtualAccountTermsRevisionInEffect(VA.effectiveDate, VA)).toBe(true);
-    expect(virtualAccountTermsRevisionInEffect('2099-01-01', null)).toBe(false);
-    const unreserved = at('2099-01-01', null);
-    for (const slug of LEGAL_DOCUMENT_SLUGS) {
-      expect(unreserved[slug].articles, slug).toEqual(base[slug].articles);
-      expect(plainText(unreserved[slug]), slug).not.toContain('가상계좌');
-    }
-  });
-});
-
-describe('이용약관 예약 개정 — 서비스 이름(엑스스퀘어)', () => {
-  const OLD_PURPOSE = '이 약관은 ICONS(이하 "회사")가 운영하는 온라인 서비스 ICONS(이하 "서비스")에서';
-  const NEW_PURPOSE = '이 약관은 주식회사 아이콘스(이하 "회사")가 운영하는 온라인 서비스 엑스스퀘어(이하 "서비스")에서';
-  const BRAND: BrandNameRevision = { announcedDate: '2026-12-10', effectiveDate: '2026-12-17' };
-  const at = (today: string, brandNameRevision: BrandNameRevision | null = BRAND) =>
-    createLegalDocuments(BUSINESS_INFO, today, BUNDLE_REVISION, PRIVACY_NOW, { partialReturnRevision: null, alimtalkPrivacyRevision: null, virtualAccountRevision: null, brandNameRevision, botProtectionPrivacyRevision: null });
-  const notices = (document: LegalDocument) => [document.pendingRevision, ...(document.additionalPendingRevisions ?? [])].filter(Boolean);
-  const brandNotice = (document: LegalDocument) => notices(document).find((notice) => notice!.heading.includes('엑스스퀘어'));
-
-  it('운영 날짜 파일은 확정값(2026-11-24 즉시 시행 — 정식 오픈 전, 운영 책임자 결정)이다', () => {
-    expect(BRAND_NAME_REVISION).toEqual({ announcedDate: '2026-11-24', effectiveDate: '2026-11-24' });
-    /* 7일보다 짧은 공지는 결정 기록(noticeWaiver)이 있어야 빌드 가드를 지난다. */
-    const dates = JSON.parse(readFileSync(new URL('./brand-name-revision.json', import.meta.url), 'utf8'));
-    expect(dates.noticeWaiver).toMatch(/2026-11-24 .*즉시 시행/);
-    const today = createLegalDocuments(BUSINESS_INFO, '2026-11-24');
-    expect(plainText(today.terms)).toContain(NEW_PURPOSE);
-    expect(today.terms.effectiveDate).toBe('2026-11-24');
-    expect(today.terms.previousVersion?.effectiveDate).toBe('2026-11-23');
-    /* 즉시 시행이라 서비스 이름 사전 공지는 없다(앞선 개정의 공지는 그대로 보인다). */
-    expect(brandNotice(today.terms)).toBeUndefined();
-  });
-
-  it('공지 전에는 현행 약관 그대로이고 공지가 없다', () => {
-    const before = at(shiftDay(BRAND.announcedDate, -1));
-    expect(before.terms.title).toBe('엑스스퀘어 이용약관');
-    expect(plainText(before.terms)).toContain(OLD_PURPOSE);
-    expect(brandNotice(before.terms)).toBeUndefined();
-  });
-
-  it('공지 기간에는 본문을 두고 개정 예정 안내만 붙인다', () => {
-    const before = at(shiftDay(BRAND.announcedDate, -1));
-    for (const today of [BRAND.announcedDate, shiftDay(BRAND.effectiveDate, -1)]) {
-      const during = at(today);
-      expect(during.terms.title).toBe('엑스스퀘어 이용약관');
-      expect(during.terms.articles).toEqual(before.terms.articles);
-      expect(during.terms.effectiveDate).toBe(before.terms.effectiveDate);
-      expect(brandNotice(during.terms)).toEqual({
-        announcedDate: BRAND.announcedDate,
-        effectiveDate: BRAND.effectiveDate,
-        heading: '서비스 이름(엑스스퀘어) 변경에 따른 개정 예정 안내',
-        changes: [
-          '개정 사유 — 서비스 이름을 ICONS에서 엑스스퀘어로 바꿉니다. 서비스를 운영하는 회사(주식회사 아이콘스)와 서비스 내용·이용조건은 바뀌지 않습니다.',
-          '제1조(목적)의 회사 표기를 법인 상호(주식회사 아이콘스)로, 서비스 이름을 엑스스퀘어로 고쳐 씁니다.',
-        ],
-      });
-      expect(brandNotice(during.privacy)).toBeUndefined();
-      expect(brandNotice(during.shipping)).toBeUndefined();
-    }
-  });
-
-  it('시행일부터 제1조가 바뀌고 직전 본문을 이전 판으로 보존한다', () => {
-    const before = at(shiftDay(BRAND.effectiveDate, -1));
-    const after = at(BRAND.effectiveDate);
-    expect(after.terms.title).toBe('엑스스퀘어 이용약관');
-    expect(after.terms.effectiveDate).toBe(BRAND.effectiveDate);
-    expect(plainText(after.terms)).toContain(NEW_PURPOSE);
-    expect(plainText(after.terms)).not.toContain('ICONS');
-    expect(after.terms.previousVersion).toEqual({ effectiveDate: before.terms.effectiveDate, articles: before.terms.articles });
-    expect(after.terms.revisionChanges).toEqual(brandNotice(before.terms)!.changes);
-    expect(brandNotice(after.terms)).toBeUndefined();
-    /* 바뀐 것은 제1조 한 문장뿐이다. */
-    const changed = after.terms.articles.filter((article, index) => JSON.stringify(article) !== JSON.stringify(before.terms.articles[index]));
-    expect(changed.map((article) => article.heading)).toEqual(['제1조 (목적)']);
-    expect(after.privacy).toEqual(before.privacy);
-    expect(after.shipping).toEqual(before.shipping);
-  });
-
-  it('문서 이름은 조문이 아니어서 공지 전부터 엑스스퀘어이고, 방침은 본문에 서비스 이름이 없다', () => {
-    for (const today of ['2026-11-24', BRAND.announcedDate, BRAND.effectiveDate]) {
-      const { terms, privacy } = at(today);
-      expect(terms.title).toBe('엑스스퀘어 이용약관');
-      expect(privacy.title).toBe('엑스스퀘어 개인정보처리방침');
-      expect(privacy.summary.startsWith('엑스스퀘어가 실제로 수집하는 항목')).toBe(true);
-      expect(plainText(privacy)).not.toContain('ICONS');
-    }
-  });
-
-  it('운영 날짜로 다른 예약 개정이 모두 시행된 뒤에도 본문을 만들 수 있고 약관에 옛 이름이 남지 않는다', () => {
-    const live = createLegalDocuments(BUSINESS_INFO, BRAND_NAME_REVISION!.effectiveDate);
-    expect(live.terms.title).toBe('엑스스퀘어 이용약관');
-    expect(live.terms.effectiveDate).toBe(BRAND_NAME_REVISION!.effectiveDate);
-    for (const slug of LEGAL_DOCUMENT_SLUGS) expect(`${live[slug].title}${plainText(live[slug])}`, slug).not.toContain('ICONS');
-    /* 뒤에 시행되는 예약 개정(부분 반품 11-27·알림톡 11-30)이 모두 얹힌 뒤에도 약관에 옛 이름이 없다. */
-    const later = createLegalDocuments(BUSINESS_INFO, '2026-12-05');
-    expect(plainText(later.terms)).toContain(NEW_PURPOSE);
-    for (const slug of LEGAL_DOCUMENT_SLUGS) expect(`${later[slug].title}${plainText(later[slug])}`, slug).not.toContain('ICONS');
-  });
-
-  it('제1조 앵커는 현행 본문에 정확히 한 번 있다(없거나 둘 이상이면 시행일 상태를 만들 때 던진다)', () => {
-    const terms = at(shiftDay(BRAND.announcedDate, -1)).terms;
-    expect(plainText(terms).split(OLD_PURPOSE)).toHaveLength(2);
-  });
-
-  it('공지·시행은 한국 시간 날짜로 가르고, 예약이 없으면(null) 늘 현행 본문이다', () => {
-    expect(brandNameRevisionAnnounced(shiftDay(BRAND.announcedDate, -1), BRAND)).toBe(false);
-    expect(brandNameRevisionAnnounced(BRAND.announcedDate, BRAND)).toBe(true);
-    expect(brandNameRevisionAnnounced(BRAND.effectiveDate, BRAND)).toBe(false);
-    expect(brandNameRevisionInEffect(shiftDay(BRAND.effectiveDate, -1), BRAND)).toBe(false);
-    expect(brandNameRevisionInEffect(BRAND.effectiveDate, BRAND)).toBe(true);
-    expect(brandNameRevisionInEffect('2099-01-01', null)).toBe(false);
-    const unreserved = at('2099-01-01', null);
-    expect(unreserved.terms.title).toBe('엑스스퀘어 이용약관');
-    expect(plainText(unreserved.terms)).toContain(OLD_PURPOSE);
-  });
-});
-
-describe('개인정보처리방침 개정 — 가입·로그인 봇 차단(Cloudflare Turnstile·요청 남용 방지 기록)', () => {
-  const BOT: BotProtectionPrivacyRevision = { announcedDate: '2026-12-10', effectiveDate: '2026-12-17' };
-  const at = (today: string, botProtectionPrivacyRevision: BotProtectionPrivacyRevision | null = BOT) =>
-    createLegalDocuments(BUSINESS_INFO, today, BUNDLE_REVISION, PRIVACY_NOW, {
-      partialReturnRevision: null,
-      alimtalkPrivacyRevision: null,
-      virtualAccountRevision: null,
-      brandNameRevision: null,
-      botProtectionPrivacyRevision,
-    });
-  const notices = (document: LegalDocument) => [document.pendingRevision, ...(document.additionalPendingRevisions ?? [])].filter(Boolean);
-  const botNotice = (document: LegalDocument) => notices(document).find((notice) => notice!.heading.includes('자동 가입 방지'));
-  const article = (document: LegalDocument, prefix: string) => document.articles.find((item) => item.heading.startsWith(prefix))!;
+/* 오픈 전(2026-11-25)까지 정한 변경은 개정 이력 없이 최초 판 본문에 바로 들어 있다(운영 책임자 결정). */
+describe('오픈 전 최초 판(2026-11-25)이 담는 내용', () => {
+  const { terms, privacy, shipping } = LEGAL_DOCUMENTS;
   const rowNames = (document: LegalDocument, prefix: string) => article(document, prefix).table!.rows.map((row) => row[0]);
+  const after = (names: string[], anchor: string) => names[names.indexOf(anchor) + 1];
 
-  it('운영 날짜 파일은 확정값(2026-11-24 즉시 시행 — 정식 오픈 전, 운영 책임자 결정)이다', () => {
-    expect(BOT_PROTECTION_PRIVACY_REVISION).toEqual({ announcedDate: '2026-11-24', effectiveDate: '2026-11-24' });
-    /* 7일보다 짧은 공지는 결정 기록(noticeWaiver)이 있어야 빌드 가드를 지난다. */
-    const dates = JSON.parse(readFileSync(new URL('./bot-protection-privacy-revision.json', import.meta.url), 'utf8'));
-    expect(dates.noticeWaiver).toMatch(/2026-11-24 .*즉시 시행/);
-    const today = createLegalDocuments(BUSINESS_INFO, '2026-11-24').privacy;
-    expect(today.effectiveDate).toBe('2026-11-24');
-    /* 가상계좌·계좌이체 개정(2026-11-23 즉시 시행) 본문이 이전 판이다. */
-    expect(today.previousVersion?.effectiveDate).toBe('2026-11-23');
-    expect(plainText(today)).toContain('Cloudflare, Inc.');
-    /* 즉시 시행이라 봇 차단 사전 공지는 없고, 앞선 알림톡 개정(11-30 시행)의 공지는 그대로 보인다. */
-    expect(botNotice(today)).toBeUndefined();
-    expect(today.pendingRevision?.heading).toBe('카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내');
-    /* 알림톡 개정이 이 본문 위에 얹혀도 Cloudflare 고지가 남는다. */
-    const alimtalk = createLegalDocuments(BUSINESS_INFO, '2026-11-30').privacy;
-    expect(plainText(alimtalk)).toContain('Cloudflare, Inc.');
-    expect(plainText(alimtalk)).toContain('카카오톡 알림톡');
+  it('이용약관 제1조는 법인 상호와 서비스 이름(엑스스퀘어)을 쓰고 옛 이름이 없다', () => {
+    expect(article(terms, '제1조 ').paragraphs![0]).toContain('이 약관은 주식회사 아이콘스(이하 "회사")가 운영하는 온라인 서비스 엑스스퀘어(이하 "서비스")에서');
+    expect(plainText(terms)).not.toContain('ICONS');
   });
 
-  it('공지 전에는 현행 방침 그대로이고 Cloudflare 고지가 없다', () => {
-    const before = at(shiftDay(BOT.announcedDate, -1));
-    expect(plainText(before.privacy)).not.toContain('Cloudflare');
-    expect(botNotice(before.privacy)).toBeUndefined();
+  it('지급방법은 계좌이체·가상계좌와 구매안전서비스를 밝히고, 회사 계좌 무통장 입금 조문은 따로 둔다', () => {
+    const payment = article(terms, '제11조 (지급방법)').paragraphs!.join('\n');
+    expect(payment).toContain('신용·체크카드, 간편결제, 계좌이체 또는 가상계좌(무통장입금)로 지급할 수 있습니다');
+    expect(payment).toContain('구매안전서비스(결제대금예치, 에스크로)');
+    expect(payment).toContain('계좌이체로 지급한 대금을 취소·환급하는 경우');
+    expect(article(terms, '제11조의2 ').paragraphs!.join('\n')).toContain('입금 기한은 주문이 성립한 때부터 24시간입니다');
+    expect(rowNames(shipping, '1. 배송 안내')).toContain('가상계좌 입금 기한');
+    expect(article(shipping, '7. 환급 계좌').paragraphs!.join('\n')).toContain('가상계좌 발급일부터 180일이 지나면 파기합니다');
   });
 
-  it('공지 기간에는 본문을 두고 개정 예정 안내만 붙인다', () => {
-    const before = at(shiftDay(BOT.announcedDate, -1));
-    for (const today of [BOT.announcedDate, shiftDay(BOT.effectiveDate, -1)]) {
-      const during = at(today);
-      expect(during.privacy.articles).toEqual(before.privacy.articles);
-      expect(during.privacy.effectiveDate).toBe(before.privacy.effectiveDate);
-      expect(botNotice(during.privacy)).toMatchObject({
-        announcedDate: BOT.announcedDate,
-        effectiveDate: BOT.effectiveDate,
-        heading: '가입·로그인 자동 가입 방지 확인 도입에 따른 개정 예정 안내',
-      });
-      expect(botNotice(during.terms)).toBeUndefined();
-      expect(botNotice(during.shipping)).toBeUndefined();
+  it("배송 단위는 '배송 묶음'으로 쓰고 '출고지'라는 말을 쓰지 않는다", () => {
+    for (const document of documents) expect(plainText(document), document.slug).not.toContain('출고지');
+    expect(article(terms, '제16조의2 ').paragraphs![0]).toContain('환급·재배송은 배송 묶음별 실물 회수를 모두 확인한 뒤 진행합니다.');
+  });
+
+  it('이용약관은 일부 굿즈 청약철회와 단순 변심 반품배송비 차감을 밝힌다', () => {
+    const effects = article(terms, '제16조 ').paragraphs!.join('\n');
+    expect(effects).toContain('단순 변심에 따른 반품의 반환 비용(반품배송비)은 환급액에서 차감할 수 있습니다');
+    expect(effects).toContain('청약철회는 주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다');
+    expect(article(terms, '제16조의2 ').paragraphs!.join('\n')).toContain('반품은 한 주문에 담긴 굿즈 중 일부 굿즈·수량만 신청할 수 있고, 교환은 주문 단위로 처리됩니다');
+  });
+
+  it('방침 제1조는 휴대폰 번호 인증·이메일 변경·IP 팔로우·가상계좌 환급 계좌·자동 가입 방지 확인을 제자리에 담는다', () => {
+    const names = rowNames(privacy, '제1조 ');
+    expect(names.slice(names.indexOf('온보딩'), names.indexOf('온보딩') + 4)).toEqual(['온보딩', '휴대폰 번호 인증', '이메일 변경 (선택)', 'IP 팔로우']);
+    expect(after(names, '취소·반품 환급 계좌')).toBe('가상계좌 결제 환급 계좌');
+    expect(after(names, '자동 생성')).toBe('자동 가입 방지 확인');
+    expect(article(privacy, '제1조 ').table!.rows.find((row) => row[0] === '온보딩')![1]).not.toContain('팔로우한 IP');
+  });
+
+  it('방침 제2조·제3조는 봇 차단·휴대폰 번호 인증 목적과 보유 기간을 밝히고, 인증 번호는 알림톡 주문 안내에만 쓴다', () => {
+    const purposes = article(privacy, '제2조 (').list!;
+    expect(after(purposes, '회원 식별, 로그인 유지, 가입 자격 확인 등 회원 관리')).toContain('봇');
+    expect(purposes.join('\n')).toContain('휴대폰 번호 인증을 통한 회원 연락처 확인');
+    expect(purposes).toContain('알림함·이메일·카카오톡 알림톡을 통한 거래 진행 안내와 서비스 공지');
+    const closing = article(privacy, '제2조 (').closing!.join('\n');
+    expect(closing).toContain('카카오톡 알림톡 발송에만 이용합니다');
+    expect(closing).toContain('마케팅 정보 발송에는 이용하지 않습니다');
+    const retention = article(privacy, '제3조 ').closing!.join('\n');
+    for (const text of ['인증·해제 이력(일시·종류)은 발생 1년 뒤 삭제', '이메일 변경 인증 요청 기록(요청 일시·결과)은 요청 2일 뒤 삭제', '비밀번호 재설정 요청 기록(요청 일시·종류)은 요청 2일 뒤 삭제']) {
+      expect(retention).toContain(text);
     }
   });
 
-  it('시행일부터 제1·2·3·5·6조가 바뀌고 직전 본문을 이전 판으로 보존한다', () => {
-    const before = at(shiftDay(BOT.effectiveDate, -1));
-    const after = at(BOT.effectiveDate);
-    expect(after.privacy.effectiveDate).toBe(BOT.effectiveDate);
-    expect(after.privacy.previousVersion).toEqual({ effectiveDate: before.privacy.effectiveDate, articles: before.privacy.articles });
-    expect(after.privacy.revisionChanges).toEqual(botNotice(before.privacy)!.changes);
-    expect(after.privacy.revisionChanges?.[0]).toMatch(/^개정 사유 — /);
-    expect(botNotice(after.privacy)).toBeUndefined();
-
-    const changed = after.privacy.articles.filter((item, index) => JSON.stringify(item) !== JSON.stringify(before.privacy.articles[index]));
-    expect(changed.map((item) => item.heading.split(' ')[0])).toEqual(['제1조', '제2조', '제3조', '제5조', '제6조']);
-
-    /* 제1조: '자동 생성' 바로 뒤 */
-    const collected = rowNames(after.privacy, '제1조 ');
-    expect(collected[collected.indexOf('자동 생성') + 1]).toBe('자동 가입 방지 확인');
-    const collectionRow = article(after.privacy, '제1조 ').table!.rows.find((row) => row[0] === '자동 가입 방지 확인')!;
-    expect(collectionRow[1]).toContain('Cloudflare Turnstile');
-    expect(collectionRow[1]).toContain('이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만');
-    /* 제2조: 회원 관리 바로 뒤 */
-    const purposes = article(after.privacy, '제2조 (').list!;
-    expect(purposes[purposes.indexOf('회원 식별, 로그인 유지, 가입 자격 확인 등 회원 관리') + 1]).toContain('봇');
-    /* 제3조: 요청 기록 2일 */
-    expect(article(after.privacy, '제3조 ').closing!.at(-1)).toContain('요청 2일 뒤 삭제');
-    /* 제5조·제6조: Vercel 바로 뒤, 국외 이전은 미국 */
-    for (const prefix of ['제5조 ', '제6조 ']) {
-      const names = rowNames(after.privacy, prefix);
-      expect(names[names.indexOf('Vercel, Inc.') + 1], prefix).toBe('Cloudflare, Inc.');
-      expect(names.filter((name) => name === 'Cloudflare, Inc.'), prefix).toHaveLength(1);
-    }
-    expect(article(after.privacy, '제6조 ').table!.rows.find((row) => row[0] === 'Cloudflare, Inc.')![1]).toBe('미국');
-
-    expect(after.terms).toEqual(before.terms);
-    expect(after.shipping).toEqual(before.shipping);
+  it('방침 제5조·제6조는 Cloudflare·Twilio·알림톡 수탁자를 위탁·국외 이전에 올린다', () => {
+    const processors = rowNames(privacy, '제5조 ');
+    expect(after(processors, 'Vercel, Inc.')).toBe('Cloudflare, Inc.');
+    expect(after(processors, '엔에이치엔케이씨피 주식회사')).toBe('Twilio Inc.');
+    expect(processors.slice(processors.indexOf('Resend') + 1, processors.indexOf('Resend') + 3)).toEqual(['엔에이치엔클라우드 주식회사', '주식회사 카카오']);
+    expect(article(privacy, '제5조 ').closing!.at(-1)).toContain('카카오톡 알림톡 수탁자(엔에이치엔클라우드 주식회사, 주식회사 카카오)에는 인증한 휴대폰 번호와 안내 내용');
+    const transfers = article(privacy, '제6조 ').table!.rows;
+    expect(transfers.find((row) => row[0] === 'Cloudflare, Inc.')![1]).toBe('미국');
+    expect(transfers.find((row) => row[0] === 'Twilio Inc.')![1]).toBe('미국');
   });
 
-  it('다른 예약 개정이 모두 시행된 본문 위에서도, 최초 판 위에서도 시행일 상태를 만들 수 있다', () => {
-    const late: BotProtectionPrivacyRevision = { announcedDate: '2030-01-01', effectiveDate: '2030-01-01' };
-    const onTop = createLegalDocuments(BUSINESS_INFO, '2030-01-01', BUNDLE_REVISION, PRIVACY_NOW, { botProtectionPrivacyRevision: late }).privacy;
-    expect(onTop.effectiveDate).toBe('2030-01-01');
-    expect(plainText(onTop)).toContain('Cloudflare, Inc.');
-    expect(plainText(onTop)).toContain('Twilio Inc.');
-    expect(plainText(onTop)).toContain('카카오톡 알림톡');
-    const alone = createLegalDocuments(BUSINESS_INFO, '2030-01-01', null, null, {
-      partialReturnRevision: null,
-      alimtalkPrivacyRevision: null,
-      virtualAccountRevision: null,
-      brandNameRevision: null,
-      botProtectionPrivacyRevision: late,
-    }).privacy;
-    expect(alone.previousVersion?.articles).toEqual(BASE_LEGAL.privacy.articles);
-    expect(plainText(alone)).toContain('Cloudflare, Inc.');
+  it('방침 제7조는 휴대폰 번호의 직접 수정과 소셜 로그인 회원의 이메일 변경을 안내한다', () => {
+    const rights = article(privacy, '제7조 ').paragraphs!.join('\n');
+    expect(rights).toContain('마케팅 정보 수신 동의 여부, 휴대폰 번호는 설정 화면에서 직접 열람·수정할 수 있습니다');
+    expect(rights).toContain('설정 또는 온보딩에서 다른 이메일을 입력하고 인증번호로 확인해 계정 이메일을 바꿀 수 있습니다');
   });
 
-  it('공지·시행은 한국 시간 날짜로 가르고, 예약이 없으면(null) 늘 현행 본문이다', () => {
-    expect(botProtectionPrivacyRevisionAnnounced(shiftDay(BOT.announcedDate, -1), BOT)).toBe(false);
-    expect(botProtectionPrivacyRevisionAnnounced(BOT.announcedDate, BOT)).toBe(true);
-    expect(botProtectionPrivacyRevisionAnnounced(BOT.effectiveDate, BOT)).toBe(false);
-    expect(botProtectionPrivacyRevisionInEffect(shiftDay(BOT.effectiveDate, -1), BOT)).toBe(false);
-    expect(botProtectionPrivacyRevisionInEffect(BOT.effectiveDate, BOT)).toBe(true);
-    expect(botProtectionPrivacyRevisionInEffect('2099-01-01', null)).toBe(false);
-    expect(plainText(at('2099-01-01', null).privacy)).not.toContain('Cloudflare');
+  it.each([
+    ['연락처가 있을 때', LEGAL_DOCUMENTS.privacy],
+    ['연락처가 비어 있을 때', NO_CONTACT.privacy],
+  ])('방침 제11조는 %s도 개인정보 보호책임자(대표이사 정승준)를 지정 문단 바로 뒤에 밝힌다', (_label, document) => {
+    const paragraphs = article(document, '제11조 (개인정보 보호책임자').paragraphs!;
+    expect(paragraphs[0]).toContain('개인정보 보호책임자를 지정');
+    expect(paragraphs[1]).toBe('개인정보 보호책임자는 대표이사 정승준이며, 보호책임자의 연락처는 위 문의 창구와 같습니다.');
   });
 });

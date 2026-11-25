@@ -65,6 +65,10 @@ function goodsSaleStatus(good: AdminGoodSummary, readiness: AdminGoodsReadiness)
     return { label: '판매중', tone: statusTone('operation', 'active'), detail: `공개 · ${GOODS_READINESS_STATE_LABELS[readiness.state]}`, showsSaleValue: true };
   }
   const blockers = readiness.reasons.filter(reason => reason.kind === 'blocking');
+  /* 예약판매만 있는 상품의 판매 가능 0개는 품절이 아니다 — 고객 화면과 같은 예약 상태(접수 전 '판매 예정' 등)를 말한다. */
+  if (blockers.length === 1 && blockers[0].code === 'stock_unavailable' && good.preorderSaleLabel) {
+    return { label: good.preorderSaleLabel, tone: statusTone('goodsPreorderSale', good.preorderSaleLabel), detail: '공개', showsSaleValue: false };
+  }
   if (blockers.length === 1 && blockers[0].code === 'stock_unavailable') return { label: '품절', tone: statusTone('stock', 'soldout'), detail: '공개', showsSaleValue: false };
   return { label: GOODS_READINESS_STATE_LABELS[readiness.state], tone: statusTone('readiness', readiness.state), detail: '공개', showsSaleValue: false };
 }
@@ -154,9 +158,13 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         const saleBadge = <AdminStatusBadge tone={sale.tone}>{sale.label}</AdminStatusBadge>;
         /* 수량 강조는 고객에게 팔고 있는 상품에만 둔다. 초안·보관 상품의 0개는 처리할 일이 아니다. */
         const selling = Boolean(good.publishedAt && !good.archivedAt);
-        const soldOut = selling && readiness.availableQty === 0;
-        /* 안전재고 부족 경보(옵션 수량 기준)를 먼저, 없으면 소량 재고 표시를 쓴다 — 어휘는 '상세 재고'·판매상태 필터와 같다. */
-        const lowStockLabel = !selling || soldOut ? null : good.lowStockOptionCount > 0 ? `부족 ${good.lowStockOptionCount}개 옵션` : good.stock === 'low' ? '소량 재고' : null;
+        /* 예약 접수 전·종료처럼 배지가 예약 상태를 말하면 0개는 처리할 품절이 아니다. 물량 마감은 품절과 같이 강조한다. */
+        const preorderQuiet = Boolean(good.preorderSaleLabel) && sale.label === good.preorderSaleLabel && sale.tone !== 'danger';
+        const nothingToSell = selling && readiness.availableQty === 0;
+        const soldOut = nothingToSell && !preorderQuiet;
+        /* 안전재고 부족 경보(옵션 수량 기준)를 먼저, 없으면 소량 재고 표시를 쓴다 — 어휘는 '상세 재고'·판매상태 필터와 같다.
+           지금 팔 수 있는 수량이 없으면(품절·예약 상태) 부족 경보는 할 일이 아니다. */
+        const lowStockLabel = !selling || nothingToSell ? null : good.lowStockOptionCount > 0 ? `부족 ${good.lowStockOptionCount}개 옵션` : good.stock === 'low' ? '소량 재고' : null;
         const qtyEmphasis = soldOut ? ' font-semibold text-destructive' : lowStockLabel ? ' font-semibold text-warning' : '';
         const lowStockBadge = lowStockLabel ? <AdminStatusBadge tone={statusTone('stock', 'low')}>{lowStockLabel}</AdminStatusBadge> : null;
         const priceText = priceLabel(good.priceMin, good.priceMax);
@@ -165,7 +173,9 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         const inlinePrice = priceText.includes('~')
           ? <span className="tabular-nums">{priceText.split('~').map((part, index) => <span className="inline-block" key={part}>{index ? part : `${part}~`}</span>)}</span>
           : price;
-        const reasons = readiness.reasons.filter(reason => !REASONS_SAID_BY_BADGE.has(reason.code));
+        /* 예약 상태 배지는 '판매 가능 수량 없음'의 이유를 이미 말한다. */
+        const reasons = readiness.reasons.filter(reason => !REASONS_SAID_BY_BADGE.has(reason.code)
+          && !(reason.code === 'stock_unavailable' && good.preorderSaleLabel && sale.label === good.preorderSaleLabel));
         const reasonLink = (reason: AdminGoodsReadiness['reasons'][number]) => <Link className={REASON_LINK} key={reason.code} href={goodEditorHref(filters, good.id, reason.target)}><TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />{reason.label} →</Link>;
         /* 상세 재고는 값 수정 덮개가 있는 칸에 함께 있어 덮개 위에 세운다. */
         const stockDetails = (extra?: ReactNode) => <details className="relative z-[1] text-xs font-normal" data-goods-list="stock-details"><summary className="inline-flex min-h-6 cursor-pointer items-center justify-end whitespace-nowrap text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">상세 재고</summary><dl className="mt-2 grid min-w-[9rem] gap-1 text-left text-sm whitespace-normal text-foreground">
@@ -239,7 +249,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
       <ConsolePagination page={filters.page} pageSize={pageSize} total={total} hrefForPage={page => goodsListHref(filters, page)} />
       <details className="group/help rounded-lg border bg-muted/40 px-4 py-3 text-sm" data-goods-list="help">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium [&::-webkit-details-marker]:hidden">목록 사용·재고수량·판매 준비 안내<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/help:rotate-180" /></summary>
-        <p className="mt-2 leading-relaxed text-muted-foreground">상품번호는 시스템이 등록 순서대로 매기는 바뀌지 않는 번호이고, 상품 URL은 상품을 처음 저장할 때 정해지는 영문 값이고, 고객 화면 주소는 상품 자동코드로 열립니다(예: xsquare.kr/shop/hsq-0059). 상품 URL로 된 예전 주소로 들어와도 상품 자동코드 주소로 이동합니다. 상품번호·상품 URL은 쉼표나 공백으로 구분해 여러 개를 조회할 수 있고, 전체 검색에는 영문명·검색 키워드·ERP 품명·바코드도 포함됩니다. 상품번호·상품명 또는 수정 버튼을 눌러 상품 정보를 변경하고, 상품 URL을 누르면 고객 화면(상품 자동코드 주소, 공개 전 상품은 미리보기)을 엽니다.{inlineIdentity ? ' 판매가·재고수량·판매상태는 목록에서 값을 눌러 바로 고칠 수 있습니다. 옵션이 여러 개인 상품은 재고수량 칸이 옵션별 재고 창을, 즉시할인(기간 포함)이 걸려 있거나 예정된 상품은 판매가 칸이 할인 중지 후 변경 창을 엽니다.' : ''} 표시한 수량은 예약판매 물량을 포함해 지금 판매할 수 있는 수량입니다. 전체 옵션 재고수량에는 사용 중지한 옵션에 남은 재고도 들어갑니다. 판매상태 필터의 품절은 판매중지가 아닌 상품 중 사용 옵션의 재고수량이 0인 상품이고, 판매중지는 수량과 관계없이 판매상태를 판매중지로 바꾼 상품입니다. 고객 화면에는 둘 다 품절로 보입니다. 소량 재고는 판매상태를 소량 재고로 지정하고 재고가 남은 상품이며, 수량으로 자동 분류하지 않습니다. 옵션별 안전재고 기준 이하 경고는 재고수량 칸에 부족 N개 옵션으로 표시되고 소량 재고 건수에는 들어가지 않습니다. 품절·소량 재고·판매중지 건수는 판매상태 조건과 페이지를, 판매대기·판매종료 건수는 판매기간 조건과 페이지를 제외한 같은 검색 조건으로 계산합니다. 설정 준비 완료는 실제 결제 성공을 보증하지 않습니다.{data.checkedAt ? <> 확인 시각: <time dateTime={data.checkedAt}>{new Date(data.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</time>.</> : null}</p>
+        <p className="mt-2 leading-relaxed text-muted-foreground">상품번호는 시스템이 등록 순서대로 매기는 바뀌지 않는 번호이고, 상품 URL은 상품을 처음 저장할 때 정해지는 영문 값이고, 고객 화면 주소는 상품 자동코드로 열립니다(예: xsquare.kr/shop/hsq-0059). 상품 URL로 된 예전 주소로 들어와도 상품 자동코드 주소로 이동합니다. 상품번호·상품 URL은 쉼표나 공백으로 구분해 여러 개를 조회할 수 있고, 전체 검색에는 영문명·검색 키워드·ERP 품명·바코드도 포함됩니다. 상품번호·상품명 또는 수정 버튼을 눌러 상품 정보를 변경하고, 상품 URL을 누르면 고객 화면(상품 자동코드 주소, 공개 전 상품은 미리보기)을 엽니다.{inlineIdentity ? ' 판매가·재고수량·판매상태는 목록에서 값을 눌러 바로 고칠 수 있습니다. 옵션이 여러 개인 상품은 재고수량 칸이 옵션별 재고 창을, 즉시할인(기간 포함)이 걸려 있거나 예정된 상품은 판매가 칸이 할인 중지 후 변경 창을 엽니다.' : ''} 표시한 수량은 예약판매 물량을 포함해 지금 판매할 수 있는 수량입니다. 전체 옵션 재고수량에는 사용 중지한 옵션에 남은 재고도 들어갑니다. 판매상태 필터의 품절은 판매중지가 아닌 상품 중 사용 옵션의 재고수량이 0인 상품이고, 판매중지는 수량과 관계없이 판매상태를 판매중지로 바꾼 상품입니다. 고객 화면에는 둘 다 품절로 보입니다. 예약판매만 있는 상품은 지금 판매할 수 있는 수량이 없어도 품절이 아니라 고객 화면과 같은 예약 상태로 보입니다(접수 시작 전 판매 예정, 예약 물량을 다 받으면 예약 물량 마감, 접수가 끝나거나 멈추면 예약 접수 종료·예약 접수 중지). 소량 재고는 판매상태를 소량 재고로 지정하고 재고가 남은 상품이며, 수량으로 자동 분류하지 않습니다. 옵션별 안전재고 기준 이하 경고는 재고수량 칸에 부족 N개 옵션으로 표시되고 소량 재고 건수에는 들어가지 않습니다. 품절·소량 재고·판매중지 건수는 판매상태 조건과 페이지를, 판매대기·판매종료 건수는 판매기간 조건과 페이지를 제외한 같은 검색 조건으로 계산합니다. 설정 준비 완료는 실제 결제 성공을 보증하지 않습니다.{data.checkedAt ? <> 확인 시각: <time dateTime={data.checkedAt}>{new Date(data.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</time>.</> : null}</p>
       </details>
       </div>
     </section>

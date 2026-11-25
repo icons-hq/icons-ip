@@ -13,7 +13,6 @@ const EXCEPTIONS = [
   { file: 'lib/admin/warehouse-templates.server.ts', text: '/ICONS/', reason: '김포 창고 WMS 양식의 받는 쇼핑몰 표기다. 창고 시스템이 이 값으로 주문 출처를 가르므로 창고와 합의 없이 바꾸지 않는다.' },
   { file: 'lib/payments/toss-config.mjs', text: 'ICONS', reason: '토스 결제 어드민에 만든 결제 UI(variant) 키다. 결제 어드민의 등록값과 같아야 위젯이 그려지고 결제가 ICONS 전용 MID로 잡힌다.' },
   { file: 'components/shell/StoreBranding.tsx', text: 'ICONS', reason: '통일 전 기본 스토어 이름이 남은 저장값을 기본 로고로 보이게 하는 비교값이다. 화면에 글자로 나오지 않는다.' },
-  { file: 'lib/legal/documents.ts', text: 'ICONS', reason: '이용약관 제1조는 7일 사전 공지 뒤 시행하는 예약 개정(brand-name-revision)으로 바뀐다. 시행 전 현행 본문·개정 앵커와 개정 안내 문장이다.' },
   { file: 'lib/admin/guide/changes.ts', text: 'ICONS', reason: '운영자에게 서비스 이름이 ICONS에서 엑스스퀘어로 바뀌었다고 알리는 변경 기록 문장이라 옛 이름을 그대로 인용한다.' },
   { file: 'lib/data.ts', text: 'ICONS', reason: '로컬 mock 카탈로그다. seed.sql·초기 migration과 같은 시연 값을 쓰며 운영 DB와 화면(Supabase 모드)에는 나오지 않는다.' },
 ] as const;

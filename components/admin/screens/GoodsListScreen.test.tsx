@@ -252,6 +252,29 @@ describe('goods list screen', () => {
       expect(row(html, 'sold-out')).toMatch(/text-destructive[^>]*>0개</);
       expect(row(html, 'draft')).not.toMatch(/(font-semibold text-destructive|text-warning)[^>]*>0개</);
     });
+    /* 접수 전 예약판매는 판매 가능 0개라 '판매 가능 수량 없음'으로 막히지만, 고객 화면처럼 '판매 예정'이다(품절·빨간 수량·경고 링크 없음). */
+    it('예약판매만 있는 상품의 판매 가능 0개는 품절이 아니라 고객 화면과 같은 예약 상태다', () => {
+      const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 4, ips: [], goods: [
+        { ...base, id: 'scheduled', stock: 'low' as const, lowStockOptionCount: 1, preorderSaleLabel: '판매 예정', readiness: blocked('stock_unavailable') },
+        { ...base, id: 'full', preorderSaleLabel: '예약 물량 마감', readiness: blocked('stock_unavailable') },
+        { ...base, id: 'closed', preorderSaleLabel: '예약 접수 종료', readiness: blocked('stock_unavailable') },
+        { ...base, id: 'also-unready', preorderSaleLabel: '판매 예정', readiness: { ...blocked('stock_unavailable'), reasons: [...blocked('stock_unavailable').reasons, ...blocked('image_missing').reasons] } },
+      ] }} />);
+      const cell = (id: string) => row(html, id).split('data-goods-list="sale-status"')[1]?.split('</td>')[0] ?? '';
+      expect(cell('scheduled')).toMatch(/<span[^>]*data-tone="info"[^>]*>판매 예정<\/span>/);
+      expect(cell('scheduled')).not.toContain('품절');
+      expect(cell('scheduled')).not.toContain('판매 가능 수량 없음');
+      expect(row(html, 'scheduled')).not.toMatch(/text-destructive[^>]*>0개</);
+      // 지금 팔 수 있는 수량이 없으면 품절일 때처럼 부족 경보·소량 재고 표시도 붙지 않는다.
+      expect(row(html, 'scheduled')).not.toContain('소량 재고</span>');
+      expect(row(html, 'scheduled')).not.toContain('부족 1개 옵션</span>');
+      expect(cell('full')).toMatch(/<span[^>]*data-tone="danger"[^>]*>예약 물량 마감<\/span>/);
+      expect(row(html, 'full')).toMatch(/text-destructive[^>]*>0개</);
+      expect(cell('closed')).toMatch(/<span[^>]*data-tone="neutral"[^>]*>예약 접수 종료<\/span>/);
+      // 다른 준비 사유가 함께 막으면 지금처럼 판매 준비 중이고, 수량 없음 사유도 그대로 보인다.
+      expect(cell('also-unready')).toMatch(/data-tone="warning"[^>]*>판매 준비 중<\/span>/);
+      expect(cell('also-unready')).toContain('판매 가능 수량 없음');
+    });
   });
   it('1440 화면에서 끝 열까지 들어오고, 첫 열은 상품번호, 긴 영문이 많은 상품 URL은 맨 뒤 열이다(S36-009)', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0, counts: { all: 0, active: 0, draft: 0, published: 0, archived: 0 } }} canIssueMarketingLinks />);

@@ -7,49 +7,6 @@ import {
 } from './links';
 import { socialLoginWords } from './social-login';
 import { DEMOGRAPHIC_NOTICE } from '../customer-demographics';
-import { kstToday } from './privacy-address-book-revision';
-import {
-  CONTACT_CHANNELS_PRIVACY_REVISION,
-  type ContactChannelsPrivacyRevision,
-  contactChannelsPrivacyRevisionAnnounced,
-  contactChannelsPrivacyRevisionInEffect,
-} from './contact-channels-privacy-revision';
-import {
-  ALIMTALK_PRIVACY_REVISION,
-  type AlimtalkPrivacyRevision,
-  alimtalkPrivacyRevisionAnnounced,
-  alimtalkPrivacyRevisionInEffect,
-} from './alimtalk-privacy-revision';
-import {
-  SHIPPING_BUNDLE_WORDING_REVISION,
-  type ShippingBundleWordingRevision,
-  shippingBundleWordingRevisionAnnounced,
-  shippingBundleWordingRevisionInEffect,
-} from './shipping-bundle-wording-revision';
-import {
-  PARTIAL_RETURN_TERMS_REVISION,
-  partialReturnTermsRevisionAnnounced,
-  partialReturnTermsRevisionInEffect,
-  type PartialReturnTermsRevision,
-} from './partial-return-terms-revision';
-import {
-  VIRTUAL_ACCOUNT_TERMS_REVISION,
-  virtualAccountTermsRevisionAnnounced,
-  virtualAccountTermsRevisionInEffect,
-  type VirtualAccountTermsRevision,
-} from './virtual-account-terms-revision';
-import {
-  BRAND_NAME_REVISION,
-  brandNameRevisionAnnounced,
-  brandNameRevisionInEffect,
-  type BrandNameRevision,
-} from './brand-name-revision';
-import {
-  BOT_PROTECTION_PRIVACY_REVISION,
-  botProtectionPrivacyRevisionAnnounced,
-  botProtectionPrivacyRevisionInEffect,
-  type BotProtectionPrivacyRevision,
-} from './bot-protection-privacy-revision';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
@@ -57,7 +14,7 @@ export type { LegalDocumentSlug };
 
 /* 법정 고지 문서의 본문 진실원.
  *
- * - 이용약관은 공정거래위원회 전자상거래 표준약관을 기준으로 ICONS 도메인에 맞춰 각색한 초안이다.
+ * - 이용약관은 공정거래위원회 전자상거래 표준약관을 기준으로 엑스스퀘어 도메인에 맞춰 각색한 초안이다.
  * - 개인정보처리방침은 상상이 아니라 코드에서 확인한 수집 항목만 기술한다
  *   (profiles · 온보딩 분리 동의 · orders.address · payments).
  * - 법무 검토는 판매 개시 게이트가 아니다(계획 D12). 초안으로 개시하고 검토는 병행한다.
@@ -82,21 +39,18 @@ const EMAIL_PROCESSOR_LABEL = 'Resend';
 
 /* 문서별 시행일 — 서비스 공개(오픈) 전의 최초 판.
  *
- * 2026-11-06 기준으로 서비스는 아직 공개 모집 전이고 실사용자가 없다(운영 책임자 확인 — 회원은 내부 확인용·
- * 운영 시뮬레이션 계정뿐이다). 그래서 세 문서는 개정 안내·이전 본문 없이 이 날짜의 최초 판 하나로 둔다. 오픈 전에
- * 쌓인 변경(가입 연령, 결제대행사, 교환 클레임, 직접 신청, 선택 성별, 주소록, 성인 인증)은 알릴 기존 이용자가 없어
- * 본문으로 접었다.
+ * 2026-11-25 기준으로 서비스는 아직 공개 모집 전이고 실사용자가 없다(운영 책임자 확인). 그래서 세 문서는 개정 안내·
+ * 이전 본문·사전 공지 없이 이 날짜에 작성한 최초 판 하나로 둔다(운영 책임자 결정). 오픈 전에 쌓인 변경(배송 묶음 표기,
+ * 휴대폰 번호 인증·이메일 변경, 계좌이체·가상계좌·구매안전서비스, 서비스 이름, 가입·로그인 봇 차단, 개인정보 보호책임자,
+ * 부분 반품·반품배송비, 카카오톡 알림톡)은 알릴 기존 이용자가 없어 본문으로 접었다.
  *
  * 오픈 뒤의 변경부터는 약관 제3조·방침 제13조대로 시행 7일(이용자에게 불리한 약관 변경은 30일) 전에 사전 공지하고
  * (pendingRevision), 시행일부터 직전 본문을 이전 판으로 보존한다(previousVersion·revisionChanges). 그때 한 문서만
- * 개정해도 나머지 시행일이 따라 바뀌지 않도록 시행일을 문서별로 둔다.
- *
- * 아래 값은 지금 효력이 있는 본문의 시행일이다. 예약 개정(SHIPPING_BUNDLE_WORDING_REVISION — 이용약관·배송·반품 정책의
- * '출고지' 표기)은 createLegalDocuments 가 날짜(KST)로 골라 시행일부터 문서 시행일을 그 개정의 시행일로 바꾼다. */
+ * 개정해도 나머지 시행일이 따라 바뀌지 않도록 시행일을 문서별로 둔다. */
 export const LEGAL_EFFECTIVE_DATES: Record<LegalDocumentSlug, string> = {
-  terms: '2026-11-06',
-  privacy: '2026-11-06',
-  shipping: '2026-11-06',
+  terms: '2026-11-25',
+  privacy: '2026-11-25',
+  shipping: '2026-11-25',
 };
 
 export interface LegalTable {
@@ -138,710 +92,15 @@ export interface LegalDocument {
   articles: LegalArticle[];
 }
 
-/* 2026-11 예약 개정(이용약관·배송·반품 정책) — '출고지' 표기를 고객 화면과 같은 '배송 묶음'으로 고쳐 쓴다(1027T-010).
- * 공지일부터 시행일 전까지는 현행 본문에 사전 공지만 붙이고, 시행일부터 직전 본문을 이전 판으로 보존한 뒤 아래 표대로만
- * 바꾼다(lib/legal/shipping-bundle-wording-revision.ts). 배송비 계산 기준과 반품·교환 절차의 내용은 그대로다 — 표기만 바뀐다.
- * 각 `from`은 그 문서 본문에 정확히 한 번 나와야 한다(앵커가 바뀌면 시행일 상태를 만드는 순간 실패한다 — 테스트가 그 상태를 만든다). */
-const SHIPPING_BUNDLE_WORDING_EDITS: ReadonlyArray<{ slug: 'terms' | 'shipping'; from: string; to: string }> = [
-  { slug: 'terms', from: '환급·재배송은 출고지별 실물 회수를', to: '환급·재배송은 배송 묶음별 실물 회수를' },
-  { slug: 'shipping', from: '출고지별 지정 택배사', to: '배송 묶음별 지정 택배사' },
-  {
-    slug: 'shipping',
-    from: '표시된 출고지별 배송 정책에 따릅니다. 출고지가 다르면 배송비를 각각 더합니다.',
-    to: '표시된 배송 묶음별 배송 정책에 따릅니다. 배송 묶음이 다르면 배송비를 각각 더합니다.',
-  },
-  { slug: 'shipping', from: '같은 출고지의 정책 적용 굿즈', to: '같은 배송 묶음의 정책 적용 굿즈' },
-  { slug: 'shipping', from: '출고지별 반송 주소와 회수 방법을', to: '배송 묶음별 반송 주소와 회수 방법을' },
-  { slug: 'shipping', from: '출고지별 반송 대상 굿즈와 수량의', to: '배송 묶음별 반송 대상 굿즈와 수량의' },
-];
-
-const SHIPPING_BUNDLE_WORDING_REASON =
-  "개정 사유 — 굿즈 상세·장바구니·주문 화면은 물류 거점(출고지) 이름 대신 '배송 묶음'으로 배송 단위를 안내합니다. 법정 문서의 표기도 같게 맞춥니다.";
-
-const SHIPPING_BUNDLE_WORDING_CHANGES: Record<'terms' | 'shipping', string[]> = {
-  terms: [
-    SHIPPING_BUNDLE_WORDING_REASON,
-    "제16조의2(반품과 교환)의 '출고지별 실물 회수'를 '배송 묶음별 실물 회수'로 고쳐 씁니다. 반품·교환 절차와 환급·재배송 시점은 바뀌지 않습니다.",
-  ],
-  shipping: [
-    SHIPPING_BUNDLE_WORDING_REASON,
-    "1. 배송 안내의 배송 방법·기본 배송비·무료 배송 조건과 6. 취소·반품·교환 절차의 반송 주소 안내·입고 확인에서 '출고지'를 '배송 묶음'으로 고쳐 씁니다. 배송비 계산 기준과 반품·교환 절차는 바뀌지 않습니다.",
-  ],
-};
-
-/** 조문 본문(문단·목록·표·마무리)에서 `from`을 `to`로 바꾼 사본과 바꾼 횟수. 조문 제목은 건드리지 않는다. */
-function replaceInArticles(articles: LegalArticle[], from: string, to: string): { articles: LegalArticle[]; count: number } {
-  let count = 0;
-  const swap = (text: string) => {
-    const parts = text.split(from);
-    count += parts.length - 1;
-    return parts.join(to);
-  };
-  return {
-    articles: articles.map((article) => ({
-      ...article,
-      ...(article.paragraphs ? { paragraphs: article.paragraphs.map(swap) } : {}),
-      ...(article.list ? { list: article.list.map(swap) } : {}),
-      ...(article.table ? { table: { columns: article.table.columns.map(swap), rows: article.table.rows.map((row) => row.map(swap)) } } : {}),
-      ...(article.closing ? { closing: article.closing.map(swap) } : {}),
-    })),
-    count,
-  };
-}
-
-/* 2026-11 예약 개정(이용약관·배송·반품 정책) — 부분 반품과 단순 변심 반품배송비 차감(ADR-0047, 원장 #17).
- * '출고지' 표기 개정 뒤에 얹는다(그 개정이 바꾸는 문장은 앵커로 쓰지 않는다). 각 `from`은 그 문서 본문에 정확히 한 번 나와야 한다. */
-const PARTIAL_RETURN_EDITS: ReadonlyArray<{ slug: 'terms' | 'shipping'; from: string; to: string }> = [
-  {
-    slug: 'terms',
-    from: '청약철회의 경우 반환에 필요한 비용은 이용자가 부담합니다. 다만 굿즈의 하자, 오배송 등 계약내용과 다르게 이행된 경우에는 회사가 부담합니다.',
-    to: '청약철회의 경우 반환에 필요한 비용은 이용자가 부담하며, 단순 변심에 따른 반품의 반환 비용(반품배송비)은 환급액에서 차감할 수 있습니다. 다만 굿즈의 하자, 오배송 등 계약내용과 다르게 이행된 경우에는 회사가 부담합니다.',
-  },
-  {
-    slug: 'terms',
-    from: '청약철회는 주문 단위로 처리됩니다. 승인되면 그 주문의 결제금액 전액이 취소되며, 한 주문에 담긴 굿즈 중 일부만 환급하는 처리는 제공하지 않습니다.',
-    to: '청약철회는 주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다. 주문 전체를 청약철회하면 그 주문의 결제금액(이미 일부 환급한 금액이 있으면 그 나머지)이 취소되고, 일부 굿즈만 청약철회하면 그 굿즈에 배분된 결제금액(할인·쿠폰·적립금 배분 반영)과 그 굿즈만 담긴 배송 묶음의 배송비를 환급합니다. 남은 굿즈에 쿠폰·할인 조건을 다시 적용해 환급액을 줄이지 않습니다.',
-  },
-  {
-    slug: 'terms',
-    from: '청약철회가 처리되면 그 주문으로 대가 없이 지급된 카드팩은 제17조에 따라 회수됩니다.',
-    to: '청약철회가 처리되면 그 주문으로 대가 없이 지급된 카드팩은 제17조에 따라 회수됩니다. 일부 굿즈만 청약철회한 경우에는 남은 굿즈가 카드팩 지급 조건을 계속 채우면 회수하지 않고, 채우지 못하면 열지 않은 카드팩만 회수합니다.',
-  },
-  {
-    slug: 'terms',
-    from: '주문 상세의 직접 반품·교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다.',
-    to: '주문 상세의 직접 반품 신청은 배송 중부터 주문 전체 또는 고른 굿즈·수량을, 직접 교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다.',
-  },
-  {
-    slug: 'terms',
-    from: '반품과 교환도 주문 단위로 처리됩니다. 한 주문에 담긴 굿즈 중 일부만 반품하고 나머지 대금을 그대로 두는 처리는 제공하지 않습니다. 일부 굿즈에만 하자가 있는 경우에는 해당 굿즈의 재발송 또는 주문 전체의 반품 중에서 선택할 수 있습니다.',
-    to: '반품은 한 주문에 담긴 굿즈 중 일부 굿즈·수량만 신청할 수 있고, 교환은 주문 단위로 처리됩니다. 일부 굿즈에만 하자가 있는 경우에는 해당 굿즈의 재발송 또는 그 굿즈의 반품 중에서 선택할 수 있습니다. 결제수단이 일부 금액의 취소를 지원하지 않는 경우(선물 주문 포함)에는 주문 전체로만 반품을 신청할 수 있으며, 신청 화면에서 그 사실을 안내합니다. 신청 뒤 결제대행사가 일부 취소를 받지 않으면 회사는 전액을 임의로 환급하지 않고 이용자와 환급 방법을 따로 정합니다.',
-  },
-  {
-    slug: 'shipping',
-    from: '직접 반품·교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다. 발주확인은',
-    to: '직접 반품 신청은 배송 중부터 주문 전체 또는 고른 굿즈·수량을, 직접 교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다. 발주확인은',
-  },
-];
-
-/* 표 칸·마무리처럼 문장 치환으로 바꾸기 어려운 곳은 조문 단위로 바꾼다(제목으로 찾는다). */
-const PARTIAL_RETURN_FEE_ROW = ['단순 변심, 색상·구성 착오 등 이용자 사정', '이용자',
-  '이용자가 반송하고, 반품배송비(편도 3,000원)를 환급액에서 차감합니다. 최초 배송비가 무료였던 주문은 처음 반품할 때 한 번 왕복 6,000원을 차감하고, 같은 주문의 다음 반품부터는 편도만 차감합니다.'];
-const PARTIAL_RETURN_FEE_CLOSING = [
-  '주문 전체를 청약철회하면 결제한 금액(이미 일부 환급한 금액이 있으면 그 나머지)이 취소되고, 단순 변심이면 위 표의 반품배송비만 차감합니다. 이미 받은 최초 배송비를 따로 공제하지 않습니다.',
-  '일부 굿즈만 반품해 남은 굿즈가 무료 배송 조건에 못 미치게 되어도 최초 배송비를 따로 청구하지 않습니다. 반품배송비가 그 반품의 환급액 이상이면 차감하지 않고 따로 안내합니다.',
-  '결제수단이 일부 금액의 취소를 지원하지 않으면 주문 전체 반품은 결제 금액 전액을 환급하고 반품배송비를 따로 안내하며, 일부 굿즈 반품은 주문 전체로만 신청할 수 있습니다. 카드 일부 취소는 카드사 처리에 영업일 기준 3~4일이 걸릴 수 있습니다.',
-];
-const PARTIAL_RETURN_SECTION_EDITS: ReadonlyArray<{ from: string; to: string }> = [
-  { from: '배송 중부터 전체 반품·교환을 신청할 수 있습니다.', to: '배송 중부터 전체 또는 일부 굿즈의 반품과 전체 교환을 신청할 수 있습니다.' },
-  { from: '회사가 신청 내용과 주문 전체의 굿즈·수량을 확인하고', to: '회사가 신청 내용과 반품·교환 대상 굿즈·수량을 확인하고' },
-  { from: '주문 전체의 입고가 완료된 것으로 표시하지 않습니다.', to: '신청한 반품·교환 대상 전체의 입고가 완료된 것으로 표시하지 않습니다.' },
-  {
-    from: '청약철회는 주문 단위로만 신청할 수 있습니다. 승인되면 배송비를 포함한 그 주문의 결제금액 전액이 취소되고, 주문에 담긴 굿즈 전부가 반품 대상이 됩니다. 한 주문에서 일부 굿즈만 반품하고 나머지 대금은 그대로 두는 처리는 제공하지 않습니다.',
-    to: '청약철회는 주문 전체 또는 고른 굿즈·수량 단위로 신청할 수 있습니다. 주문 전체를 청약철회하면 배송비를 포함한 그 주문의 결제금액(이미 일부 환급한 금액이 있으면 그 나머지)이 취소되고 남은 굿즈 전부가 반품 대상이 됩니다. 일부 굿즈만 청약철회하면 그 굿즈에 배분된 결제금액과 그 굿즈만 담긴 배송 묶음의 배송비를 환급하고, 고른 굿즈만 반품 대상이 됩니다. 단순 변심이면 5. 반송비 부담의 반품배송비를 차감합니다.',
-  },
-  {
-    from: '일부만 반송하고 싶다면 주문 전체에 대해 청약철회를 신청해 전액을 환급받은 뒤, 계속 갖고 싶은 굿즈를 새로 주문해주세요.',
-    to: '일부만 반송하고 싶다면 주문 상세의 반품 신청에서 반송할 굿즈와 수량을 골라주세요.',
-  },
-  { from: '재발송 대신 청약철회를 선택해 주문 전체를 반품하는 경우', to: '재발송 대신 청약철회를 선택해 그 굿즈나 주문 전체를 반품하는 경우' },
-];
-
-const PARTIAL_RETURN_REASON =
-  '개정 사유 — 한 주문에 담긴 굿즈 중 일부만 반품할 수 있게 하고(전자상거래법 제17조·제35조), 단순 변심 반품의 반품배송비를 환급액에서 차감하는 기준을 밝힙니다.';
-
-const PARTIAL_RETURN_CHANGES: Record<'terms' | 'shipping', string[]> = {
-  terms: [
-    PARTIAL_RETURN_REASON,
-    '제16조(청약철회 등의 효과): 주문 전체 또는 고른 굿즈·수량 단위로 청약철회할 수 있고, 일부 청약철회는 그 굿즈에 배분된 결제금액과 그 굿즈만 담긴 배송 묶음의 배송비를 환급합니다. 단순 변심 반품의 반품배송비를 환급액에서 차감할 수 있습니다. 일부 청약철회 뒤 카드팩은 남은 굿즈가 지급 조건을 채우는지에 따라 회수합니다.',
-    '제16조의2(반품과 교환): 반품은 일부 굿즈·수량만 신청할 수 있고 교환은 주문 단위입니다. 결제수단이 일부 취소를 지원하지 않으면 주문 전체로만 반품을 신청할 수 있습니다.',
-  ],
-  shipping: [
-    PARTIAL_RETURN_REASON,
-    '3. 청약철회 기간·6. 취소·반품·교환 절차·8. 환급: 직접 반품 신청에서 굿즈·수량을 고를 수 있고, 일부 반품의 환급 범위를 밝힙니다.',
-    '5. 반송비 부담: 단순 변심 반품은 반품배송비(편도 3,000원, 최초 배송비가 무료였던 주문은 처음 반품할 때 한 번 왕복 6,000원)를 환급액에서 차감합니다. 하자·오배송은 회사가 부담합니다.',
-  ],
-};
-
-/** 부분 반품 개정의 바뀐 본문(현행 본문 위에 얹는다). 앵커가 정확히 한 번이 아니면 던진다 — 시행일 상태를 만드는 순간 실패한다. */
-function revisePartialReturnArticles(slug: 'terms' | 'shipping', articles: LegalArticle[]): LegalArticle[] {
-  let next = articles;
-  const edits = slug === 'terms'
-    ? PARTIAL_RETURN_EDITS.filter((edit) => edit.slug === 'terms')
-    : [...PARTIAL_RETURN_EDITS.filter((edit) => edit.slug === 'shipping'), ...PARTIAL_RETURN_SECTION_EDITS];
-  for (const edit of edits) {
-    const result = replaceInArticles(next, edit.from, edit.to);
-    if (result.count !== 1) throw new Error(`partial_return_terms_anchor_changed:${slug}:${edit.from}`);
-    next = result.articles;
-  }
-  if (slug === 'shipping') {
-    const index = next.findIndex((article) => article.heading === '5. 반송비 부담');
-    const article = next[index];
-    const row = article?.table?.rows.findIndex((cells) => cells[0] === PARTIAL_RETURN_FEE_ROW[0]) ?? -1;
-    if (index < 0 || !article.table || row < 0 || !article.closing || article.closing.length !== 2) throw new Error('partial_return_terms_anchor_changed:shipping:5. 반송비 부담');
-    const rows = article.table.rows.map((cells, at) => (at === row ? PARTIAL_RETURN_FEE_ROW : cells));
-    next = next.map((value, at) => (at === index ? { ...value, table: { ...article.table!, rows }, closing: PARTIAL_RETURN_FEE_CLOSING } : value));
-  }
-  return next;
-}
-
-/** 부분 반품 개정을 날짜(KST)에 맞춰 문서에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
-function applyPartialReturnTermsRevision(
-  document: LegalDocument,
-  slug: 'terms' | 'shipping',
-  today: string,
-  revision: PartialReturnTermsRevision | null,
-): void {
-  if (revision && partialReturnTermsRevisionInEffect(today, revision)) {
-    const articles = revisePartialReturnArticles(slug, document.articles);
-    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
-    document.articles = articles;
-    document.effectiveDate = revision.effectiveDate;
-    document.revisionChanges = PARTIAL_RETURN_CHANGES[slug];
-  } else if (revision && partialReturnTermsRevisionAnnounced(today, revision)) {
-    addPendingRevision(document, {
-      announcedDate: revision.announcedDate,
-      effectiveDate: revision.effectiveDate,
-      heading: '일부 굿즈 반품·반품배송비 차감 도입에 따른 개정 예정 안내',
-      changes: PARTIAL_RETURN_CHANGES[slug],
-    });
-  }
-}
-
-/** 예약 개정을 날짜(KST)에 맞춰 문서에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
-function applyShippingBundleWordingRevision(
-  document: LegalDocument,
-  slug: 'terms' | 'shipping',
-  today: string,
-  revision: ShippingBundleWordingRevision | null,
-): void {
-  if (revision && shippingBundleWordingRevisionInEffect(today, revision)) {
-    let articles = document.articles;
-    for (const edit of SHIPPING_BUNDLE_WORDING_EDITS) {
-      if (edit.slug !== slug) continue;
-      const result = replaceInArticles(articles, edit.from, edit.to);
-      if (result.count !== 1) throw new Error(`shipping_bundle_wording_anchor_changed:${slug}:${edit.from}`);
-      articles = result.articles;
-    }
-    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
-    document.articles = articles;
-    document.effectiveDate = revision.effectiveDate;
-    document.revisionChanges = SHIPPING_BUNDLE_WORDING_CHANGES[slug];
-  } else if (revision && shippingBundleWordingRevisionAnnounced(today, revision)) {
-    document.pendingRevision = {
-      announcedDate: revision.announcedDate,
-      effectiveDate: revision.effectiveDate,
-      heading: '배송 단위 표기(배송 묶음) 통일에 따른 개정 예정 안내',
-      changes: SHIPPING_BUNDLE_WORDING_CHANGES[slug],
-    };
-  }
-}
-
-/* 2026-11 예약 개정(개인정보처리방침) — 휴대폰 번호 인증(Twilio Verify)과 소셜 로그인 회원의 선택 이메일 변경(lib/legal/contact-channels-privacy-revision.ts).
- * 현행 본문 위에 아래 변환만 얹는다. 앵커(바꿀 문장·행·조문 제목)가 하나라도 없거나 둘 이상이면 시행일 상태를 만드는 순간 던진다 —
- * 본문 문구가 바뀌어 변환이 조용히 빗나가는 일을 테스트가 막는다. */
-/* 제7조·제11조가 함께 쓰는 설정 화면 직접 열람·수정 항목(현행 본문). 개정본의 제7조만 휴대폰 번호를 더한다. */
+/* 제7조·제11조가 함께 쓰는 설정 화면 직접 열람·수정 항목. 제7조는 여기에 휴대폰 번호를 더해 적는다. */
 const SETTINGS_EDITABLE_ITEMS_TEXT = '닉네임, 프로필 이미지, 마케팅 정보 수신 동의 여부';
-const PRIVACY_PHONE_ROW: string[] = [
-  '휴대폰 번호 인증',
-  '휴대폰 번호(국가 번호 포함), 인증 완료 일시. 인증번호 요청 기록(요청 일시·결과)과 인증·해제 이력(일시·종류)에는 휴대폰 번호와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다.',
-  '회원이 온보딩 또는 설정에서 생년월일과 필수 동의를 저장한 뒤 휴대폰 번호 인증을 진행한 경우',
-];
-const PRIVACY_EMAIL_CHANGE_ROW: string[] = [
-  '이메일 변경 (선택)',
-  '변경할 이메일 주소. 인증 요청 기록(요청 일시·결과)에는 이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다.',
-  '소셜 로그인이 전달한 이메일을 쓸 수 없거나(예: Apple 이메일 가리기 주소) 이메일이 없는 회원이 직접 다른 이메일을 입력하고 인증한 경우',
-];
-const PRIVACY_FOLLOW_ROW: string[] = ['IP 팔로우', '팔로우한 IP와 IP별 알림 설정', '회원이 IP 페이지에서 팔로우한 경우'];
-const PRIVACY_TWILIO_PROCESSOR_ROW: string[] = ['Twilio Inc.', '휴대폰 번호 인증번호 문자 발송', '위탁계약 종료 시까지'];
-const PRIVACY_TWILIO_TRANSFER_ROW: string[] = [
-  'Twilio Inc.',
-  '미국',
-  '휴대폰 번호(국가 번호 포함)와 인증번호 · 인증번호를 요청할 때 · 정보통신망을 통한 전송',
-  '휴대폰 번호 인증 문자 발송 · 위탁계약 종료 시까지',
-];
 
-const CONTACT_CHANNELS_PRIVACY_REASON =
-  '개정 사유 — 회원 연락처를 확인하고 한 번호로 여러 계정을 이용하는 부정 이용을 막기 위해 휴대폰 번호 인증(문자 발송은 Twilio Inc. 위탁)을 도입하고, 소셜 로그인이 전달한 이메일을 쓸 수 없는 회원이 이메일을 직접 바꿀 수 있게 합니다. 서비스에 아직 이용자가 없어 공지 1일 뒤 시행합니다.';
+/* 개인정보 보호책임자(「개인정보 보호법」 제30조 제1항). 2026-11-25 운영 책임자가 대표이사 정승준으로 정했다.
+ * 연락처는 제11조의 문의 창구(사이트 하단 사업자 정보, 비어 있으면 인앱 1:1 문의)와 같다. */
+const PRIVACY_OFFICER_PARAGRAPH = '개인정보 보호책임자는 대표이사 정승준이며, 보호책임자의 연락처는 위 문의 창구와 같습니다.';
 
-const CONTACT_CHANNELS_PRIVACY_CHANGES: string[] = [
-  CONTACT_CHANNELS_PRIVACY_REASON,
-  "제1조(수집하는 개인정보 항목과 수집 방법)에 '휴대폰 번호 인증'·'이메일 변경 (선택)' 행을 더하고, 온보딩 행에서 '팔로우한 IP'를 빼 'IP 팔로우' 행으로 따로 적으며 닉네임이 자동 생성되고 설정에서 바꿀 수 있음을 밝힙니다.",
-  '제2조(개인정보의 처리 목적)에 휴대폰 번호 인증을 통한 회원 연락처 확인과 부정 이용 방지를 더합니다. 알림·거래 안내의 목적과 방법(알림함·이메일)은 바뀌지 않으며 문자 메시지 알림·마케팅 발송은 하지 않습니다.',
-  '제3조(개인정보의 보유·이용기간)에 휴대폰 번호 인증 요청 기록(요청 2일 뒤 삭제)·인증 이력(1년)과 이메일 변경 인증 요청 기록(요청 2일 뒤 삭제)의 보유 기간, 다른 계정이 같은 번호를 인증한 경우의 처리를 더합니다.',
-  "제5조(개인정보 처리업무의 위탁)에 수탁자 'Twilio Inc.'(인증번호 문자 발송)를 더하고, 이메일 발송 수탁자의 업무에 이메일 변경 인증 메일을 더합니다.",
-  "제6조(개인정보의 국외 이전)에 이전받는 자 'Twilio Inc.'(미국)를 더하고, 이메일 발송 수탁자의 이전 항목·시점에 이메일 변경 인증 메일을 더합니다.",
-  '제7조(정보주체의 권리와 행사 방법)의 설정 화면 직접 열람·수정 항목에 휴대폰 번호를 더하고, 이메일을 쓸 수 없는 소셜 로그인 회원이 이메일을 바꾸는 방법을 안내합니다.',
-];
-
-function privacyArticle(articles: LegalArticle[], headingPrefix: string): LegalArticle {
-  const found = articles.filter((article) => article.heading.startsWith(headingPrefix));
-  if (found.length !== 1) throw new Error(`contact_channels_privacy_anchor_changed:article:${headingPrefix}`);
-  return found[0]!;
-}
-
-function insertTableRowsAfter(article: LegalArticle, firstCell: string, rows: string[][]): void {
-  const table = article.table;
-  const index = table ? table.rows.findIndex((row) => row[0] === firstCell) : -1;
-  if (!table || index < 0 || table.rows.filter((row) => row[0] === firstCell).length !== 1) {
-    throw new Error(`contact_channels_privacy_anchor_changed:row:${article.heading}:${firstCell}`);
-  }
-  table.rows.splice(index + 1, 0, ...rows);
-}
-
-/** 현행 방침 조문의 깊은 사본에 휴대폰 번호 인증·이메일 변경 개정을 적용한 조문 목록. */
-function reviseContactChannelsPrivacyArticles(source: LegalArticle[]): LegalArticle[] {
-  let articles: LegalArticle[] = structuredClone(source);
-  const replaceOnce = (from: string, to: string) => {
-    const result = replaceInArticles(articles, from, to);
-    if (result.count !== 1) throw new Error(`contact_channels_privacy_anchor_changed:text:${from}`);
-    articles = result.articles;
-  };
-
-  /* 제1조 — 온보딩 행의 팔로우한 IP는 온보딩이 더는 받지 않는 항목이라 따로 뺀다. 닉네임은 자동 생성된다. */
-  replaceOnce(
-    '닉네임, 생년월일, 이용약관·개인정보 수집이용 동의 여부, 마케팅 정보 수신 동의 여부, 팔로우한 IP',
-    '닉네임(자동 생성되며 설정에서 바꿀 수 있음), 생년월일, 이용약관·개인정보 수집이용 동의 여부, 마케팅 정보 수신 동의 여부',
-  );
-  insertTableRowsAfter(privacyArticle(articles, '제1조 '), '온보딩', [PRIVACY_PHONE_ROW, PRIVACY_EMAIL_CHANGE_ROW, PRIVACY_FOLLOW_ROW]);
-
-  /* 제2조 */
-  const purposes = privacyArticle(articles, '제2조 (');
-  const purposeAnchor = '굿즈 주문 접수, 대금 결제, 배송, 청약철회·취소·반품·교환·환급 처리';
-  const purposeIndex = purposes.list?.indexOf(purposeAnchor) ?? -1;
-  if (purposeIndex < 0) throw new Error(`contact_channels_privacy_anchor_changed:list:${purposeAnchor}`);
-  purposes.list!.splice(
-    purposeIndex,
-    0,
-    '휴대폰 번호 인증을 통한 회원 연락처 확인과 한 번호로 여러 계정을 이용하는 부정 이용 방지(다른 계정이 같은 번호를 인증하면 이전 계정에 재인증을 요청)',
-  );
-  if (purposes.closing) throw new Error('contact_channels_privacy_anchor_changed:closing:제2조');
-  purposes.closing = [
-    '휴대폰 번호 인증으로 확인한 번호는 위 목적에만 이용하며 문자 메시지를 통한 알림·거래 안내·마케팅 정보 발송에는 이용하지 않습니다. 알림·거래 안내의 목적과 방법(알림함·이메일)은 이 개정으로 바뀌지 않습니다.',
-  ];
-
-  /* 제3조 */
-  const retention = privacyArticle(articles, '제3조 ');
-  if (!retention.closing?.length) throw new Error('contact_channels_privacy_anchor_changed:closing:제3조');
-  retention.closing.push(
-    '휴대폰 번호 인증은 인증 완료한 휴대폰 번호와 인증 일시를 회원 탈퇴 처리 시(탈퇴 신청 기능이 열려 있으면 신청 시) 인증 이력과 함께 파기합니다. 인증번호 요청 기록(요청 일시·결과)은 요청 2일 뒤, 인증·해제 이력(일시·종류)은 발생 1년 뒤 삭제하며 이 기록에는 휴대폰 번호와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다. 한 번호는 한 계정에서만 인증 상태로 유지되므로 다른 계정이 같은 번호를 인증하면 이전 계정의 번호는 즉시 삭제하고 재인증이 필요하다는 표시만 남깁니다.',
-    '이메일 변경 인증 요청 기록(요청 일시·결과)은 요청 2일 뒤 삭제하며 이메일 주소와 IP 주소는 복원할 수 없게 변환한 값만 남깁니다. 변경해 인증한 계정 이메일은 다른 회원 정보와 함께 회원 탈퇴 시 파기합니다.',
-  );
-
-  /* 제5조 */
-  const consignment = privacyArticle(articles, '제5조 ');
-  insertTableRowsAfter(consignment, '엔에이치엔케이씨피 주식회사', [PRIVACY_TWILIO_PROCESSOR_ROW]);
-  replaceOnce(
-    '주문 확인·배송 시작 등 거래 안내 메일과 가입 인증·비밀번호 재설정 메일 발송',
-    '주문 확인·배송 시작 등 거래 안내 메일과 가입 인증·비밀번호 재설정·이메일 변경 인증 메일 발송',
-  );
-  replaceOnce(
-    '가입 인증과 비밀번호 재설정 메일에는 수신 이메일 주소가 전달됩니다.',
-    '가입 인증과 비밀번호 재설정 메일에는 수신 이메일 주소가, 이메일 변경 인증 메일에는 변경할 이메일 주소(수신자)와 6자리 인증번호가 전달됩니다.',
-  );
-
-  /* 제6조 */
-  const transfer = privacyArticle(articles, '제6조 ');
-  insertTableRowsAfter(transfer, 'Vercel, Inc.', [PRIVACY_TWILIO_TRANSFER_ROW]);
-  replaceOnce(
-    '택배사와 운송장번호 · 주문 확인·배송 시작 메일 발송 시점과 가입 인증·비밀번호 재설정 메일 발송 시점',
-    '택배사와 운송장번호, 이메일 변경 인증번호 · 주문 확인·배송 시작 메일 발송 시점과 가입 인증·비밀번호 재설정·이메일 변경 인증 메일 발송 시점',
-  );
-  replaceOnce(
-    '거래 안내 메일과 가입 인증·비밀번호 재설정 메일 발송 · 위탁계약 종료 시까지',
-    '거래 안내 메일과 가입 인증·비밀번호 재설정·이메일 변경 인증 메일 발송 · 위탁계약 종료 시까지',
-  );
-
-  /* 제7조 — 휴대폰 번호는 설정에서 열람·재인증할 수 있다. 제11조가 공유하는 SETTINGS_EDITABLE_ITEMS 는 건드리지 않는다. */
-  replaceOnce(
-    `${SETTINGS_EDITABLE_ITEMS_TEXT}는 설정 화면에서 직접 열람·수정할 수 있습니다.`,
-    `${SETTINGS_EDITABLE_ITEMS_TEXT}, 휴대폰 번호는 설정 화면에서 직접 열람·수정할 수 있습니다.`,
-  );
-  const rights = privacyArticle(articles, '제7조 ');
-  const rightsAnchor = rights.paragraphs?.findIndex((text) => text.startsWith('주소록에 저장한 배송지는')) ?? -1;
-  if (rightsAnchor < 0) throw new Error('contact_channels_privacy_anchor_changed:paragraph:제7조 주소록');
-  rights.paragraphs!.splice(
-    rightsAnchor + 1,
-    0,
-    '소셜 로그인이 전달한 이메일을 쓸 수 없는(예: Apple 이메일 가리기 주소) 회원이나 이메일이 없는 회원은 설정 또는 온보딩에서 다른 이메일을 입력하고 인증번호로 확인해 계정 이메일을 바꿀 수 있습니다.',
-  );
-  return articles;
-}
-
-/** 예약 개정을 날짜(KST)에 맞춰 방침에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
-function applyContactChannelsPrivacyRevision(document: LegalDocument, today: string, revision: ContactChannelsPrivacyRevision | null): void {
-  if (revision && contactChannelsPrivacyRevisionInEffect(today, revision)) {
-    const articles = reviseContactChannelsPrivacyArticles(document.articles);
-    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
-    document.articles = articles;
-    document.effectiveDate = revision.effectiveDate;
-    document.revisionChanges = CONTACT_CHANNELS_PRIVACY_CHANGES;
-  } else if (revision && contactChannelsPrivacyRevisionAnnounced(today, revision)) {
-    document.pendingRevision = {
-      announcedDate: revision.announcedDate,
-      effectiveDate: revision.effectiveDate,
-      heading: '휴대폰 번호 인증·이메일 변경 도입에 따른 개정 예정 안내',
-      changes: CONTACT_CHANNELS_PRIVACY_CHANGES,
-    };
-  }
-}
-
-/* 예약 개정(개인정보처리방침) — 카카오톡 알림톡 주문 안내(lib/legal/alimtalk-privacy-revision.ts). 휴대폰 번호 인증 개정(2026-11-18
- * 시행) 위에 얹는다 — 그 개정의 제2조 마무리 문장('거래 안내 … 발송에는 이용하지 않습니다')과 제5조 표를 앵커로 쓰므로, 시행일
- * 상태는 휴대폰 번호 인증 개정이 시행된 본문에서만 만들 수 있다(앵커가 없으면 던진다 — 테스트가 그 상태를 만든다). */
-const PRIVACY_ALIMTALK_PROCESSOR_ROWS: string[][] = [
-  ['엔에이치엔클라우드 주식회사', '카카오톡 알림톡(주문 접수·굿즈 발송 안내) 발송 대행', '위탁계약 종료 시까지'],
-  ['주식회사 카카오', '카카오톡 알림톡 전달', '위탁계약 종료 시까지'],
-];
-
-const ALIMTALK_PRIVACY_REASON =
-  '개정 사유 — 주문 접수와 굿즈 발송 소식을 이메일과 함께 카카오톡 알림톡으로도 알려 드리기 위해, 휴대폰 번호 인증으로 확인한 번호를 주문한 회원 본인에게 보내는 알림톡 거래 안내에 이용하고 그 발송을 위탁합니다.';
-
-const ALIMTALK_PRIVACY_CHANGES: string[] = [
-  ALIMTALK_PRIVACY_REASON,
-  "제2조(개인정보의 처리 목적)의 거래 진행 안내 방법에 카카오톡 알림톡을 더하고, 휴대폰 번호 인증으로 확인한 번호를 주문한 회원 본인에게 주문 접수·굿즈 발송을 알리는 알림톡에 이용한다고 밝힙니다. 문자 메시지 알림과 마케팅 정보 발송에는 계속 이용하지 않습니다.",
-  "제5조(개인정보 처리업무의 위탁)에 수탁자 '엔에이치엔클라우드 주식회사'(알림톡 발송 대행)와 '주식회사 카카오'(알림톡 전달)를 더하고, 이들에게 전달되는 항목(휴대폰 번호와 안내 내용)을 밝힙니다.",
-];
-
-/** 현행 방침 조문(휴대폰 번호 인증 개정 시행본)의 깊은 사본에 알림톡 개정을 적용한 조문 목록. */
-function reviseAlimtalkPrivacyArticles(source: LegalArticle[]): LegalArticle[] {
-  let articles: LegalArticle[] = structuredClone(source);
-  const replaceOnce = (from: string, to: string) => {
-    const result = replaceInArticles(articles, from, to);
-    if (result.count !== 1) throw new Error(`alimtalk_privacy_anchor_changed:text:${from}`);
-    articles = result.articles;
-  };
-  const article = (prefix: string) => {
-    const found = articles.filter((item) => item.heading.startsWith(prefix));
-    if (found.length !== 1) throw new Error(`alimtalk_privacy_anchor_changed:article:${prefix}`);
-    return found[0]!;
-  };
-
-  /* 제2조 */
-  replaceOnce('알림함·이메일을 통한 거래 진행 안내와 서비스 공지', '알림함·이메일·카카오톡 알림톡을 통한 거래 진행 안내와 서비스 공지');
-  replaceOnce(
-    '휴대폰 번호 인증으로 확인한 번호는 위 목적에만 이용하며 문자 메시지를 통한 알림·거래 안내·마케팅 정보 발송에는 이용하지 않습니다. 알림·거래 안내의 목적과 방법(알림함·이메일)은 이 개정으로 바뀌지 않습니다.',
-    '휴대폰 번호 인증으로 확인한 번호는 위 목적과, 주문한 회원 본인에게 주문 접수·굿즈 발송 사실을 알리는 카카오톡 알림톡 발송에만 이용합니다. 문자 메시지를 통한 알림·거래 안내와 마케팅 정보 발송에는 이용하지 않습니다.',
-  );
-
-  /* 제5조 */
-  const consignment = article('제5조 ');
-  const table = consignment.table;
-  const index = table ? table.rows.findIndex((row) => row[0] === EMAIL_PROCESSOR_LABEL) : -1;
-  if (!table || index < 0 || table.rows.filter((row) => row[0] === EMAIL_PROCESSOR_LABEL).length !== 1) {
-    throw new Error(`alimtalk_privacy_anchor_changed:row:제5조:${EMAIL_PROCESSOR_LABEL}`);
-  }
-  if (!table.rows.some((row) => row[0] === 'Twilio Inc.')) throw new Error('alimtalk_privacy_anchor_changed:row:제5조:Twilio Inc.');
-  table.rows.splice(index + 1, 0, ...PRIVACY_ALIMTALK_PROCESSOR_ROWS.map((row) => [...row]));
-  if (!consignment.closing?.length) throw new Error('alimtalk_privacy_anchor_changed:closing:제5조');
-  consignment.closing.push(
-    '카카오톡 알림톡 수탁자(엔에이치엔클라우드 주식회사, 주식회사 카카오)에는 인증한 휴대폰 번호와 안내 내용(주문번호, 주문 굿즈 이름, 결제금액, 택배사와 운송장번호, 주문 상세 주소)만 전달됩니다.',
-  );
-  return articles;
-}
-
-/** 예약 개정을 날짜(KST)에 맞춰 방침에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
-function applyAlimtalkPrivacyRevision(document: LegalDocument, today: string, revision: AlimtalkPrivacyRevision | null): void {
-  if (revision && alimtalkPrivacyRevisionInEffect(today, revision)) {
-    const articles = reviseAlimtalkPrivacyArticles(document.articles);
-    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
-    document.articles = articles;
-    document.effectiveDate = revision.effectiveDate;
-    document.revisionChanges = ALIMTALK_PRIVACY_CHANGES;
-    delete document.pendingRevision;
-  } else if (revision && alimtalkPrivacyRevisionAnnounced(today, revision)) {
-    addPendingRevision(document, {
-      announcedDate: revision.announcedDate,
-      effectiveDate: revision.effectiveDate,
-      heading: '카카오톡 알림톡 주문 안내 도입에 따른 개정 예정 안내',
-      changes: ALIMTALK_PRIVACY_CHANGES,
-    });
-  }
-}
-
-/* 예약 개정(이용약관·개인정보처리방침·배송·반품 정책) — 토스 계좌이체·가상계좌(무통장입금)와 구매안전서비스(에스크로)(ADR-0049,
- * lib/legal/virtual-account-terms-revision.ts). 회사 계좌로 직접 받는 무통장 입금(제11조의2·배송 정책 '무통장 입금 기한')은 건드리지 않는다.
- * 앵커는 다른 예약 개정이 바꾸지 않는 문장·행·조문 제목만 쓴다 — 다른 개정의 시행 여부와 관계없이 시행일 상태를 만들 수 있다.
- * 앵커가 없거나 둘 이상이면 시행일 상태를 만드는 순간 던진다(테스트가 그 상태를 만든다). */
-const VIRTUAL_ACCOUNT_TERMS_TOSS_FROM = '굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해 신용·체크카드 또는 간편결제로 지급할 수 있습니다.';
-const VIRTUAL_ACCOUNT_TERMS_TOSS_TO =
-  '굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해 신용·체크카드, 간편결제, 계좌이체 또는 가상계좌(무통장입금)로 지급할 수 있습니다. 계좌이체와 가상계좌는 굿즈 주문에만 제공하며, 팝업 티켓과 19금 굿즈가 담긴 주문에는 제공하지 않습니다.';
-const VIRTUAL_ACCOUNT_TERMS_PARAGRAPHS = [
-  '가상계좌로 지급하는 이용자는 결제 화면과 주문 화면에 안내된 은행·계좌번호·금액으로 입금 기한 안에 입금해야 합니다. 가상계좌 결제는 결제대행사가 입금을 확인한 때 확정되며, 기한 안에 입금되지 않으면 주문은 자동으로 취소되고 선점된 수량은 복원됩니다. 이 경우 지급된 대금이 없으므로 환급 절차도 없습니다.',
-  '배송이 필요한 굿즈를 계좌이체 또는 가상계좌로 지급하는 이용자는 결제대행사인 토스페이먼츠 주식회사가 제공하는 구매안전서비스(결제대금예치, 에스크로)를 선택해 이용할 수 있습니다. 구매안전서비스를 선택한 결제의 대금은 이용자가 굿즈를 받고 구매를 확정할 때까지 결제대행사가 보관하며, 구매 확정과 취소 신청은 결제대행사가 보내는 안내에 따릅니다.',
-  '가상계좌로 지급한 대금을 입금 뒤 취소·환급하는 경우 회사는 결제대행사를 통해 이용자가 알려준 환급 계좌(은행, 계좌번호, 예금주)로 환급하며, 환급 계좌 정보의 제공은 환급의 전제가 됩니다. 결제대행사는 환급 전에 예금주를 확인하며, 은행 처리에 따라 환급까지 영업일 기준 2일 정도 걸릴 수 있습니다.',
-  '계좌이체로 지급한 대금을 취소·환급하는 경우 회사는 결제대행사를 통해 대금이 출금된 계좌로 돌려드리며, 별도의 환급 계좌를 받지 않습니다.',
-];
-const VIRTUAL_ACCOUNT_PRIVACY_TOSS_FROM = '굿즈·티켓 카드·간편결제 처리, 결제 취소와 환급 처리';
-const VIRTUAL_ACCOUNT_PRIVACY_TOSS_TO =
-  '굿즈·티켓 카드·간편결제와 굿즈 계좌이체·가상계좌(무통장입금) 결제 처리, 구매안전서비스(에스크로), 현금영수증 발급, 결제 취소와 환급(환급 계좌 확인 포함) 처리';
-/* 결제 화면(토스 결제 UI)에서 구매자가 입력한 환불 계좌는 승인 응답으로 받아 입금 뒤 환불에 쓰고 발급 180일 뒤 지운다
- * (supabase/migrations/20261125090100_toss_virtual_account_awaiting_deposit.sql private.payment_attempt_virtual_accounts). */
-const VIRTUAL_ACCOUNT_PRIVACY_REFUND_ROW = [
-  '가상계좌 결제 환급 계좌',
-  '은행, 계좌번호, 예금주 (가상계좌 발급일부터 180일 뒤 파기)',
-  '가상계좌 결제 화면에서 이용자가 환불받을 계좌를 입력한 경우(결제대행사가 회사에 전달)',
-];
-const VIRTUAL_ACCOUNT_SHIPPING_CONFIRM_FROM = '무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다.';
-const VIRTUAL_ACCOUNT_SHIPPING_CONFIRM_TO = '무통장 입금 주문은 입금이 확인된 날이, 가상계좌 주문은 결제대행사가 입금을 확인한 날이 결제 확정일입니다.';
-const VIRTUAL_ACCOUNT_SHIPPING_DEADLINE_ROW = [
-  '가상계좌 입금 기한',
-  '결제 화면과 주문 화면에 안내된 입금 기한(보통 주문 후 24시간). 기한 안에 입금되지 않으면 주문이 자동 취소되고 선점된 수량이 복원됩니다.',
-];
-const VIRTUAL_ACCOUNT_SHIPPING_REFUND_PARAGRAPH =
-  '가상계좌로 결제한 주문을 입금 뒤 취소·반품하는 경우에도 결제 화면 또는 반품·취소 신청 화면에서 입력한 환급 계좌로 환급하므로, 환급 계좌가 없으면 환급을 진행할 수 없습니다. 결제대행사가 예금주를 확인한 뒤 송금하며, 은행 처리에 영업일 기준 2일 정도 걸릴 수 있습니다. 결제 화면에서 입력한 환급 계좌는 결제대행사가 회사에 전달하며 가상계좌 발급일부터 180일이 지나면 파기합니다. 계좌이체로 결제한 주문은 환급 계좌 없이 결제대행사를 통해 대금이 출금된 계좌로 환급합니다.';
-
-const VIRTUAL_ACCOUNT_REASON =
-  '개정 사유 — 굿즈 대금을 결제대행사(토스페이먼츠)를 통한 계좌이체와 결제대행사가 발급하는 가상계좌(무통장입금)로도 받고, 현금성 결제에 구매안전서비스(결제대금예치, 에스크로)를 제공하기 위해 지급 방법·결제 확정 시점·환급 절차와 개인정보 처리 내용을 밝힙니다.';
-
-const VIRTUAL_ACCOUNT_CHANGES: Record<LegalDocumentSlug, string[]> = {
-  terms: [
-    VIRTUAL_ACCOUNT_REASON,
-    '제11조(지급방법): 토스페이먼츠 주식회사를 통한 지급 방법에 계좌이체와 가상계좌(무통장입금)를 더합니다(굿즈 주문만 — 팝업 티켓과 19금 굿즈가 담긴 주문 제외). 가상계좌 결제는 결제대행사가 입금을 확인한 때 확정되고, 입금 기한 안에 입금되지 않으면 주문이 자동 취소됩니다. 계좌이체·가상계좌 모두 구매안전서비스(에스크로)를 선택할 수 있고, 가상계좌 입금 뒤 취소·환급은 이용자가 알려준 환급 계좌로, 계좌이체 취소·환급은 대금이 출금된 계좌로 합니다. 회사 계좌로 직접 입금하는 무통장 입금(제11조의2)은 바뀌지 않습니다.',
-  ],
-  privacy: [
-    VIRTUAL_ACCOUNT_REASON,
-    '제1조(수집하는 개인정보 항목과 수집 방법)에 가상계좌 결제 화면에서 입력한 환급 계좌(은행, 계좌번호, 예금주 — 가상계좌 발급일부터 180일 뒤 파기)를 더합니다.',
-    '제5조(개인정보 처리업무의 위탁)의 토스페이먼츠 주식회사 위탁 업무에 계좌이체·가상계좌(무통장입금) 결제 처리, 구매안전서비스(에스크로), 현금영수증 발급, 환급 계좌 확인을 더합니다.',
-  ],
-  shipping: [
-    VIRTUAL_ACCOUNT_REASON,
-    '1. 배송 안내에 가상계좌 입금 기한을 더하고, 가상계좌 주문은 결제대행사가 입금을 확인한 날이 결제 확정일임을 밝힙니다.',
-    '7. 환급 계좌: 가상계좌로 결제한 주문을 입금 뒤 취소·반품하면 입력한 환급 계좌로 환급하고, 결제 화면에서 입력한 환급 계좌는 가상계좌 발급일부터 180일 뒤 파기합니다. 계좌이체 주문은 대금이 출금된 계좌로 환급합니다.',
-  ],
-};
-
-/** 현행 조문의 깊은 사본에 가상계좌 개정을 적용한 조문 목록. 앵커가 정확히 하나가 아니면 던진다. */
-function reviseVirtualAccountArticles(slug: LegalDocumentSlug, source: LegalArticle[]): LegalArticle[] {
-  let articles: LegalArticle[] = structuredClone(source);
-  const replaceOnce = (from: string, to: string) => {
-    const result = replaceInArticles(articles, from, to);
-    if (result.count !== 1) throw new Error(`virtual_account_terms_anchor_changed:${slug}:text:${from}`);
-    articles = result.articles;
-  };
-  const article = (heading: string) => {
-    const found = articles.filter((item) => item.heading === heading);
-    if (found.length !== 1) throw new Error(`virtual_account_terms_anchor_changed:${slug}:article:${heading}`);
-    return found[0]!;
-  };
-  const insertAfter = (list: string[] | undefined, prefix: string, values: string[], label: string) => {
-    const index = list?.findIndex((text) => text.startsWith(prefix)) ?? -1;
-    if (!list || index < 0 || list.filter((text) => text.startsWith(prefix)).length !== 1) {
-      throw new Error(`virtual_account_terms_anchor_changed:${slug}:${label}`);
-    }
-    list.splice(index + 1, 0, ...values);
-  };
-  const insertRowAfter = (target: LegalArticle, firstCell: string, row: string[], label: string) => {
-    const rows = target.table?.rows;
-    const index = rows?.findIndex((cells) => cells[0] === firstCell) ?? -1;
-    if (!rows || index < 0 || rows.filter((cells) => cells[0] === firstCell).length !== 1) {
-      throw new Error(`virtual_account_terms_anchor_changed:${slug}:row:${label}`);
-    }
-    rows.splice(index + 1, 0, [...row]);
-  };
-
-  if (slug === 'terms') {
-    replaceOnce(VIRTUAL_ACCOUNT_TERMS_TOSS_FROM, VIRTUAL_ACCOUNT_TERMS_TOSS_TO);
-    insertAfter(article('제11조 (지급방법)').paragraphs, '결제의 확정은 결제대행사가', VIRTUAL_ACCOUNT_TERMS_PARAGRAPHS, 'paragraph:제11조 결제의 확정');
-  } else if (slug === 'privacy') {
-    replaceOnce(VIRTUAL_ACCOUNT_PRIVACY_TOSS_FROM, VIRTUAL_ACCOUNT_PRIVACY_TOSS_TO);
-    insertRowAfter(article('제1조 (수집하는 개인정보 항목과 수집 방법)'), '취소·반품 환급 계좌', VIRTUAL_ACCOUNT_PRIVACY_REFUND_ROW, '제1조 취소·반품 환급 계좌');
-  } else {
-    replaceOnce(VIRTUAL_ACCOUNT_SHIPPING_CONFIRM_FROM, VIRTUAL_ACCOUNT_SHIPPING_CONFIRM_TO);
-    insertRowAfter(article('1. 배송 안내'), '무통장 입금 기한', VIRTUAL_ACCOUNT_SHIPPING_DEADLINE_ROW, '1. 배송 안내 무통장 입금 기한');
-    insertAfter(article('7. 환급 계좌').paragraphs, '입력한 계좌는 환급 처리 목적으로만', [VIRTUAL_ACCOUNT_SHIPPING_REFUND_PARAGRAPH], 'paragraph:7. 환급 계좌');
-  }
-  return articles;
-}
-
-/** 사전 공지를 더한다 — 같은 문서에 앞선 예약 개정의 공지가 이미 있으면 덮어쓰지 않고 그 뒤에 잇는다(법정 7일 공지가 가려지지 않게). */
-function addPendingRevision(document: LegalDocument, notice: LegalRevisionNotice): void {
-  if (!document.pendingRevision) {
-    document.pendingRevision = notice;
-    return;
-  }
-  document.additionalPendingRevisions = [...(document.additionalPendingRevisions ?? []), notice];
-}
-
-/**
- * 가상계좌 개정을 날짜(KST)에 맞춰 문서에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문.
- * 시행 뒤에도 다른 예약 개정의 사전 공지(pendingRevision)는 지우지 않는다. 공지 기간이 같은 문서의 다른 예약 개정 공지와 겹치면
- * 두 공지를 함께 보인다(addPendingRevision). 다른 예약 개정과의 선후는 createLegalDocuments가 시행일 순서로 정한다.
- */
-function applyVirtualAccountTermsRevision(
-  document: LegalDocument,
-  slug: LegalDocumentSlug,
-  today: string,
-  revision: VirtualAccountTermsRevision | null,
-): void {
-  if (revision && virtualAccountTermsRevisionInEffect(today, revision)) {
-    const articles = reviseVirtualAccountArticles(slug, document.articles);
-    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
-    document.articles = articles;
-    document.effectiveDate = revision.effectiveDate;
-    document.revisionChanges = VIRTUAL_ACCOUNT_CHANGES[slug];
-  } else if (revision && virtualAccountTermsRevisionAnnounced(today, revision)) {
-    addPendingRevision(document, {
-      announcedDate: revision.announcedDate,
-      effectiveDate: revision.effectiveDate,
-      heading: '계좌이체·가상계좌(무통장입금)·구매안전서비스 도입에 따른 개정 예정 안내',
-      changes: VIRTUAL_ACCOUNT_CHANGES[slug],
-    });
-  }
-}
-
-/* 2026-11 예약 개정(이용약관) — 서비스 이름을 ICONS에서 엑스스퀘어로(lib/legal/brand-name-revision.ts). 제1조의 회사·서비스 표기만
- * 바뀐다(문서 이름은 조문이 아니어서 개인정보처리방침과 같이 바로 '엑스스퀘어 이용약관'이다). 앵커는 다른 예약 개정이 바꾸지 않는 제1조 첫 문장이라 어느 순서로도 시행일 상태를 만들 수 있고, 정확히 한 번이
- * 아니면 시행일 상태를 만드는 순간 던진다. */
-const BRAND_NAME_TERMS_EDIT = {
-  from: '이 약관은 ICONS(이하 "회사")가 운영하는 온라인 서비스 ICONS(이하 "서비스")에서',
-  to: '이 약관은 주식회사 아이콘스(이하 "회사")가 운영하는 온라인 서비스 엑스스퀘어(이하 "서비스")에서',
-} as const;
-const BRAND_NAME_CHANGES = [
-  '개정 사유 — 서비스 이름을 ICONS에서 엑스스퀘어로 바꿉니다. 서비스를 운영하는 회사(주식회사 아이콘스)와 서비스 내용·이용조건은 바뀌지 않습니다.',
-  '제1조(목적)의 회사 표기를 법인 상호(주식회사 아이콘스)로, 서비스 이름을 엑스스퀘어로 고쳐 씁니다.',
-];
-
-/** 서비스 이름 개정을 날짜(KST)에 맞춰 약관에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문. */
-function applyBrandNameRevision(document: LegalDocument, today: string, revision: BrandNameRevision | null): void {
-  if (revision && brandNameRevisionInEffect(today, revision)) {
-    const result = replaceInArticles(document.articles, BRAND_NAME_TERMS_EDIT.from, BRAND_NAME_TERMS_EDIT.to);
-    if (result.count !== 1) throw new Error('brand_name_terms_anchor_changed');
-    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
-    document.articles = result.articles;
-    document.effectiveDate = revision.effectiveDate;
-    document.revisionChanges = BRAND_NAME_CHANGES;
-  } else if (revision && brandNameRevisionAnnounced(today, revision)) {
-    addPendingRevision(document, {
-      announcedDate: revision.announcedDate,
-      effectiveDate: revision.effectiveDate,
-      heading: '서비스 이름(엑스스퀘어) 변경에 따른 개정 예정 안내',
-      changes: BRAND_NAME_CHANGES,
-    });
-  }
-}
-
-/* 개정(개인정보처리방침) — 가입·로그인 봇 차단(lib/legal/bot-protection-privacy-revision.ts, 런북 signup-contact-channels §13).
- * Cloudflare Turnstile 자동 가입 방지 확인의 위탁·국외 이전과, 앱 서버의 요청 남용 방지 기록(IP·이메일 HMAC 다이제스트, 2일 보관)을 밝힌다.
- * 앵커는 다른 예약 개정이 바꾸지 않는 최초 판의 행·목록 항목·조문 제목만 쓴다(제6조의 'Vercel, Inc.' 행 뒤에는 휴대폰 번호 인증 개정이
- * Twilio 행을 넣지만 그 행 자체는 바꾸지 않는다) — 다른 개정의 시행 여부와 관계없이 시행일 상태를 만들 수 있다.
- * 앵커가 없거나 둘 이상이면 시행일 상태를 만드는 순간 던진다(테스트가 그 상태를 만든다). */
-const BOT_PROTECTION_PROCESSOR = 'Cloudflare, Inc.';
-const BOT_PROTECTION_COLLECTION_ROW: string[] = [
-  '자동 가입 방지 확인',
-  '접속 IP 주소, 브라우저·기기 정보(브라우저 종류, 운영체제 등)와 자동화 프로그램 여부 판단에 쓰이는 브라우저 환경 신호(Cloudflare Turnstile이 처리). 회원가입·가입 확인 메일 재전송·비밀번호 재설정 요청 기록(요청 일시·종류)에는 이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다.',
-  '회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정을 요청할 때',
-];
-const BOT_PROTECTION_PURPOSE_ANCHOR = '회원 식별, 로그인 유지, 가입 자격 확인 등 회원 관리';
-const BOT_PROTECTION_PURPOSE =
-  '자동화된 프로그램(봇)을 이용한 회원가입·로그인 시도와 가입 확인·비밀번호 재설정 메일 발송 남용을 막는 부정 이용 방지';
-const BOT_PROTECTION_RETENTION =
-  '회원가입·가입 확인 메일 재전송·비밀번호 재설정 요청 기록(요청 일시·종류)은 요청 2일 뒤 삭제하며, 이 기록에는 이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다. 자동 가입 방지 확인 결과는 해당 요청을 처리하는 데에만 쓰고 따로 저장하지 않습니다.';
-const BOT_PROTECTION_PROCESSOR_ROW: string[] = [
-  BOT_PROTECTION_PROCESSOR,
-  '회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정 화면의 자동 가입 방지 확인(Turnstile) 제공',
-  '위탁계약 종료 시까지',
-];
-const BOT_PROTECTION_TRANSFER_ROW: string[] = [
-  BOT_PROTECTION_PROCESSOR,
-  '미국',
-  '접속 IP 주소, 브라우저·기기 정보와 브라우저 환경 신호 · 회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정 화면 이용 시점 · 정보통신망을 통한 전송',
-  '자동 가입 방지 확인(Turnstile) · 위탁계약 종료 시까지',
-];
-
-const BOT_PROTECTION_CHANGES: string[] = [
-  '개정 사유 — 자동화된 프로그램(봇)이 회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정을 대량으로 시도해 메일 발송을 남용하거나 계정을 노리는 일을 막기 위해, 이 화면들에 Cloudflare Turnstile 자동 가입 방지 확인을 도입하고 요청 남용 방지 기록의 보관 기간을 밝힙니다.',
-  "제1조(수집하는 개인정보 항목과 수집 방법)에 '자동 가입 방지 확인' 행을 더합니다 — 접속 IP 주소와 브라우저·기기 정보를 Cloudflare Turnstile이 확인하고, 회사는 요청 기록에 이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다.",
-  '제2조(개인정보의 처리 목적)에 자동화된 가입·로그인 시도와 메일 발송 남용을 막는 부정 이용 방지를 더합니다.',
-  '제3조(개인정보의 보유·이용기간)에 요청 남용 방지 기록을 요청 2일 뒤 삭제한다는 내용을 더합니다.',
-  "제5조(개인정보 처리업무의 위탁)에 수탁자 'Cloudflare, Inc.'(자동 가입 방지 확인)를, 제6조(개인정보의 국외 이전)에 이전받는 자 'Cloudflare, Inc.'(미국)를 더합니다.",
-];
-
-/** 현행 방침 조문의 깊은 사본에 봇 차단 개정을 적용한 조문 목록. 앵커가 정확히 하나가 아니면 던진다. */
-function reviseBotProtectionPrivacyArticles(source: LegalArticle[]): LegalArticle[] {
-  const articles: LegalArticle[] = structuredClone(source);
-  const article = (prefix: string) => {
-    const found = articles.filter((item) => item.heading.startsWith(prefix));
-    if (found.length !== 1) throw new Error(`bot_protection_privacy_anchor_changed:article:${prefix}`);
-    return found[0]!;
-  };
-  const insertRowAfter = (target: LegalArticle, firstCell: string, row: string[]) => {
-    const rows = target.table?.rows;
-    const index = rows?.findIndex((cells) => cells[0] === firstCell) ?? -1;
-    if (!rows || index < 0 || rows.filter((cells) => cells[0] === firstCell).length !== 1) {
-      throw new Error(`bot_protection_privacy_anchor_changed:row:${target.heading}:${firstCell}`);
-    }
-    if (rows.some((cells) => cells[0] === row[0])) throw new Error(`bot_protection_privacy_anchor_changed:duplicate:${target.heading}:${row[0]}`);
-    rows.splice(index + 1, 0, [...row]);
-  };
-
-  /* 제1조 */
-  insertRowAfter(article('제1조 '), '자동 생성', BOT_PROTECTION_COLLECTION_ROW);
-
-  /* 제2조 */
-  const purposes = article('제2조 (');
-  const purposeIndex = purposes.list?.indexOf(BOT_PROTECTION_PURPOSE_ANCHOR) ?? -1;
-  if (!purposes.list || purposeIndex < 0 || purposes.list.filter((text) => text === BOT_PROTECTION_PURPOSE_ANCHOR).length !== 1) {
-    throw new Error(`bot_protection_privacy_anchor_changed:list:${BOT_PROTECTION_PURPOSE_ANCHOR}`);
-  }
-  purposes.list.splice(purposeIndex + 1, 0, BOT_PROTECTION_PURPOSE);
-
-  /* 제3조 */
-  const retention = article('제3조 ');
-  if (!retention.closing?.length) throw new Error('bot_protection_privacy_anchor_changed:closing:제3조');
-  retention.closing.push(BOT_PROTECTION_RETENTION);
-
-  /* 제5조·제6조 */
-  insertRowAfter(article('제5조 '), 'Vercel, Inc.', BOT_PROTECTION_PROCESSOR_ROW);
-  insertRowAfter(article('제6조 '), 'Vercel, Inc.', BOT_PROTECTION_TRANSFER_ROW);
-  return articles;
-}
-
-/**
- * 봇 차단 개정을 날짜(KST)에 맞춰 방침에 얹는다 — 공지 기간에는 사전 공지만, 시행일부터는 이전 판 보존 + 바뀐 본문.
- * 시행 뒤에도 다른 예약 개정의 사전 공지(pendingRevision)는 지우지 않는다.
- */
-function applyBotProtectionPrivacyRevision(document: LegalDocument, today: string, revision: BotProtectionPrivacyRevision | null): void {
-  if (revision && botProtectionPrivacyRevisionInEffect(today, revision)) {
-    const articles = reviseBotProtectionPrivacyArticles(document.articles);
-    document.previousVersion = { effectiveDate: document.effectiveDate, articles: document.articles };
-    document.articles = articles;
-    document.effectiveDate = revision.effectiveDate;
-    document.revisionChanges = BOT_PROTECTION_CHANGES;
-  } else if (revision && botProtectionPrivacyRevisionAnnounced(today, revision)) {
-    addPendingRevision(document, {
-      announcedDate: revision.announcedDate,
-      effectiveDate: revision.effectiveDate,
-      heading: '가입·로그인 자동 가입 방지 확인 도입에 따른 개정 예정 안내',
-      changes: BOT_PROTECTION_CHANGES,
-    });
-  }
-}
-
-/** today(KST `YYYY-MM-DD`)는 예약 개정의 공지·시행 여부만 가른다 — 테스트는 날짜를 넘겨 각 상태를 고정한다. */
-export function createLegalDocuments(
-  businessInfo:BusinessInfo=BUSINESS_INFO,
-  today: string = kstToday(),
-  shippingBundleRevision: ShippingBundleWordingRevision | null = SHIPPING_BUNDLE_WORDING_REVISION,
-  contactChannelsPrivacyRevision: ContactChannelsPrivacyRevision | null = CONTACT_CHANNELS_PRIVACY_REVISION,
-  /*
-   * 이 뒤의 예약 개정은 위치 인자가 아니라 이름으로 받는다 — 같은 시기에 다른 작업이 개정 인자를 더해도 순서가 엇갈려 다른 개정의
-   * 날짜가 들어가지 않게(위치 인자 네 개는 기존 호출 그대로). 키를 생략하면 운영 날짜 파일, null이면 예약 없음이다.
-   */
-  {
-    partialReturnRevision = PARTIAL_RETURN_TERMS_REVISION,
-    alimtalkPrivacyRevision = ALIMTALK_PRIVACY_REVISION,
-    virtualAccountRevision = VIRTUAL_ACCOUNT_TERMS_REVISION,
-    brandNameRevision = BRAND_NAME_REVISION,
-    botProtectionPrivacyRevision = BOT_PROTECTION_PRIVACY_REVISION,
-  }: {
-    partialReturnRevision?: PartialReturnTermsRevision | null;
-    alimtalkPrivacyRevision?: AlimtalkPrivacyRevision | null;
-    virtualAccountRevision?: VirtualAccountTermsRevision | null;
-    brandNameRevision?: BrandNameRevision | null;
-    botProtectionPrivacyRevision?: BotProtectionPrivacyRevision | null;
-  } = {},
-) {
+/** 사업자 정보(푸터와 같은 값)에서 문의처 문장을 파생해 세 문서를 만든다. */
+export function createLegalDocuments(businessInfo: BusinessInfo = BUSINESS_INFO) {
 /* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
  * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
  * 존재하지 않는 창구를 가리키는 대신 그 사실과 실제로 열려 있는 경로를 안내한다(#87). */
@@ -884,7 +143,7 @@ const terms: LegalDocument = {
     {
       heading: '제1조 (목적)',
       paragraphs: [
-        '이 약관은 ICONS(이하 "회사")가 운영하는 온라인 서비스 ICONS(이하 "서비스")에서 제공하는 굿즈 판매, 수집형 카드 리워드, 팝업 티켓 예매, 팬 커뮤니티 등 서비스의 이용조건과 절차, 회사와 이용자의 권리·의무·책임사항을 규정하는 것을 목적으로 합니다.',
+        '이 약관은 주식회사 아이콘스(이하 "회사")가 운영하는 온라인 서비스 엑스스퀘어(이하 "서비스")에서 제공하는 굿즈 판매, 수집형 카드 리워드, 팝업 티켓 예매, 팬 커뮤니티 등 서비스의 이용조건과 절차, 회사와 이용자의 권리·의무·책임사항을 규정하는 것을 목적으로 합니다.',
       ],
     },
     {
@@ -982,10 +241,14 @@ const terms: LegalDocument = {
     {
       heading: '제11조 (지급방법)',
       paragraphs: [
-        '굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해 신용·체크카드 또는 간편결제로 지급할 수 있습니다.',
+        '굿즈와 티켓 대금은 결제대행사인 토스페이먼츠 주식회사를 통해 신용·체크카드, 간편결제, 계좌이체 또는 가상계좌(무통장입금)로 지급할 수 있습니다. 계좌이체와 가상계좌는 굿즈 주문에만 제공하며, 팝업 티켓과 19금 굿즈가 담긴 주문에는 제공하지 않습니다.',
         '19금 굿즈가 담긴 주문의 카드 대금은 결제대행사인 나이스정보통신 주식회사를 통해 신용·체크카드로 지급합니다.',
         '굿즈 대금은 회사가 안내하는 계좌로 직접 입금하는 방법(무통장 입금)으로도 지급할 수 있습니다. 무통장 입금은 굿즈 주문에만 제공하며, 팝업 티켓과 회사가 무통장 입금을 받지 않는 것으로 표시한 굿즈에는 제공하지 않습니다.',
         '결제의 확정은 결제대행사가 회사에 보내는 결제 승인 통지를 기준으로 합니다. 브라우저의 결제 완료 화면만으로는 주문·티켓이 확정되지 않습니다.',
+        '가상계좌로 지급하는 이용자는 결제 화면과 주문 화면에 안내된 은행·계좌번호·금액으로 입금 기한 안에 입금해야 합니다. 가상계좌 결제는 결제대행사가 입금을 확인한 때 확정되며, 기한 안에 입금되지 않으면 주문은 자동으로 취소되고 선점된 수량은 복원됩니다. 이 경우 지급된 대금이 없으므로 환급 절차도 없습니다.',
+        '배송이 필요한 굿즈를 계좌이체 또는 가상계좌로 지급하는 이용자는 결제대행사인 토스페이먼츠 주식회사가 제공하는 구매안전서비스(결제대금예치, 에스크로)를 선택해 이용할 수 있습니다. 구매안전서비스를 선택한 결제의 대금은 이용자가 굿즈를 받고 구매를 확정할 때까지 결제대행사가 보관하며, 구매 확정과 취소 신청은 결제대행사가 보내는 안내에 따릅니다.',
+        '가상계좌로 지급한 대금을 입금 뒤 취소·환급하는 경우 회사는 결제대행사를 통해 이용자가 알려준 환급 계좌(은행, 계좌번호, 예금주)로 환급하며, 환급 계좌 정보의 제공은 환급의 전제가 됩니다. 결제대행사는 환급 전에 예금주를 확인하며, 은행 처리에 따라 환급까지 영업일 기준 2일 정도 걸릴 수 있습니다.',
+        '계좌이체로 지급한 대금을 취소·환급하는 경우 회사는 결제대행사를 통해 대금이 출금된 계좌로 돌려드리며, 별도의 환급 계좌를 받지 않습니다.',
         '카드와 카드팩은 무상 리워드이므로 대금 지급 대상이 아닙니다.',
       ],
     },
@@ -1051,12 +314,10 @@ const terms: LegalDocument = {
         '회사는 굿즈를 반환받은 날부터 3영업일 이내에 이미 지급받은 대금을 환급합니다. 이 경우 회사가 환급을 지연한 때에는 관련 법령이 정하는 지연이자를 지급합니다.',
         '회사가 결제대행사를 통해 대금을 지급받은 경우에는 지체 없이 결제대행사에 대금 청구의 정지 또는 취소를 요청합니다.',
         '무통장 입금으로 지급받은 대금은 결제대행사를 통해 취소할 수 없으므로 이용자가 알려온 계좌로 송금해 환급합니다. 이 경우 환급 계좌 정보의 제공은 환급의 전제가 됩니다.',
-        '청약철회의 경우 반환에 필요한 비용은 이용자가 부담합니다. 다만 굿즈의 하자, 오배송 등 계약내용과 다르게 이행된 경우에는 회사가 부담합니다. 구체적인 반송 절차와 비용 부담은 배송·반품 정책을 따릅니다.',
-        /* 청약철회는 주문 단위 전액 취소만 가능하다 — 결제 취소 경로가 부분
-         * 취소를 발행하지 않고, 취소가 확정되면 order_items 전 행의 재고가
-         * 복원된다. 부분 환불은 계획 §6의 명시적 제외 항목이다. */
-        '청약철회는 주문 단위로 처리됩니다. 승인되면 그 주문의 결제금액 전액이 취소되며, 한 주문에 담긴 굿즈 중 일부만 환급하는 처리는 제공하지 않습니다. 구체적인 안내는 배송·반품 정책을 따릅니다.',
-        '청약철회가 처리되면 그 주문으로 대가 없이 지급된 카드팩은 제17조에 따라 회수됩니다.',
+        '청약철회의 경우 반환에 필요한 비용은 이용자가 부담하며, 단순 변심에 따른 반품의 반환 비용(반품배송비)은 환급액에서 차감할 수 있습니다. 다만 굿즈의 하자, 오배송 등 계약내용과 다르게 이행된 경우에는 회사가 부담합니다. 구체적인 반송 절차와 비용 부담은 배송·반품 정책을 따릅니다.',
+        /* 부분 반품(일부 굿즈·수량 청약철회)과 단순 변심 반품배송비 차감은 ADR-0047을 따른다. */
+        '청약철회는 주문 전체 또는 이용자가 고른 굿즈·수량 단위로 할 수 있습니다. 주문 전체를 청약철회하면 그 주문의 결제금액(이미 일부 환급한 금액이 있으면 그 나머지)이 취소되고, 일부 굿즈만 청약철회하면 그 굿즈에 배분된 결제금액(할인·쿠폰·적립금 배분 반영)과 그 굿즈만 담긴 배송 묶음의 배송비를 환급합니다. 남은 굿즈에 쿠폰·할인 조건을 다시 적용해 환급액을 줄이지 않습니다. 구체적인 안내는 배송·반품 정책을 따릅니다.',
+        '청약철회가 처리되면 그 주문으로 대가 없이 지급된 카드팩은 제17조에 따라 회수됩니다. 일부 굿즈만 청약철회한 경우에는 남은 굿즈가 카드팩 지급 조건을 계속 채우면 회수하지 않고, 채우지 못하면 열지 않은 카드팩만 회수합니다.',
       ],
     },
     {
@@ -1065,14 +326,14 @@ const terms: LegalDocument = {
        * 밀면 이미 공개된 문서의 상호참조가 전부 어긋난다. */
       heading: '제16조의2 (반품과 교환)',
       paragraphs: [
-        '반품은 굿즈를 회수하고 대금을 환급하는 절차이며, 교환은 굿즈를 회수한 뒤 같은 굿즈를 다시 발송하는 절차입니다. 주문 상세의 직접 반품·교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다. 환급·재배송은 출고지별 실물 회수를 모두 확인한 뒤 진행합니다.',
+        '반품은 굿즈를 회수하고 대금을 환급하는 절차이며, 교환은 굿즈를 회수한 뒤 같은 굿즈를 다시 발송하는 절차입니다. 주문 상세의 직접 반품 신청은 배송 중부터 주문 전체 또는 고른 굿즈·수량을, 직접 교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다. 환급·재배송은 배송 묶음별 실물 회수를 모두 확인한 뒤 진행합니다.',
         '그 밖에 직접 신청을 이용할 수 없는 상태에서는 1:1 문의 또는 안내된 고객지원 연락처로 의사를 전할 수 있습니다. 회사는 의사표시와 최초 접수 시각, 받은 굿즈와 배송 사실을 확인하며, 직접 신청 기능의 조건이 제15조의 권리를 제한하지는 않습니다.',
         '반품과 교환의 신청 기한은 제15조의 청약철회 기간을 준용합니다. 단순 변심은 굿즈를 공급받은 날부터 7일 이내, 굿즈의 하자나 오배송은 공급받은 날부터 3개월 이내입니다.',
         '회사는 신청을 확인한 뒤 반송 방법을 안내하고, 반송된 굿즈가 입고되면 상태를 확인합니다. 반품은 입고 확인일부터 3영업일 이내에 환급하고, 교환은 같은 굿즈를 새 운송장으로 발송합니다.',
         /* 교환은 재고 복원도 카드팩 회수도 하지 않는다. 주문이 살아 있고 같은 굿즈가
          * 다시 나가므로, 제16조 5항이 말하는 카드팩 회수의 요건이 성립하지 않는다. */
         '교환은 대금을 환급하지 않으므로 그 주문으로 지급된 카드팩을 회수하지 않습니다. 반품이 처리되어 대금이 환급되는 경우에는 제16조와 제17조에 따라 청약철회와 같은 효과가 적용됩니다.',
-        '반품과 교환도 주문 단위로 처리됩니다. 한 주문에 담긴 굿즈 중 일부만 반품하고 나머지 대금을 그대로 두는 처리는 제공하지 않습니다. 일부 굿즈에만 하자가 있는 경우에는 해당 굿즈의 재발송 또는 주문 전체의 반품 중에서 선택할 수 있습니다.',
+        '반품은 한 주문에 담긴 굿즈 중 일부 굿즈·수량만 신청할 수 있고, 교환은 주문 단위로 처리됩니다. 일부 굿즈에만 하자가 있는 경우에는 해당 굿즈의 재발송 또는 그 굿즈의 반품 중에서 선택할 수 있습니다. 결제수단이 일부 금액의 취소를 지원하지 않는 경우(선물 주문 포함)에는 주문 전체로만 반품을 신청할 수 있으며, 신청 화면에서 그 사실을 안내합니다. 신청 뒤 결제대행사가 일부 취소를 받지 않으면 회사는 전액을 임의로 환급하지 않고 이용자와 환급 방법을 따로 정합니다.',
         '회사는 반송 굿즈의 상태 확인이 끝나지 않았거나 반송에 필요한 비용의 정산이 확인되지 않은 경우 처리를 보류할 수 있으며, 이 경우 그 사유를 이용자에게 알립니다.',
       ],
     },
@@ -1174,7 +435,18 @@ const privacy: LegalDocument = {
         columns: ['구분', '수집 항목', '수집 시점'],
         rows: [
           ['회원가입·로그인', `이메일 주소, 비밀번호(암호화 저장), 소셜 로그인 시 ${socialLoginWords()}가 전달하는 계정 식별자와 이메일`, '가입 또는 로그인 시'],
-          ['온보딩', '닉네임, 생년월일, 이용약관·개인정보 수집이용 동의 여부, 마케팅 정보 수신 동의 여부, 팔로우한 IP', '온보딩 완료 시'],
+          ['온보딩', '닉네임(자동 생성되며 설정에서 바꿀 수 있음), 생년월일, 이용약관·개인정보 수집이용 동의 여부, 마케팅 정보 수신 동의 여부', '온보딩 완료 시'],
+          [
+            '휴대폰 번호 인증',
+            '휴대폰 번호(국가 번호 포함), 인증 완료 일시. 인증번호 요청 기록(요청 일시·결과)과 인증·해제 이력(일시·종류)에는 휴대폰 번호와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다.',
+            '회원이 온보딩 또는 설정에서 생년월일과 필수 동의를 저장한 뒤 휴대폰 번호 인증을 진행한 경우',
+          ],
+          [
+            '이메일 변경 (선택)',
+            '변경할 이메일 주소. 인증 요청 기록(요청 일시·결과)에는 이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다.',
+            '소셜 로그인이 전달한 이메일을 쓸 수 없거나(예: Apple 이메일 가리기 주소) 이메일이 없는 회원이 직접 다른 이메일을 입력하고 인증한 경우',
+          ],
+          ['IP 팔로우', '팔로우한 IP와 IP별 알림 설정', '회원이 IP 페이지에서 팔로우한 경우'],
           /* 성인 인증(NHN KCP 휴대폰 본인확인, ADR-0024). 본인확인기관이 넘기는 결과 원문(이름·생년월일 등)은 서울
            * 리전(icn1) 서버 함수가 19세 이상 여부 판정에만 쓰고 저장하지 않는다. DB(private.adult_verifications·
            * adult_verification_sessions)에는 인증 여부·일시·유효기간과 DI·거래번호의 HMAC 다이제스트만 남고, 둘 다
@@ -1194,9 +466,23 @@ const privacy: LegalDocument = {
            * 위 안내문("인증정보는 결제대행사가 처리하며 회사는 저장하지 않습니다")과
            * 구분해 별도 행으로 적지 않으면 고지가 사실과 어긋난다(#252). */
           ['취소·반품 환급 계좌', '은행명, 계좌번호, 예금주 (환급 완료 30일 뒤 원문 파기)', '이용자가 클레임 신청 시 직접 입력한 경우'],
+          /* 결제 화면(토스 결제 UI)에서 구매자가 입력한 환불 계좌는 승인 응답으로 받아 입금 뒤 환불에 쓰고 발급 180일 뒤 지운다
+           * (supabase/migrations/20261125090100_toss_virtual_account_awaiting_deposit.sql private.payment_attempt_virtual_accounts). */
+          [
+            '가상계좌 결제 환급 계좌',
+            '은행, 계좌번호, 예금주 (가상계좌 발급일부터 180일 뒤 파기)',
+            '가상계좌 결제 화면에서 이용자가 환불받을 계좌를 입력한 경우(결제대행사가 회사에 전달)',
+          ],
           ['팝업 티켓', '예매 내역, 티켓 상태, 검표 기록', '예매·검표 시'],
           ['커뮤니티', '게시물, 댓글, 좋아요, 신고, 차단 기록', '이용자가 작성·요청한 경우'],
           ['자동 생성', '접속 일시, IP 주소, 브라우저·기기 정보 등 서비스 이용 기록', '서비스 이용 과정에서 자동으로'],
+          /* 가입·로그인 봇 차단(Cloudflare Turnstile — components/auth/TurnstileField.tsx)과 앱 서버의 요청 남용 방지 기록
+           * (private.auth_mail_abuse_attempts — supabase/migrations/20261119106000_auth_mail_abuse_limits.sql, 2일 뒤 삭제). */
+          [
+            '자동 가입 방지 확인',
+            '접속 IP 주소, 브라우저·기기 정보(브라우저 종류, 운영체제 등)와 자동화 프로그램 여부 판단에 쓰이는 브라우저 환경 신호(Cloudflare Turnstile이 처리). 회원가입·가입 확인 메일 재전송·비밀번호 재설정 요청 기록(요청 일시·종류)에는 이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다.',
+            '회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정을 요청할 때',
+          ],
           ['성별·연령 고객 통계 (선택)', '자가 입력 성별, 회원번호, 선택 동의 여부·시각·안내 버전. 연령대는 기존 생년월일로 계산', '설정에서 별도 선택 동의 후 저장한 경우'],
         ],
       },
@@ -1205,14 +491,19 @@ const privacy: LegalDocument = {
       heading: '제2조 (개인정보의 처리 목적)',
       list: [
         '회원 식별, 로그인 유지, 가입 자격 확인 등 회원 관리',
+        '자동화된 프로그램(봇)을 이용한 회원가입·로그인 시도와 가입 확인·비밀번호 재설정 메일 발송 남용을 막는 부정 이용 방지',
         '청소년 보호법에 따른 19세 이상 여부 확인(19금 굿즈 열람·구매 자격 관리)과 한 명의로 여러 계정을 인증하는 부정 이용 방지',
+        '휴대폰 번호 인증을 통한 회원 연락처 확인과 한 번호로 여러 계정을 이용하는 부정 이용 방지(다른 계정이 같은 번호를 인증하면 이전 계정에 재인증을 요청)',
         '굿즈 주문 접수, 대금 결제, 배송, 청약철회·취소·반품·교환·환급 처리',
         '회원이 저장한 배송지(주소록)를 주문서에 불러오는 배송지 입력 편의 제공',
         '팝업 티켓의 예매, 발급, 검표, 취소 처리',
         '카드팩과 카드의 무상 발급 이력 관리와 부정 이용 방지',
         '커뮤니티 운영, 신고·차단 처리, 이용약관 위반에 대한 조치',
-        '알림함·이메일을 통한 거래 진행 안내와 서비스 공지',
+        '알림함·이메일·카카오톡 알림톡을 통한 거래 진행 안내와 서비스 공지',
         '동의한 이용자에 한정한 마케팅·프로모션 정보 제공',
+      ],
+      closing: [
+        '휴대폰 번호 인증으로 확인한 번호는 위 목적과, 주문한 회원 본인에게 주문 접수·굿즈 발송 사실을 알리는 카카오톡 알림톡 발송에만 이용합니다. 문자 메시지를 통한 알림·거래 안내와 마케팅 정보 발송에는 이용하지 않습니다.',
       ],
     },
     {
@@ -1240,6 +531,9 @@ const privacy: LegalDocument = {
       closing: [
         '주소록에 저장한 배송지는 회원이 배송지 관리에서 언제든 직접 삭제할 수 있으며, 회사가 회원 탈퇴를 처리하면 지체 없이 파기합니다. 이미 한 주문의 배송지는 주문 정보의 일부로 위 표의 거래 기록 보존 기간 동안 따로 보관합니다.',
         '성인 인증 기록의 유효기간은 인증일부터 1년이며, 회원 탈퇴 시 다른 회원 정보와 함께 지체 없이 파기합니다.',
+        '휴대폰 번호 인증은 인증 완료한 휴대폰 번호와 인증 일시를 회원 탈퇴 처리 시(탈퇴 신청 기능이 열려 있으면 신청 시) 인증 이력과 함께 파기합니다. 인증번호 요청 기록(요청 일시·결과)은 요청 2일 뒤, 인증·해제 이력(일시·종류)은 발생 1년 뒤 삭제하며 이 기록에는 휴대폰 번호와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다. 한 번호는 한 계정에서만 인증 상태로 유지되므로 다른 계정이 같은 번호를 인증하면 이전 계정의 번호는 즉시 삭제하고 재인증이 필요하다는 표시만 남깁니다.',
+        '이메일 변경 인증 요청 기록(요청 일시·결과)은 요청 2일 뒤 삭제하며 이메일 주소와 IP 주소는 복원할 수 없게 변환한 값만 남깁니다. 변경해 인증한 계정 이메일은 다른 회원 정보와 함께 회원 탈퇴 시 파기합니다.',
+        '회원가입·가입 확인 메일 재전송·비밀번호 재설정 요청 기록(요청 일시·종류)은 요청 2일 뒤 삭제하며, 이 기록에는 이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다. 자동 가입 방지 확인 결과는 해당 요청을 처리하는 데에만 쓰고 따로 저장하지 않습니다.',
       ],
     },
     {
@@ -1256,17 +550,22 @@ const privacy: LegalDocument = {
       ],
       closing: [
         `물류창고 운영 수탁자의 법인명은 확정되는 대로 이 방침을 갱신해 공개합니다. 그 전까지 해당 항목은 "${PENDING_PROCESSOR_LABEL}"으로 표시합니다.`,
-        `${EMAIL_PROCESSOR_LABEL}에는 메일을 보내는 데 필요한 항목만 전달됩니다. 주문 확인 메일에는 수신 이메일 주소와 함께 주문 내역과 배송지(수령인 이름, 연락처, 우편번호, 주소, 배송 요청사항)가, 배송 시작 메일에는 택배사와 운송장번호, 배송 조회 주소가 담깁니다. 가입 인증과 비밀번호 재설정 메일에는 수신 이메일 주소가 전달됩니다.`,
+        `${EMAIL_PROCESSOR_LABEL}에는 메일을 보내는 데 필요한 항목만 전달됩니다. 주문 확인 메일에는 수신 이메일 주소와 함께 주문 내역과 배송지(수령인 이름, 연락처, 우편번호, 주소, 배송 요청사항)가, 배송 시작 메일에는 택배사와 운송장번호, 배송 조회 주소가 담깁니다. 가입 인증과 비밀번호 재설정 메일에는 수신 이메일 주소가, 이메일 변경 인증 메일에는 변경할 이메일 주소(수신자)와 6자리 인증번호가 전달됩니다.`,
+        '카카오톡 알림톡 수탁자(엔에이치엔클라우드 주식회사, 주식회사 카카오)에는 인증한 휴대폰 번호와 안내 내용(주문번호, 주문 굿즈 이름, 결제금액, 택배사와 운송장번호, 주문 상세 주소)만 전달됩니다.',
       ],
       table: {
         columns: ['수탁자', '위탁 업무', '보유·이용기간'],
         rows: [
           ['Supabase, Inc.', '데이터베이스와 회원 인증 인프라 운영', '위탁계약 종료 또는 회원 탈퇴 시까지'],
           ['Vercel, Inc.', '서비스 호스팅과 배포 인프라 운영', '위탁계약 종료 시까지'],
-          ['토스페이먼츠 주식회사', '굿즈·티켓 카드·간편결제 처리, 결제 취소와 환급 처리', '관련 법령이 정한 보존기간까지'],
+          ['Cloudflare, Inc.', '회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정 화면의 자동 가입 방지 확인(Turnstile) 제공', '위탁계약 종료 시까지'],
+          ['토스페이먼츠 주식회사', '굿즈·티켓 카드·간편결제와 굿즈 계좌이체·가상계좌(무통장입금) 결제 처리, 구매안전서비스(에스크로), 현금영수증 발급, 결제 취소와 환급(환급 계좌 확인 포함) 처리', '관련 법령이 정한 보존기간까지'],
           ['나이스정보통신 주식회사', '19금 굿즈가 담긴 주문의 카드 결제 처리, 결제 취소와 환급 처리', '관련 법령이 정한 보존기간까지'],
           ['엔에이치엔케이씨피 주식회사', '휴대폰 본인확인(성인 인증) 서비스 제공', '위탁계약 종료 시까지'],
-          [EMAIL_PROCESSOR_LABEL, '주문 확인·배송 시작 등 거래 안내 메일과 가입 인증·비밀번호 재설정 메일 발송', '위탁계약 종료 시까지'],
+          ['Twilio Inc.', '휴대폰 번호 인증번호 문자 발송', '위탁계약 종료 시까지'],
+          [EMAIL_PROCESSOR_LABEL, '주문 확인·배송 시작 등 거래 안내 메일과 가입 인증·비밀번호 재설정·이메일 변경 인증 메일 발송', '위탁계약 종료 시까지'],
+          ['엔에이치엔클라우드 주식회사', '카카오톡 알림톡(주문 접수·굿즈 발송 안내) 발송 대행', '위탁계약 종료 시까지'],
+          ['주식회사 카카오', '카카오톡 알림톡 전달', '위탁계약 종료 시까지'],
           ['한진택배', '굿즈 배송과 반품 회수', '위탁계약 종료 또는 배송 완료 후 관련 법령이 정한 기간까지'],
           [PENDING_PROCESSOR_LABEL, '물류창고 보관·출고 관리(WMS) 운영', '위탁계약 종료 시까지'],
         ],
@@ -1287,10 +586,22 @@ const privacy: LegalDocument = {
           ['Supabase, Inc.', '미국', '제1조의 수집 항목 · 서비스 이용 시점 · 정보통신망을 통한 전송', '데이터베이스와 인증 인프라 운영 · 위탁계약 종료 시까지'],
           ['Vercel, Inc.', '미국', '접속 기록과 요청 정보 · 서비스 이용 시점 · 정보통신망을 통한 전송', '호스팅 인프라 운영 · 위탁계약 종료 시까지'],
           [
+            'Cloudflare, Inc.',
+            '미국',
+            '접속 IP 주소, 브라우저·기기 정보와 브라우저 환경 신호 · 회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정 화면 이용 시점 · 정보통신망을 통한 전송',
+            '자동 가입 방지 확인(Turnstile) · 위탁계약 종료 시까지',
+          ],
+          [
+            'Twilio Inc.',
+            '미국',
+            '휴대폰 번호(국가 번호 포함)와 인증번호 · 인증번호를 요청할 때 · 정보통신망을 통한 전송',
+            '휴대폰 번호 인증 문자 발송 · 위탁계약 종료 시까지',
+          ],
+          [
             EMAIL_PROCESSOR_LABEL,
             '미국',
-            '수신 이메일 주소, 주문 내역, 배송지(수령인 이름·연락처·우편번호·주소·배송 요청사항), 택배사와 운송장번호 · 주문 확인·배송 시작 메일 발송 시점과 가입 인증·비밀번호 재설정 메일 발송 시점 · 정보통신망을 통한 전송',
-            '거래 안내 메일과 가입 인증·비밀번호 재설정 메일 발송 · 위탁계약 종료 시까지',
+            '수신 이메일 주소, 주문 내역, 배송지(수령인 이름·연락처·우편번호·주소·배송 요청사항), 택배사와 운송장번호, 이메일 변경 인증번호 · 주문 확인·배송 시작 메일 발송 시점과 가입 인증·비밀번호 재설정·이메일 변경 인증 메일 발송 시점 · 정보통신망을 통한 전송',
+            '거래 안내 메일과 가입 인증·비밀번호 재설정·이메일 변경 인증 메일 발송 · 위탁계약 종료 시까지',
           ],
         ],
       },
@@ -1302,8 +613,9 @@ const privacy: LegalDocument = {
       heading: '제7조 (정보주체의 권리와 행사 방법)',
       paragraphs: [
         '이용자는 언제든지 자신의 개인정보에 대해 열람, 정정, 삭제, 처리정지를 요구할 수 있습니다.',
-        `${SETTINGS_EDITABLE_ITEMS}는 설정 화면에서 직접 열람·수정할 수 있습니다.`,
+        `${SETTINGS_EDITABLE_ITEMS}, 휴대폰 번호는 설정 화면에서 직접 열람·수정할 수 있습니다.`,
         '주소록에 저장한 배송지는 마이페이지의 배송지 관리(/my/addresses)에서 직접 열람·수정·삭제할 수 있습니다.',
+        '소셜 로그인이 전달한 이메일을 쓸 수 없는(예: Apple 이메일 가리기 주소) 회원이나 이메일이 없는 회원은 설정 또는 온보딩에서 다른 이메일을 입력하고 인증번호로 확인해 계정 이메일을 바꿀 수 있습니다.',
         SETTINGS_UNEDITABLE_NOTICE,
         `개인정보의 삭제와 처리 정지는 이용약관 제7조의 탈퇴 요청으로 요구할 수 있습니다. ${WITHDRAWAL_ROUTE_NOTICE}`,
         '회사는 만 14세 미만 아동을 대상으로 서비스를 제공하지 않으며, 만 14세 미만 아동의 개인정보를 수집하지 않습니다. 온보딩 단계에서 생년월일로 만 14세 이상 여부를 확인하고 만 14세 미만인 경우 가입을 완료할 수 없도록 하고 있습니다. 그럼에도 만 14세 미만 아동이 가입한 사실을 알게 된 경우 회사는 해당 계정의 이용을 정지하고 수집된 개인정보를 지체 없이 파기합니다.',
@@ -1338,10 +650,12 @@ const privacy: LegalDocument = {
       paragraphs: HAS_CONTACT
         ? [
           `회사는 개인정보 처리에 관한 업무를 총괄하는 개인정보 보호책임자를 지정하고 있습니다. 보호책임자와 문의 창구는 이 사이트 하단 사업자 정보에도 함께 표기된 ${CONTACT_WORDS}입니다.`,
+          PRIVACY_OFFICER_PARAGRAPH,
           '이용자는 서비스를 이용하며 발생한 개인정보 보호 관련 문의, 불만, 피해 구제를 위 창구로 접수할 수 있으며, 회사는 지체 없이 답변합니다.',
         ]
         : [
           `회사는 개인정보 처리에 관한 업무를 총괄하는 개인정보 보호책임자를 지정합니다. 개인정보 보호 관련 문의, 불만, 피해 구제는 ${IN_APP_INQUIRY_ROUTE}로 접수할 수 있으며, 회사는 지체 없이 답변합니다. ${CONTACT_PENDING_NOTICE}`,
+          PRIVACY_OFFICER_PARAGRAPH,
           `제7조의 설정 화면에서 ${SETTINGS_EDITABLE_ITEMS}를 직접 열람·정정할 수 있고, 제12조의 권익침해 구제 기관에 상담과 분쟁 조정을 신청할 수 있습니다. 설정 화면이 다루지 않는 항목의 정정은 위 문의 창구로 접수합니다.`,
         ],
     },
@@ -1377,13 +691,17 @@ const shipping: LegalDocument = {
       table: {
         columns: ['항목', '내용'],
         rows: [
-          ['배송 방법', '출고지별 지정 택배사'],
+          ['배송 방법', '배송 묶음별 지정 택배사'],
           ['배송 지역', '대한민국 전국'],
-          ['기본 배송비', '굿즈 상세와 주문 화면에 표시된 출고지별 배송 정책에 따릅니다. 출고지가 다르면 배송비를 각각 더합니다.'],
-          ['무료 배송 조건', '같은 출고지의 정책 적용 굿즈 할인 전 소계로 확인합니다. 무료배송·개별 배송비 굿즈은 이 소계에 포함하지 않습니다.'],
+          ['기본 배송비', '굿즈 상세와 주문 화면에 표시된 배송 묶음별 배송 정책에 따릅니다. 배송 묶음이 다르면 배송비를 각각 더합니다.'],
+          ['무료 배송 조건', '같은 배송 묶음의 정책 적용 굿즈 할인 전 소계로 확인합니다. 무료배송·개별 배송비 굿즈은 이 소계에 포함하지 않습니다.'],
           ['도서산간·제주 추가 배송비', '주문 화면과 굿즈 상세에서 별도 안내'],
-          ['배송 기간', '대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.'],
+          ['배송 기간', '대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이, 가상계좌 주문은 결제대행사가 입금을 확인한 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.'],
           ['무통장 입금 기한', '주문 성립 후 24시간. 기한 안에 입금이 확인되지 않으면 주문이 자동 취소되고 선점된 수량이 복원됩니다.'],
+          [
+            '가상계좌 입금 기한',
+            '결제 화면과 주문 화면에 안내된 입금 기한(보통 주문 후 24시간). 기한 안에 입금되지 않으면 주문이 자동 취소되고 선점된 수량이 복원됩니다.',
+          ],
         ],
       },
       closing: [
@@ -1403,7 +721,7 @@ const shipping: LegalDocument = {
       list: [
         '굿즈를 공급받은 날부터 7일 이내에 청약철회를 신청할 수 있습니다. 계약내용에 관한 서면을 받은 때가 굿즈를 공급받은 때보다 늦은 경우에는 그 서면을 받은 날부터 기산합니다.',
         '굿즈가 표시·광고 내용과 다르거나 계약내용과 다르게 이행된 경우에는 공급받은 날부터 3개월 이내, 그 사실을 안 날 또는 알 수 있었던 날부터 30일 이내에 신청할 수 있습니다.',
-        '주문 상세의 직접 취소 신청은 발주확인 전까지, 직접 반품·교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다. 발주확인은 회사가 주문을 확인하고 준비를 시작한 상태를 뜻합니다.',
+        '주문 상세의 직접 취소 신청은 발주확인 전까지, 직접 반품 신청은 배송 중부터 주문 전체 또는 고른 굿즈·수량을, 직접 교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다. 발주확인은 회사가 주문을 확인하고 준비를 시작한 상태를 뜻합니다.',
         '직접 신청을 이용할 수 없는 상태에서도 청약철회 의사는 1:1 문의 또는 안내된 고객지원 연락처로 전할 수 있습니다. 회사는 의사표시와 접수 시각을 남기고 주문·배송 사실을 확인합니다. 직접 신청 기능의 조건이 위 청약철회 기간이나 관계 법령에 따른 권리를 제한하지는 않습니다.',
       ],
     },
@@ -1423,29 +741,33 @@ const shipping: LegalDocument = {
       table: {
         columns: ['사유', '부담 주체', '방법'],
         rows: [
-          ['단순 변심, 색상·구성 착오 등 이용자 사정', '이용자', '이용자가 착불로 반송합니다.'],
+          [
+            '단순 변심, 색상·구성 착오 등 이용자 사정',
+            '이용자',
+            '이용자가 반송하고, 반품배송비(편도 3,000원)를 환급액에서 차감합니다. 최초 배송비가 무료였던 주문은 처음 반품할 때 한 번 왕복 6,000원을 차감하고, 같은 주문의 다음 반품부터는 편도만 차감합니다.',
+          ],
           ['굿즈의 하자·파손, 오배송 등 계약내용과 다른 이행', '회사', '회사가 부담하며 회수를 안내합니다.'],
         ],
       },
-      /* 취소는 결제 전액을 되돌린다 — 결제 취소 경로가 부분 취소를 발행하지 않으므로
-       * 최초 배송비를 환급액에서 뺄 방법이 없다. "공제될 수 있습니다"는 지킬 수 없는 고지다. */
+      /* 부분 반품과 단순 변심 반품배송비 차감(ADR-0047). 운영 스위치(반품배송비 차감·부분 반품)가 이 고지를 따른다. */
       closing: [
-        '청약철회가 승인되면 결제한 금액 전액이 취소됩니다. 이미 받은 배송비를 환급액에서 공제하지 않습니다.',
-        '무료 배송 조건으로 발송된 주문도 같습니다. 다만 반송에 드는 비용은 위 표의 부담 주체를 따릅니다.',
+        '주문 전체를 청약철회하면 결제한 금액(이미 일부 환급한 금액이 있으면 그 나머지)이 취소되고, 단순 변심이면 위 표의 반품배송비만 차감합니다. 이미 받은 최초 배송비를 따로 공제하지 않습니다.',
+        '일부 굿즈만 반품해 남은 굿즈가 무료 배송 조건에 못 미치게 되어도 최초 배송비를 따로 청구하지 않습니다. 반품배송비가 그 반품의 환급액 이상이면 차감하지 않고 따로 안내합니다.',
+        '결제수단이 일부 금액의 취소를 지원하지 않으면 주문 전체 반품은 결제 금액 전액을 환급하고 반품배송비를 따로 안내하며, 일부 굿즈 반품은 주문 전체로만 신청할 수 있습니다. 카드 일부 취소는 카드사 처리에 영업일 기준 3~4일이 걸릴 수 있습니다.',
       ],
     },
     {
       heading: '6. 취소·반품·교환 절차',
       paragraphs: [
-        '주문 상세의 직접 신청에서는 발주확인 전 주문의 전체 취소, 배송 중부터 전체 반품·교환을 신청할 수 있습니다. 직접 신청을 이용할 수 없는 상태에서 청약철회 의사를 전하려면 1:1 문의 또는 안내된 고객지원 연락처를 이용해 주세요.',
+        '주문 상세의 직접 신청에서는 발주확인 전 주문의 전체 취소, 배송 중부터 전체 또는 일부 굿즈의 반품과 전체 교환을 신청할 수 있습니다. 직접 신청을 이용할 수 없는 상태에서 청약철회 의사를 전하려면 1:1 문의 또는 안내된 고객지원 연락처를 이용해 주세요.',
         '발주확인 전 직접 취소는 주문과 결제 상태를 확인한 뒤 기존 결제수단의 취소·환급 절차에 따라 처리합니다. 이미 지급한 대금이 없는 주문에는 환급할 대금이 없습니다.',
         '문의로 의사를 전한 경우에는 회사가 원문과 최초 접수 시각, 배송·회수 상황을 확인하여 처리 방법을 안내합니다. 문의 접수만으로 환급이 승인되거나 출고가 자동으로 중단되는 것은 아닙니다.',
       ],
       list: [
         '신청 — 주문 상세의 직접 신청 또는 1:1 문의·안내된 고객지원 연락처로 의사를 전합니다. 직접 신청과 문의 접수는 서로 다른 기록이며, 문의 접수만으로 클레임이나 환급이 자동 생성되지는 않습니다.',
-        '확인 — 회사가 신청 내용과 주문 전체의 굿즈·수량을 확인하고, 출고지별 반송 주소와 회수 방법을 안내합니다.',
+        '확인 — 회사가 신청 내용과 반품·교환 대상 굿즈·수량을 확인하고, 배송 묶음별 반송 주소와 회수 방법을 안내합니다.',
         '반송 — 이용자가 안내받은 방법으로 굿즈를 반송합니다.',
-        '입고 확인 — 회사가 출고지별 반송 대상 굿즈와 수량의 실제 입고를 확인합니다. 필요한 회수가 일부 남아 있으면 주문 전체의 입고가 완료된 것으로 표시하지 않습니다.',
+        '입고 확인 — 회사가 배송 묶음별 반송 대상 굿즈와 수량의 실제 입고를 확인합니다. 필요한 회수가 일부 남아 있으면 신청한 반품·교환 대상 전체의 입고가 완료된 것으로 표시하지 않습니다.',
         '처리 — 반품은 입고 확인일부터 3영업일 이내에 환급하고, 교환은 같은 굿즈를 새 운송장으로 발송합니다.',
       ],
       closing: [
@@ -1461,6 +783,7 @@ const shipping: LegalDocument = {
         '결제수단으로 환급할 수 없는 경우를 위해 반품·취소 신청 화면에서 환급 계좌(은행명, 계좌번호, 예금주)를 입력할 수 있습니다. 계좌이체로 결제한 주문은 이 계좌가 환급의 유일한 경로입니다.',
         '무통장 입금으로 결제한 주문도 같습니다. 되돌릴 결제대행사 승인이 없어 계좌 송금이 유일한 환급 경로이므로, 환급 계좌를 입력하지 않으면 환급을 진행할 수 없습니다.',
         '입력한 계좌는 환급 처리 목적으로만 이용하며 서비스 화면에는 일부를 가린 형태로만 표시합니다. 환급이 완료된 날부터 30일이 지나면 원문을 파기합니다.',
+        '가상계좌로 결제한 주문을 입금 뒤 취소·반품하는 경우에도 결제 화면 또는 반품·취소 신청 화면에서 입력한 환급 계좌로 환급하므로, 환급 계좌가 없으면 환급을 진행할 수 없습니다. 결제대행사가 예금주를 확인한 뒤 송금하며, 은행 처리에 영업일 기준 2일 정도 걸릴 수 있습니다. 결제 화면에서 입력한 환급 계좌는 결제대행사가 회사에 전달하며 가상계좌 발급일부터 180일이 지나면 파기합니다. 계좌이체로 결제한 주문은 환급 계좌 없이 결제대행사를 통해 대금이 출금된 계좌로 환급합니다.',
       ],
     },
     {
@@ -1468,11 +791,9 @@ const shipping: LegalDocument = {
       paragraphs: [
         '회사는 굿즈를 반환받은 날부터 3영업일 이내에 대금을 환급하거나 환급에 필요한 조치를 취합니다.',
         '환급은 결제한 수단으로 이루어지며, 카드 결제의 경우 결제대행사와 카드사의 처리 일정에 따라 취소 반영 시점이 달라질 수 있습니다.',
-        /* 부분 환불은 계획 §6의 명시적 제외 항목이다. 주문 상세의 청약철회 버튼은 주문 단위 하나뿐이고,
-         * 승인하면 결제 전액이 취소되면서 order_items 전 행의 재고가 복원된다. */
-        '청약철회는 주문 단위로만 신청할 수 있습니다. 승인되면 배송비를 포함한 그 주문의 결제금액 전액이 취소되고, 주문에 담긴 굿즈 전부가 반품 대상이 됩니다. 한 주문에서 일부 굿즈만 반품하고 나머지 대금은 그대로 두는 처리는 제공하지 않습니다.',
-        '일부만 반송하고 싶다면 주문 전체에 대해 청약철회를 신청해 전액을 환급받은 뒤, 계속 갖고 싶은 굿즈를 새로 주문해주세요. 안내받은 반품 대상 중 일부가 도착하지 않으면 6. 취소·반품·교환 절차의 입고 확인 단계에서 처리가 보류될 수 있습니다.',
-        '한 주문의 굿즈 중 일부에만 하자·오배송이 있는 경우, 이용자는 9. 하자·오배송 시 재발송에 따라 그 굿즈만 재발송받을 수 있습니다. 재발송 대신 청약철회를 선택해 주문 전체를 반품하는 경우, 반송비와 다시 주문할 때의 배송비를 포함해 회사 귀책으로 발생한 비용은 회사가 부담합니다. 이 조항은 회사 귀책 사유에 대한 이용자의 법정 권리를 제한하지 않습니다.',
+        '청약철회는 주문 전체 또는 고른 굿즈·수량 단위로 신청할 수 있습니다. 주문 전체를 청약철회하면 배송비를 포함한 그 주문의 결제금액(이미 일부 환급한 금액이 있으면 그 나머지)이 취소되고 남은 굿즈 전부가 반품 대상이 됩니다. 일부 굿즈만 청약철회하면 그 굿즈에 배분된 결제금액과 그 굿즈만 담긴 배송 묶음의 배송비를 환급하고, 고른 굿즈만 반품 대상이 됩니다. 단순 변심이면 5. 반송비 부담의 반품배송비를 차감합니다.',
+        '일부만 반송하고 싶다면 주문 상세의 반품 신청에서 반송할 굿즈와 수량을 골라주세요. 안내받은 반품 대상 중 일부가 도착하지 않으면 6. 취소·반품·교환 절차의 입고 확인 단계에서 처리가 보류될 수 있습니다.',
+        '한 주문의 굿즈 중 일부에만 하자·오배송이 있는 경우, 이용자는 9. 하자·오배송 시 재발송에 따라 그 굿즈만 재발송받을 수 있습니다. 재발송 대신 청약철회를 선택해 그 굿즈나 주문 전체를 반품하는 경우, 반송비와 다시 주문할 때의 배송비를 포함해 회사 귀책으로 발생한 비용은 회사가 부담합니다. 이 조항은 회사 귀책 사유에 대한 이용자의 법정 권리를 제한하지 않습니다.',
       ],
     },
     {
@@ -1497,44 +818,6 @@ const shipping: LegalDocument = {
     },
   ],
 };
-
-applyShippingBundleWordingRevision(terms, 'terms', today, shippingBundleRevision);
-applyShippingBundleWordingRevision(shipping, 'shipping', today, shippingBundleRevision);
-applyContactChannelsPrivacyRevision(privacy, today, contactChannelsPrivacyRevision);
-/* 알림톡·부분 반품·가상계좌(계좌이체 포함)·서비스 이름·봇 차단 개정은 **시행일 순서로** 얹는다 — 늦게 시행되는 개정이 앞선 개정의 본문 위에서 돌고,
-   이전 판(previousVersion)이 직전 시행 본문을 담는다. 시행일이 같으면 아래 나열 순서다(Array.sort는 안정 정렬). 세 개정의 앵커는
-   서로가 바꾸는 문장·행을 쓰지 않으므로 어느 순서로도 본문을 만들 수 있다. 회사 계좌 무통장 입금 본문은 그대로다. */
-const NO_REVISION = '9999-12-31';
-const scheduledRevisions: { effectiveDate: string; apply: () => void }[] = [
-  {
-    effectiveDate: alimtalkPrivacyRevision?.effectiveDate ?? NO_REVISION,
-    apply: () => applyAlimtalkPrivacyRevision(privacy, today, alimtalkPrivacyRevision),
-  },
-  {
-    effectiveDate: partialReturnRevision?.effectiveDate ?? NO_REVISION,
-    apply: () => {
-      applyPartialReturnTermsRevision(terms, 'terms', today, partialReturnRevision);
-      applyPartialReturnTermsRevision(shipping, 'shipping', today, partialReturnRevision);
-    },
-  },
-  {
-    effectiveDate: virtualAccountRevision?.effectiveDate ?? NO_REVISION,
-    apply: () => {
-      applyVirtualAccountTermsRevision(terms, 'terms', today, virtualAccountRevision);
-      applyVirtualAccountTermsRevision(privacy, 'privacy', today, virtualAccountRevision);
-      applyVirtualAccountTermsRevision(shipping, 'shipping', today, virtualAccountRevision);
-    },
-  },
-  {
-    effectiveDate: brandNameRevision?.effectiveDate ?? NO_REVISION,
-    apply: () => applyBrandNameRevision(terms, today, brandNameRevision),
-  },
-  {
-    effectiveDate: botProtectionPrivacyRevision?.effectiveDate ?? NO_REVISION,
-    apply: () => applyBotProtectionPrivacyRevision(privacy, today, botProtectionPrivacyRevision),
-  },
-];
-for (const revision of [...scheduledRevisions].sort((a, b) => a.effectiveDate.localeCompare(b.effectiveDate))) revision.apply();
 
 return {terms,privacy,shipping};
 }
