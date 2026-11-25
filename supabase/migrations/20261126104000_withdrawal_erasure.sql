@@ -187,7 +187,7 @@ $a$begin
   if tg_op = 'DELETE'
      and not exists ($a$,
 $a$begin
-  -- 탈퇴 처리(erase_withdrawn_member_personal_data)가 그 회원의 코인 기록을 지울 때만 통과한다(20261125233000).
+  -- 탈퇴 처리(erase_withdrawn_member_personal_data)가 그 회원의 코인 기록을 지울 때만 통과한다(20261126104000).
   if tg_op = 'DELETE'
      and pg_catalog.current_setting('app.member_withdrawal_coin_erase', true) = old.user_id::text then
     return old;
@@ -273,7 +273,7 @@ $a$  if p_basis = 'kakao_unlink' then
     erased_kakao := private.erase_member_kakao_identities(p_target);
   end if;
 $a$,
-$a$  -- 재가입 차단 값(이메일·소셜 로그인 계정)을 로그인 연결을 지우기 전에 남긴다(20261125233000).
+$a$  -- 재가입 차단 값(이메일·소셜 로그인 계정)을 로그인 연결을 지우기 전에 남긴다(20261126104000).
   perform private.block_withdrawn_member_signin(p_target, changed_at);
   if p_basis = 'kakao_unlink' then
     erased_kakao := private.erase_member_kakao_identities(p_target);

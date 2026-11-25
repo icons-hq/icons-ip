@@ -137,7 +137,7 @@ describe('남는 정보 고지의 원천', () => {
   });
 });
 
-describe('보존 근거 없는 개인정보 삭제(20261125233000)', () => {
+describe('보존 근거 없는 개인정보 삭제(20261126104000)', () => {
   const PERSONAL = { wishlistItems: 2, cartItems: 1, notifications: 3, follows: 1, coupons: 1, loginIdentities: 1 };
 
   it('처리 결과는 위시·장바구니·알림함·팔로우·쿠폰·로그인 연결 삭제 수를 받고, 옛 응답(칸 없음)도 받는다', () => {

@@ -8,7 +8,7 @@ import type { PaymentCheckoutProvider } from './runtime-gateway';
  * (ADR-0053 — "19금 상품은 일단은 전부 토스페이먼츠로 판매 진행한다 토스에서도 딱히 상관없다고 했다").
  * 그 전에는 전용 PG 나이스페이(2026-11-05 코페이 대체)였는데 운영 MID·키가 없어 19금 상품을 결제할 수
  * 없었다. DB prepare_goods_payment_attempt는 판매 제한 주문에 toss·nicepay를 모두 받으므로
- * (20261125200000_adult_goods_toss_card_provider.sql) 나이스페이로 되돌릴 때는 이 상수만 바꾼다.
+ * (20261126100000_adult_goods_toss_card_provider.sql) 나이스페이로 되돌릴 때는 이 상수만 바꾼다.
  */
 export const RESTRICTED_GOODS_CARD_PROVIDER = 'toss' satisfies PaymentCheckoutProvider;
 

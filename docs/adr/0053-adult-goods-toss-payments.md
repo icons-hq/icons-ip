@@ -9,7 +9,7 @@ status: accepted
 ## 결정
 
 - 판매 제한 상품이 담긴 주문의 카드 결제사를 **토스페이먼츠**로 파생한다(앱 `RESTRICTED_GOODS_CARD_PROVIDER = 'toss'`). 일반 주문과 같은 결제 UI(`ICONS`)를 쓰므로 카드·간편결제·가상계좌·계좌이체가 모두 열린다.
-- DB `prepare_goods_payment_attempt`는 판매 제한 주문에 `toss`와 `nicepay`를 모두 받는다(`20261125200000_adult_goods_toss_card_provider.sql`). 어느 쪽을 쓸지는 앱 파생이 정하므로, 나이스페이로 되돌릴 때는 앱 상수 한 줄만 바꾼다. 일반 주문은 지금처럼 `toss`만, 코페이는 지금처럼 새 결제를 받지 않는다.
+- DB `prepare_goods_payment_attempt`는 판매 제한 주문에 `toss`와 `nicepay`를 모두 받는다(`20261126100000_adult_goods_toss_card_provider.sql`). 어느 쪽을 쓸지는 앱 파생이 정하므로, 나이스페이로 되돌릴 때는 앱 상수 한 줄만 바꾼다. 일반 주문은 지금처럼 `toss`만, 코페이는 지금처럼 새 결제를 받지 않는다.
 - 결제 확정 직전 재확인(`claim_goods_payment_attempt`)에서 "판매 제한 주문의 토스 캡처를 막는" 검사(#392)를 지운다. 토스가 19금 주문을 받으므로 결제 준비 뒤 상품이 19금으로 바뀌어도 막을 이유가 없다.
 - 성인 인증(ADR-0024)·19금 노출 판정·주문 생성 차단은 결제사와 무관하게 그대로다. 결제사는 여전히 서버가 주문 단위로 파생하고 관리자가 고르는 값이 아니다.
 

@@ -18,7 +18,7 @@ begin;
 --   · 처리 전 대조용 문의 요약(그 회원의 문의만, platform.manage만)
 --   · 정지 회원(20261118165100): 계정 문의만 글로 접수·이어 쓰기(첨부·주문·굿즈 연결은 거절), 그 문의로 탈퇴 처리 가능. 마케팅 동의는 유지·철회만(새로 켜기·직접 쓰기 거절),
 --     재입고 알림 신청 거절. 정지되지 않은 회원의 동의는 그대로
---   · 보존 근거 없는 데이터(20261125233000): 위시·장바구니·알림함·IP 팔로우(팬 수 캐시 함께)·알린 재입고 알림·쓰지 않은 쿠폰·출석 코인·
+--   · 보존 근거 없는 데이터(20261126104000): 위시·장바구니·알림함·IP 팔로우(팬 수 캐시 함께)·알린 재입고 알림·쓰지 않은 쿠폰·출석 코인·
 --     소셜 로그인 연결·Auth 프로필 정보도 처리 때 지운다(다른 회원 것은 그대로, 코인 원장 가드는 다른 회원에게 그대로).
 --     재가입 차단 값(이메일·소셜 계정의 HMAC, 원문 없음)을 1년 남기고, 처리 3일 뒤 정리 잡이 이메일 원문(프로필·Auth)을 지운다.
 --     차단 기간에는 같은 이메일(대소문자·공백 무관)·소셜 계정의 새 가입이 거절되고 기간이 지나면 풀린다. 처리 1년 뒤 정리 잡이
@@ -191,9 +191,9 @@ values ('withdrawal-goods', 'withdrawal-ip', 'TEST 탈퇴 처리 굿즈', 10000,
 insert into public.restock_alerts(user_id, good_id) values (pg_temp.uid(3), 'withdrawal-goods'), (pg_temp.uid(7), 'withdrawal-goods');
 insert into public.goods(id, ip_id, name, price, stock, stock_qty)
 values ('withdrawal-goods-2', 'withdrawal-ip', 'TEST 탈퇴 처리 굿즈 2', 10000, 'ok', 3);
--- 이미 알린 신청(발송 이력)도 보존 근거가 없어 지운다(20261125233000).
+-- 이미 알린 신청(발송 이력)도 보존 근거가 없어 지운다(20261126104000).
 insert into public.restock_alerts(user_id, good_id, status, notified_at) values (pg_temp.uid(3), 'withdrawal-goods-2', 'notified', now());
--- 보존 근거 없는 개인화 데이터와 소셜 로그인 연결(20261125233000). 회원 3의 것은 지우고 7의 것은 남긴다.
+-- 보존 근거 없는 개인화 데이터와 소셜 로그인 연결(20261126104000). 회원 3의 것은 지우고 7의 것은 남긴다.
 update auth.users set raw_app_meta_data = '{"provider":"google","providers":["google"]}'::jsonb,
   raw_user_meta_data = '{"name":"탈퇴회원","sub":"wd-google-3","avatar_url":"https://example.test/3.png"}'::jsonb
 where id = pg_temp.uid(3);
@@ -332,7 +332,7 @@ select 1/case when (select suspended_at is not null and suspension_reason = '탈
   and not exists (select 1 from public.restock_alerts where user_id = pg_temp.uid(3))
   and not exists (select 1 from auth.sessions where user_id = pg_temp.uid(3))
   and not exists (select 1 from auth.refresh_tokens where user_id = pg_temp.uid(3)::text)
-  -- 개인화 데이터·소셜 로그인 연결·Auth 프로필 정보는 지운다(20261125233000). 팬 수 캐시도 함께 줄어든다.
+  -- 개인화 데이터·소셜 로그인 연결·Auth 프로필 정보는 지운다(20261126104000). 팬 수 캐시도 함께 줄어든다.
   and not exists (select 1 from public.wishlists where user_id = pg_temp.uid(3))
   and not exists (select 1 from public.cart_items where user_id = pg_temp.uid(3))
   and not exists (select 1 from public.notifications where user_id = pg_temp.uid(3))
@@ -716,7 +716,7 @@ select 1/case when (public.set_my_marketing_consents(true, true, 'marketing-chan
 reset role;
 
 -- ---------------------------------------------------------------------------
--- 정리 잡(20261125233000): 처리 3일 뒤 이메일 원문 파기, 재가입 차단과 만료, 처리 1년 뒤 동의 원장 삭제
+-- 정리 잡(20261126104000): 처리 3일 뒤 이메일 원문 파기, 재가입 차단과 만료, 처리 1년 뒤 동의 원장 삭제
 -- ---------------------------------------------------------------------------
 -- 처리 직후에는 이메일을 지우지 않는다(처리 결과를 문의 답변 메일로 알리는 3일).
 select 1/case when (private.run_member_withdrawal_retention(100))->>'emailsErased' = '0'

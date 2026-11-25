@@ -503,7 +503,7 @@ const privacy: LegalDocument = {
           ['서비스 접속에 관한 기록', '3개월', '통신비밀보호법'],
         ],
       },
-      /* 탈퇴 처리(private.process_member_withdrawal, 20261125233000)가 실제로 지우는 것·남기는 것과 같은 말로 적는다.
+      /* 탈퇴 처리(private.process_member_withdrawal, 20261126104000)가 실제로 지우는 것·남기는 것과 같은 말로 적는다.
        * 처리 때 보존 근거 없는 정보·로그인 연결을 지우고, 이메일 원문은 3일 뒤, 재가입 차단 값과 마케팅 동의 원장은 1년 뒤
        * DB 정리 잡(private.run_member_withdrawal_retention)이 지운다. 위 표의 기록은 운영 DB에 남는다(분리 보존 원장은 미구현 —
        * docs/account-deletion-retention-policy.md §5). 주소록은 탈퇴 신청 기능이 켜지면 신청 시점(계정 봉인)에 지워진다. */

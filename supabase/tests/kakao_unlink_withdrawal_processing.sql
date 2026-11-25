@@ -18,7 +18,7 @@ begin;
 --   · 멱등: 카카오·문의 RPC 어느 쪽으로 다시 불러도 처음 기록. 재로그인 차단 확인 감사에 basis. 정지 해제 차단
 --   · 연결만 끊은 회원은 1:1 문의로 기존 경로에서 처리되고 그 문서·감사 모양은 문의 탈퇴 그대로, 대기 목록에서 빠진다
 --   · 근거 검사: 근거와 다른 칸 조합은 표가 거절하고, 처리 기록이 있는 동안 근거 해제 행은 지울 수 없으며 회원 삭제는 막지 않는다
---   · 20261125233000: 근거와 무관하게 남은 로그인 연결(이메일 identity 포함)·Auth 프로필 정보도 지우고(loginIdentities),
+--   · 20261126104000: 근거와 무관하게 남은 로그인 연결(이메일 identity 포함)·Auth 프로필 정보도 지우고(loginIdentities),
 --     카카오 계정은 재가입 차단 값으로 막는다. 이메일 원문은 처리 3일 뒤 정리 잡이 지운다
 -- ============================================================================
 
@@ -217,7 +217,7 @@ select 1/case when (select suspended_at is not null and suspension_reason = '탈
   and not exists (select 1 from public.address_book_entries where user_id = pg_temp.uid(3))
   and (select bool_and(not agreed and source = 'member_withdrawal') from private.customer_marketing_consents where user_id = pg_temp.uid(3))
   and not exists (select 1 from auth.sessions where user_id = pg_temp.uid(3))
-  -- 카카오 identity와 user metadata 전체를 지우고 공급자 목록을 비운다(20261125233000). 계정과 이메일 원문은 처리 3일 뒤까지 남는다.
+  -- 카카오 identity와 user metadata 전체를 지우고 공급자 목록을 비운다(20261126104000). 계정과 이메일 원문은 처리 3일 뒤까지 남는다.
   and not exists (select 1 from auth.identities where user_id = pg_temp.uid(3))
   and (select raw_app_meta_data from auth.users where id = pg_temp.uid(3)) = '{"providers":[]}'::jsonb
   and (select raw_user_meta_data from auth.users where id = pg_temp.uid(3)) = '{}'::jsonb
@@ -294,7 +294,7 @@ select 1/case when ((:'blocked3'::jsonb)->>'signinBlocked')::boolean
 
 -- ---------------------------------------------------------------------------
 -- 비밀번호 없는 이메일 identity가 있는 회원: 카카오 identity는 kakaoIdentities로, 남은 이메일 identity는 loginIdentities로 지운다
--- (20261125233000 — 재로그인은 장기 차단이 막고, 로그인 연결은 보존 근거가 없다)
+-- (20261126104000 — 재로그인은 장기 차단이 막고, 로그인 연결은 보존 근거가 없다)
 -- ---------------------------------------------------------------------------
 select pg_temp.as_actor(pg_temp.uid(1));
 set local role authenticated;
@@ -321,7 +321,7 @@ select 1/case when (:'processed4'::jsonb)->>'status' = 'processed'
   and not ((:'processed4'::jsonb) ? 'basis') and not ((:'processed4'::jsonb) ? 'kakaoUnlink')
   and ((:'processed4'::jsonb)->>'inquiryReference')::bigint = :ref4
   and not ((:'processed4'::jsonb)->'erased' ? 'kakaoIdentities')
-  -- 문의 근거도 로그인 연결을 지우고(loginIdentities) 같은 카카오 계정의 재가입을 막는다(20261125233000).
+  -- 문의 근거도 로그인 연결을 지우고(loginIdentities) 같은 카카오 계정의 재가입을 막는다(20261126104000).
   and ((:'processed4'::jsonb)->'erased'->>'loginIdentities')::integer = 1
   and not exists (select 1 from auth.identities where user_id = pg_temp.uid(4))
   and exists (select 1 from private.withdrawn_signin_blocks where digest = private.withdrawn_signin_digest('identity', 'kakao:9100000004'))

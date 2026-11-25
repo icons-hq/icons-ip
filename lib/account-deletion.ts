@@ -3,7 +3,7 @@ export const ACCOUNT_DELETION_CONFIRMATION = '회원 탈퇴를 신청합니다';
 /**
  * 탈퇴 신청 기능이 꺼져 있는 동안 1:1 문의로 받은 탈퇴를 운영자가 처리할 때(admin_process_member_withdrawal) 지우는 것과
  * 남는 것 — 고객 안내(회원 탈퇴 화면)·어드민 처리 화면이 이 목록 하나를 쓰고, 법정 문서(약관 제7조·방침 제3조)도 같은 범위를 말한다.
- * 보존 근거가 없는 정보는 처리 때 지운다(20261125233000). 이메일 원문은 처리 결과를 문의 답변 메일로 알리도록 emailRetentionDays일
+ * 보존 근거가 없는 정보는 처리 때 지운다(20261126104000). 이메일 원문은 처리 결과를 문의 답변 메일로 알리도록 emailRetentionDays일
  * 남겼다가 정리 잡이 지우고, 같은 이메일·소셜 계정의 재가입은 복원할 수 없게 바꾼 값으로 rejoinBlockYears년 막는다.
  * 순서·끝 글자는 고객 문장의 조사('은')에 맞춰 둔다. 범위가 바뀌면 docs/account-deletion-retention-policy.md §5와 함께 바꾼다.
  */

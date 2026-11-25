@@ -3,7 +3,7 @@
  *
  * 탈퇴 신청 기능(#137 Phase 1)이 꺼져 있는 동안 탈퇴는 1:1 문의로 받고, 고객 상세의 '탈퇴 요청 처리'가 DB
  * `admin_process_member_withdrawal` 한 트랜잭션으로 정지·보존 근거 없는 개인정보와 로그인 연결 삭제·로그인 세션 종료·감사를 한다.
- * 이메일 원문은 처리 결과 답변을 위해 3일 뒤, 동의 원장은 1년 뒤 DB 정리 잡이 지운다(20261125233000). 법정 보존 기록만 남는다.
+ * 이메일 원문은 처리 결과 답변을 위해 3일 뒤, 동의 원장은 1년 뒤 DB 정리 잡이 지운다(20261126104000). 법정 보존 기록만 남는다.
  * 카카오로만 가입한 회원이 카카오계정을 탈퇴했다는 알림을 받으면 같은 처리를 그 알림을 근거로 한다
  * (`admin_process_kakao_unlink_withdrawal`, 카카오 identity 삭제를 더함 — lib/admin/kakao-unlink-withdrawal.ts).
  * 재로그인 차단은 Supabase Auth 관리 API(ban)로 걸고 `admin_confirm_member_withdrawal_signin_block`이 DB에서 확인·기록한다.
@@ -41,7 +41,7 @@ export const MEMBER_WITHDRAWAL_ERASED_KEYS = [
   'addressBookEntries', 'phoneNumbers', 'marketingConsents', 'demographicConsents',
   'activityEvents', 'activityConsents', 'emailChangeRequests', 'restockAlerts',
 ] as const;
-/** 20261125233000이 더한 삭제 개수. 그 전 DB 응답에는 없어 있을 때만 받는다. */
+/** 20261126104000이 더한 삭제 개수. 그 전 DB 응답에는 없어 있을 때만 받는다. */
 export const MEMBER_WITHDRAWAL_PERSONAL_DATA_KEYS = [
   'wishlistItems', 'cartItems', 'notifications', 'follows', 'coupons', 'loginIdentities',
 ] as const;
@@ -247,7 +247,7 @@ function parseErased(value: unknown, kakaoBasis: boolean): MemberWithdrawalErase
   } else if (value.kakaoIdentities !== undefined) {
     return null;
   }
-  /* 20261125233000의 삭제 개수(위시·장바구니·알림함·팔로우·쿠폰·로그인 연결). 옛 응답에는 없을 수 있다. */
+  /* 20261126104000의 삭제 개수(위시·장바구니·알림함·팔로우·쿠폰·로그인 연결). 옛 응답에는 없을 수 있다. */
   for (const key of MEMBER_WITHDRAWAL_PERSONAL_DATA_KEYS) {
     if (value[key] === undefined) continue;
     if (!transactionInteger(value[key])) return null;
