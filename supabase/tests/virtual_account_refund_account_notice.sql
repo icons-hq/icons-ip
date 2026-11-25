@@ -103,8 +103,8 @@ select 1 / case when public.finalize_goods_payment_awaiting_deposit(
   '35000000-0000-4000-8000-000000004953', '45000000-0000-4000-8000-000000004953', 'van-key-4953',
   '20', 'X6505636518353', now() + interval '24 hours', false, '88', '110123456789', '김토스') = 'awaiting_deposit'
 then 1 else 0 end as assert_virtual_accounts_issued;
-select (public.claim_goods_payment_reconciliation('35000000-0000-4000-8000-000000004951', '55000000-0000-4000-8000-000000004951', 'van-smoke-4951'))->>'claim_status' = 'claimed' as claimed_4951 \gset
-select (public.claim_goods_payment_reconciliation('35000000-0000-4000-8000-000000004953', '55000000-0000-4000-8000-000000004953', 'van-smoke-4953'))->>'claim_status' = 'claimed' as claimed_4953 \gset
+select (public.claim_goods_payment_reconciliation('35000000-0000-4000-8000-000000004951', '55000000-0000-4000-8000-000000004951', 'van-smoke-notice-4951'))->>'claim_status' = 'claimed' as claimed_4951 \gset
+select (public.claim_goods_payment_reconciliation('35000000-0000-4000-8000-000000004953', '55000000-0000-4000-8000-000000004953', 'van-smoke-notice-4953'))->>'claim_status' = 'claimed' as claimed_4953 \gset
 select 1 / case when public.finalize_goods_payment_reconciliation('35000000-0000-4000-8000-000000004951', '55000000-0000-4000-8000-000000004951', 'approved',
     'van-key-4951', 'VANTX4951', null, 'DONE', '가상계좌', '가상계좌', now()) = 'approved'
   and public.finalize_goods_payment_reconciliation('35000000-0000-4000-8000-000000004953', '55000000-0000-4000-8000-000000004953', 'approved',
@@ -218,7 +218,9 @@ select 1 / case when (
 ) then 1 else 0 end as assert_operator_entry_audited;
 
 -- 저장 뒤 동작은 기존 재시도 규칙 그대로 — 취소는 시스템이 처리 중으로 되돌린다(이 계좌로 환불), 반품은 운영자.
-select 1 / case when public.service_begin_virtual_account_refund_retry(:'claim_4951') = 'started'
+select public.service_begin_virtual_account_refund_retry(:'claim_4951') as retry_4951 \gset
+-- 재시도가 바꾼 상태는 다음 문장에서 본다(한 문장 안의 하위 질의는 문장 시작 때의 스냅샷을 본다).
+select 1 / case when :'retry_4951' = 'started'
   and (select status = 'processing' from public.order_cancellation_requests where id = :'claim_4951')
   and public.service_virtual_account_refund_account_notice(:'claim_4951') is null
 then 1 else 0 end as assert_cancel_retry_started_after_operator_entry;

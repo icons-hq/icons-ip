@@ -89,8 +89,12 @@ select private.va_partial_patch('private.return_fee_deduction_plan(uuid)'::regpr
 select private.va_partial_patch(
   'private.order_claim_virtual_account_refund_blocker(public.order_cancellation_requests,public.orders)'::regprocedure,
   pg_catalog.jsonb_build_array(pg_catalog.jsonb_build_array(
-    E'    -- 가상계좌는 부분 반품을 받지 않는다(부분 취소 불가). 지금 SQL 차단과 같은 판단이다.\n    when private.claim_is_partial_return(p_claim.id) then \'refund_account_payment_unavailable\'',
-    E'    -- 부분 반품은 결제사 부분 취소라 에스크로가 아님이 확인된 입금 가상계좌만 받는다(20261125212000 — 부분 반품 판정과 같다).\n    when private.claim_is_partial_return(p_claim.id) and not coalesce(private.toss_virtual_account_partial_cancel_ready(\n        (private.order_toss_virtual_account_payment(p_order.id)->>\'attemptId\')::uuid), false)\n      then \'refund_account_payment_unavailable\'')));
+    $r$    -- 가상계좌는 부분 반품을 받지 않는다(부분 취소 불가). 지금 SQL 차단과 같은 판단이다.
+    when private.claim_is_partial_return(p_claim.id) then 'refund_account_payment_unavailable'$r$,
+    $r$    -- 부분 반품은 결제사 부분 취소라 에스크로가 아님이 확인된 입금 가상계좌만 받는다(20261125212000 — 부분 반품 판정과 같다).
+    when private.claim_is_partial_return(p_claim.id) and not coalesce(private.toss_virtual_account_partial_cancel_ready(
+        (private.order_toss_virtual_account_payment(p_order.id)->>'attemptId')::uuid), false)
+      then 'refund_account_payment_unavailable'$r$)));
 
 -- ---------------------------------------------------------------------------
 -- 3. 은행 환불 감시 — 가상계좌 부분 환불도 감시하고, 끝난 감시는 새 환불로 다시 연다
@@ -148,7 +152,12 @@ execute function private.virtual_account_partial_refund_watch_opened();
 select private.va_partial_patch('private.virtual_account_refund_watch_opened()'::regprocedure, pg_catalog.jsonb_build_array(
   pg_catalog.jsonb_build_array(
     '    on conflict (attempt_id) do nothing;',
-    E'    on conflict (attempt_id) do update\n    set state = \'pending\', refund_status = null, failure_code = null, checks = 0, refunded_at = pg_catalog.clock_timestamp(),\n        next_check_at = pg_catalog.clock_timestamp() + interval \'30 minutes\', last_checked_at = null, failed_at = null, completed_at = null,\n        resolved_at = null, resolved_by = null, resolution_note = null, completed_via = null, updated_at = pg_catalog.clock_timestamp()\n    -- 가상계좌 부분 환불(20261125212000) 뒤 끝난 감시는 남은 잔액 환불로 다시 연다. 송금 확인 전·실패 감시는 그대로 둔다.\n    where private.virtual_account_refund_watches.state in (\'completed\', \'resolved\');')));
+    $r$    on conflict (attempt_id) do update
+    set state = 'pending', refund_status = null, failure_code = null, checks = 0, refunded_at = pg_catalog.clock_timestamp(),
+        next_check_at = pg_catalog.clock_timestamp() + interval '30 minutes', last_checked_at = null, failed_at = null, completed_at = null,
+        resolved_at = null, resolved_by = null, resolution_note = null, completed_via = null, updated_at = pg_catalog.clock_timestamp()
+    -- 가상계좌 부분 환불(20261125212000) 뒤 끝난 감시는 남은 잔액 환불로 다시 연다. 송금 확인 전·실패 감시는 그대로 둔다.
+    where private.virtual_account_refund_watches.state in ('completed', 'resolved');$r$)));
 
 -- 작업자에게 결제사에 남아야 할 잔액을 준다: 결제 원장이 아직 paid(부분 환불만 있었다)면 결제 금액 − 적용된 토스 부분 취소 합계, 아니면 0.
 select private.va_partial_patch('public.service_claim_virtual_account_refund_watches(integer)'::regprocedure, pg_catalog.jsonb_build_array(

@@ -64,25 +64,35 @@ select ('36000000-0000-4000-8000-00000000' || n)::uuid, 'toss', '00000000-0000-4
   ('46000000-0000-4000-8000-00000000' || n)::uuid, now() + interval '10 minutes', now() + interval '10 minutes'
 from unnest(array['4961', '4962', '4963']) as n;
 
--- 발급: 4961은 결제 조회가 useEscrow:false, 4962는 값 없음(null), 4963은 에스크로(true). 그 뒤 입금 승인(재정합).
+-- 발급: 4961은 결제 조회가 useEscrow:false, 4962는 값 없음(null), 4963은 에스크로(true). 계정당 열린 입금 대기는 2건까지라 두 건을
+-- 입금 승인(재정합)으로 닫은 뒤 셋째를 발급한다.
+create function pg_temp.deposit(n text) returns void language plpgsql as $$
+begin
+  if (public.claim_goods_payment_reconciliation(('36000000-0000-4000-8000-00000000' || n)::uuid,
+      ('56000000-0000-4000-8000-00000000' || n)::uuid, 'vap-smoke-partial-' || n))->>'claim_status' <> 'claimed'
+    or public.finalize_goods_payment_reconciliation(('36000000-0000-4000-8000-00000000' || n)::uuid,
+      ('56000000-0000-4000-8000-00000000' || n)::uuid, 'approved', 'vap-key-' || n, 'VAPTX' || n, null, 'DONE', '가상계좌', '가상계좌', now())
+      <> 'approved' then
+    raise exception 'deposit failed for %', n;
+  end if;
+end $$;
 select 1 / case when public.finalize_goods_payment_awaiting_deposit(
     '36000000-0000-4000-8000-000000004961', '46000000-0000-4000-8000-000000004961', 'vap-key-4961',
     '20', 'X6505636518361', now() + interval '24 hours', false, '88', '110123456789', '김토스') = 'awaiting_deposit'
   and public.finalize_goods_payment_awaiting_deposit(
     '36000000-0000-4000-8000-000000004962', '46000000-0000-4000-8000-000000004962', 'vap-key-4962',
     '20', 'X6505636518362', now() + interval '24 hours', null::boolean) = 'awaiting_deposit'
-  and public.finalize_goods_payment_awaiting_deposit(
+then 1 else 0 end as assert_first_virtual_accounts_issued;
+select pg_temp.deposit('4961');
+select pg_temp.deposit('4962');
+select 1 / case when public.finalize_goods_payment_awaiting_deposit(
     '36000000-0000-4000-8000-000000004963', '46000000-0000-4000-8000-000000004963', 'vap-key-4963',
     '20', 'X6505636518363', now() + interval '24 hours', true) = 'awaiting_deposit'
-then 1 else 0 end as assert_virtual_accounts_issued;
-select (public.claim_goods_payment_reconciliation(('36000000-0000-4000-8000-00000000' || n)::uuid,
-  ('56000000-0000-4000-8000-00000000' || n)::uuid, 'vap-smoke-' || n))->>'claim_status' = 'claimed' as claimed
-from unnest(array['4961', '4962', '4963']) as n;
+then 1 else 0 end as assert_escrow_virtual_account_issued;
+select pg_temp.deposit('4963');
 select 1 / case when (
-  select bool_and(public.finalize_goods_payment_reconciliation(('36000000-0000-4000-8000-00000000' || n)::uuid,
-    ('56000000-0000-4000-8000-00000000' || n)::uuid, 'approved', 'vap-key-' || n, 'VAPTX' || n, null, 'DONE', '가상계좌', '가상계좌', now())
-    = 'approved')
-  from unnest(array['4961', '4962', '4963']) as n
+  select count(*) = 3 and bool_and(a.state = 'approved')
+  from public.payment_attempts a where a.id::text like '36000000-0000-4000-8000-0000000049%'
 ) then 1 else 0 end as assert_virtual_accounts_deposited;
 
 -- ---------------------------------------------------------------------------
