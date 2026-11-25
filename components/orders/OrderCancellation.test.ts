@@ -7,7 +7,9 @@ import {
   OrderCancellation,
   WITHDRAWAL_REASON_LABELS,
   cancellationPresentation,
-  submitOrderCancellation, cancellationBlockedMessage, CANCELLATION_BLOCKED_MESSAGE } from './OrderCancellation';
+  submitOrderCancellation, cancellationBlockedMessage, CANCELLATION_BLOCKED_MESSAGE,
+  submitOrderCancellationWithRefundAccount } from './OrderCancellation';
+import { isVirtualAccountRefundNumber } from './RefundAccountFieldset';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: () => undefined }),
@@ -63,6 +65,49 @@ describe('발주확인 이후 직접 취소 차단', () => {
     expect(cancellationPresentation('paid', null, null, {
       eligibility: { cancel: false, return: false, exchange: false },
     }).canCancel).toBe(false);
+  });
+});
+
+/* 입금된 가상계좌 주문의 취소는 환급 계좌를 함께 받는다(2026-11-25, VAC-041) — 취소 전용 라우트는 계좌를 받지 않아 클레임 라우트(취소 유형)로 보낸다. */
+describe('submitOrderCancellationWithRefundAccount', () => {
+  const account = { bankName: '신한은행', accountNumber: '110987654321', accountHolder: '김엑스' };
+  const reply = (status: number, body: unknown) => vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } }));
+
+  it('클레임 라우트로 취소 유형과 계좌를 보내고, 자동 승인은 접수로 읽는다', async () => {
+    const fetcher = reply(202, { status: 'auto_approved' });
+    await expect(submitOrderCancellationWithRefundAccount('order-id', account, fetcher)).resolves.toBe('requested');
+    expect(fetcher).toHaveBeenCalledWith('/api/orders/order-id/claims', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ claimType: 'cancel', reasonType: 'change_of_mind', ...account }),
+    });
+  });
+
+  it('받지 않은 계좌·기한·취소 불가를 구분해 돌려준다', async () => {
+    await expect(submitOrderCancellationWithRefundAccount('order-id', account, reply(400, { error: { code: 'invalid_refund_account' } })))
+      .resolves.toBe('invalid_refund_account');
+    await expect(submitOrderCancellationWithRefundAccount('order-id', account, reply(409, { error: { code: 'deadline_expired' } })))
+      .resolves.toBe('deadline_expired');
+    await expect(submitOrderCancellationWithRefundAccount('order-id', account, reply(409, { error: { code: 'not_claimable' } })))
+      .resolves.toBe('not_cancelable');
+    await expect(submitOrderCancellationWithRefundAccount('order-id', account, reply(200, { status: 'canceled' })))
+      .resolves.toBe('canceled');
+    await expect(submitOrderCancellationWithRefundAccount('order-id', account, reply(502, { error: { code: 'claim_failed' } })))
+      .resolves.toBe(false);
+  });
+
+  it('계좌번호 형식은 반품 신청과 같다(하이픈을 뺀 숫자 6~20자리)', () => {
+    expect(isVirtualAccountRefundNumber('110-987-654321')).toBe(true);
+    expect(isVirtualAccountRefundNumber('12345')).toBe(false);
+    expect(isVirtualAccountRefundNumber('1234567890123456789012')).toBe(false);
+  });
+
+  it('입금된 가상계좌 주문도 확인 단계 전에는 계좌 칸을 그리지 않는다(취소 버튼만)', () => {
+    const markup = renderToStaticMarkup(createElement(OrderCancellation, {
+      deliveredAt: null, eligibility: null, orderId: '11111111-1111-4111-8111-111111111111', refund: null,
+      cancellationRequest: null, status: 'paid', virtualAccountRefund: true,
+    }));
+    expect(markup).not.toContain('환급 계좌');
   });
 });
 

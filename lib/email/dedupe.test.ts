@@ -9,6 +9,7 @@ import {
   restockAlertEmailDedupeKey,
   virtualAccountEmailDedupeKey,
   depositReversalEmailDedupeKey,
+  refundAccountEmailDedupeKey,
 } from './dedupe';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -173,6 +174,11 @@ describe('depositReversalEmailDedupeKey', () => {
     expect(depositReversalEmailDedupeKey(ORDER_ID, { sequence: 1 })).toBe(`order_deposit_reversal:${ORDER_ID}:1`);
     expect(depositReversalEmailDedupeKey(ORDER_ID, { sequence: 2 })).toBe(`order_deposit_reversal:${ORDER_ID}:2`);
     expect(depositReversalEmailDedupeKey(ORDER_ID, 'canceled')).toBe(`order_deposit_reversal:${ORDER_ID}:canceled`);
+    // 가상계좌 환불 계좌 요청(2026-11-25): 클레임·사유마다 한 통.
+    expect(EMAIL_TEMPLATE_NAMES).toContain('order_refund_account');
+    expect(refundAccountEmailDedupeKey(ORDER_ID, 'required')).toBe(`order_refund_account:${ORDER_ID}:required`);
+    expect(refundAccountEmailDedupeKey(ORDER_ID, 'invalid')).toBe(`order_refund_account:${ORDER_ID}:invalid`);
+    expect(parseOrderEmailDedupeKey(refundAccountEmailDedupeKey(ORDER_ID, 'required'))).toBeNull();
   });
 });
 

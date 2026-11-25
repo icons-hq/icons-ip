@@ -8,7 +8,8 @@ import {
 import { getPaymentGateway, type PaymentCheckoutProvider } from '../payments/runtime-gateway';
 import { depositReversalRefundOutcome } from '../payments/goods-deposit-reversal.server';
 import { createRuntimeDepositReversal, loadOpenDepositReversal } from '../payments/goods-deposit-reversal.runtime.server';
-import { parseVirtualAccountRefundAccountCandidates, selectVirtualAccountRefundAccount } from '../payments/virtual-account-refund-account';
+import { isVirtualAccountRefundAccountReviewCode } from '../payments/virtual-account-refund-account';
+import { loadVirtualAccountRefundAccount } from '../payments/virtual-account-refund-account.server';
 import { createServiceClient } from '../supabase/service';
 import { createRuntimeAttemptPaymentGateway } from '../subscriptions/payment-dispatch.server';
 
@@ -171,28 +172,6 @@ export function parsePaymentPartialRefunds(value: unknown): ReadonlyMap<string, 
 }
 
 /**
- * 가상계좌 결제의 환급 계좌(service 전용 RPC, ADR-0049 결정 5 보강). 이 요청에서 구매자가 입력한 계좌(반품·취소 신청 화면·주문 상세)를
- * 먼저, 없으면 결제 UI가 받은 계좌를 쓴다(lib/payments/virtual-account-refund-account.ts). 원장 결제 키가 다르거나 가상계좌가 아니면
- * RPC가 null이다. 쓸 계좌가 없으면 undefined — 어댑터가 결제사를 부르지 않고 결제확인필요(계좌 없음)로 남긴다.
- * 조회 자체가 실패하면 계좌 없음과 구분해 던진다 — 환불 호출부가 결제사를 부르지 않고 '결제사 응답 없음'(provider_unavailable, 운영자
- * [상태 다시 확인]으로 다시 시도)으로 남긴다. 계좌 없음으로 적으면 구매자에게 계좌를 다시 입력하라는 잘못된 안내가 나간다.
- */
-async function loadVirtualAccountRefundAccount(
-  service: ReturnType<typeof createServiceClient>,
-  attemptId: string,
-  paymentKey: string,
-  requestId: string | undefined,
-): Promise<PaymentRefundReceiveAccount | undefined> {
-  const { data, error } = await service.rpc('service_goods_virtual_account_refund_accounts', {
-    p_attempt_id: attemptId,
-    p_payment_key: paymentKey,
-    p_request_id: requestId ?? null,
-  });
-  if (error) throw new Error('virtual account refund account lookup failed');
-  return selectVirtualAccountRefundAccount(parseVirtualAccountRefundAccountCandidates(data))?.account;
-}
-
-/**
  * 결제사 취소 요청 조립(기본 의존성이 쓰는 순수 함수 — 시험이 같은 조립을 쓴다).
  * 부분 취소는 취소마다 멱등키가 다르다 — 토스는 같은 키의 첫 응답을 15일간 재생하므로 전액 취소 키(`refund:{attemptId}`)를 쓰면
  * 뒤의 전액 취소가 이 부분 취소의 응답을 받는다. 차감 결정은 요청당 하나(`deduction`), 부분 취소 뒤의 남은 잔액은 `remainder`다.
@@ -202,7 +181,7 @@ async function loadVirtualAccountRefundAccount(
 export function cancellationRefundRequest(attempt: PaymentAttempt, input: {
   amount: number; reason: string; paymentKey: string;
   partial?: { refundAmount: number; requestId: string; expectedBalanceBefore?: number; scope?: 'deduction' | 'remainder' };
-  /** 입금이 끝난 가상계좌 결제의 환불 계좌(ADR-0049). 다른 결제는 어댑터가 무시한다. */
+  /** 입금이 끝난 가상계좌 결제의 환불 계좌(ADR-0049). 전액·부분 취소 모두 싣는다. 다른 결제는 어댑터가 무시한다. */
   refundReceiveAccount?: PaymentRefundReceiveAccount;
 }): PaymentRefundRequest {
   const { amount, reason, paymentKey, partial, refundReceiveAccount } = input;
@@ -214,6 +193,9 @@ export function cancellationRefundRequest(attempt: PaymentAttempt, input: {
       reason,
       providerPaymentKey: paymentKey,
       partial: { expectedBalanceBefore: partial.expectedBalanceBefore ?? amount },
+      // 입금된 가상계좌(에스크로 아님)의 반품배송비 차감·남은 잔액 취소도 결제사 부분 취소라 환불 계좌를 싣는다(2026-11-25 보강).
+      // 어댑터가 단계별 키(위)에 계좌 접미를 붙인다.
+      ...(refundReceiveAccount ? { refundReceiveAccount } : {}),
     };
   }
   return {
@@ -282,6 +264,12 @@ export interface CancellationReconciliationDependencies {
   }): Promise<void>;
   /** 반품배송비 차감 결정(ADR-0031). 없으면 차감 없이 지금처럼 전액 취소한다. */
   refundDeduction?: CancellationRefundDeductionDependencies;
+  /**
+   * 환불이 환급 계좌 때문에 결제확인필요(provider_refund_account_required·provider_refund_account_invalid)로 멈춘 직후 구매자에게 계좌 입력
+   * 요청 메일을 보낸다(ADR-0049 결정 5 보강, 2026-11-25 — 앱 알림은 DB가 같은 전이에서 남긴다). 보낼지는 DB가 다시 판정하고, 실패해도
+   * 정합화 결과는 바뀌지 않는다. 없으면(시험) 보내지 않는다.
+   */
+  notifyRefundAccountNeeded?: (requestId: string) => Promise<void>;
   /**
    * 재고 부족 부분 취소(ADR-0032)로 결제마다 이미 돌려준 금액. 없거나 비어 있으면 지금처럼 결제 금액 전액이 기준이다.
    * 있으면 이 요청은 남은 잔액만 결제사 부분 취소로 돌려준다(잔액 기대값 = 남은 잔액).
@@ -560,6 +548,11 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
       });
       if (error) throw new Error('cancellation review transition failed');
     },
+    async notifyRefundAccountNeeded(requestId) {
+      // 메일 모듈은 무겁고 주문 모듈을 넓게 읽는다 — 필요할 때만 불러 순환을 만들지 않는다. 보내는 함수는 던지지 않는다.
+      const { sendVirtualAccountRefundAccountEmail } = await import('../email/transactional.server');
+      await sendVirtualAccountRefundAccountEmail(requestId);
+    },
     partialRefunds: {
       async load(orderId) {
         const { data, error } = await service.rpc('service_order_payment_partial_refunds', { p_order_id: orderId });
@@ -605,10 +598,17 @@ async function markNeedsReview(
 ): Promise<CancellationReconciliationResult> {
   try {
     await dependencies.markNeedsReview({ ...input, code });
-    return { ok: false, code };
   } catch {
     return { ok: false, code: 'local_finalize_failed' };
   }
+  if (isVirtualAccountRefundAccountReviewCode(code) && dependencies.notifyRefundAccountNeeded) {
+    try {
+      await dependencies.notifyRefundAccountNeeded(input.requestId);
+    } catch {
+      console.error('[orders/cancellation] refund account notice failed');
+    }
+  }
+  return { ok: false, code };
 }
 
 /**
@@ -772,6 +772,8 @@ export async function reconcileOrderCancellation(
           partial: alreadyRefunded > 0
             ? { refundAmount: pendingDeduction.refundAmount, requestId: input.requestId, expectedBalanceBefore: remaining }
             : { refundAmount: pendingDeduction.refundAmount, requestId: input.requestId },
+          // 가상계좌 차감 환불도 이 반품에서 구매자가 입력한 계좌를 먼저 쓴다(전액 환불과 같은 고르기).
+          requestId: input.requestId,
         });
       } catch {
         return markNeedsReview(dependencies, input, 'provider_unavailable');

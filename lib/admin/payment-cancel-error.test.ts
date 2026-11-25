@@ -25,6 +25,10 @@ describe('결제 취소 실패 안내', () => {
     expect(required).toContain('환불 계좌가 없어');
     expect(required).toContain('주문 상세에서 환급 계좌를 입력하면');
     expect(required).toContain('토스페이먼츠 상점관리자에서 환불한 뒤');
+    // 2026-11-25: 고객에게 알림·메일이 자동으로 가고, 운영자가 받은 계좌를 대신 입력할 수 있다(VAC-041·VAC-042).
+    expect(required).toContain('앱 알림과 메일');
+    expect(required).toContain('대신 입력');
+    expect(adminPaymentCancelFailureMessage('provider_refund_account_invalid')).toContain('대신 입력');
     expect(required).toContain('provider_refund_account_required');
     for (const code of ['provider_refund_account_invalid', 'provider_refund_failed', 'provider_virtual_account_released', 'provider_deposit_expired',
       'provider_virtual_account_canceled', 'provider_virtual_account_release_pending', 'provider_deposit_window_out_of_range', 'provider_virtual_account_invalid']) {

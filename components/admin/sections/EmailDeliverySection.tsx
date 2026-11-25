@@ -56,6 +56,7 @@ const TEMPLATE_SUMMARY: Record<EmailDeliveryRecord['template'], string> = {
   restock_alert: '재입고 안내',
   order_virtual_account: '가상계좌 입금 안내',
   order_deposit_reversal: '가상계좌 재입금·자동 취소 안내',
+  order_refund_account: '가상계좌 환불 계좌 입력 요청',
 };
 
 /** 문의 답변 메일이 실패한 줄 — 버튼 없이 사람이 직접 처리할 일이 있는 유일한 경우다(재발송 경로는 답변을 다시 등록하는 것이다). */

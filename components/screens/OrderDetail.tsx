@@ -559,6 +559,7 @@ export function OrderDetail({
               status={order.status}
               paymentMethod={order.paymentMethod}
               partialReturnEnabled={partialReturn.enabled}
+              virtualAccountRefund={virtualAccountPaid}
             />
           ) : null}
 

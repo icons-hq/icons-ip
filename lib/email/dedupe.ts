@@ -12,6 +12,7 @@ export const EMAIL_TEMPLATE_NAMES = [
   'restock_alert',
   'order_virtual_account',
   'order_deposit_reversal',
+  'order_refund_account',
 ] as const;
 
 export type EmailTemplateName = (typeof EMAIL_TEMPLATE_NAMES)[number];
@@ -58,6 +59,15 @@ export function depositReversalEmailDedupeKey(orderId: string, stage: { readonly
   return stage === 'canceled'
     ? `order_deposit_reversal:${orderId}:canceled`
     : `order_deposit_reversal:${orderId}:${stage.sequence}`;
+}
+
+/**
+ * 가상계좌 환불 계좌 요청 메일의 dedupe_key(ADR-0049 결정 5 보강, 2026-11-25). 환불이 환급 계좌 때문에 멈춘 클레임마다, 사유(계좌 없음
+ * required · 결제사 거절 invalid)마다 한 통이다 — 같은 사유로 다시 멈춰도 다시 보내지 않는다. 앱 알림의 dedupe(claim:refund_account_*)와 같은
+ * 단위다. 운영자 재발송 대상이 아니다(ORDER_EMAIL_TEMPLATE_NAMES 밖).
+ */
+export function refundAccountEmailDedupeKey(claimId: string, code: 'required' | 'invalid'): string {
+  return `order_refund_account:${claimId}:${code}`;
 }
 
 export type OrderEmailAudience = 'payer' | 'recipient';

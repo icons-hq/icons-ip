@@ -27,6 +27,17 @@ export interface VirtualAccountRefundAccountCandidates {
 
 export type VirtualAccountRefundAccountSource = 'claim' | 'checkout';
 
+/**
+ * 환불이 환급 계좌 때문에 멈춘 결제확인필요 사유(계좌 없음·결제사 거절). 이 사유로 멈추면 구매자에게 앱 알림(DB 트리거)·메일(앱)이 가고,
+ * 운영자는 전화 등으로 받은 계좌를 대신 입력할 수 있다(admin_set_order_claim_refund_account, 2026-11-25).
+ */
+export const VIRTUAL_ACCOUNT_REFUND_ACCOUNT_REVIEW_CODES = ['provider_refund_account_required', 'provider_refund_account_invalid'] as const;
+export type VirtualAccountRefundAccountReviewCode = (typeof VIRTUAL_ACCOUNT_REFUND_ACCOUNT_REVIEW_CODES)[number];
+
+export function isVirtualAccountRefundAccountReviewCode(code: unknown): code is VirtualAccountRefundAccountReviewCode {
+  return typeof code === 'string' && (VIRTUAL_ACCOUNT_REFUND_ACCOUNT_REVIEW_CODES as readonly string[]).includes(code);
+}
+
 const BANK_CODE = /^[0-9]{2,3}$/;
 const ACCOUNT_NUMBER = /^[0-9]{6,20}$/;
 const CONTROL = /[\u0000-\u001f\u007f]/;

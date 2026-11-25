@@ -585,12 +585,16 @@ function partialCanceledEvidence(payment: Record<string, unknown>): PaymentProvi
 
 /**
  * 결제사가 이 결제의 부분 취소를 받는지(취소 가이드 /guides/v2/cancel-payment, Payment 객체 /reference).
- * 입금 전 가상계좌는 부분 취소를 할 수 없고, 결제사가 `isPartialCancelable`을 true로 싣지 않은 결제·과세 제외 금액
- * (`taxExemptionAmount`)이 있는 결제는 전액만 취소한다. 확인하지 못한 값은 받지 않는 쪽으로 읽는다 — 돈을 움직이기
- * 전의 판정이라 그 결과는 전액 환불(차감 없음)이다. null이면 부분 취소 가능, 아니면 그 이유 표지.
+ * 입금 전 가상계좌는 부분 취소를 할 수 없고(이 판정은 잔액·상태가 입금 뒤 기대값일 때만 불린다), 결제사가 `isPartialCancelable`을 true로
+ * 싣지 않은 결제·과세 제외 금액(`taxExemptionAmount`)이 있는 결제는 전액만 취소한다. 확인하지 못한 값은 받지 않는 쪽으로 읽는다 — 돈을
+ * 움직이기 전의 판정이라 그 결과는 전액 환불(차감 없음)이다. null이면 부분 취소 가능, 아니면 그 이유 표지.
+ *
+ * 입금된 가상계좌(2026-11-25 보강, ADR-0049): 취소 가이드가 "가상계좌 입금 이후에는 부분 취소가 가능"하다고 한다. 에스크로 결제는 구매확정
+ * 전 부분 취소를 받지 않으므로(에스크로 가이드) 결제 조회의 `useEscrow`가 false로 확인된 결제만 연다 — 에스크로이거나 값이 없으면 받지 않는다.
+ * DB 판정(private.toss_virtual_account_partial_cancel_ready)이 같은 근거로 먼저 막고, 이 판정은 돈을 움직이기 직전의 결제사 확인이다.
  */
 function partialCancelBlocker(payment: Record<string, unknown>): string | null {
-  if (isVirtualAccountPayment(payment)) return 'virtual_account';
+  if (isVirtualAccountPayment(payment) && payment.useEscrow !== false) return 'virtual_account_escrow';
   if (payment.isPartialCancelable !== true) return 'partial_cancel_not_allowed';
   const taxExemption = payment.taxExemptionAmount === undefined || payment.taxExemptionAmount === null
     ? 0
@@ -1425,6 +1429,13 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     }
 
     function settled(payment: Record<string, unknown>, reasonCode: string): RefundOutcome {
+      // 가상계좌 부분 환불은 취소 뒤 은행이 환불 계좌로 송금한다 — 그 송금이 이미 실패했으면 환불 완료로 닫지 않는다(전액 환불과 같은 규칙).
+      if (isVirtualAccountPayment(payment) && virtualAccountRefundFailed(payment)) {
+        return baseOutcome(attempt, 'needs_review', 'provider_refund_failed', {
+          ...partialCanceledEvidence(payment),
+          resultCode: `${paymentStatusLabel(payment)}_refund_failed`,
+        }) as RefundOutcome;
+      }
       return {
         ...baseOutcome(attempt, 'approved', reasonCode, partialCanceledEvidence(payment)),
         refundedAmount: amount,
@@ -1470,6 +1481,34 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
       }) as RefundOutcome;
     }
 
+    // 입금된 가상계좌(에스크로 아님, 2026-11-25 보강)는 부분 취소에도 환불 계좌를 싣는다(결제 취소 가이드 Case 1 — 전액 환불과 같은 계좌 고르기).
+    // 계좌가 없으면 결제사를 부르지 않는다: 계좌 없이 한 번 부른 취소의 거절 응답이 같은 멱등키에 15일간 재생된다. 멱등키는 단계(호출자가
+    // 준 키 — 차감·재고 부족 부분 취소·남은 잔액마다 다르다)와 계좌별로 가른다.
+    // 여기까지 오면 취소 전 조회는 '잔액 그대로·부분 취소 가능'(unchanged)이다.
+    const virtualAccount = before.kind === 'unchanged' && isVirtualAccountPayment(before.payment);
+    let cancelBody: Record<string, unknown> = { cancelReason: request.reason, cancelAmount: amount };
+    let cancelKey = request.idempotencyKey;
+    if (virtualAccount) {
+      const account = request.refundReceiveAccount;
+      if (
+        !account
+        || !VIRTUAL_ACCOUNT_BANK_CODE.test(account.bankCode)
+        || !REFUND_ACCOUNT_NUMBER.test(account.accountNumber)
+        || !safeString(account.holderName, 50)
+      ) {
+        return baseOutcome(attempt, 'needs_review', 'provider_refund_account_required', {
+          providerPaymentKey: paymentKey,
+          resultCode: `${statusBefore}_refund_account_required`,
+          paymentMethod: '가상계좌',
+        }) as RefundOutcome;
+      }
+      cancelBody = {
+        ...cancelBody,
+        refundReceiveAccount: { bank: account.bankCode, accountNumber: account.accountNumber, holderName: account.holderName },
+      };
+      cancelKey = `${request.idempotencyKey}:va-${refundAccountKeySuffix(account)}`;
+    }
+
     let cancelSucceeded = false;
     // 결제사가 이 결제의 부분 환불을 받지 않는다고 거절했다(NOT_ALLOWED_PARTIAL_REFUND). 조회가 잔액 그대로를
     // 확인하면 돈이 움직이지 않은 것이라 '부분 취소 불가'로 돌려준다 — 호출자가 전액 환불로 돌린다.
@@ -1480,9 +1519,9 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         {
           method: 'POST',
           timeoutMs: requestTimeoutMs,
-          idempotencyKey: request.idempotencyKey,
+          idempotencyKey: cancelKey,
           // cancelAmount = 이번에 돌려줄 금액(결제 취소 API /reference#결제-취소). 값이 없으면 전액 취소다.
-          body: { cancelReason: request.reason, cancelAmount: amount },
+          body: cancelBody,
         },
       );
       const code = errorCode(cancelResult.payload);
@@ -1490,6 +1529,13 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         cancelSucceeded = true;
       } else if (code === 'NOT_ALLOWED_PARTIAL_REFUND') {
         partialRefundRejected = true;
+      } else if (virtualAccount && refundAccountRejected(code)) {
+        // 결제사가 환불 계좌(은행·계좌번호·예금주)를 검증해 거절했다 — 계좌를 다시 받아야 풀린다. 돈은 움직이지 않았다.
+        return baseOutcome(attempt, 'needs_review', 'provider_refund_account_invalid', {
+          providerPaymentKey: paymentKey,
+          resultCode: code ?? undefined,
+          paymentMethod: '가상계좌',
+        }) as RefundOutcome;
       } else if (code !== null && CANCEL_REJECTED_CODES.has(code)) {
         return baseOutcome(attempt, 'needs_review', 'provider_cancel_rejected', {
           providerPaymentKey: paymentKey,
