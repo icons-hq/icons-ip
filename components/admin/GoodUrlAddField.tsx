@@ -50,7 +50,7 @@ export function GoodUrlAddField<T = never>({ onAdd, disabled = false, bulk }: {
   return <div className="my-3 flex min-w-0 flex-col gap-2" data-good-url-add="">
     <label className="text-sm leading-snug font-medium text-foreground" htmlFor={inputId}>상품 URL로 추가</label>
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      <input className={`${GOOD_INPUT_CLASS} flex-1 basis-60`} data-slot="input" id={inputId} value={value} maxLength={500} inputMode="url" placeholder="https://iconsip.com/shop/hsq-0059 또는 /shop/hsq-0059" disabled={disabled || pending}
+      <input className={`${GOOD_INPUT_CLASS} flex-1 basis-60`} data-slot="input" id={inputId} value={value} maxLength={500} inputMode="url" placeholder="https://xsquare.kr/shop/hsq-0059 또는 /shop/hsq-0059" disabled={disabled || pending}
         onChange={event => setValue(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void add(); } }} />
       <Button type="button" variant="outline" disabled={disabled || pending || !value.trim()} onClick={() => void add()}>{pending ? '확인 중…' : 'URL로 추가'}</Button>
     </div>

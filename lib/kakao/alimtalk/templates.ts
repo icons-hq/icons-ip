@@ -8,7 +8,7 @@
  * 쓰는 원칙(알림톡 심사: 정보성 메시지만):
  *   · 주문·배송 사실만 담는다. 쿠폰·이벤트·추천 같은 광고성 문구를 넣지 않는다.
  *   · 받는 사람의 이름·주소·연락처를 담지 않는다(닉네임은 실명이 아니고, 주소는 받는 분 정보다).
- *   · 링크는 고정 도메인(xsquare.kr — 전환 전에는 iconsip.com으로 경로를 유지한 채 넘어간다)에 주문 id만 바꾼다.
+ *   · 링크는 고정 도메인(운영 주소 xsquare.kr, 2026-11-25 전환)에 주문 id만 바꾼다.
  */
 
 export type AlimtalkTemplateName = 'order_confirmation' | 'order_shipped';

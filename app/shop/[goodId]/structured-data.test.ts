@@ -40,7 +40,7 @@ describe('PDP 구조화 데이터 (PD-17)', () => {
     vi.stubEnv('SITE_URL', 'https://preview.iconsip.test/');
     expect(siteOrigin()).toBe('https://preview.iconsip.test');
     vi.stubEnv('SITE_URL', '');
-    expect(siteOrigin()).toBe('https://iconsip.com');
+    expect(siteOrigin()).toBe('https://xsquare.kr');
   });
 
   it('CSS 배경값에서 이미지 주소만 꺼내 절대 주소로 펼친다', () => {

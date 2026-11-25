@@ -11,13 +11,13 @@ import {
   siteVerificationMetadata,
 } from './search-engines';
 
-const ORIGIN = 'https://iconsip.com';
+const ORIGIN = 'https://xsquare.kr';
 const blocked = (path: string) => ROBOTS_DISALLOWED_PATHS.some((prefix) => path === prefix || path.startsWith(prefix));
 
 describe('robots.txt (1014-029)', () => {
   it('운영은 공개 화면을 열고 개인·거래·인증 화면을 닫으며 사이트맵 주소를 알린다', () => {
     const robots = buildRobots({ origin: ORIGIN, vercelEnv: 'production' });
-    expect(robots.sitemap).toBe('https://iconsip.com/sitemap.xml');
+    expect(robots.sitemap).toBe('https://xsquare.kr/sitemap.xml');
     expect(robots.rules).toEqual({ userAgent: '*', allow: '/', disallow: [...ROBOTS_DISALLOWED_PATHS] });
     /* 오케스트레이터 판단의 제외 목록 — 어드민·마이·주문서·장바구니·API·선물·주문과 인증 집중 화면. */
     for (const path of ['/admin', '/my', '/checkout', '/cart', '/api', '/gifts', '/orders', '/update-password', '/account-suspended', '/manager-invitation']) {
@@ -61,17 +61,17 @@ describe('sitemap.xml (1014-029)', () => {
       ],
     });
     const urls = sitemap.map((entry) => entry.url);
-    expect(urls).toContain('https://iconsip.com');
+    expect(urls).toContain('https://xsquare.kr');
     for (const path of ['/shop', '/shop/new', '/shop/best', '/ip', '/legal/terms', '/legal/privacy', '/legal/shipping']) {
       expect(urls, path).toContain(`${ORIGIN}${path}`);
     }
-    expect(sitemap).toContainEqual({ url: 'https://iconsip.com/ip/maplestory', lastModified: new Date('2026-11-01T00:00:00Z') });
-    expect(sitemap).toContainEqual({ url: 'https://iconsip.com/ip/ip-no-slug' });
-    expect(sitemap).toContainEqual({ url: 'https://iconsip.com/shop/g4', lastModified: new Date('2026-11-10T09:30:00Z') });
-    expect(sitemap).toContainEqual({ url: 'https://iconsip.com/shop/g-new' });
+    expect(sitemap).toContainEqual({ url: 'https://xsquare.kr/ip/maplestory', lastModified: new Date('2026-11-01T00:00:00Z') });
+    expect(sitemap).toContainEqual({ url: 'https://xsquare.kr/ip/ip-no-slug' });
+    expect(sitemap).toContainEqual({ url: 'https://xsquare.kr/shop/g4', lastModified: new Date('2026-11-10T09:30:00Z') });
+    expect(sitemap).toContainEqual({ url: 'https://xsquare.kr/shop/g-new' });
     /* 상품 자동코드가 있으면 공개 상세의 정식 주소(ADR-0050)를 싣고, 옛 주소(내부 id)는 싣지 않는다. */
-    expect(sitemap).toContainEqual({ url: 'https://iconsip.com/shop/hsq-0059' });
-    expect(urls).not.toContain('https://iconsip.com/shop/hongsilkweseuteu-akeuril-hyudaepon-kiring');
+    expect(sitemap).toContainEqual({ url: 'https://xsquare.kr/shop/hsq-0059' });
+    expect(urls).not.toContain('https://xsquare.kr/shop/hongsilkweseuteu-akeuril-hyudaepon-kiring');
     /* 비공개·noindex·스위치 화면은 싣지 않는다. */
     for (const path of ['/packs', '/community', '/ip/aouad', '/search', '/cart', '/my']) {
       expect(urls, path).not.toContain(`${ORIGIN}${path}`);
@@ -99,15 +99,15 @@ describe('네이버 소유확인 메타', () => {
 
 describe('사이트 주소', () => {
   it('운영 SITE_URL 을 따르고 없으면 운영 도메인이다', () => {
-    expect(publicSiteOrigin('https://iconsip.com/')).toBe('https://iconsip.com');
-    expect(publicSiteOrigin('')).toBe('https://iconsip.com');
-    expect(publicSiteOrigin(undefined)).toBe('https://iconsip.com');
+    expect(publicSiteOrigin('https://xsquare.kr/')).toBe('https://xsquare.kr');
+    expect(publicSiteOrigin('')).toBe('https://xsquare.kr');
+    expect(publicSiteOrigin(undefined)).toBe('https://xsquare.kr');
     expect(publicSiteOrigin('https://staging.example.test')).toBe('https://staging.example.test');
   });
 
   it('metadataBase 는 주소 모양이 아닌 SITE_URL 에도 레이아웃을 깨지 않는다', () => {
-    expect(metadataBaseUrl('https://iconsip.com').href).toBe('https://iconsip.com/');
-    expect(metadataBaseUrl('iconsip.com').href).toBe('https://iconsip.com/');
-    expect(metadataBaseUrl('javascript:alert(1)').href).toBe('https://iconsip.com/');
+    expect(metadataBaseUrl('https://xsquare.kr').href).toBe('https://xsquare.kr/');
+    expect(metadataBaseUrl('xsquare.kr').href).toBe('https://xsquare.kr/');
+    expect(metadataBaseUrl('javascript:alert(1)').href).toBe('https://xsquare.kr/');
   });
 });
