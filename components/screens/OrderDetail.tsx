@@ -596,8 +596,9 @@ export function OrderDetail({
             <h3>요청 유형 변경 이력</h3><ol>{claimTypeHistory.map(row => <li key={row.id}><time dateTime={row.createdAt}>{formatOrderDateTime(row.createdAt)}</time> · {ORDER_CLAIM_TYPE_LABELS[row.fromType]} → {ORDER_CLAIM_TYPE_LABELS[row.toType]} · 고객 합의 확인</li>)}</ol>
           </section> : null}
 
-          {claimReasonHistory === null ? <p role="status">교환 사유 정정 이력을 읽지 못했습니다. 잠시 후 새로고침해주세요.</p> : claimReasonHistory.length ? <section className="order-claim-type-history" aria-label="교환 사유 정정 이력">
-            <h3>교환 사유 정정 이력</h3><p>최초 요청 내용과 정정된 내용을 함께 보관합니다. 원래 접수일은 유지됩니다.</p>
+          {claimReasonHistory === null ? <p role="status">반품·교환 사유 정정 이력을 읽지 못했습니다. 잠시 후 새로고침해주세요.</p> : claimReasonHistory.length ? <section className="order-claim-type-history" aria-label="반품·교환 사유 정정 이력">
+            {/* 반품 사유 정정(2026-11-25, CLM-029)도 같은 이력이다. 바뀐 반품배송비는 아래 환불 안내와 앱 알림이 말한다. */}
+            <h3>반품·교환 사유 정정 이력</h3><p>담당자가 고객님과 확인한 실제 사유로 정정한 기록입니다. 최초 요청 내용과 정정된 내용을 함께 보관하며 원래 접수일은 유지됩니다. 반품 사유가 바뀌면 반품배송비 차감도 바뀐 사유로 다시 정해집니다.</p>
             <ol>{claimReasonHistory.map(row => <li key={row.id}><time dateTime={row.createdAt}>{formatOrderDateTime(row.createdAt)}</time>
               <p>최초 접수: {formatOrderDateTime(row.requestedAt)}</p>
               <p>정정 전: {ORDER_WITHDRAWAL_REASON_LABELS[row.fromReasonType]} · {row.fromReason}</p><p>정정 후: {ORDER_WITHDRAWAL_REASON_LABELS[row.toReasonType]} · {row.toReason}</p>

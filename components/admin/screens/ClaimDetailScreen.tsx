@@ -180,6 +180,13 @@ function timelineLabel(entry: AdminClaimDetail['timeline'][number]) {
     const cause = typeof entry.diff?.cause === 'string' ? COLLECTION_COMPLETED_CAUSE_LABELS[entry.diff.cause] : undefined;
     return cause ?? TIMELINE_LABELS[entry.action];
   }
+  /* 사유 정정은 교환만 받다가 2026-11-25부터 반품도 받는다(CLM-029). 이전 기록(유형 없음)은 교환 정정이다. 반품은 바뀐 반품배송비 차감을 함께 보인다. */
+  if (entry.action === 'admin.order.claim_reason_changed' && entry.diff?.claimType === 'return') {
+    const from = entry.diff.fromReturnFeeDeduction; const to = entry.diff.toReturnFeeDeduction;
+    return typeof from === 'number' && typeof to === 'number' && from !== to
+      ? `반품 사유 정정 · 반품배송비 차감 ${krw(from)} → ${krw(to)}`
+      : '반품 사유 정정';
+  }
   /* 앞선 재고 부족 부분 취소가 결제액을 모두 돌려준 무통장 취소는 송금대기 없이 환불 0원으로 닫힌다(송금 원장에 '송금 없이 완료'). */
   if (entry.action === 'admin.order.bank_refund_confirm_cancellation' && entry.diff?.transferAmount === 0) return '무통장 취소 확정 · 송금 없이 완료';
   const label = TIMELINE_LABELS[entry.action] ?? entry.action;
@@ -520,13 +527,15 @@ export function ClaimDetailScreen({
                 secondaryActions={claim.claimType === 'exchange' ? <>
                   <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
                   <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} />
-                  <ClaimReasonChange key={`reason-${claim.id}`} claimId={claim.id} />
+                  <ClaimReasonChange key={`reason-${claim.id}`} claimId={claim.id} claimType="exchange" />
                 </> : undefined}
               />
               {claim.claimType !== 'exchange' ? <>
                 <ClaimReshipmentDelivery claim={claim} />
                 <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
                 {claim.claimType !== 'cancel' ? <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} /> : null}
+                {/* 반품 사유 정정(CLM-029): 실제 하자·오배송을 단순 변심으로 고른 반품의 반품배송비 차감을 [환불 접수] 전에 바로잡는다. */}
+                {claim.claimType === 'return' ? <ClaimReasonChange key={`reason-${claim.id}`} claimId={claim.id} claimType="return" /> : null}
               </> : null}
             </CardContent>
           </Card>

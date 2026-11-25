@@ -29,6 +29,7 @@ import {
   normalizeAdminClaimBulkRefundInput,
   normalizeAdminClaimBulkStepPreviewInput,
   parseAdminClaimBulkContexts,
+  adminClaimBulkRefundBlockerMessage,
   type AdminClaimBulkContext,
 } from './claim-bulk';
 import { mergeClaimBulkResults, runClaimBulkInChunks } from '@/components/admin/screens/ClaimBulkStepDialog';
@@ -315,6 +316,18 @@ describe('parseAdminClaimBulkContexts', () => {
     expect(parseAdminClaimBulkContexts([{ ...raw, refundAmount: -1 }])).toBeNull();
     expect(parseAdminClaimBulkContexts([{ ...raw, collections: [{ shipmentId: 'x', originName: '김포', collectedAt: null, receivedOn: null }] }])).toBeNull();
     expect(parseAdminClaimBulkContexts({})).toBeNull();
+  });
+
+  /* CLM-136: 부분 반품은 남은 결제 금액이 아니라 고른 몫(차감 뒤)을 싣고, 표시를 위해 부분 반품임을 함께 넘긴다. */
+  it('부분 반품 표시와 고른 몫의 반품배송비 차감을 읽는다', () => {
+    const raw = { claimId: ID(1), reference: 7, orderId: ID(9), claimType: 'return', stage: 'collected', collectionPolicy: 'origin', collectionRequired: true,
+      collections: [], paymentProvider: 'toss', refundAmount: 6500, refundBlocker: null, partialReturn: true,
+      refundDeduction: { source: 'partial_return', applicable: true, deductionAmount: 3000 } };
+    expect(parseAdminClaimBulkContexts([raw])).toEqual([expect.objectContaining({ refundAmount: 6500, refundDeductionAmount: 3000, partialReturn: true })]);
+    const [whole] = parseAdminClaimBulkContexts([{ ...raw, partialReturn: undefined, refundDeduction: undefined }])!;
+    expect(whole).not.toHaveProperty('partialReturn'); expect(whole).not.toHaveProperty('refundDeductionAmount');
+    expect(adminClaimBulkRefundBlockerMessage('partial_return_in_progress')).toContain('[환불 완료 확정]');
+    expect(adminClaimBulkRefundBlockerMessage('partial_return_plan_unavailable')).toContain('"부분 반품" 칸');
   });
 });
 

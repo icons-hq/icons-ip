@@ -3,7 +3,7 @@ export const reasonContext: ClaimReasonContext = {
   actorId: 'ce000001-0000-4000-8000-000000000001', claimId: 'ce000002-0000-4000-8000-000000000001', orderId: 'ce000003-0000-4000-8000-000000000001',
   claimType: 'exchange', stage: 'collecting', revision: 2, reasonType: 'change_of_mind', reason: '최초 교환 신청 설명',
   originalReasonType: 'change_of_mind', originalReason: '최초 교환 신청 설명', requestedAt: '2026-10-04T03:00:00Z', deliveredAt: '2026-10-01T03:00:00Z',
-  allowed: true, blocker: null, canUseChangeOfMind: true, canUseDefect: true, fee: null, history: [],
+  allowed: true, blocker: null, canUseChangeOfMind: true, canUseDefect: true, fee: null, returnFee: null, history: [],
 };
 export const reasonRequest: ClaimReasonRequest = {
   id: 'ce000004-0000-4000-8000-000000000001', actorId: reasonContext.actorId, claimId: reasonContext.claimId, revision: reasonContext.revision,
@@ -14,4 +14,13 @@ export const reasonReceipt: ClaimReasonReceipt = {
   revision: reasonContext.revision, resultRevision: reasonContext.revision + 1, fromReasonType: reasonContext.reasonType, fromReason: reasonContext.reason,
   toReasonType: reasonRequest.reasonType, toReason: reasonRequest.reason, agreement: reasonRequest.agreement,
   feeReviewed: false, changed: true, stage: reasonContext.stage, requestedAt: reasonContext.requestedAt, createdAt: '2026-10-14T00:00:00Z',
+  claimType: 'exchange', fromReturnFeeDeduction: null, toReturnFeeDeduction: null,
+};
+/* 반품 사유 정정(CLM-029): 단순 변심 반품(반품배송비 3,000원 차감 예정)을 하자·오배송으로 정정. */
+export const returnReasonContext: ClaimReasonContext = {
+  ...reasonContext, claimType: 'return', stage: 'collected', reason: '단순 변심으로 반품합니다', originalReason: '단순 변심으로 반품합니다',
+  returnFee: { enabled: true, oneWayAmount: 3000, partialReturn: false, deductionAmount: 3000, feeInvoiceOpen: false },
+};
+export const returnReasonReceipt: ClaimReasonReceipt = {
+  ...reasonReceipt, fromReason: returnReasonContext.reason, stage: 'collected', claimType: 'return', fromReturnFeeDeduction: 3000, toReturnFeeDeduction: 0,
 };

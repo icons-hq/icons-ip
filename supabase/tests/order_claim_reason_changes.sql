@@ -114,8 +114,13 @@ do $$declare n integer;begin
  foreach n in array array[7,8,9,10,11] loop perform pg_temp.reason_error(format('select pg_temp.change_reason(%s,%s)',n,n),'claim_reason_stage_unavailable');end loop;
  foreach n in array array[12,13,14] loop perform pg_temp.reason_error(format('select pg_temp.change_reason(%s,%s)',n,n),'claim_reason_reshipped');end loop;
  foreach n in array array[15,16,17] loop perform pg_temp.reason_error(format('select pg_temp.change_reason(%s,%s)',n,n),'claim_reason_finance_started');end loop;
- foreach n in array array[18,19] loop perform pg_temp.reason_error(format('select pg_temp.change_reason(%s,%s)',n,n),'claim_reason_type_unavailable');end loop;
+ foreach n in array array[19] loop perform pg_temp.reason_error(format('select pg_temp.change_reason(%s,%s)',n,n),'claim_reason_type_unavailable');end loop;
 end $$;
+-- 2026-11-25(CLM-029): 반품도 같은 RPC로 사유를 정정한다(환불 접수 전). 결제가 없는 합성 반품이라 반품배송비 차감은 0 → 0이다.
+select pg_temp.change_reason(18,18) as return_saved \gset
+select pg_temp.reason_assert(:'return_saved'::jsonb->>'changed'='true' and :'return_saved'::jsonb->>'claimType'='return'
+ and :'return_saved'::jsonb->>'fromReturnFeeDeduction'='0' and :'return_saved'::jsonb->>'toReturnFeeDeduction'='0'
+ and :'saved'::jsonb->>'claimType'='exchange' and :'saved'::jsonb->'fromReturnFeeDeduction'='null'::jsonb,'return correction receipt carries type and fee');
 -- No-op operations are input-bound receipts but do not increment version or enter history/notifications.
 select pg_temp.change_reason(22,22,'change_of_mind','합성 최초 설명') as noop \gset
 select pg_temp.reason_assert(:'noop'::jsonb->>'changed'='false' and :'noop'::jsonb->>'revision'='0' and :'noop'::jsonb->>'resultRevision'='0'
@@ -139,7 +144,8 @@ select public.admin_change_order_claim_hold(pg_temp.reason_id('claim',25),pg_tem
 select pg_temp.reason_error('select public.admin_change_order_claim_reason(pg_temp.reason_id(''claim'',25),pg_temp.reason_id(''op'',25),0,auth.uid(),''defect'',''정정'',''협의 근거'',true,false)','PT409');
 select public.admin_convert_order_claim_type(pg_temp.reason_id('claim',26),pg_temp.reason_id('convert',26),0,'return','별도 유형 전환 합의',true,null);
 select pg_temp.reason_error('select public.admin_change_order_claim_reason(pg_temp.reason_id(''claim'',26),pg_temp.reason_id(''op'',26),0,auth.uid(),''defect'',''정정'',''협의 근거'',true,false)','PT409');
-select pg_temp.reason_error('select pg_temp.change_reason(26,26)','claim_reason_type_unavailable');
+-- 반품으로 전환된 요청도 최신 버전으로 사유를 정정할 수 있다(2026-11-25).
+select pg_temp.change_reason(26,26);
 select set_config('request.jwt.claim.sub',pg_temp.reason_id('user',3)::text,true);
 select pg_temp.reason_assert(jsonb_array_length(public.get_my_order_claim_reason_changes(pg_temp.reason_id('order',1)))=2
  and not(public.get_my_order_claim_reason_changes(pg_temp.reason_id('order',1))->0?'agreement')
@@ -152,9 +158,9 @@ select pg_temp.reason_assert(not exists(select 1 from reason_before_claims b joi
  where c.id not in(pg_temp.reason_id('claim',25),pg_temp.reason_id('claim',26)) and b.stable<>to_jsonb(c)-array['reason_type','reason','updated_at','claim_revision']),
  'all intake collection hold fee handler fields unchanged');
 select pg_temp.reason_assert(pg_temp.reason_financial_snapshot()=(select value from reason_before_finances),'money stock shipment and collection evidence unchanged');
-select pg_temp.reason_assert((select count(*) from private.order_claim_reason_operations where claim_id in(select pg_temp.reason_id('claim',n)from generate_series(1,28)n) and changed)=9,'exactly nine actual reason changes');
-select pg_temp.reason_assert((select count(*) from public.audit_log where action='admin.order.claim_reason_changed' and target in(select 'order:'||pg_temp.reason_id('order',n) from generate_series(1,28)n))=9,'exactly one audit per actual change');
-select pg_temp.reason_assert((select count(*) from public.notifications where user_id=pg_temp.reason_id('user',3) and dedupe_key like 'claim:reason_changed:%')=9
+select pg_temp.reason_assert((select count(*) from private.order_claim_reason_operations where claim_id in(select pg_temp.reason_id('claim',n)from generate_series(1,28)n) and changed)=11,'exactly eleven actual reason changes');
+select pg_temp.reason_assert((select count(*) from public.audit_log where action='admin.order.claim_reason_changed' and target in(select 'order:'||pg_temp.reason_id('order',n) from generate_series(1,28)n))=11,'exactly one audit per actual change');
+select pg_temp.reason_assert((select count(*) from public.notifications where user_id=pg_temp.reason_id('user',3) and dedupe_key like 'claim:reason_changed:%')=11
  and not exists(select 1 from public.notifications where user_id=pg_temp.reason_id('user',3) and (body like '%내부협의-%' or body like '%민감근거%'))
  and not exists(select 1 from public.audit_log where action='admin.order.claim_reason_changed' and (diff?'agreement' or diff::text like '%내부협의-%')),'one customer notice per change and private evidence absent');
 select pg_temp.reason_assert(not has_table_privilege('authenticated','private.order_claim_reason_operations','select,insert,update,delete')
