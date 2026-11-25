@@ -70,23 +70,29 @@ Cloudflare `xsquare.kr` 존(네임서버 `rick.ns.cloudflare.com`·`wanda.ns.clo
       도메인 비어 있음). 앱 소유자는 회사 계정 `playxmd@kakao.com`(2026-11-18 이전).
 - [x] **Turnstile**: 위젯 `xsquare-auth`의 호스트에 `iconsip.com`·`xsquare.kr`가 모두 있다(하위 도메인 포함).
 - [x] **Search Console**: `xsquare.kr`·`iconsip.com` 도메인 속성 DNS TXT 확인(2026-11-18, 계정 `sangwopark19icons`).
-- [ ] **KCP 휴대폰본인확인**: 인증결과URL에 **도메인 형식** `xsquare.kr`를 추가한다. 프로토콜을 붙인 주소만
-      있으면 운영 거래등록이 `CS13`으로 실패하고, KCP는 등록이 실시간 반영이 아니라고 안내한다 — 전환 전에 넣는다.
+- [x] **KCP 휴대폰본인확인**: 인증결과URL에 **도메인 형식** `xsquare.kr`를 추가했다(2026-11-25, 저장 뒤 재조회로 확인).
+      프로토콜을 붙인 주소만 있으면 운영 거래등록이 `CS13`으로 실패하고, KCP는 등록이 실시간 반영이 아니라고 안내한다.
       [kcp-adult-verification.md](kcp-adult-verification.md).
-- [ ] **Resend 키 교체 준비**: Resend 키는 발신 도메인에 묶여 있다(`icons-ip-app-transactional`은 `iconsip.com` 전용).
-      `xsquare.kr` 전용 sending 키 둘(앱 메일 `icons-ip-app-transactional-xsquare`, Supabase Auth SMTP
-      `icons-ip-supabase-auth-xsquare`)을 만든다. [transactional-email.md](../transactional-email.md).
+- [x] **Resend 키**: Resend 키는 발신 도메인에 묶여 있다(`icons-ip-app-transactional`은 `iconsip.com` 전용). 앱 메일용
+      `icons-ip-app-transactional-xsquare`(sending, `xsquare.kr` 전용)를 새로 만들었다(2026-11-25).
+      [transactional-email.md](../transactional-email.md).
 
-전환 직후 교체(옛 주소는 308이 되어 받지 못한다):
+주소 교체(옛 주소는 308이 되어 받지 못한다). 3단계 1번 뒤에는 `xsquare.kr`가 같은 앱을 직접 서비스하므로 **옛 도메인
+308 전에** 바꿀 수 있고, 그러면 끊기는 틈이 없다. 2026-11-25에는 1번 직후 이렇게 했다:
 
-- [ ] **토스페이먼츠 웹훅**: 개발자센터 MID `iconsi0xvd`(라이브·테스트)의 `PAYMENT_STATUS_CHANGED`·`DEPOSIT_CALLBACK`
-      주소를 `https://xsquare.kr/api/webhooks/tosspayments`로. 놓친 결제 상태는 10분마다 도는 결제 재정합이 따라잡는다.
-- [ ] **카카오 계정 상태 변경 웹훅**: `https://xsquare.kr/api/webhooks/kakao/account-status`. [kakao-account-unlink.md](kakao-account-unlink.md).
-- [ ] **Resend 웹훅**: 기존 웹훅의 주소만 `https://xsquare.kr/api/webhooks/resend`로 고친다(새로 만들면 서명 비밀값이 바뀐다).
-- [ ] **AX ERP 연동**: AX 서버 `infra/.env`의 `MALL_ERP_URL=https://xsquare.kr`로 바꾸고 재시작. 옛 주소로는 Bearer 토큰이
-      리디렉션에서 빠져 401이다. 이어 읽기 커서가 있어 늦게 바꿔도 몰 데이터를 잃지 않는다.
-- [ ] **Supabase Auth custom SMTP**: 발신 주소 `no-reply@xsquare.kr`와 SMTP 비밀번호(`icons-ip-supabase-auth-xsquare`)를
-      **함께** 바꾼다. 키와 발신 도메인이 어긋나면 가입 확인·재설정 메일이 실패한다. 비밀값이라 사람이 대시보드에 넣는다.
+- [x] **토스페이먼츠 웹훅**: 개발자센터에는 주소 수정이 없어 새로 등록 후 옛 항목을 지웠다. MID `iconsi0xvd`(라이브·테스트)
+      모두 웹훅 `xsquare-ICONS` 하나(`https://xsquare.kr/api/webhooks/tosspayments`, `PAYMENT_STATUS_CHANGED`·`DEPOSIT_CALLBACK`)만
+      남겼다. 옛 테스트 항목 `iconsip`(옛 공유 MID `gsangwbzqu`)은 ICONS 상점 것이 아니라 두었다. 놓친 결제 상태는 10분마다
+      도는 결제 재정합이 따라잡는다.
+- [x] **카카오 계정 상태 변경 웹훅**: `https://xsquare.kr/api/webhooks/kakao/account-status`(User Unlinked만, Editor 계정으로 수정).
+      [kakao-account-unlink.md](kakao-account-unlink.md).
+- [x] **Resend 웹훅**: 기존 웹훅(이벤트 7개)의 주소만 `https://xsquare.kr/api/webhooks/resend`로 고쳤다(새로 만들면 서명
+      비밀값이 바뀐다). 이 웹훅은 Resend 계정 전체 이벤트를 받는다.
+- [ ] **AX ERP 연동**: AX 서버 `infra/.env`의 `MALL_ERP_URL=https://xsquare.kr`로 바꾸고 재시작(사람 — AX 서버 설정).
+      옛 주소로는 Bearer 토큰이 리디렉션에서 빠져 401이다. 이어 읽기 커서가 있어 늦게 바꿔도 몰 데이터를 잃지 않는다.
+- [x] **Supabase Auth custom SMTP**: 발신 주소를 `no-reply@xsquare.kr`로 바꾸고(2026-11-25), SMTP 비밀번호로 쓰는 기존 키
+      `icons-ip-supabase-auth`의 Resend 도메인 제한을 `iconsip.com`에서 `xsquare.kr`로 고쳤다. 비밀값을 다시 넣지 않아도 되는
+      방법이다. 둘이 어긋나면 가입 확인·재설정 메일이 실패하므로 연달아 바꾼다.
 
 법정·계약(기술 전환을 막지 않음, 사람):
 
@@ -107,12 +113,13 @@ Cloudflare `xsquare.kr` 존(네임서버 `rick.ns.cloudflare.com`·`wanda.ns.clo
 
 1. Vercel 도메인: `xsquare.kr`의 리디렉션을 없애 직접 서비스하고, `www.xsquare.kr`는 `xsquare.kr`로 308.
 2. Vercel production env(다음 배포부터 적용): `SITE_URL=https://xsquare.kr`, `EMAIL_FROM=no-reply@xsquare.kr`,
-   `EMAIL_PROVIDER_API_KEY`=`icons-ip-app-transactional-xsquare` 값(sensitive, 값은 기록에 남기지 않는다).
+   `EMAIL_PROVIDER_API_KEY`=`icons-ip-app-transactional-xsquare` 값(sensitive, 값은 기록에 남기지 않는다 — 콘솔 복사 →
+   권한 600 임시 파일 → `vercel env update … --sensitive < 파일` → 파일 삭제).
    발신 주소와 키는 반드시 같은 배포에 들어가야 한다.
 3. 코드 PR 머지 → `main` 파이프라인: `CANONICAL_SITE_ORIGIN`·Supabase Auth Site URL(production sync 두 곳)이
    `https://xsquare.kr`가 되고, 배포 스모크가 `xsquare.kr`를 본다.
 4. 배포 성공 뒤 Vercel 도메인: `iconsip.com`·`www.iconsip.com` → `xsquare.kr` **308**(경로·메서드 유지).
-5. 2단계의 "전환 직후 교체" 항목을 바로 처리한다.
+5. 2단계의 "주소 교체" 항목 중 남은 것을 처리한다(1번 뒤 미리 했으면 확인만).
 
 영향: 로그인 쿠키가 도메인에 묶여 있어 **기존 회원은 한 번 다시 로그인**한다. 전환 순간 결제·인증 중이던 사람은
 돌아오는 주소의 쿠키가 없어 다시 로그인해야 할 수 있다(결제 확정은 서버 재정합이 맡는다).
@@ -124,7 +131,8 @@ Cloudflare `xsquare.kr` 존(네임서버 `rick.ns.cloudflare.com`·`wanda.ns.clo
 되돌리기: Vercel 도메인 리디렉션 방향을 원래대로 돌리고(`iconsip.com` 직접 서비스, `xsquare.kr` → `iconsip.com`),
 `SITE_URL`·`EMAIL_FROM`·`EMAIL_PROVIDER_API_KEY`를 `iconsip.com` 값(옛 키 `icons-ip-app-transactional`)으로 되돌린 뒤
 재배포한다. 1단계 덕분에 두 `SITE_URL` 값이 모두 검사를 통과하므로 결제·본인확인은 env만으로 돌아온다.
-`CANONICAL_SITE_ORIGIN`과 `pipeline.yml`의 Auth Site URL은 되돌리는 커밋으로 맞춘다. 웹훅 주소도 옛 값으로 돌린다.
+`CANONICAL_SITE_ORIGIN`과 `pipeline.yml`의 Auth Site URL은 되돌리는 커밋으로 맞춘다. 웹훅 주소도 옛 값으로 돌리고,
+Supabase SMTP 발신 주소와 키 `icons-ip-supabase-auth`의 도메인 제한을 함께 `iconsip.com`으로 되돌린다.
 
 ## 4단계: 정리
 

@@ -209,7 +209,7 @@ Vercel에서는 Production·Preview 모두 sensitive로 등록한다. Preview에
 Production용 앱 전용 키는 `icons-ip-app-transactional-xsquare`(2026-11-25 발급, sending 전용,
 `xsquare.kr` 도메인 제한)이다. Resend 키는 발신 도메인에 묶여 있어 발신 주소의 도메인을 바꾸면 키도 새로 만든다 —
 도메인 전환 전 키 `icons-ip-app-transactional`(2026-08-25, `iconsip.com` 제한)은 되돌리기용으로 남긴다.
-Supabase Auth SMTP가 쓰는 키(`icons-ip-supabase-auth-xsquare`, 같은 이유로 2026-11-25 교체)와
+Supabase Auth SMTP가 쓰는 키(`icons-ip-supabase-auth`, 2026-11-25에 도메인 제한을 `xsquare.kr`로 고침)와
 분리해 두었으므로 한쪽 rotation이 다른 쪽 발송을 끊지 않는다. secret 값은 이 문서에 남기지 않는다.
 Preview의 `email_deliveries`에는 해당 `failed` 행이 쌓인다 — 보내지 않은 사실의 정확한 기록이며
 raw provider 사유 대신 `legacy_failure`만 저장되는 것이 정상이다.
