@@ -1,11 +1,16 @@
 import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn(), goodRow: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
-vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
+/* 예약 조건 조회는 상품의 저장된 판매기간도 함께 읽는다(goods.sale_starts_at). */
+vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc,
+  from: (table: string) => ({ select: (columns: string) => ({ eq: (column: string, value: string) => ({ maybeSingle: () => mocks.goodRow(table, columns, column, value) }) }) }) }) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
-import { saveGoodsPreorderAction, saveRandomGoodsPreordersAction, switchToStockSupplyAction, allocateGoodsPreordersAction, listGoodsPreorderReservationsAction } from './goods-preorder-actions';
+import {
+  saveGoodsPreorderAction, saveGoodsPreordersBulkAction, saveRandomGoodsPreordersAction, switchToStockSupplyAction, allocateGoodsPreordersAction, listGoodsPreorderReservationsAction,
+  listGoodsPreordersAction,
+} from './goods-preorder-actions';
 const variant = '00000000-0000-4000-8000-000000000001';
 const policy = '00000000-0000-4000-8000-000000000002';
 const item = '00000000-0000-4000-8000-000000000003';
@@ -115,6 +120,68 @@ describe('랜덤 판매 일괄 예약', () => {
   it('물량이 빠진 활성화는 보내지 않는다', async () => {
     mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'admin1' }, isStaff: true, role: 'admin' });
     expect(await saveRandomGoodsPreordersAction('g1', 'active', values, [options[0], { ...options[1], capacityQty: '' }])).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});
+
+/* 규칙 5: 판매기간과 예약판매는 함께 저장할 수 없다. 패널이 저장된 판매기간을 알아야 예약 저장 버튼을 먼저 막는다. */
+describe('예약 조건 조회', () => {
+  it('예약 조건과 함께 지금 저장된 판매기간이 있는지 돌려준다', async () => {
+    mocks.rpc.mockResolvedValue({ data: [], error: null });
+    mocks.goodRow.mockResolvedValue({ data: { sale_starts_at: '2026-12-01T00:00:00Z' }, error: null });
+    expect(await listGoodsPreordersAction('g1')).toEqual({ ok: true, policies: [], salePeriodSaved: true });
+    expect(mocks.goodRow).toHaveBeenCalledWith('goods', 'sale_starts_at', 'id', 'g1');
+    mocks.goodRow.mockResolvedValue({ data: { sale_starts_at: null }, error: null });
+    expect(await listGoodsPreordersAction('g1')).toEqual({ ok: true, policies: [], salePeriodSaved: false });
+  });
+  it('판매기간을 읽지 못하면 모르는 채로 열지 않고 불러오기 실패로 알린다', async () => {
+    mocks.rpc.mockResolvedValue({ data: [], error: null });
+    mocks.goodRow.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    const failed = await listGoodsPreordersAction('g1');
+    expect(failed).toMatchObject({ ok: false });
+    expect(!failed.ok && failed.error).toContain('[저장된 예약 조건 새로고침]');
+    mocks.goodRow.mockResolvedValue({ data: null, error: null });
+    expect(await listGoodsPreordersAction('g1')).toMatchObject({ ok: false });
+  });
+});
+
+/* 규칙 6: 옵션 선택 판매 상품도 여러 옵션의 예약을 한 번에 저장한다. 이미 예약판매 중인 옵션은 DB가 건너뛰고 알려 준다. */
+describe('옵션 선택 판매 일괄 예약', () => {
+  const second = '00000000-0000-4000-8000-000000000004';
+  const row = { capacityQty: '30', startsAt: '2099-11-20T10:00', endsAt: '2099-11-27T23:59', expectedShipDate: '2099-12-20' };
+  const options = [{ variantId: variant, ...row }, { variantId: second, ...row, capacityQty: '20' }];
+  it('옵션마다 물량·일정을 실어 한 번에 저장하고, 저장한 옵션과 건너뛴 옵션을 돌려준다', async () => {
+    mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture('staff'), isConfigured: true, user: { id: 'staff1' }, isStaff: true, role: 'staff' });
+    mocks.rpc.mockResolvedValue({ data: { goodId: 'g1', saved: [{ variantId: second, id: policy, revision: 1, changed: true }],
+      skipped: [{ variantId: variant, policyId: policy, reason: 'preorder_policy_already_active' }] }, error: null });
+    expect(await saveGoodsPreordersBulkAction('g1', options)).toEqual({ ok: true, savedVariantIds: [second], skippedVariantIds: [variant] });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_save_goods_preorders_bulk', { p_good_id: 'g1', p_options: [
+      { variantId: variant, values: { capacityQty: 30, startsAt: '2099-11-20T01:00:00.000Z', endsAt: '2099-11-27T14:59:00.000Z', expectedShipDate: '2099-12-20' } },
+      { variantId: second, values: { capacityQty: 20, startsAt: '2099-11-20T01:00:00.000Z', endsAt: '2099-11-27T14:59:00.000Z', expectedShipDate: '2099-12-20' } },
+    ] });
+    expect(mocks.revalidate).toHaveBeenCalled();
+  });
+  it('빈 물량·같은 옵션 두 번은 DB를 부르지 않고, 결과가 요청한 옵션과 맞지 않으면 성공으로 보지 않는다', async () => {
+    expect(await saveGoodsPreordersBulkAction('g1', [options[0], { ...options[1], capacityQty: '' }])).toMatchObject({ ok: false });
+    expect(await saveGoodsPreordersBulkAction('g1', [options[0], options[0]])).toMatchObject({ ok: false });
+    expect(await saveGoodsPreordersBulkAction('', options)).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    for (const data of [{ goodId: 'g1', saved: [{ variantId: variant }], skipped: [] }, { goodId: 'g1', saved: [{ variantId: variant }, { variantId: variant }], skipped: [] },
+      { goodId: 'other', saved: [{ variantId: variant }, { variantId: second }], skipped: [] }, { goodId: 'g1', saved: [{ variantId: variant }], skipped: [{ variantId: policy }] }, null]) {
+      mocks.rpc.mockResolvedValue({ data, error: null });
+      const unknown = await saveGoodsPreordersBulkAction('g1', options);
+      expect(unknown).toMatchObject({ ok: false });
+      expect(!unknown.ok && unknown.error).toContain('[저장된 예약 조건 새로고침]');
+    }
+  });
+  it('판매기간이 저장된 상품의 거절은 먼저 할 일을 알린다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_sale_period_preorder_conflict' } });
+    const rejected = await saveGoodsPreordersBulkAction('g1', options);
+    expect(!rejected.ok && rejected.error).toContain('상품을 먼저 저장');
+  });
+  it('상품 관리 권한이 없는 운영자는 저장하지 못한다', async () => {
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'logistics' }, isStaff: true, role: 'staff', operatorAccess: configuredOperatorAccessFixture('logistics') });
+    expect(await saveGoodsPreordersBulkAction('g1', options)).toMatchObject({ ok: false });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });

@@ -193,13 +193,13 @@ describe('ERP 판매가 적용 계산', () => {
     expect(plan.message).not.toContain('19,000원');
   });
 
-  it('새 판매가에 맞지 않는 할인과 남아 있는 기본 옵션 옵션가는 확인이 필요하다고 알린다', () => {
+  it('새 판매가에 맞지 않는 할인과 남아 있는 옵션가는 확인이 필요하다고 알린다', () => {
     const tooLarge = planErpSalePrice({ salePrice: 12000, mode: 'single', price: draft({ regularPrice: '20000', discountEnabled: true, discountValue: '15000' }) });
     expect(tooLarge).toMatchObject({ ok: true, value: 12000, attention: true, message: expect.stringContaining('할인 칸을 확인해주세요') });
     const extra = planErpSalePrice({ salePrice: 20000, mode: 'single', extraPrice: 1500, price: draft({ discountEnabled: true, discountValue: '10', discountUnit: 'percent' }) });
     expect(extra).toMatchObject({ ok: true, value: 20000, attention: true });
     if (!extra.ok) throw new Error();
-    expect(extra.message).toContain('기본 옵션 옵션가 1,500원');
+    expect(extra.message).toContain('남아 있는 옵션가 1,500원');
     expect(extra.message).toContain('19,500원');
   });
 

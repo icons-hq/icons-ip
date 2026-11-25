@@ -157,11 +157,25 @@ it('거절 문구는 리비전이 바뀌어 다시 읽으면 지운다', async (
   expect(text(render())).not.toContain('바꾸지 못했습니다');
 });
 
-it('운영자 안내는 고객에게 숨는 범위만 말한다(교환 재발송 옵션은 고객에게 안내된다)', () => {
+/* 랜덤 판매를 고른 자리에서만 고객에게 숨는 범위를 한 번 더 말한다(선택 카드가 차이를 먼저 보여 준다). */
+it('운영자 안내는 고객에게 숨는 범위만 말한다(교환 재발송 옵션은 고객에게 안내된다)', async () => {
+  await mount();
+  expect(text(render())).not.toContain('옵션별 재고');
+  radio('random').props.onChange?.({ target: { value: 'random' } });
   const note = text(render());
   expect(note).not.toContain('끝까지');
   expect(note).toContain('옵션별 재고');
   expect(note).toContain('교환으로 다시 보내는 상품은 보내는 옵션이 고객에게 안내됩니다.');
+});
+
+it('선택지마다 이름과 한 줄 설명을 카드로 보이고, 같은 제목을 되풀이하는 소제목·긴 문단이 없다', async () => {
+  await mount();
+  const labels = all(render()).filter((element) => element.type === 'label');
+  expect(labels).toHaveLength(2);
+  expect(text(labels[0]).trim()).toBe('옵션 선택 판매고객이 옵션을 직접 고릅니다.');
+  expect(text(labels[1]).trim()).toBe('랜덤 판매 (판매 중인 옵션 3개)고객은 옵션을 고르지 않고, 주문할 때 남은 재고에 비례해 옵션이 무작위로 정해집니다.');
+  expect(all(render()).some((element) => element.type === 'strong')).toBe(false);
+  expect(text(render())).not.toContain('주문 상세와 출고 파일에는 정해진 옵션이 보입니다.');
 });
 
 it('불러오기 오류는 경고로 보이고 폼을 그리지 않는다', async () => {

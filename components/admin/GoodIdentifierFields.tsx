@@ -14,9 +14,10 @@ type IdentifierKey = 'code' | 'defaultVariantCode' | 'id';
 type AutoCodeKey = Exclude<IdentifierKey, 'id'>;
 
 export const AUTO_CODE_BADGE = '자동 생성 · 입력할 필요 없음';
-export const AUTO_CODE_HELP = '바코드·ERP 코드는 여기에 넣지 않습니다. 판매 정보의 옵션 상세 정보에 있는 바코드·ERP 코드 칸에 넣습니다.';
-/** 고객 화면 주소 칸의 안내(ADR-0050). 상품 자동코드를 직접 바꾸면 주소가 함께 바뀐다. */
-export const GOOD_ADDRESS_HELP = '상품 자동코드로 정해지는 주소라 입력할 필요가 없습니다. 상품 자동코드를 직접 바꾸면 이 주소도 새 코드로 바뀌고, 바꾸기 전 주소로 들어온 고객은 상품을 찾지 못합니다. 이미 알린 주소가 있으면 새 주소로 다시 알려주세요.';
+/** 코드 칸을 열고 고칠 때 보이는 안내. 잠겨 있을 때는 입력할 일이 없어 보이지 않는다. */
+export const AUTO_CODE_HELP = '바코드·ERP 코드는 여기에 넣지 않고, 옵션 상세 정보의 바코드·ERP 코드 칸에 넣습니다.';
+/** 고객 화면 주소 칸의 안내(ADR-0050). 상품 자동코드를 직접 바꿀 때만 보인다 — 바꾸면 주소가 함께 바뀌어 옛 주소로 들어온 고객이 상품을 찾지 못한다. */
+export const GOOD_ADDRESS_HELP = '상품 자동코드를 바꾸면 이 주소도 바뀌어, 바꾸기 전 주소로 들어온 고객은 상품을 찾지 못합니다. 이미 알린 주소가 있으면 새 주소로 다시 알려주세요.';
 const SITE_HOST = new URL(CANONICAL_SITE_ORIGIN).host;
 
 /**
@@ -65,14 +66,14 @@ export function GoodIdentifierFields({ ipId, name, code='', defaultVariantCode='
         /* 공백·한글·기호가 든 코드는 주소로 쓰지 않는다 — 처음 저장할 때 정한 영문 값으로 열린다. */
         const codeUnusable=Boolean(addressCode) && !codeSegment;
         const address=segment ? `${SITE_HOST}${goodDetailHref({ id: segment })}` : '';
+        /* 상품 자동코드를 직접 바꾸는 중일 때만 주소가 바뀐다는 결과를 말한다. 잠겨 있으면 입력할 것이 없다. */
+        const addressNote=[codeUnusable?'상품 자동코드에 주소로 쓸 수 없는 글자(공백·한글·기호)가 있어, 처음 저장할 때 정해진 영문 값으로 열립니다.':'',unlocked.code?GOOD_ADDRESS_HELP:''].filter(Boolean).join(' ');
         return <div className="flex min-w-0 flex-col gap-2" key={field.key} data-good-address="">
           <input name="id" type="hidden" value={values.id} />
           <label className="text-sm leading-snug font-medium text-foreground" htmlFor={inputId}>{field.label}</label>
-          <input id={inputId} aria-describedby={`${field.key}-help`} aria-invalid={Boolean(errors[field.key])} className={GOOD_INPUT_CLASS} data-slot="input"
+          <input id={inputId} aria-describedby={addressNote?`${field.key}-help`:undefined} aria-invalid={Boolean(errors[field.key])} className={GOOD_INPUT_CLASS} data-slot="input"
             readOnly value={address ? (pending ? `저장 시 확정 · 예상 ${address}` : address) : '저장할 때 상품 자동코드로 정해집니다'} />
-          <span className="text-sm text-muted-foreground" id={`${field.key}-help`}>
-            {codeUnusable?'이 상품 자동코드에는 주소에 쓸 수 없는 글자(공백·한글·기호)가 있어, 상품을 처음 저장할 때 정한 영문 값으로 열립니다. ':''}{GOOD_ADDRESS_HELP}
-          </span>
+          {addressNote?<span className="text-sm text-muted-foreground" id={`${field.key}-help`}>{addressNote}</span>:null}
           <ErrorText>{errors[field.key]}</ErrorText>
         </div>;
       }
@@ -96,8 +97,8 @@ export function GoodIdentifierFields({ ipId, name, code='', defaultVariantCode='
           placeholder={open?'창고 품번처럼 정해진 코드':expected?`저장 시 자동 생성 · 예상 ${expected}`:'저장 시 자동 생성'} readOnly={!open} value={values[key]} />
         <span className="text-sm text-muted-foreground" id={`${key}-help`}>
           {open
-            ? `창고 품번처럼 정해진 코드가 있거나 잘못 들어간 값을 고칠 때만 바꿉니다. 상품 엑셀은 이 코드로 수정할 상품을 찾습니다.${key==='code'?' 바꾸면 고객 화면 주소도 새 코드로 바뀝니다.':''} ${AUTO_CODE_HELP}`
-            : `저장할 때 시스템이 만드는 코드라 입력할 필요가 없습니다. 출고지시 엑셀(기본 양식)의 '${key==='code'?'상품코드':'옵션코드'}' 열에 찍힙니다.${key==='code'?' 고객 화면 주소 끝에도 쓰입니다.':''} ${AUTO_CODE_HELP}`}
+            ? `창고 품번처럼 정해진 코드가 있거나 잘못 들어간 값을 고칠 때만 바꿉니다. 상품 엑셀은 이 코드로 수정할 상품을 찾습니다. ${AUTO_CODE_HELP}`
+            : key==='code' ? "출고지시 엑셀의 '상품코드' 열에 찍히고 고객 화면 주소 끝에도 쓰입니다." : "출고지시 엑셀의 '옵션코드' 열에 찍힙니다."}
         </span>
         {barcodeWarning?<span className="text-sm text-warning" data-good-code-barcode-warning="" id={`${key}-barcode`} role="status">{autoCodeBarcodeWarning(key==='code'?'goods':'option',open)}</span>:null}
         <ErrorText>{errors[key]}</ErrorText>

@@ -216,7 +216,11 @@ async function run() {
     await page.setViewportSize({ width: 1440, height: 900 });
     const options = await navigate(page, '/?view=options', '상품 옵션 편집 fixture');
     const beforeRows = await page.locator('.fixture-options-screen [data-good-option-list] tbody tr').count();
-    await page.getByRole('button', { name: '옵션목록으로 적용' }).click();
+    /* 버튼 이름은 누르면 일어나는 일이다(옵션 9개로 바꾸기). 지금 목록에서 빠지는 옵션이 있으면 무엇이 사라지는지 묻고, 확인 버튼 이름도 같다. */
+    const createOptions = /^옵션 9개(로 바꾸기| 만들기)$/;
+    await page.getByRole('button', { name: createOptions }).click();
+    const optionConfirm = page.getByRole('alertdialog');
+    if (await optionConfirm.waitFor({ state: 'visible', timeout: 1500 }).then(() => true, () => false)) await optionConfirm.getByRole('button', { name: createOptions }).click();
     const afterRows = await page.locator('.fixture-options-screen [data-good-option-list] tbody tr').count();
     assert(beforeRows === 2, `expected 2 initial option rows, got ${beforeRows}`);
     assert(afterRows === 9, `expected 9 generated option rows, got ${afterRows}`);

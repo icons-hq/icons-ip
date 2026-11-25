@@ -315,9 +315,9 @@ export function GoodsDetailImageList({ errors = {}, initialPaths, initialUrls, o
   return <fieldset className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4" data-detail-image-list="" ref={fieldsetRef}>
     <legend className="float-left w-full p-0 text-sm font-medium text-foreground">긴 상세 이미지 · 최대 {GOODS_DETAIL_IMAGE_MAX}장</legend>
     <p className="text-sm wrap-anywhere" id={GOODS_DETAIL_IMAGE_GUIDANCE_ID}>
-      상세페이지(상세 설명) 아래에 이 순서대로 원래 비율 그대로 이어 붙습니다. 세로로 아주 긴 통이미지는 3,000~5,000px 높이로 잘라 여러 장으로 올리면
-      휴대폰에서 더 빨리 보입니다. 여러 장을 한 번에 고르면 고른 순서대로 뒤에 붙고, ◀·▶ 버튼이나 이미지를 선택한 뒤 ←·→ 키로 순서를 바꿉니다.
-      호스팅 HTML로 상세페이지를 만들었다면 비워 두어도 됩니다. 파일 규격: {GOODS_ARTWORK_GUIDANCE}.
+      상세 설명 아래에 이 순서대로 이어 붙습니다. 세로로 아주 긴 이미지는 3,000~5,000px 높이로 잘라 올리면 휴대폰에서 더 빨리 보입니다.
+      여러 장을 한 번에 고르면 고른 순서대로 붙고, ◀·▶ 버튼으로 순서를 바꿉니다. 호스팅 HTML로 상세페이지를 만들었다면 비워 두어도 됩니다.
+      파일 규격: {GOODS_ARTWORK_GUIDANCE}.
     </p>
     <ol className="m-0 grid max-w-[680px] list-none grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3 p-0">
       {tiles.map((tile, index) => renderTile(tile, index))}

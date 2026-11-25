@@ -1,120 +1,144 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CATEGORY_PATH, categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
-import { usableTemplateCategory } from '@/lib/admin/category-templates';
+import { AdminLabelWithHelp } from '@/components/admin/console/AdminHelpTip';
+import { AdminPickerDialog, type AdminPickerRowView } from '@/components/admin/console/AdminPickerDialog';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { CATEGORY_PATH, categoryPath } from '@/lib/admin/category';
+import { usableTemplateCategory } from '@/lib/admin/category-templates';
+import { GOOD_EDITOR_HELP } from '@/lib/admin/help/good-editor';
+import { adminPickerLocalPage, type AdminPickerLoader } from '@/lib/admin/picker';
 import { categoryErpMatch, createPrimaryChangeAnnouncer, searchAssignableCategories, type CategorySearchNode } from './CategoryAssignmentField';
 import { CategoryTemplatePicker } from './screens/CategoryTemplatesScreen';
 import { useCategoryTemplatesAvailable } from './CategoryTemplatesAvailability';
-import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS } from './GoodEditorParts';
+import { GOOD_NOTE_CLASS } from './GoodEditorParts';
 
 const LABEL_CLASS = 'text-sm leading-snug font-medium text-foreground';
-const RESULT_LIMIT = 50;
-const LISTBOX_ID = 'good-category-listbox';
-const optionId = (index: number) => `good-category-option-${index}`;
+/* 고른 카테고리를 보이는 읽기 전용 상자. 누르거나 Enter로 선택창을 연다. 입력칸 모양이라 오류 포커스(focusGoodWorkspaceTarget)가 여기로 온다. */
+const PICK_BOX_CLASS = 'h-8 min-w-0 flex-1 basis-56 cursor-pointer truncate rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm text-foreground transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
+const NOT_HIDDEN: ReadonlySet<string> = new Set();
+const UNKNOWN_CATEGORY = '알 수 없는 카테고리';
 
-/** ↑↓로 옮긴 뒤의 강조 위치. 끝에서 멈춘다(ERP 분류 연결 표의 검색형 선택과 같다). */
-export function moveCategoryActive(key: 'ArrowDown' | 'ArrowUp', active: number, count: number): number {
-  return key === 'ArrowDown' ? Math.min(active + 1, count - 1) : Math.max(active - 1, 0);
-}
+/** 선택창 한 줄: 카테고리와 그 경로, ERP 분류명으로 찾았을 때의 근거. */
+export interface CategoryPickerRow { category: CategorySearchNode; path: string; erp: string | null }
 
-/** 강조한 항목이 보이게 목록만 스크롤한다(scrollIntoView는 페이지까지 움직인다). */
-export function keepOptionInView(list: Pick<HTMLElement, 'scrollTop' | 'clientHeight'>, option: Pick<HTMLElement, 'offsetTop' | 'offsetHeight'>) {
-  if (option.offsetTop < list.scrollTop) list.scrollTop = option.offsetTop;
-  else if (option.offsetTop + option.offsetHeight > list.scrollTop + list.clientHeight) list.scrollTop = option.offsetTop + option.offsetHeight - list.clientHeight;
+/**
+ * 대표·추가 카테고리 선택창의 조회(docs/admin-screen-rules.md 규칙 1·2). 카테고리는 화면이 이미 다 가지고 있어 목록을 20개씩 자르기만 한다.
+ * 고를 수 있는 마지막 단계 카테고리만 낸다 — 보관됐거나 하위가 있는 카테고리는 목록에 넣지 않는다.
+ * 검색 범위는 CategoryAssignmentField와 같다: 경로·코드·연결된 ERP 분류명(`searchAssignableCategories`). `hidden`은 더 뺄 카테고리(추가 카테고리 창의 대표 카테고리).
+ */
+export function categoryPickerLoader(categories: CategorySearchNode[], hidden: ReadonlySet<string> = NOT_HIDDEN): AdminPickerLoader<CategoryPickerRow> {
+  const leaves = categories.filter((category) => usableTemplateCategory(categories, category.id));
+  const order = categoryTreeOrder(categories);
+  const byTree = (left: CategorySearchNode, right: CategorySearchNode) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0);
+  return async (request) => {
+    const query = request.query.trim();
+    const rows = [...(query ? searchAssignableCategories(categories, query) : leaves)].sort(byTree)
+      .filter((category) => !hidden.has(category.id))
+      .map((category) => ({ category, path: categoryPath(categories, category.id).join(' > '), erp: query ? categoryErpMatch(categories, category, query) : null }));
+    return adminPickerLocalPage(rows, { ...request, query: '' }, { textOf: () => '' });
+  };
 }
 
 /**
- * 상품 등록의 대표 카테고리. 입력칸에 바로 타이핑하면 찾고, 칸을 누르면 전체 목록이 입력칸 아래에 겹쳐 뜬다(폼을 밀지 않는다).
- * 키보드는 combobox 패턴이다: ↑↓ 강조, Enter 선택, Esc 닫기. 포커스는 입력칸에 남는다.
- * 포커스만으로는 열지 않는다 — 임시 저장 복구·오류 안내가 이 칸으로 포커스를 옮겨도 목록이 저절로 펼쳐지면 안 된다.
+ * 카테고리 관리 화면과 같은 순서(상위 카테고리 아래에 하위, 같은 단계는 노출 순서 → 코드). 선택창이 받은 배열 순서가 아니라 이 순서로 보인다 —
+ * '굿즈 > 인형', '굿즈 > 키링', '굿즈 > 문구 > 스티커'처럼 같은 상위끼리 모여야 찾기 쉽다.
+ */
+export function categoryTreeOrder(categories: readonly CategorySearchNode[]): Map<string, number> {
+  const ids = new Set(categories.map((category) => category.id));
+  const children = new Map<string, CategorySearchNode[]>();
+  for (const category of categories) {
+    const parent = category.parentId && ids.has(category.parentId) ? category.parentId : '';
+    children.set(parent, [...(children.get(parent) ?? []), category]);
+  }
+  const order = new Map<string, number>();
+  const visit = (parent: string) => {
+    for (const category of [...(children.get(parent) ?? [])].sort((left, right) => left.sortOrder - right.sortOrder || left.code.localeCompare(right.code))) {
+      if (order.has(category.id)) continue;
+      order.set(category.id, order.size);
+      visit(category.id);
+    }
+  };
+  visit('');
+  return order;
+}
+
+const categoryRowKey = (row: CategoryPickerRow) => row.category.id;
+/* 카테고리 코드는 엑셀의 '카테고리 코드' 열에 넣는 값이다. 무엇인지 알 수 있게 이름표를 붙인다(규칙 8). */
+const categoryRowView = (row: CategoryPickerRow): AdminPickerRowView => ({ title: row.path, meta: `카테고리 코드 ${row.category.code}${row.erp ? ` · ERP 분류 ${row.erp}` : ''}` });
+/** 로더가 ERP 분류 이름을 실어 준 경우에만 ERP 분류명으로도 찾는다고 알린다. */
+const categorySearchPlaceholder = (categories: readonly CategorySearchNode[]) => categories.some((category) => category.erpNames?.length) ? '카테고리명·코드·ERP 분류명으로 찾기' : '카테고리명 또는 코드로 찾기';
+
+/**
+ * 상품 등록의 대표 카테고리. 고른 카테고리의 경로를 읽기 전용 상자에 보이고, [카테고리 선택]·[바꾸기]가 공용 선택창(검색 + 20개씩 목록)을 연다.
+ * 선택창에는 고를 수 있는 마지막 단계 카테고리만 나온다. 상자를 누르거나 Enter·↓를 눌러도 같은 창이 열린다 — 입력칸이 아니라 폼 저장으로 번지지 않게 Enter는 늘 막는다.
  * 제출 값은 숨긴 select(name="categoryId") 하나이고, 대표 카테고리는 상위가 제어한다(ERP 품목 선택이 채울 수 있게).
  * 로더가 연결된 ERP 분류 이름(`erpNames`)을 실어 주면 ERP 분류명으로도 찾고, 그렇게 찾은 줄에 'ERP 분류 X' 근거를 붙인다(CategoryAssignmentField와 같다).
  */
 export function GoodCategoryField({ categories, primary, onPrimaryChange, error }: {
   categories: CategorySearchNode[]; primary: string; onPrimaryChange: (id: string) => void; error?: string;
 }) {
+  const [open, setOpen] = useState(false);
   const [templatePicker, setTemplatePicker] = useState(false), [templateError, setTemplateError] = useState('');
-  const [query, setQuery] = useState(''), [open, setOpen] = useState(false), [active, setActive] = useState(0);
   const templatesAvailable = useCategoryTemplatesAvailable();
-  const selectRef = useRef<HTMLSelectElement>(null), inputRef = useRef<HTMLInputElement>(null), listRef = useRef<HTMLUListElement>(null);
+  const selectRef = useRef<HTMLSelectElement>(null), pickRef = useRef<HTMLButtonElement>(null);
   const [announcer] = useState(() => createPrimaryChangeAnnouncer(primary));
   /* 커밋된 뒤 보내야 폼 관찰자(미리보기·브라우저 복구)가 새 값을 읽는다. */
   useEffect(() => { announcer.committed(primary, selectRef.current); }, [announcer, primary]);
   const activeLeaves = useMemo(() => categories.filter((category) => usableTemplateCategory(categories, category.id)), [categories]);
-  const searching = Boolean(query.trim());
-  const erpSearch = useMemo(() => categories.some((category) => category.erpNames?.length), [categories]);
-  const results = useMemo(() => searching ? searchAssignableCategories(categories, query) : activeLeaves, [activeLeaves, categories, query, searching]);
+  const searchPlaceholder = useMemo(() => categorySearchPlaceholder(categories), [categories]);
+  const load = useMemo(() => categoryPickerLoader(categories), [categories]);
   const selectedArchived = primary ? categories.find((category) => category.id === primary && !usableTemplateCategory(categories, category.id) && category.childCount === 0) : undefined;
   const leaves = selectedArchived ? [selectedArchived, ...activeLeaves] : activeLeaves;
-  const visible = useMemo(() => results.slice(0, RESULT_LIMIT), [results]);
-  function choose(id: string) { onPrimaryChange(id); setTemplateError(''); setQuery(''); setOpen(false); }
-  /* 지금 대표 카테고리가 목록에 있으면 그 줄을 강조해서 연다. */
-  function openList() { setOpen(true); setActive(Math.max(0, visible.findIndex((category) => category.id === primary))); }
-  useLayoutEffect(() => {
-    const list = listRef.current, option = list?.children[active] as HTMLElement | undefined;
-    if (open && list && option) keepOptionInView(list, option);
-  }, [active, open, query]);
-  function onSearchKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    /* 폼 안 입력칸이라 Enter가 저장으로 이어지지 않게 늘 막는다. 한글 조합 중의 키는 조합을 끝내는 키다. */
-    if (event.key === 'Enter') event.preventDefault();
-    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
-    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-      event.preventDefault();
-      if (open) setActive(moveCategoryActive(event.key, active, visible.length)); else openList();
-    } else if (event.key === 'Enter') {
-      if (open && visible[active]) choose(visible[active].id);
-    } else if (event.key === 'Escape') {
-      setQuery(''); setOpen(false);
-    } else if (event.key === 'Tab') {
-      setOpen(false);
-    }
-  }
+  const canPick = activeLeaves.length > 0;
+  const pathText = primary ? `${selectedArchived ? '보관됨 · ' : ''}${categoryPath(categories, primary).join(' > ') || UNKNOWN_CATEGORY}` : '';
+  const describedBy = [selectedArchived ? 'good-category-archived' : '', error ? 'good-category-error' : ''].filter(Boolean).join(' ') || undefined;
+  function choose(id: string) { onPrimaryChange(id); setTemplateError(''); }
   return <div className="flex min-w-0 flex-col gap-2" data-good-category="">
-    <label className={LABEL_CLASS} htmlFor="good-category-search">대표 카테고리</label>
-    <div className="flex min-w-0 max-w-2xl flex-col gap-2">
-      <div className="flex min-w-0 flex-wrap items-center gap-2">
-        {/* 옆의 버튼은 이 묶음 밖이다. 버튼으로 넘어가면 목록을 닫는다. */}
-        <div className="relative min-w-0 flex-1 basis-56" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setOpen(false); }}>
-          <input aria-activedescendant={open && visible.length ? optionId(active) : undefined} aria-autocomplete="list" aria-controls={open && visible.length ? LISTBOX_ID : undefined} aria-describedby="good-category-hint" aria-expanded={open} className={GOOD_INPUT_CLASS} data-slot="input" id="good-category-search" role="combobox" type="text" autoComplete="off" value={query} maxLength={120} placeholder={erpSearch ? '카테고리명·코드·ERP 분류명으로 찾기' : '카테고리명 또는 코드로 찾기'} ref={inputRef}
-            onChange={(event) => { setQuery(event.target.value); setOpen(true); setActive(0); }} onClick={() => { if (!open) openList(); }}
-            onKeyDown={onSearchKeyDown} />
-          {open ? <div className="absolute inset-x-0 top-full z-10 mt-1 overflow-hidden rounded-lg bg-popover text-popover-foreground shadow-md ring-1 ring-foreground/10" data-good-category-list="" onMouseDown={(event) => event.preventDefault()}>
-            <p className="border-b px-3 py-1.5 text-xs text-muted-foreground tabular-nums" role="status">{searching ? '검색 결과' : '전체'} {results.length.toLocaleString('ko-KR')}개{results.length > RESULT_LIMIT ? ` · 앞의 ${RESULT_LIMIT}개를 표시합니다. 검색어를 더 입력해주세요.` : ''}</p>
-            {visible.length ? <ul aria-label="카테고리 목록" className="relative m-0 flex max-h-72 list-none flex-col overflow-y-auto overscroll-contain p-0 [scrollbar-width:thin]" id={LISTBOX_ID} ref={listRef} role="listbox">{visible.map((category, index) => ({ category, index, erp: searching ? categoryErpMatch(categories, category, query) : null })).map(({ category, index, erp }) => <li aria-checked={primary === category.id} aria-selected={index === active} className="flex min-h-11 shrink-0 cursor-pointer flex-col items-start justify-center gap-0.5 border-b px-3 py-2 text-left text-sm wrap-anywhere text-foreground last:border-b-0 aria-checked:font-medium aria-checked:text-primary-soft-foreground aria-selected:bg-muted" id={optionId(index)} key={category.id} onClick={() => choose(category.id)} onMouseMove={() => { if (index !== active) setActive(index); }} role="option">
-              <span>{categoryPath(categories, category.id).join(' > ')}</span><small className="text-xs font-normal text-muted-foreground">{category.code}{erp ? ` · ERP 분류 ${erp}` : ''}</small>
-            </li>)}</ul> : <p className="px-3 py-2 text-sm text-muted-foreground">일치하는 카테고리가 없습니다.</p>}
-          </div> : null}
-        </div>
-        {/* 등록해 둔 바로가기가 있을 때만 보인다. 없으면 눌러도 빈 창이라 검색만 둔다. */}
-        {templatesAvailable ? <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" onClick={() => setTemplatePicker(true)}>자주 쓰는 카테고리</button> : null}
-      </div>
-      {primary ? <div className="flex min-w-0 items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm"><span className="min-w-0 wrap-anywhere">{selectedArchived ? '보관됨 · ' : ''}{categoryPath(categories, primary).join(' > ') || primary}</span><button type="button" className={`${buttonVariants({ variant: 'outline', size: 'sm' })} shrink-0`} data-slot="button" onClick={() => { choose(''); inputRef.current?.focus(); }}>선택 해제</button></div> : null}
+    <AdminLabelWithHelp help={GOOD_EDITOR_HELP.primaryCategory} label="대표 카테고리"><label className={LABEL_CLASS} htmlFor="good-category-display">대표 카테고리</label></AdminLabelWithHelp>
+    <div className="flex min-w-0 max-w-2xl flex-wrap items-center gap-2">
+      <input aria-describedby={describedBy} aria-haspopup="dialog" aria-invalid={error ? 'true' : undefined} className={PICK_BOX_CLASS} data-slot="input" id="good-category-display" placeholder="아직 고르지 않았습니다" readOnly type="text" value={pathText}
+        onClick={() => { if (canPick) setOpen(true); }}
+        onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ' || event.key === 'ArrowDown') { event.preventDefault(); if (canPick) setOpen(true); } }} />
+      <button aria-haspopup="dialog" aria-label={primary ? '대표 카테고리 바꾸기' : undefined} className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={!canPick} onClick={() => setOpen(true)} ref={pickRef} type="button">{primary ? '바꾸기' : '카테고리 선택'}</button>
+      {primary ? <button aria-label="대표 카테고리 선택 해제" className={buttonVariants({ variant: 'outline' })} data-slot="button" onClick={() => { choose(''); pickRef.current?.focus(); }} type="button">선택 해제</button> : null}
+      {/* 등록해 둔 바로가기가 있을 때만 보인다. 없으면 눌러도 빈 창이라 선택창만 둔다. */}
+      {templatesAvailable ? <button className={buttonVariants({ variant: 'outline' })} data-slot="button" onClick={() => setTemplatePicker(true)} type="button">자주 쓰는 카테고리</button> : null}
     </div>
-    {/* R9: 카테고리가 하나도 없으면 검색이 빈 채로 막히므로 먼저 등록할 곳을 알린다. 작성 중인 상품을 잃지 않게 새 탭으로 연다. */}
-    {!activeLeaves.length ? <p role="status" className={`${GOOD_NOTE_CLASS} text-muted-foreground`}>등록된 카테고리가 없습니다. 카테고리 관리에서 먼저 등록하세요. <Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH} target="_blank" rel="noreferrer">카테고리 관리</Link></p> : null}
+    {selectedArchived ? <p className="text-xs text-warning" id="good-category-archived" role="status">보관된 카테고리입니다. 다른 카테고리로 바꿔주세요.</p> : null}
+    {/* R9: 카테고리가 하나도 없으면 고를 곳이 없으므로 먼저 등록할 곳을 알린다. 작성 중인 상품을 잃지 않게 새 탭으로 연다. */}
+    {!canPick ? <p role="status" className={`${GOOD_NOTE_CLASS} text-muted-foreground`}>등록된 카테고리가 없습니다. 카테고리 관리에서 먼저 등록하세요. <Link className="text-foreground underline underline-offset-4" href={CATEGORY_PATH} target="_blank" rel="noreferrer">카테고리 관리</Link></p> : null}
     {/* 대표 카테고리 값(name="categoryId")은 이 select가 제출한다. 숨길 때는 select와 감싼 칸을 함께 숨긴다. */}
     <NativeSelect className="hidden" hidden aria-hidden="true" tabIndex={-1} aria-invalid={error ? 'true' : undefined} value={primary} id="good-category-primary" name="categoryId" ref={selectRef} onChange={(event) => { announcer.chosen(event.target.value); choose(event.target.value); }}>
       <option value="">미분류</option>
       {leaves.map((category) => <option key={category.id} value={category.id}>{categoryPath(categories, category.id).join(' > ')} ({category.code})</option>)}
     </NativeSelect>
     {templateError ? <p className="text-sm text-destructive" role="alert">{templateError}</p> : null}
+    {open ? <AdminPickerDialog<CategoryPickerRow>
+      emptyText="일치하는 카테고리가 없습니다."
+      excludedNote="하위 카테고리가 있거나 보관한 카테고리는 목록에서 뺐습니다."
+      load={load}
+      onClose={() => setOpen(false)}
+      onSelect={(row) => { choose(row.category.id); }}
+      rowKey={categoryRowKey}
+      rowView={categoryRowView}
+      searchPlaceholder={searchPlaceholder}
+      selectedKeys={primary ? [primary] : undefined}
+      title="대표 카테고리 선택"
+    /> : null}
     {templatePicker ? <CategoryTemplatePicker onClose={() => setTemplatePicker(false)} onSelect={(template) => {
       if (!template.usable || !usableTemplateCategory(categories, template.categoryId)) { setTemplateError('현재 사용할 수 없는 카테고리입니다. 최신 카테고리를 확인해주세요.'); setTemplatePicker(false); return; }
       choose(template.categoryId); setTemplatePicker(false);
     }} /> : null}
-    {/* ADR-0044: 상품 유형은 없다. 대표 카테고리가 있어야 공개할 수 있다. */}
-    <span className="text-xs text-muted-foreground" id="good-category-hint">마지막 단계 카테고리를 하나 고릅니다. 대표 카테고리가 있어야 공개할 수 있습니다.{selectedArchived ? ' 지금 고른 카테고리는 보관됐습니다. 선택 해제를 누른 뒤 다른 카테고리를 골라주세요.' : ''}</span>
-    {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
+    {error ? <span className="text-sm text-destructive" id="good-category-error" role="alert">{error}</span> : null}
   </div>;
 }
 
 /** 추가 카테고리(선택). 대표와 같은 분류는 제출하지 않는다. */
 export function GoodAdditionalCategoryField({ categories, primary, value, error }: {
-  categories: AdminCategoryNode[]; primary: string; value: string; error?: string;
+  categories: CategorySearchNode[]; primary: string; value: string; error?: string;
 }) {
   const [additional, setAdditional] = useState<string[]>(() => {
     try {
@@ -122,32 +146,40 @@ export function GoodAdditionalCategoryField({ categories, primary, value, error 
       return Array.isArray(values) ? values.filter((id): id is string => typeof id === 'string') : [];
     } catch { return []; }
   });
+  const [open, setOpen] = useState(false);
   /* 대표로 옮긴 분류는 추가 목록에서 영구히 뺀다(대표를 다시 바꿔도 되살아나지 않는다 — 저장 결과 계약). */
   const [lastPrimary, setLastPrimary] = useState(primary);
   if (primary !== lastPrimary) {
     setLastPrimary(primary);
     if (additional.includes(primary)) setAdditional(additional.filter((id) => id !== primary));
   }
-  const activeLeaves = categories.filter((category) => usableTemplateCategory(categories, category.id));
   const visible = additional.filter((id) => id !== primary);
-  return <div className="flex min-w-0 flex-col gap-2" data-good-category-additional="">
+  const load = useMemo(() => categoryPickerLoader(categories, primary ? new Set([primary]) : NOT_HIDDEN), [categories, primary]);
+  return <div aria-labelledby="good-additional-category-label" className="flex min-w-0 flex-col gap-2" data-good-category-additional="" role="group">
     <input name="additionalCategoryIds" type="hidden" value={JSON.stringify(visible)} />
-    <label className={LABEL_CLASS} htmlFor="good-additional-category">추가 카테고리 (선택)</label>
-    <NativeSelect className="w-full max-w-2xl" id="good-additional-category" aria-describedby="good-additional-category-hint" aria-invalid={error ? 'true' : undefined} value="" onChange={(event) => {
-      const id = event.target.value;
-      if (id) setAdditional((current) => [...new Set([...current, id])]);
-    }}>
-      <option value="">추가할 카테고리 선택</option>
-      {activeLeaves.filter((category) => category.id !== primary && !additional.includes(category.id)).map((category) => <option key={category.id} value={category.id}>{categoryPath(categories, category.id).join(' > ')} ({category.code})</option>)}
-    </NativeSelect>
+    <AdminLabelWithHelp help={GOOD_EDITOR_HELP.additionalCategory} label="추가 카테고리"><span className={LABEL_CLASS} id="good-additional-category-label">추가 카테고리 (선택)</span></AdminLabelWithHelp>
     {visible.map((id) => {
       const category = categories.find((item) => item.id === id);
       return <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm" key={id}>
-        <span className="min-w-0 wrap-anywhere">{category?.archivedAt ? '보관됨 · ' : ''}{category ? categoryPath(categories, id).join(' > ') : id}</span>
-        <button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" aria-label={`${category?.name ?? id} 추가 카테고리 해제`} onClick={() => setAdditional((current) => current.filter((item) => item !== id))}>해제</button>
+        <span className="min-w-0 wrap-anywhere">{category?.archivedAt ? '보관됨 · ' : ''}{category ? categoryPath(categories, id).join(' > ') : UNKNOWN_CATEGORY}</span>
+        <button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" aria-label={`${category?.name ?? UNKNOWN_CATEGORY} 추가 카테고리에서 빼기`} onClick={() => setAdditional((current) => current.filter((item) => item !== id))}>빼기</button>
       </div>;
     })}
-    <span className="text-xs text-muted-foreground" id="good-additional-category-hint">상품 목록에서 대표·추가 카테고리로 찾을 수 있습니다.</span>
+    <div><button aria-haspopup="dialog" className={buttonVariants({ variant: 'outline' })} data-slot="button" id="good-additional-category" onClick={() => setOpen(true)} type="button">카테고리 추가</button></div>
+    {open ? <AdminPickerDialog<CategoryPickerRow>
+      emptyText="일치하는 카테고리가 없습니다."
+      excludedNote={primary ? '대표 카테고리와, 하위 카테고리가 있거나 보관한 카테고리는 목록에서 뺐습니다.' : '하위 카테고리가 있거나 보관한 카테고리는 목록에서 뺐습니다.'}
+      load={load}
+      multiple
+      onClose={() => setOpen(false)}
+      onDeselect={(row) => setAdditional((current) => current.filter((id) => id !== row.category.id))}
+      onSelect={(row) => { setAdditional((current) => [...new Set([...current, row.category.id])]); }}
+      rowKey={categoryRowKey}
+      rowView={categoryRowView}
+      searchPlaceholder={categorySearchPlaceholder(categories)}
+      selectedKeys={visible}
+      title="추가 카테고리 선택"
+    /> : null}
     {error ? <span className="text-sm text-destructive" role="alert">{error}</span> : null}
   </div>;
 }

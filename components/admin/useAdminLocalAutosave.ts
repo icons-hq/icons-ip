@@ -108,7 +108,7 @@ export function useAdminLocalAutosave({ scope, fields, serverState, passiveIniti
     window.addEventListener('pagehide', flush);
     document.addEventListener('visibilitychange', visibility);
     if (store.getSnapshot().restoredValues) {
-      form.querySelector<HTMLElement>('input:not([type="hidden"]):not([readonly]), select, textarea')?.focus();
+      form.querySelector<HTMLElement>('input:not([type="hidden"]):not([readonly]):not([hidden]), select:not([hidden]), textarea:not([hidden])')?.focus();
     }
     return () => {
       observer.disconnect();

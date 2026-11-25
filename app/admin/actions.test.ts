@@ -1628,14 +1628,14 @@ describe('상품 등록 원자 저장', () => {
   it('예약 대상 옵션 해석 실패는 예약판매 카드에만 안내한다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_workspace_preorder_variant_unresolved' } });
     const result = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }));
-    expect(result.errors).toEqual({ workspacePreorders: expect.stringContaining('예약 대상 옵션') });
+    expect(result.errors).toEqual({ workspacePreorders: expect.stringContaining('예약할 옵션') });
   });
 
   /* 리뷰 T3a-9 — 등록 화면의 판매기간·예약 활성화 충돌은 저장된 상품 전용 안내('일반재고로 전환') 대신 등록 화면에서 할 일을 알린다. */
   it('판매기간과 예약 활성화 충돌은 예약판매 카드와 판매기간 칸에 등록 화면 안내를 붙인다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_sale_period_preorder_conflict' } });
     const result = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }));
-    expect(result.errors?.workspacePreorders).toContain('예약 조건을 빼거나 판매기간을 설정안함으로');
+    expect(result.errors?.workspacePreorders).toContain('판매 시기에서 하나만 골라주세요');
     expect(result.errors?.saleStartsAt).toContain('판매기간');
     expect(JSON.stringify(result.errors)).not.toContain('일반재고로 전환');
   });

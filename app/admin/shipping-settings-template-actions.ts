@@ -45,8 +45,8 @@ function failure(code: string | undefined, message: string): Exclude<ShippingSet
     ['operation_conflict', '같은 요청번호에 다른 입력이 연결되어 있습니다. 원래 요청의 저장 결과를 확인해주세요.'],
     ['shipping_settings_retry', '다른 처리가 진행 중입니다. 같은 요청의 저장 결과를 먼저 확인해주세요.'],
     ['operation_sealed', '이 요청은 종료되었습니다. 최신 내용을 확인하고 새 요청을 만들어주세요.'],
-    ['feature_disabled', '확장 배송비를 적용할 수 없습니다. 현재 상품 거래 설정을 확인해주세요.'],
-    ['checkout_contract_upgrade_required', '현재 상품 거래 경로에서 확장 배송비를 사용할 수 없습니다. 운영 설정을 확인해주세요.'],
+    ['feature_disabled', '수량별·착불 설정을 적용할 수 없습니다. 현재 상품 거래 설정을 확인해주세요.'],
+    ['checkout_contract_upgrade_required', '지금은 수량별·착불 설정을 사용할 수 없습니다. 운영 설정을 확인해주세요.'],
   ];
   return { error: messages.find(([key]) => message.includes(key))?.[1] ?? '처리하지 못했습니다. 새로고침해 최신 상태를 확인한 뒤 다시 시도해주세요.',
     uncertain: false, conflict: code === 'PT409' || code === '23505' };

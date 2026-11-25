@@ -5,6 +5,11 @@ import type { AdminCatalogActionState } from '@/app/admin/actions';
 import { Check, Plus } from 'lucide-react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { adminArtworkAspectRatio, type AdminArtworkKind } from '@/lib/admin/artwork';
+import type { AdminHelp } from '@/lib/admin/help/types';
+
+/** 칸 설명 두 가지: `hint`는 칸 아래 늘 보이는 한 줄, `help`는 칸 이름 옆 "?" 도움말(화면 규칙 3). */
+interface FieldHelpProps { hint?: string; help?: AdminHelp | string }
+const describedBy = (...ids: (string | undefined)[]) => ids.filter(Boolean).join(' ') || undefined;
 
 /* kit Input · Textarea와 같은 모양(ADR-0028). 폼 제출·기본값·검증 속성은 네이티브 그대로다. */
 const CONTROL_CLASS = 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none placeholder:text-placeholder focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-secondary-foreground disabled:opacity-100 read-only:border-dashed read-only:bg-muted/50 read-only:text-muted-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
@@ -28,7 +33,9 @@ export function Field({
   required,
   step,
   type = 'text',
-}: {
+  hint,
+  help,
+}: FieldHelpProps & {
   defaultValue?: string | number | null;
   error?: string;
   label: string;
@@ -46,10 +53,10 @@ export function Field({
   const errorId = error ? `${inputId}-error` : undefined;
 
   return (
-    <AdminField inputId={inputId} label={label} error={error}>
+    <AdminField inputId={inputId} label={label} error={error} hint={hint} help={help}>
       <input
         id={inputId}
-        aria-describedby={errorId}
+        aria-describedby={describedBy(hint ? `${inputId}-hint` : undefined, errorId)}
         aria-invalid={Boolean(error)}
         className={CONTROL_CLASS}
         data-slot="input"
@@ -76,7 +83,9 @@ export function TextArea({
   placeholder,
   maxLength,
   required,
-}: {
+  hint,
+  help,
+}: FieldHelpProps & {
   defaultValue?: string | null;
   error?: string;
   label: string;
@@ -89,10 +98,10 @@ export function TextArea({
   const errorId = error ? `${inputId}-error` : undefined;
 
   return (
-    <AdminField inputId={inputId} label={label} error={error}>
+    <AdminField inputId={inputId} label={label} error={error} hint={hint} help={help}>
       <textarea
         id={inputId}
-        aria-describedby={errorId}
+        aria-describedby={describedBy(hint ? `${inputId}-hint` : undefined, errorId)}
         aria-invalid={Boolean(error)}
         className={TEXTAREA_CLASS}
         data-slot="textarea"
@@ -156,7 +165,9 @@ export function SelectField({
   onChange,
   required,
   value,
-}: {
+  hint,
+  help,
+}: FieldHelpProps & {
   children: React.ReactNode;
   defaultValue?: string | null;
   disabled?: boolean;
@@ -171,10 +182,10 @@ export function SelectField({
   const errorId = error ? `${inputId}-error` : undefined;
 
   return (
-    <AdminField inputId={inputId} label={label} error={error}>
+    <AdminField inputId={inputId} label={label} error={error} hint={hint} help={help}>
       <AdminSelect
         id={inputId}
-        aria-describedby={errorId}
+        aria-describedby={describedBy(hint ? `${inputId}-hint` : undefined, errorId)}
         aria-invalid={Boolean(error)}
         defaultValue={value === undefined ? (defaultValue ?? '') : undefined}
         disabled={disabled}

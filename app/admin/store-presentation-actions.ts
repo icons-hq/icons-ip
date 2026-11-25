@@ -41,7 +41,7 @@ export async function saveGoodsListingColorsAction(goodId: string, input: unknow
   try {
     if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' })) return { error: '상품 관리 권한이 필요합니다.' };
     const colors = parseGoodsColorChips(input);
-    if (!colors || !isUuid(operationId) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0 || !/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId)) return { error: '색상칩은 이름·6자리 색상값을 확인해 최대 20개까지 등록해주세요.' };
+    if (!colors || !isUuid(operationId) || !Number.isSafeInteger(expectedRevision) || expectedRevision < 0 || !/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId)) return { error: '색 이름은 서로 다르게 1~30자로 적어주세요. 색은 20개까지 넣을 수 있습니다.' };
     const client = await createClient();
     const { data, error } = await client.rpc('admin_save_goods_listing_colors', { p_good_id: goodId, p_colors: colors, p_expected_revision: expectedRevision, p_operation_id: operationId });
     if (error) return failure(error);

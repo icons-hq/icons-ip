@@ -2,6 +2,7 @@ import { isUuid } from '@/lib/uuid';
 import { isGoodsShipDate } from '@/lib/goods-preorders';
 import { RANDOM_OPTION_PROBLEMS } from '@/lib/goods-option-sale-mode';
 import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
+import { kstInputLabel, kstInputRangeLabel, type GoodsReadback } from './goods-sale-period';
 
 /** 예약 조건 상태. 2026-11-19부터 임시저장(초안)은 없다 — 저장하면 적용(active)이고, 접수를 중지하면 stopped다. */
 export type GoodsPreorderState = 'active' | 'stopped';
@@ -148,6 +149,217 @@ export function preorderApplyProblemLabels(problems: PreorderApplyProblems): str
   return PREORDER_APPLY_FIELDS.filter((field) => problems[field]).map((field) => PREORDER_APPLY_FIELD_LABELS[field]).join('·');
 }
 
+/*
+ * 예약판매 한 번에 입력(docs/admin-screen-rules.md 규칙 6). 기본은 '모든 옵션 같은 일정'이다 — 접수 시작·종료·발송 예정일을 한 번 넣고
+ * 예약 물량만 옵션별로 정한다. 옵션마다 일정을 다르게 넣는 방식은 필요할 때만 펼친다(`perOption`).
+ * 등록 화면(상품과 함께 저장)과 저장된 상품의 예약판매 패널(별도 저장)이 같은 입력 모양을 쓰고, 저장할 때 옵션별 조건으로 펼친다.
+ */
+export interface PreorderPlanOption {
+  /** 예약하지 않는 옵션(표에서 체크를 끔). */
+  excluded?: boolean;
+  /** 직접 고친 예약 물량. 없으면 그 옵션의 재고수량을 따라간다(11/19 '예약 물량 = 재고수량'). */
+  capacityQty?: string;
+  /** '옵션마다 일정을 다르게'에서 고친 이 옵션의 일정. 없으면 공통 일정을 쓴다. */
+  startsAt?: string;
+  endsAt?: string;
+  expectedShipDate?: string;
+}
+export interface PreorderPlan {
+  /** 옵션마다 일정을 다르게 넣는 중. */
+  perOption: boolean;
+  startsAt: string;
+  endsAt: string;
+  expectedShipDate: string;
+  /** 옵션 키(등록 화면은 옵션 행 키, 저장된 상품은 옵션 id)별 입력. 없는 키는 '예약함 · 재고수량을 따라감 · 공통 일정'이다. */
+  options: Record<string, PreorderPlanOption>;
+}
+/** 예약할 수 있는 옵션 한 줄. 사용 중이고 이미 접수 중인 예약 조건이 없는 옵션만 넘긴다. */
+export interface PreorderPlanTarget {
+  key: string; name: string; stockQty: number | null | undefined;
+  /** 이전 회차에 받아 아직 입고 확인하지 않은 예약 수량(저장된 상품만). 재고수량에 들어 있는 수량이라 새 예약 물량의 기본값에서 뺀다. */
+  pendingQty?: number;
+}
+/**
+ * 새 예약으로 더 받을 수 있는 수량: 재고수량에서 이전 회차의 입고 확인 전 예약을 뺀 값(0 아래로는 내려가지 않는다).
+ * 예약 주문은 입고 확인 전까지 재고수량을 줄이지 않는다. 그래서 이전 회차 예약이 남은 옵션에 재고수량 그대로 새 예약을 받으면 그만큼 더 팔린다.
+ */
+export function preorderSellableStock(target: Pick<PreorderPlanTarget, 'stockQty' | 'pendingQty'> | undefined): number | null | undefined {
+  if (!target || typeof target.stockQty !== 'number' || !Number.isSafeInteger(target.stockQty)) return target?.stockQty;
+  return Math.max(0, target.stockQty - Math.max(0, target.pendingQty ?? 0));
+}
+/** 옵션별로 펼친 예약 조건 하나. */
+export interface PreorderPlanEntry {
+  key: string; name: string; capacityQty: string; capacityFromStock: boolean; startsAt: string; endsAt: string; expectedShipDate: string;
+}
+export function emptyPreorderPlan(): PreorderPlan {
+  return { perOption: false, startsAt: '', endsAt: '', expectedShipDate: '', options: {} };
+}
+/**
+ * `all`: 랜덤 판매 — 모든 옵션이 같은 일정으로 예약해야 하므로 빼둔 옵션·옵션별 일정을 무시한다.
+ * `table`: 옵션 표를 보이는 화면인가(기본 true). 옵션이 하나만 남아 표 없이 공통 일정 칸만 보이는 화면(false)에서는 옵션별 일정을 쓰지 않는다 —
+ * '옵션마다 일정을 다르게'로 넣어 둔 날짜가 남아 있어도, 화면에 보이는 공통 일정과 저장되는 일정이 달라지면 안 된다.
+ */
+export interface PreorderPlanScope { all?: boolean; table?: boolean }
+/** 옵션별 일정을 실제로 쓰는가: 켜 두었고, 랜덤 판매가 아니고, 옵션 표가 보이는 화면일 때만. */
+export function preorderPlanUsesOwnSchedules(plan: Pick<PreorderPlan, 'perOption'>, { all = false, table = true }: PreorderPlanScope = {}): boolean {
+  return plan.perOption && !all && table;
+}
+
+/** 화면 입력을 옵션별 예약 조건으로 펼친다. 체크를 끈 옵션은 빠지고, 물량을 고치지 않은 옵션은 지금 재고수량을 쓴다. */
+export function expandPreorderPlan(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], { all = false, table = true }: PreorderPlanScope = {}): PreorderPlanEntry[] {
+  const perOption = preorderPlanUsesOwnSchedules(plan, { all, table });
+  return targets.flatMap((target) => {
+    const option = plan.options[target.key] ?? {};
+    if (option.excluded && !all) return [];
+    const capacityFromStock = option.capacityQty === undefined;
+    return [{ key: target.key, name: target.name, capacityFromStock,
+      capacityQty: capacityFromStock ? preorderCapacityFromStock(preorderSellableStock(target)) : option.capacityQty!,
+      startsAt: (perOption ? option.startsAt : undefined) ?? plan.startsAt, endsAt: (perOption ? option.endsAt : undefined) ?? plan.endsAt,
+      expectedShipDate: (perOption ? option.expectedShipDate : undefined) ?? plan.expectedShipDate }];
+  });
+}
+/** 다시 입력해야 하는 값이 있는가(일정·직접 고친 물량·옵션별 일정·빼둔 옵션). 판매 시기를 바꿔 입력을 버리기 전에 묻는 기준이다(규칙 7). */
+export function preorderPlanHasInput(plan: PreorderPlan): boolean {
+  return Boolean(plan.startsAt || plan.endsAt || plan.expectedShipDate
+    || Object.values(plan.options).some((option) => option.excluded || option.capacityQty !== undefined || option.startsAt !== undefined
+      || option.endsAt !== undefined || option.expectedShipDate !== undefined));
+}
+/** 예약하는 옵션 가운데 직접 넣은 물량이 `qty`(null은 재고수량)와 다른 옵션 수. 한꺼번에 채우기 전에 바뀌는 수를 알린다(규칙 7). */
+export function preorderPlanManualCapacities(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], qty: string | null, scope: PreorderPlanScope = {}): number {
+  return expandPreorderPlan(plan, targets, scope).filter((entry) => !entry.capacityFromStock && entry.capacityQty.trim() !== ''
+    && entry.capacityQty.trim() !== (qty ?? preorderCapacityFromStock(preorderSellableStock(targets.find((target) => target.key === entry.key))))).length;
+}
+/** 예약하는 모든 옵션의 물량을 한 번에 채운다. `qty`가 null이면 재고수량을 따라가게 되돌린다([재고수량과 같게]). */
+export function fillPreorderPlanCapacity(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], qty: string | null, { all = false }: PreorderPlanScope = {}): PreorderPlan {
+  const options = { ...plan.options };
+  for (const target of targets) {
+    const { capacityQty, ...rest } = options[target.key] ?? {};
+    void capacityQty;
+    if (rest.excluded && !all) continue;
+    if (qty === null) { if (Object.keys(rest).length) options[target.key] = rest; else delete options[target.key]; } else options[target.key] = { ...rest, capacityQty: qty };
+  }
+  return { ...plan, options };
+}
+/** 옵션마다 넣은 일정이 공통 일정과 다른 옵션 수. '옵션마다 일정을 다르게'를 끄기 전에 사라지는 수를 알린다(규칙 7). */
+export function preorderPlanOwnSchedules(plan: PreorderPlan, targets: readonly PreorderPlanTarget[]): number {
+  return targets.filter((target) => {
+    const option = plan.options[target.key];
+    return Boolean(option && !option.excluded && ((option.startsAt ?? plan.startsAt) !== plan.startsAt || (option.endsAt ?? plan.endsAt) !== plan.endsAt
+      || (option.expectedShipDate ?? plan.expectedShipDate) !== plan.expectedShipDate));
+  }).length;
+}
+/** '옵션마다 일정을 다르게'를 켜고 끈다. 끄면 옵션별 일정을 지워 모든 옵션이 공통 일정을 쓴다(물량·체크는 그대로). */
+export function setPreorderPlanPerOption(plan: PreorderPlan, perOption: boolean): PreorderPlan {
+  if (perOption) return { ...plan, perOption: true };
+  const options: Record<string, PreorderPlanOption> = {};
+  for (const [key, option] of Object.entries(plan.options)) {
+    const rest: PreorderPlanOption = { ...(option.excluded ? { excluded: true } : {}), ...(option.capacityQty === undefined ? {} : { capacityQty: option.capacityQty }) };
+    if (Object.keys(rest).length) options[key] = rest;
+  }
+  return { ...plan, perOption: false, options };
+}
+
+/** 저장 전 확인. `common`은 공통 일정 칸, `options`는 옵션 키별 칸, `none`은 예약할 옵션이 하나도 없음. */
+export interface PreorderPlanProblems { common: PreorderApplyProblems; options: Record<string, PreorderApplyProblems>; none: boolean }
+export function preorderPlanProblems(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], { all = false, table = true, now = Date.now() }: PreorderPlanScope & { now?: number } = {}): PreorderPlanProblems {
+  const entries = expandPreorderPlan(plan, targets, { all, table });
+  const perOption = preorderPlanUsesOwnSchedules(plan, { all, table });
+  const options: Record<string, PreorderApplyProblems> = {};
+  for (const entry of entries) {
+    const capacity = preorderCapacityProblem(entry.capacityQty);
+    const found: PreorderApplyProblems = perOption ? preorderApplyProblems(entry, now) : capacity ? { capacityQty: capacity } : {};
+    if (Object.keys(found).length) options[entry.key] = found;
+  }
+  return { common: perOption ? {} : preorderApplyProblems({ startsAt: plan.startsAt, endsAt: plan.endsAt, expectedShipDate: plan.expectedShipDate }, now), options, none: entries.length === 0 };
+}
+/** `table`: 옵션 표를 보이는 화면(옵션이 둘 이상)이면 옵션 칸 이름 앞에 '옵션별'을 붙인다. 문제가 없으면 null. */
+export function preorderPlanProblemMessage(problems: PreorderPlanProblems, { table = true }: { table?: boolean } = {}): string | null {
+  if (problems.none) return '예약할 옵션을 하나 이상 체크해주세요.';
+  const optionFields = PREORDER_APPLY_FIELDS.filter((field) => Object.values(problems.options).some((found) => found[field]))
+    .map((field) => `${table ? '옵션별 ' : ''}${PREORDER_APPLY_FIELD_LABELS[field]}`);
+  /* 요약은 화면 순서(공통 일정 → 옵션 표)로 잇는다. 옵션이 하나뿐인 화면은 예약 물량이 일정 앞 칸이다. */
+  const common = preorderApplyProblemLabels(problems.common);
+  const labels = (table ? [common, ...optionFields] : [...optionFields, common]).filter(Boolean).join('·');
+  return labels ? `${labels} 칸을 확인해주세요.` : null;
+}
+/** 막힌 첫 칸의 `data-preorder-field` 값. 옵션 표의 칸은 `칸:옵션 키`, 옵션이 하나뿐인 화면의 물량은 `capacityQty`다. */
+export function firstPreorderPlanProblemField(problems: PreorderPlanProblems, targets: readonly PreorderPlanTarget[], { table = true }: { table?: boolean } = {}): string | undefined {
+  const optionField = () => {
+    for (const target of targets) {
+      const field = PREORDER_APPLY_FIELDS.find((name) => problems.options[target.key]?.[name]);
+      if (field) return table ? `${field === 'capacityQty' ? 'capacity' : field}:${target.key}` : field;
+    }
+    return undefined;
+  };
+  const common = (['startsAt', 'endsAt', 'expectedShipDate'] as const).find((field) => problems.common[field]);
+  return table ? common ?? optionField() : optionField() ?? common;
+}
+
+/**
+ * 예약 입력 되읽기('글보다 화면' 3): "12월 1일 10:00부터 7일 23:59까지 주문받고 12월 20일에 보냅니다. 옵션 12개 · 예약 물량 합계 1,200개."
+ * 덜 채워졌으면 채워진 만큼만 읽고, 순서가 틀리면(종료가 시작보다 앞·발송 예정일이 접수 종료일보다 앞·접수 종료가 지남) 그 자리에서 알린다.
+ */
+export function preorderPlanReadback(plan: PreorderPlan, targets: readonly PreorderPlanTarget[], { all = false, now = Date.now(), table = true }: PreorderPlanScope & { now?: number } = {}): GoodsReadback | null {
+  const entries = expandPreorderPlan(plan, targets, { all, table });
+  const valid = entries.filter((entry) => !preorderCapacityProblem(entry.capacityQty));
+  const total = valid.reduce((sum, entry) => sum + Number(entry.capacityQty), 0).toLocaleString('ko-KR');
+  const blank = entries.length - valid.length;
+  const scope = !entries.length ? '' : !table ? (blank ? '' : `예약 물량 ${total}개.`)
+    : blank ? `옵션 ${entries.length}개 중 ${blank}개는 예약 물량이 비어 있습니다.` : `옵션 ${entries.length}개 · 예약 물량 합계 ${total}개.`;
+  if (preorderPlanUsesOwnSchedules(plan, { all, table })) return scope ? { text: `옵션마다 다른 일정으로 주문받습니다. ${scope}`, problem: false } : null;
+  const range = kstInputRangeLabel(plan.startsAt, plan.endsAt, now);
+  if (range?.reversed) return { text: '접수 종료가 접수 시작보다 앞입니다. 날짜를 다시 확인해주세요.', problem: true };
+  const ends = optionalInstant(plan.endsAt);
+  if (ends && Date.parse(ends) <= now) return { text: '접수 종료가 이미 지났습니다. 날짜를 다시 확인해주세요.', problem: true };
+  const ship = isGoodsShipDate(plan.expectedShipDate) ? plan.expectedShipDate : '';
+  if (ship && ends && ship < new Date(Date.parse(ends) + 9 * 60 * 60 * 1000).toISOString().slice(0, 10)) {
+    return { text: '발송 예정일이 접수 종료일보다 앞입니다. 날짜를 다시 확인해주세요.', problem: true };
+  }
+  const shipLabel = ship ? kstInputLabel(ship, now) : null;
+  const schedule = range && shipLabel ? `${range.text} 주문받고 ${shipLabel}에 보냅니다.` : range ? `${range.text} 주문받습니다.` : shipLabel ? `${shipLabel}에 보냅니다.` : '';
+  const text = [schedule, scope].filter(Boolean).join(' ');
+  return text ? { text, problem: false } : null;
+}
+
+/**
+ * 저장된 상품에서 새로 예약할 수 있는 옵션과 그대로 두는 옵션. 이미 접수 중·접수 예정(또는 접수 기간이 끝났지만 아직 중지하지 않은)
+ * 예약 조건이 있는 옵션은 표에서 뺀다(규칙 2) — 그 조건을 중지하고 새로 만들면 남은 예약 물량이 처음부터 다시 계산돼 더 팔 수 있기 때문이다.
+ */
+export function preorderEditorTargets<V extends { id: string; archivedAt: string | null }>(variants: readonly V[], policies: readonly Pick<AdminGoodsPreorder, 'variantId' | 'state'>[]):
+  { available: V[]; busy: V[] } {
+  const active = variants.filter((variant) => !variant.archivedAt);
+  const taken = new Set(policies.filter((policy) => policy.state === 'active').map((policy) => policy.variantId));
+  return { available: active.filter((variant) => !taken.has(variant.id)), busy: active.filter((variant) => taken.has(variant.id)) };
+}
+
+/**
+ * 일반(옵션 선택 판매) 상품의 일괄 예약 저장(`admin_save_goods_preorders_bulk`). 옵션마다 물량·일정을 실어 한 트랜잭션으로 저장한다.
+ * 이미 접수 중인 조건이 있는 옵션은 DB가 건너뛰고 알려 준다(받은 예약 수량을 잃지 않게 그대로 둔다).
+ */
+export interface GoodsPreorderBulkOption { variantId: string; values: Pick<GoodsPreorderInput, 'capacityQty' | 'startsAt' | 'endsAt' | 'expectedShipDate'> }
+export function parseGoodsPreorderBulkRequest(optionsValue: unknown): GoodsPreorderBulkOption[] | null {
+  if (!Array.isArray(optionsValue) || !optionsValue.length || optionsValue.length > 100) return null;
+  const options: GoodsPreorderBulkOption[] = [];
+  for (const row of optionsValue) {
+    if (!object(row) || !isUuid(row.variantId) || options.some((option) => option.variantId === row.variantId)
+      || Object.keys(row).some((key) => !['variantId', 'capacityQty', 'startsAt', 'endsAt', 'expectedShipDate'].includes(key))) return null;
+    const parsed = parseGoodsPreorderInput({ state: 'active', capacityQty: row.capacityQty, startsAt: row.startsAt, endsAt: row.endsAt, expectedShipDate: row.expectedShipDate });
+    if (!parsed) return null;
+    options.push({ variantId: row.variantId, values: { capacityQty: parsed.capacityQty, startsAt: parsed.startsAt, endsAt: parsed.endsAt, expectedShipDate: parsed.expectedShipDate } });
+  }
+  return options;
+}
+/** 옵션 이름을 잇는다. 많으면 앞의 셋만 들고 나머지는 수로 말한다('빨강·파랑·초록 외 27개'). */
+export function preorderOptionNames(names: readonly string[], limit = 3): string {
+  return names.length > limit ? `${names.slice(0, limit).join('·')} 외 ${(names.length - limit).toLocaleString('ko-KR')}개` : names.join('·');
+}
+/** 일괄 저장 결과 안내. 건너뛴 옵션은 이름(`skippedNames` — preorderOptionNames로 이은 글)을 들어 그대로 두었다고 알린다. */
+export function preorderBulkSavedMessage(savedCount: number, skippedNames: string): string {
+  const skipped = skippedNames ? `${skippedNames} 옵션은 이미 예약판매 중이라 그대로 두었습니다. 바꾸려면 그 예약 조건에서 [새 예약 접수 중지]를 누른 뒤 다시 저장해주세요.` : '';
+  if (!savedCount) return skipped || '저장한 예약 조건이 없습니다.';
+  return [`${savedCount > 1 ? `옵션 ${savedCount.toLocaleString('ko-KR')}개에 ` : ''}예약판매를 저장했습니다. 접수 기간 동안 예약 물량으로 판매합니다.`, skipped].filter(Boolean).join(' ');
+}
+
 export function parseAdminGoodsPreorders(value: unknown): AdminGoodsPreorder[] | null {
   if (!Array.isArray(value)) return null;
   const result: AdminGoodsPreorder[] = [];
@@ -282,6 +494,12 @@ export function preorderMutationError(message: string): string {
     preorder_policy_already_active: '이 옵션에 이미 적용 중인 예약이 있습니다. 기존 예약 조건의 [새 예약 접수 중지]를 누른 뒤 새로 저장해주세요.',
     preorder_policy_immutable: '저장한 예약 조건은 바꿀 수 없습니다. [새 예약 접수 중지]를 누른 뒤 새 예약 조건을 저장해주세요.',
     preorder_runtime_not_ready: '예약판매 기능을 준비 중입니다. 아직 저장할 수 없습니다.',
+    /* 판매 시기 선택이 화면에서 먼저 막는다. 다른 창에서 그사이 판매기간·주문 후 제작을 저장했을 때만 여기까지 온다. */
+    goods_sale_period_preorder_conflict: "이 상품에 판매기간이 저장돼 있어 예약판매를 저장할 수 없습니다. 판매 시기에서 '예약판매'를 고르고 상품을 먼저 저장한 뒤 예약판매를 다시 저장해주세요.",
+    production_preorder_conflict: "주문 후 제작을 쓰는 상품은 예약판매를 함께 쓸 수 없습니다. '주문 후 제작'의 체크를 끄고 저장한 뒤 예약판매를 다시 저장해주세요.",
+    goods_variant_inactive: '사용 중지한 옵션에는 예약판매를 저장할 수 없습니다. [저장된 예약 조건 새로고침]을 누른 뒤 사용 중인 옵션만 다시 저장해주세요.',
+    goods_variant_not_found: '그사이 옵션이 바뀌었습니다. 화면을 새로고침한 뒤 예약할 옵션을 다시 확인하고 저장해주세요.',
+    invalid_preorder_bulk: '입력한 내용을 저장하지 못했습니다. 화면을 새로고침한 뒤 접수 기간·발송 예정일·옵션별 예약 물량을 다시 확인하고 저장해주세요.',
     preorder_allocations_pending: '입고 확인 전인 예약 주문이 남아 있어 일반 재고 판매로 전환할 수 없습니다. 예약 주문 목록에서 입고 확인을 하거나 주문을 취소한 뒤 다시 전환해주세요.',
     preorder_physical_stock_changed: '그사이 옵션 재고수량이 바뀌었습니다. [예약 주문 새로고침]을 누른 뒤 재고수량을 확인하고 다시 입고 확인해주세요.',
     preorder_physical_stock_shortfall: '선택한 예약 주문 수량이 옵션 재고수량보다 많습니다. 선택을 줄이거나 재고 조정으로 재고수량을 맞춘 뒤 다시 입고 확인해주세요.',
@@ -289,7 +507,7 @@ export function preorderMutationError(message: string): string {
     preorder_reservation_released: '취소된 예약 품목이 선택에 있습니다. [예약 주문 새로고침]을 누른 뒤 취소된 품목을 빼고 다시 입고 확인해주세요.',
     random_preorder_options_mismatch: '판매 중인 옵션이나 예약 상태가 바뀌었습니다. [저장된 예약 조건 새로고침]을 누른 뒤 모든 옵션을 다시 확인해주세요.',
     random_option_required: '랜덤 판매 상품에서만 모든 옵션을 한 번에 예약할 수 있습니다. 판매 방식을 확인해주세요.',
-    invalid_random_preorder: '저장 요청의 형식이 맞지 않습니다. 화면을 새로고침한 뒤 접수 기간·발송 예정일·옵션별 예약 물량을 다시 확인하고 저장해주세요.',
+    invalid_random_preorder: '입력한 내용을 저장하지 못했습니다. 화면을 새로고침한 뒤 접수 기간·발송 예정일·옵션별 예약 물량을 다시 확인하고 저장해주세요.',
     'order cancellation in progress': '취소·반품·교환 요청이 진행 중인 주문이 선택에 있습니다. 그 요청을 먼저 처리하거나 그 주문을 빼고 다시 입고 확인해주세요.',
     'order fulfillment hold': '출고 보류 중인 주문(결제 확인 필요)이 선택에 있습니다. "출고 보류" 표시가 붙은 주문을 빼고 다시 입고 확인해주세요.',
   };

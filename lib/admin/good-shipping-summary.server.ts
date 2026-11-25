@@ -20,7 +20,7 @@ export async function loadGoodShippingRegionSummaries(origins: GoodsFulfillmentO
         .sort((a, b) => Date.parse(b.startsAt!) - Date.parse(a.startsAt!))[0];
       if (!policy) return { originId: origin.id, checkedAt, label: '지역 배송 정책 확인 필요', detail: '현재 출고지·택배사·기간에 적용할 활성 정책이 없습니다. 정책 설정을 확인해주세요.' };
       const flag = (value: boolean | null) => value === true ? '추가료 적용' : value === false ? '추가료 면제' : '확인 필요';
-      return { originId: origin.id, checkedAt, label: `${policy.name} · 버전 ${policy.version}`,
+      return { originId: origin.id, checkedAt, label: policy.name || '지역 배송 정책',
         detail: `출고지 정책 상품 ${flag(policy.chargePolicyGoods)} · 무료배송 상품 ${flag(policy.chargeFreeGoods)} · 개별 배송비 상품 ${flag(policy.chargeIndividualGoods)}. ${policy.waivePolicyThreshold ? '출고지 무료 기준 충족 시 추가료 면제.' : '출고지 무료 기준과 추가료는 별도.'} 최종 금액은 주문 주소와 택배사 사용 상태를 확인해 확정합니다.` };
     });
   } catch {

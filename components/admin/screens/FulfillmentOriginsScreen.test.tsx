@@ -60,6 +60,7 @@ describe('origin settings workspace', () => {
     expect(html).toContain('value="3700"');
     expect(html).toContain('value="policy"');
     expect(html).toContain('value="free"');
-    expect(html).toContain('value="individual" selected=""');
+    /* 배송비 유형은 선택 카드(라디오)다. 고른 개별 배송비가 선택돼 있다. */
+    expect(html).toMatch(/<input[^>]*name="shippingFeeType"[^>]*checked=""[^>]*value="individual"/);
   });
 });

@@ -4,15 +4,15 @@ import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { INSTANT_DISCOUNT_PERIOD_FIELD, formatWon, goodsDiscountRate, instantDiscountPeriodRequest, type GoodsInstantDiscountState, type GoodsPriceDraft, type GoodsPriceResolution } from '@/lib/admin/goods-price-editor';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { AdminField, AdminNotice } from './console/AdminKit';
-import { AdminSelect } from './console/AdminSelect';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
-import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GoodAmountField, GoodChoiceGroup, GoodChoiceOption } from './GoodEditorParts';
+import { Badge } from '@/components/wc/Badge';
+import { PriceBlock } from '@/components/wc/PriceBlock';
+import { ErrorText } from './fields';
+import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GoodAmountField, GoodChoiceCard, GoodChoiceCards, GoodChoiceGroup, GoodChoiceOption } from './GoodEditorParts';
 import { StableNumberInput } from './StableNumberInput';
 
-const RATE_HINT = '즉시할인(기간 포함)과 기간 할인·할인 프로모션에 모두 적용됩니다. 숨김이면 취소선·할인율 없이 결제 금액만 보이며, 결제 금액은 바뀌지 않습니다.';
 /* ADM-004 #74: 두 문장. 서버는 판매가·할인가만 저장해 할인 단위가 남지 않으므로 다시 열면 원으로 보인다. */
-const DISCOUNT_HINT = '판매가에서 뺄 금액(원) 또는 비율(%)이며, 저장 후 다시 열면 원 단위로 표시됩니다. 판매가를 바꿀 때는 할인도 다시 확인해주세요.';
-const PERIOD_HINT = '기간 전·후에는 판매가로, 기간 중에는 할인가로 팝니다. 옵션마다 같은 할인 금액을 뺍니다.';
+const DISCOUNT_HINT = '%로 넣어도 저장하면 원 단위 금액으로 바뀝니다. 판매가를 바꾸면 할인도 다시 확인해주세요.';
 
 const KST = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
 const at = (value: string) => KST.format(new Date(value));
@@ -64,6 +64,8 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, instant
   const discountError = (discountBlank ? undefined : result.discountError) ?? errors.discountValue ?? (draft.discountEnabled ? errors.compareAtPrice : undefined);
   const periodError = result.periodError ?? errors.discountPeriod;
   const request = instantDiscountPeriodRequest(result, instant === undefined ? undefined : instant);
+  /* 지금 입력한 할인으로 가격 모습을 그릴 수 있나. 할인이 없거나 입력이 덜 됐으면 예시 금액으로 그린다. */
+  const lookReady = result.discountAmount > 0 && result.regularPrice !== null && result.salePrice !== null && result.salePrice < result.regularPrice;
 
   return <div className="flex min-w-0 flex-col gap-5" data-good-price-editor="">
     <AdminField inputId="goods-regular-price" label={`${ADMIN_VOCABULARY.salePrice} (필수)`} hint="할인 전 가격입니다. 옵션가는 이 금액(기간 없이 할인하면 할인가)에 더합니다." error={regularError}>
@@ -114,18 +116,18 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, instant
         </label>
         <div className="flex min-w-0 flex-col gap-3" data-good-price-period="" hidden={periodOff}>
           <div className="grid min-w-0 gap-x-6 gap-y-4 sm:grid-cols-2">
-            <AdminField inputId="goods-discount-start" label="할인 시작 · KST" hint={PERIOD_HINT} error={periodError}>
+            <AdminField inputId="goods-discount-start" label="할인 시작 (KST)" error={periodError}>
               <input ref={startRef} className={GOOD_INPUT_CLASS} data-slot="input" id="goods-discount-start" name="discountStartsAt" type="datetime-local" disabled={periodOff || locked} required
-                aria-describedby={`goods-discount-start-hint${periodError ? ' goods-discount-start-error' : ''}`} aria-invalid={periodError ? 'true' : undefined}
+                aria-describedby={periodError ? 'goods-discount-start-error' : undefined} aria-invalid={periodError ? 'true' : undefined}
                 value={draft.periodStartsAt ?? ''} onChange={(event) => change({ periodStartsAt: event.target.value })} />
             </AdminField>
-            <AdminField inputId="goods-discount-end" label="할인 종료 · KST">
+            <AdminField inputId="goods-discount-end" label="할인 종료 (KST)">
               <input className={GOOD_INPUT_CLASS} data-slot="input" id="goods-discount-end" name="discountEndsAt" type="datetime-local" disabled={periodOff || locked} required
                 aria-invalid={periodError ? 'true' : undefined} value={draft.periodEndsAt ?? ''} onChange={(event) => change({ periodEndsAt: event.target.value })} />
             </AdminField>
           </div>
           {result.period && result.regularPrice !== null
-            ? <p className="text-sm text-muted-foreground tabular-nums" data-good-price-period-result="">{at(result.period.startsAt)} ~ {at(result.period.endsAt)} 할인가 {formatWon(result.regularPrice - result.period.amount)}, 그 밖에는 판매가 {formatWon(result.regularPrice)}입니다. 종료 시각부터 판매가로 돌아갑니다.</p>
+            ? <p className="text-sm text-muted-foreground tabular-nums" data-good-price-period-result="">{at(result.period.startsAt)} ~ {at(result.period.endsAt)}에는 할인가 {formatWon(result.regularPrice - result.period.amount)}, 그 밖에는 판매가 {formatWon(result.regularPrice)}에 팝니다. 옵션마다 같은 금액을 뺍니다.</p>
             : null}
         </div></> : null}
       </div>
@@ -138,7 +140,10 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, instant
         <input type="hidden" name="discountStartsAt" value={draft.periodStartsAt ?? ''} />
         <input type="hidden" name="discountEndsAt" value={draft.periodEndsAt ?? ''} />
       </> : null}
-      <GoodsDiscountRateField value={showDiscountRate} error={errors.showDiscountRate} />
+      {/* 할인이 하나도 걸리지 않은 상품에는 고를 것이 없다 — 카드를 감추고 값만 그대로 제출한다('글보다 화면' 1). 숨김으로 저장해 둔 상품은 되돌릴 수 있게 보인다. */}
+      <GoodsDiscountRateField value={showDiscountRate} error={errors.showDiscountRate}
+        hidden={!(draft.discountEnabled || locked || Boolean(instant?.summary) || showDiscountRate === 'false' || Boolean(errors.showDiscountRate))}
+        {...(lookReady ? { regularPrice: result.regularPrice, salePrice: result.salePrice } : {})} />
     </div>
     <input type="hidden" name="price" value={result.price} />
     <input type="hidden" name="compareAtPrice" value={result.compareAtPrice} />
@@ -146,15 +151,38 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, instant
   </div>;
 }
 
+/** 할인을 아직 입력하지 않았을 때 두 모습을 보이는 예시 금액. */
+const SAMPLE_REGULAR_PRICE = 10000;
+const SAMPLE_SALE_PRICE = 9000;
+
+/** 고객 화면의 가격 줄을 작게 그린 본보기. 실제 가격 부품(PriceBlock)과 같은 모양이라 고객 화면과 어긋나지 않는다. */
+function DiscountLook({ regularPrice, salePrice, showRate, sample }: { regularPrice: number; salePrice: number; showRate: boolean; sample: boolean }) {
+  return <div aria-hidden="true" className="wc-root pointer-events-none mt-1 flex min-w-0 flex-col gap-1.5 rounded-md border px-3 py-2.5" data-good-discount-look={showRate ? 'rate' : 'price'}>
+    {sample ? <span className="text-xs text-muted-foreground">예시</span> : null}
+    {showRate ? <Badge className="self-start">SALE</Badge> : null}
+    <PriceBlock compareAtPrice={regularPrice} price={salePrice} showDiscountRate={showRate} />
+  </div>;
+}
+
 /**
- * 고객 화면 할인율 표시(기본 표시). 원래 요청 '할인율 노출 여부·할인 기간'을 한 자리에서 다루도록 즉시할인 블록 안에 둔다(TKT-033).
- * 기간 할인·할인 프로모션에도 쓰이므로 즉시할인 설정과 상관없이 늘 보이고 같은 값을 제출한다.
+ * 고객 화면 할인 표시(기본: 할인율 표시). 설명 대신 두 모습을 나란히 보이고 고르게 한다(화면 규칙 '글보다 화면').
+ * 지금 입력한 판매가·할인으로 그리고, 금액을 아직 알 수 없으면 예시 금액으로 그린다. 기간 할인·할인 프로모션에도 쓰이는 값이라
+ * 즉시할인 설정과 상관없이 늘 같은 값(showDiscountRate)을 제출한다(TKT-033). `hidden`이면 카드를 감추고 값만 제출한다.
  */
-export function GoodsDiscountRateField({ value, error }: { value: string; error?: string }) {
-  return <AdminField inputId="goods-show-discount-rate" label="고객 화면에 할인율 표시" hint={RATE_HINT} error={error}>
-    <AdminSelect id="goods-show-discount-rate" name="showDiscountRate" className="w-full" wrapperClassName="w-full max-w-xs" defaultValue={value}
-      aria-describedby={`goods-show-discount-rate-hint${error ? ' goods-show-discount-rate-error' : ''}`} aria-invalid={error ? 'true' : undefined}>
-      <option value="true">표시</option><option value="false">숨김 · 할인가만 표시</option>
-    </AdminSelect>
-  </AdminField>;
+export function GoodsDiscountRateField({ value, error, regularPrice, salePrice, hidden = false }: { value: string; error?: string; regularPrice?: number | null; salePrice?: number | null; hidden?: boolean }) {
+  const sample = regularPrice == null || salePrice == null;
+  const regular = sample ? SAMPLE_REGULAR_PRICE : regularPrice, sale = sample ? SAMPLE_SALE_PRICE : salePrice;
+  const describedBy = error ? 'goods-show-discount-rate-error' : undefined;
+  return <div className="flex min-w-0 flex-col gap-2 [&[hidden]]:hidden" data-good-discount-display="" hidden={hidden}>
+    <GoodChoiceCards legend="고객 화면 할인 표시">
+      <GoodChoiceCard name="showDiscountRate" value="true" defaultChecked={value !== 'false'} aria-describedby={describedBy} aria-invalid={error ? 'true' : undefined} title="할인율 표시">
+        <DiscountLook regularPrice={regular} salePrice={sale} sample={sample} showRate />
+      </GoodChoiceCard>
+      <GoodChoiceCard name="showDiscountRate" value="false" defaultChecked={value === 'false'} aria-describedby={describedBy} aria-invalid={error ? 'true' : undefined} title="할인가만 표시">
+        <DiscountLook regularPrice={regular} salePrice={sale} sample={sample} showRate={false} />
+      </GoodChoiceCard>
+    </GoodChoiceCards>
+    <p className="text-sm text-muted-foreground">어느 쪽이든 결제 금액은 같습니다.</p>
+    <ErrorText id="goods-show-discount-rate-error">{error}</ErrorText>
+  </div>;
 }

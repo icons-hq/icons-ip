@@ -62,7 +62,7 @@ export function GoodSizeChartPanel({ goodId, accountId }: { goodId: string; acco
     busy.current = false; if (!mounted.current) return; setPending(false);
     if (result.ok) {
       setSnapshot(result.value); setValues(result.value.values); setBaseRevision(result.value.revision); setLatest(null); setConflict(false); setUncertain(false); setError(false);
-      request.current = null; local.discard(); setMessage(result.value.values.enabled ? '사이즈 안내를 저장했습니다.' : '사이즈 안내는 설정안함입니다. 작성한 표는 보존했습니다.');
+      request.current = null; local.discard(); setMessage(result.value.values.enabled ? '사이즈 안내를 저장했습니다.' : '고객 화면에는 표시하지 않습니다. 작성한 표는 그대로 보관했습니다.');
       if (replaying && !current) setMessage('이전 저장 요청의 완료를 확인했습니다. 최신 저장본은 다시 조회해주세요.');
       if (current && current.revision !== result.value.revision) {
         setLatest(current); setConflict(true); local.capture({ baseRevision: result.value.revision, values: result.value.values, request: null }, true);
@@ -108,17 +108,15 @@ export function GoodSizeChartPanel({ goodId, accountId }: { goodId: string; acco
   /* 공개 표시 선택은 상품마다 하나다(편집기 운영 섹션 하나에만 그린다). */
   const displayId = `good-size-display-${goodId}`;
   return <div className="flex min-w-0 flex-col gap-4 text-sm" data-goods-size-chart="">
-    <p className="text-muted-foreground">상품의 측정 치수를 별도로 저장합니다. 사이즈명은 구매 옵션과 자동으로 연결되지 않습니다. 템플릿은 자주 쓰는 표를 복사하는 기능입니다.</p>
     {local.unavailable ? <p className="text-muted-foreground" role="status">이 브라우저에서는 입력을 자동 보관할 수 없습니다.</p> : null}
     {local.invalidRecovery ? <p className="flex flex-wrap items-center gap-2 text-destructive" role="alert">이전에 보관한 표를 읽을 수 없습니다. <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" onClick={local.discard}>읽을 수 없는 복구 기록 버리기</button></p> : null}
     {local.recovery ? <div className={`${GOOD_NOTE_CLASS} flex flex-wrap items-center gap-2`} data-goods-size-recovery=""><p className="min-w-0 flex-1 basis-60">{recoveryBlocked ? '이전 저장 요청의 결과 확인이 필요합니다.' : '이 브라우저에 최대 7일 보관된 미저장 표가 있습니다. 복구하거나 버린 뒤 표를 고칠 수 있습니다.'}</p><button className={buttonVariants({ size: 'sm' })} data-slot="button" type="button" disabled={pending || (!snapshot && !recoveryBlocked)} onClick={restore}>{recoveryBlocked ? '이전 저장 요청 결과 확인' : '표 복구'}</button>{!recoveryBlocked ? <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending} onClick={local.discard}>복구 기록 버리기</button> : null}</div> : null}
     <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); startTransition(() => save()); }}>
       <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={locked}>
         <legend className="sr-only">상품 사이즈 안내 편집</legend>
-        <div className="flex min-w-0 flex-col gap-2"><Label htmlFor={displayId}>공개 표시</Label><NativeSelect className="w-full sm:w-40" id={displayId} value={values.enabled ? 'enabled' : 'disabled'} onChange={event => change({ ...values, enabled: event.target.value === 'enabled' })}><option value="disabled">설정안함</option><option value="enabled">설정함</option></NativeSelect></div>
-        <p className="-mt-2 text-sm text-muted-foreground">설정안함은 표를 보존하고 고객에게 표시하지 않습니다. 기존 표를 비우는 기능은 아닙니다.</p>
+        <div className="flex min-w-0 flex-col gap-2"><Label htmlFor={displayId}>고객 화면 표시</Label><NativeSelect className="w-full sm:w-72" id={displayId} value={values.enabled ? 'enabled' : 'disabled'} onChange={event => change({ ...values, enabled: event.target.value === 'enabled' })}><option value="disabled">표시 안 함 · 표는 그대로 보관</option><option value="enabled">표시</option></NativeSelect></div>
         <GoodsSizeChartFields chart={values.chart} onChange={chart => change({ ...values, chart })} />
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>사이즈 템플릿 불러오기</button><Link className="text-sm underline underline-offset-4" href={GOODS_SIZE_TEMPLATES_PATH} target="_blank" rel="noreferrer">사이즈 템플릿 관리 ↗</Link></div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>사이즈 템플릿에서 가져오기</button><Link className="text-sm underline underline-offset-4" href={GOODS_SIZE_TEMPLATES_PATH} target="_blank" rel="noreferrer">사이즈 템플릿 관리 ↗</Link></div>
       </fieldset>
       {message ? <p className={error ? 'text-sm text-destructive' : 'text-sm text-[var(--wc-success)]'} role={error ? 'alert' : 'status'}>{message}</p> : null}
       <div className="flex flex-wrap gap-2">
@@ -126,8 +124,8 @@ export function GoodSizeChartPanel({ goodId, accountId }: { goodId: string; acco
         <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={pending || uncertain || recoveryBlocked} onClick={() => startTransition(() => refresh())}>최신 저장본 확인</button>
       </div>
     </form>
-    {latest ? <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/40 p-4" aria-label="최신 사이즈 저장본" data-goods-size-latest=""><h3 className="text-sm font-medium">최신 저장본 · {latest.values.enabled ? '설정함' : '설정안함'}</h3><GoodSizeChart chart={parseGoodsSizeChart(latest.values.chart)} /><div className="flex flex-wrap gap-2"><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => acceptLatest(true)}>최신 저장본 기준으로 작성한 표 유지</button><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => acceptLatest(false)}>최신 저장본으로 바꾸기</button></div></section> : null}
-    {preview ? <details className={DETAILS_CLASS} data-goods-size-preview=""><summary className={SUMMARY_CLASS}>저장 전 사이즈 안내 미리보기</summary><div className="flex min-w-0 flex-col gap-3 border-t p-3">{!values.enabled ? <p className="text-muted-foreground">현재 설정안함입니다. 저장해도 고객에게 표시하지 않습니다.</p> : null}<GoodSizeChart chart={preview} /></div></details> : null}
-    {templates ? <GoodsSizeTemplatePicker onClose={() => setTemplates(false)} onSelect={template => { change({ enabled: values.enabled, chart: structuredClone(template.chart) }); setTemplates(false); setMessage('템플릿을 불러왔습니다. 공개 표시를 확인하고 사이즈 안내를 저장해주세요.'); setError(false); }} /> : null}
+    {latest ? <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/40 p-4" aria-label="최신 사이즈 저장본" data-goods-size-latest=""><h3 className="text-sm font-medium">최신 저장본 · {latest.values.enabled ? '표시' : '표시 안 함'}</h3><GoodSizeChart chart={parseGoodsSizeChart(latest.values.chart)} /><div className="flex flex-wrap gap-2"><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => acceptLatest(true)}>최신 저장본 기준으로 작성한 표 유지</button><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || recoveryPending} onClick={() => acceptLatest(false)}>최신 저장본으로 바꾸기</button></div></section> : null}
+    {preview ? <details className={DETAILS_CLASS} data-goods-size-preview=""><summary className={SUMMARY_CLASS}>저장 전 사이즈 안내 미리보기</summary><div className="flex min-w-0 flex-col gap-3 border-t p-3">{!values.enabled ? <p className="text-muted-foreground">고객 화면 표시를 ‘표시 안 함’으로 두었습니다. 저장해도 보이지 않습니다.</p> : null}<GoodSizeChart chart={preview} /></div></details> : null}
+    {templates ? <GoodsSizeTemplatePicker onClose={() => setTemplates(false)} onSelect={template => { change({ enabled: values.enabled, chart: structuredClone(template.chart) }); setTemplates(false); setMessage('템플릿을 가져왔습니다. 고객 화면 표시를 확인하고 사이즈 안내를 저장해주세요.'); setError(false); }} /> : null}
   </div>;
 }

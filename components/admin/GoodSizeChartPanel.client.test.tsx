@@ -55,7 +55,7 @@ it('disables public display without clearing measurements', async () => {
   await mount(); all(render()).find(node => (node.type === 'select' || node.type === NativeSelect) && node.props.value === 'enabled')?.props.onChange?.({ target: { value: 'disabled' } });
   mocks.save.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 2, values: { enabled: false, chart } } }); submit(); await settle();
   expect(mocks.save.mock.calls[0][1]).toEqual({ enabled: false, chart });
-  expect(text(render())).toContain('작성한 표는 보존했습니다.');
+  expect(text(render())).toContain('작성한 표는 그대로 보관했습니다.');
 });
 it('recovers a pending operation after remount and compares the current table after an old receipt', async () => {
   const oldRequest = { values, revision: 1, operationId: '99300000-0000-4000-8000-000000000001' };
@@ -108,4 +108,17 @@ it('does not enable empty editing on a failed read or accept a late initial read
   mocks.save.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 4, values: { ...values, chart: { ...chart, note: '최신 표 편집' } } } }); submit(); await settle();
   expect(mocks.save.mock.calls[0][2]).toBe(3);
   expect(mocks.save.mock.calls[0][1].chart.note).toBe('최신 표 편집');
+});
+
+it('고객 화면 표시를 이름으로 고르고, 사이즈·측정 항목 추가 버튼에 개수 한도를 보인다', async () => {
+  await mount();
+  const html = all(render()).map(node => node.type === 'button' || node.type === 'p' || node.type === 'option' ? text(node) : '').join('\n');
+  expect(html).toContain('표시 안 함 · 표는 그대로 보관');
+  expect(html).toContain('사이즈 추가 (1/10)');
+  expect(html).toContain('측정 항목 추가 (1/10)');
+  expect(html).toContain('치수는 0.1~99,999 사이로, 소수 첫째 자리까지 입력합니다. 단위를 바꿔도 숫자는 변환되지 않습니다.');
+  expect(html).toContain('사이즈 템플릿에서 가져오기');
+  for (const old of ['설정안함', '사이즈 템플릿 불러오기', '상품의 측정 치수를 별도로 저장합니다', '기존 표를 비우는 기능은 아닙니다']) expect(html).not.toContain(old);
+  expect(all(render()).some(node => text(node) === '고객 화면 표시')).toBe(true);
+  expect(all(render()).some(node => text(node) === '공개 표시')).toBe(false);
 });

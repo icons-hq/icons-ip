@@ -31,13 +31,15 @@ it('불러온 행·세 축·옵션 사용 상태를 같이 바꾸고 전체 초�
   expect(rows[0]).toMatchObject({ attributes: { 색상: '빨강', 크기: 'M', 포장: '기본' } }); expect(applied).toHaveBeenCalledOnce();
   /* 0901-015: 불러온 새 옵션의 재고 칸은 0을 미리 채우지 않고 비운다. 재고를 입력해야 저장된다. */
   expect(Number.isNaN(rows[0].stockQty)).toBe(true);
-  expect(text(render())).toContain('새 옵션 1개는 재고수량을 입력한 뒤 상품을 저장해야 반영됩니다.');
+  expect(text(render())).toContain('옵션을 불러왔습니다. 새 옵션 1개에 재고수량을 넣고 상품을 저장해야 반영됩니다.');
   const tree = render(), inputs = nodes(tree).find(node => Array.isArray(node.props.axes))!;
   expect(inputs.props.axes).toEqual([{ name: '색상', values: '빨강' }, { name: '크기', values: 'M' }, { name: '포장', values: '기본' }]);
-  expect(nodes(tree).find(node => node.type === 'input' && node.props.name === 'optionUsage' && node.props.value === 'on')!.props.checked).toBe(true);
+  /* 옵션 있음/없음은 선택 카드(GoodChoiceCard)다. 폼 name·value는 그대로라 name·value로 찾는다. */
+  expect(nodes(tree).find(node => node.props.name === 'optionUsage' && node.props.value === 'on')!.props.checked).toBe(true);
+  expect(nodes(tree).find(node => node.props.name === 'optionUsage' && node.props.value === 'off')!.props.checked).toBe(false);
 });
-/* 복잡도 표 7행: 옵션 없이 파는 상품에는 필요 없는 버튼이라 옵션을 설정함으로 고른 뒤에만 보인다. */
-it('옵션 설정안함이면 다른 상품 옵션 불러오기를 보이지 않는다', () => {
+/* 복잡도 표 7행: 옵션 없이 파는 상품에는 필요 없는 버튼이라 옵션 있음을 고른 뒤에만 보인다. */
+it('옵션 없음이면 다른 상품 옵션 불러오기를 보이지 않는다', () => {
   expect(nodes(render(null, { optionUsage: 'off' })).find(node => node.type === 'button' && text(node) === '다른 상품 옵션 불러오기')).toBeUndefined();
 });
 it('공개·보관 대상은 불러오기 진입부터 잠근다', () => {

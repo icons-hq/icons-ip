@@ -1,33 +1,33 @@
 'use client';
 
 import Link from 'next/link';
-import { useCallback, useId, useRef, useState, useTransition, type FormEvent, type ReactNode } from 'react';
-import { searchGoodsAdditionalAction } from '@/app/admin/goods-additional-actions';
+import { useCallback, useId, useRef, useState, type ReactNode } from 'react';
 import { prepareDigitalAssetAction, verifyDigitalAssetAction } from '@/app/admin/goods-fulfillment-actions';
 import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope } from '@/components/claim-contact/ClaimContactSession';
 import { createClient } from '@/lib/supabase/client';
 import { DIGITAL_BUCKET, parseDigitalFile, type DigitalFile } from '@/lib/goods-fulfillment';
 import { GOODS_AFTER_SALES_TEMPLATES_PATH } from '@/lib/goods-after-sales';
 import { GOODS_SIZE_TEMPLATES_PATH, parseGoodsSizeChart } from '@/lib/goods-size-chart';
-import { MAX_ADDITIONAL_GOODS, type AdminAdditionalGood } from '@/lib/admin/goods-additional';
 import { PURCHASE_TAX_BASIS_LABELS, type PurchaseTaxBasis } from '@/lib/admin/goods-purchase-costs';
 import { goodsOptionRowKey } from '@/lib/admin/goods-option-editor';
 import {
   goodWorkspaceExtraDefault, goodWorkspaceExtraErrorField, type GoodWorkspaceExtraDraft,
   type GoodWorkspaceExtraKey, type GoodWorkspacePricePeriodDraft,
 } from '@/lib/admin/good-workspace-extra-sections';
-import { adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { GOOD_PICKERS_B_HELP } from '@/lib/admin/help/good-pickers-b';
 import { GoodSizeChart } from '@/components/shop/GoodSizeChart';
-import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { useGoodWorkspaceSections } from './GoodWorkspace';
-import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS } from './GoodEditorParts';
+import { AdminLabelWithHelp } from './console/AdminHelpTip';
+import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GoodChoiceCard, GoodChoiceCards } from './GoodEditorParts';
+import { GOODS_ADDITIONAL_INTRO, GoodsAdditionalLinks } from './GoodsAdditionalLinks';
 import { GoodsBenefitFields, withGiftImage } from './GoodsBenefitsPanel';
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
 import { GoodsSizeChartFields } from './GoodsSizeChartFields';
 import { GoodsListingColorFields } from './GoodsListingColorsPanel';
-import { GoodsDeliveryPricingFields, GoodsVolumeDiscountFields } from './GoodsTransactionTermsPanel';
+import { GoodsDeliveryRuleFields, GoodsVolumeDiscountFields } from './GoodsTransactionTermsPanel';
 import { GoodsSubscriptionPolicyFields } from './GoodsSubscriptionPolicyPanel';
 import { GoodsFulfillmentDraftFields } from './GoodsFulfillmentPanel';
 import { GoodsProductionFields } from './GoodsProductionPanel';
@@ -69,24 +69,22 @@ function DraftBody({ children, testId }: { children: ReactNode; testId: string }
 }
 
 const FIELD_LABEL_CLASS = 'flex min-w-0 flex-col gap-1.5 text-sm font-medium text-foreground';
-const MODE_LABEL_CLASS = 'flex min-w-0 cursor-pointer items-start gap-2 rounded-lg border px-3 py-2.5 text-sm text-foreground transition-colors has-checked:border-primary has-checked:bg-muted/40 [&>input]:mt-0.5';
 
-/** 판매 방식(옵션 선택 / 랜덤 판매). 랜덤 조건은 저장할 때 DB가 판정한다(기존 전환 RPC). */
+/** 판매 방식(옵션 선택 / 랜덤 판매). 랜덤 조건은 저장할 때 DB가 판정한다(기존 전환 RPC). 고르기 전에 차이를 알아야 해서 카드로 보인다. */
 export function GoodWorkspaceSaleModeSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('optionSaleMode');
   const name = useId();
   return <DraftBody testId="option-sale-mode">
-    <p className="text-muted-foreground">랜덤 판매는 고객이 옵션을 고르지 않고 &apos;랜덤&apos;으로 주문합니다. 주문할 때 남은 재고에 비례해 옵션이 무작위로 정해지고,
-      고객 화면에는 &apos;랜덤&apos;으로만 보입니다. 랜덤 판매 조건(판매 중 옵션·정기배송 등)은 저장할 때 확인합니다.</p>
-    <fieldset className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0"><legend className="sr-only">판매 방식</legend>
-      <label className={MODE_LABEL_CLASS}><input type="radio" name={name} checked={value === 'select'} onChange={() => set('select')} /> 옵션 선택 판매</label>
-      <label className={MODE_LABEL_CLASS}><input type="radio" name={name} checked={value === 'random'} onChange={() => set('random')} /> 랜덤 판매</label>
-    </fieldset>
+    <GoodChoiceCards legend={<span className="sr-only">판매 방식</span>}>
+      <GoodChoiceCard checked={value === 'select'} description="고객이 옵션을 직접 고릅니다." name={name} onChange={() => set('select')} title="옵션 선택 판매" />
+      <GoodChoiceCard checked={value === 'random'} description="고객은 옵션을 고르지 않고, 주문할 때 남은 재고에 비례해 옵션이 무작위로 정해집니다." name={name} onChange={() => set('random')} title="랜덤 판매" />
+    </GoodChoiceCards>
+    {value === 'random' ? <p className="text-muted-foreground">주문 상세와 출고 파일에는 정해진 옵션이 보이고, 고객 화면에는 ‘랜덤’으로만 보입니다. 판매 중인 옵션이 2개 이상이고 판매가가 모두 같아야 하며, 정기배송과는 함께 쓸 수 없습니다.</p> : null}
     <SectionError message={error ?? serverError} />
   </DraftBody>;
 }
 
-/** 공급가(매입단가) · 관리자 전용. 옵션목록의 지금 옵션마다 금액과 세금 구분을 함께 넣는다(둘 다 비우면 미설정). */
+/** 공급가(매입단가) · 관리자 전용. 옵션목록의 지금 옵션마다 금액과 세금 처리를 함께 넣는다(둘 다 비우면 정하지 않음). */
 export function GoodWorkspacePurchaseCostsSection({ serverError }: { serverError?: string }) {
   const { value, set, error, workspace } = useExtra('purchaseCosts');
   const rows = workspace?.optionRows ?? [];
@@ -96,16 +94,17 @@ export function GoodWorkspacePurchaseCostsSection({ serverError }: { serverError
     return [...others, { ...entryFor(optionKey), ...patch }];
   });
   return <DraftBody testId="costs">
-    <p className="text-muted-foreground">공급처에서 사오는 옵션 1개의 공급가(매입단가)를 원 단위로 입력합니다. 금액과 세금 구분을 함께 저장하며 실제 0원도 기록할 수 있습니다.
-      금액을 정하지 않은 옵션은 두 값을 모두 비워 두세요.</p>
+    <p className="text-muted-foreground">옵션 1개를 공급처에서 사 오는 가격입니다. 금액과 세금 처리는 함께 넣거나 함께 비웁니다. 0원도 넣을 수 있습니다.</p>
     {rows.map((row, index) => {
       const key = goodsOptionRowKey(row), entry = entryFor(key), label = row.name.trim() || `옵션 ${index + 1}`;
       return <div key={key} className="grid min-w-0 gap-3 border-t pt-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)] sm:items-end">
         <strong className="min-w-0 font-medium wrap-anywhere">{label}{row.isActive === false ? ' · 사용 중지' : ''}</strong>
         <label className={FIELD_LABEL_CLASS}>공급가(매입단가) (원)<input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" type="number" min={0} max={2147483647} step={1}
           aria-label={`${label} 공급가(매입단가)`} value={entry.unitCostKrw} placeholder="비우면 정하지 않음" onChange={(event) => update(key, { unitCostKrw: event.target.value })} /></label>
-        <div className={FIELD_LABEL_CLASS}><label htmlFor={`cost-basis-${index}`}>세금 구분</label>
-          <NativeSelect className="w-full" id={`cost-basis-${index}`} aria-label={`${label} 공급가(매입단가) 세금 구분`} value={entry.taxBasis}
+        <div className={FIELD_LABEL_CLASS}>
+          {/* 옵션마다 "?"를 달면 어수선하다 — 첫 줄에만 단다. */}
+          <AdminLabelWithHelp help={index === 0 ? GOOD_PICKERS_B_HELP.purchaseTaxBasis : undefined} label="세금 처리"><label htmlFor={`cost-basis-${index}`}>세금 처리</label></AdminLabelWithHelp>
+          <NativeSelect className="w-full" id={`cost-basis-${index}`} aria-label={`${label} 공급가(매입단가) 세금 처리`} value={entry.taxBasis}
             onChange={(event) => update(key, { taxBasis: event.target.value as '' | PurchaseTaxBasis })}>
             <option value="">선택 안 함</option>
             {Object.entries(PURCHASE_TAX_BASIS_LABELS).map(([basis, text]) => <option key={basis} value={basis}>{text}</option>)}
@@ -124,8 +123,7 @@ export function GoodWorkspacePricePeriodsSection({ serverError }: { serverError?
   const options = rows.map((row, index) => ({ key: goodsOptionRowKey(row), label: `${row.name.trim() || `옵션 ${index + 1}`}${row.isActive === false ? ' (사용 중지)' : ''}` }));
   const update = (key: string, patch: Partial<GoodWorkspacePricePeriodDraft>) => set((current) => current.map((entry) => entry.key === key ? { ...entry, ...patch } : entry));
   return <DraftBody testId="prices">
-    <p className="text-muted-foreground">옵션별 기간 할인을 함께 저장합니다. 저장하면 시작~종료 동안 기간 할인가로 판매합니다. 같은 옵션의 할인 기간은 겹칠 수 없습니다.</p>
-    {!value.length ? <p className="text-muted-foreground">입력한 기간 할인이 없습니다. 필요 없으면 비워 두세요.</p> : null}
+    <p className="text-muted-foreground">정한 기간에만 옵션을 기간 할인가로 팝니다. 같은 옵션의 기간은 겹칠 수 없습니다.</p>
     {value.map((entry, index) => <fieldset key={entry.key} className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4">
       <legend className="float-left w-full p-0 text-sm font-medium">기간 할인 {index + 1}</legend>
       <div className={FIELD_LABEL_CLASS}><label htmlFor={`${entry.key}-option`}>대상 옵션</label>
@@ -146,54 +144,12 @@ export function GoodWorkspacePricePeriodsSection({ serverError }: { serverError?
   </DraftBody>;
 }
 
-/** 추가 구성 상품. 판매 중인 다른 상품을 찾아 연결 순서대로 담는다. */
+/** 추가 구성 상품. 판매 중인 다른 상품을 공용 상품 선택창에서 골라 연결 순서대로 담는다(저장된 상품의 독립 패널과 같은 목록 부품). */
 export function GoodWorkspaceAdditionalSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('additional');
-  const [query, setQuery] = useState('');
-  const [results, setResults] = useState<AdminAdditionalGood[] | null>(null);
-  const [searchError, setSearchError] = useState<string | null>(null);
-  const [pending, startTransition] = useTransition();
-  function search(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault(); event.stopPropagation(); setSearchError(null);
-    startTransition(async () => {
-      const result = await searchGoodsAdditionalAction(null, query);
-      if (result.ok) setResults(result.items); else setSearchError(result.error);
-    });
-  }
-  const move = (index: number, direction: -1 | 1) => set((current) => {
-    const destination = index + direction;
-    if (destination < 0 || destination >= current.length) return current;
-    const next = [...current]; [next[index], next[destination]] = [next[destination], next[index]]; return next;
-  });
   return <DraftBody testId="additional">
-    <p className="text-muted-foreground">{adminGoodsCopy('상세 화면에서 함께 고를 상품을 연결합니다. 각 상품은 자체 옵션 가격과 수량으로 구매하며, 품절·판매 중지 상품은 구매 화면에 표시하지 않습니다.')}</p>
-    <form className="flex min-w-0 flex-wrap items-end gap-2" onSubmit={search}>
-      <label className="flex min-w-0 flex-[1_1_12.5rem] flex-col gap-1.5 text-sm font-medium text-foreground">추가할 상품 검색
-        <input className={GOOD_INPUT_CLASS} data-slot="input" value={query} onChange={(event) => setQuery(event.target.value)} maxLength={100} required disabled={pending} placeholder="상품명 또는 상품 자동코드" />
-      </label>
-      <Button type="submit" variant="outline" disabled={pending}>{pending ? '처리 중…' : '검색'}</Button>
-    </form>
-    {results ? <div className="flex min-w-0 flex-col gap-2">
-      {results.length === 0 ? <p className="text-muted-foreground">일치하는 판매 중 상품이 없습니다.</p> : results.map((item) => <div key={item.goodId} className="flex min-w-0 items-center justify-between gap-2 rounded-lg border px-3 py-2">
-        <span className="min-w-0 wrap-anywhere">{item.name} <small className="text-xs text-muted-foreground">{item.goodId}</small></span>
-        <Button size="sm" type="button" variant="outline" disabled={value.length >= MAX_ADDITIONAL_GOODS || value.some((selected) => selected.goodId === item.goodId)}
-          onClick={() => set((current) => [...current, item])}>{value.some((selected) => selected.goodId === item.goodId) ? '선택됨' : '추가'}</Button>
-      </div>)}
-    </div> : null}
-    {searchError ? <p className="text-sm text-destructive" role="alert">{searchError}</p> : null}
-    <div className="flex min-w-0 flex-col gap-2">
-      <strong className="font-medium tabular-nums">연결 순서 · {value.length}/{MAX_ADDITIONAL_GOODS}</strong>
-      {value.length === 0 ? <p className="text-muted-foreground">{adminGoodsCopy('연결된 추가상품이 없습니다.')}</p> : <ol className="flex list-decimal flex-col gap-3 pl-6">
-        {value.map((item, index) => <li key={item.goodId}><div className="flex min-w-0 flex-wrap items-center justify-between gap-2">
-          <span className="min-w-0 wrap-anywhere">{item.name} <small className="block text-xs text-muted-foreground">{item.goodId}</small></span>
-          <div className="flex gap-1">
-            <Button size="sm" type="button" variant="outline" aria-label={`${item.name} 위로 이동`} disabled={index === 0} onClick={() => move(index, -1)}>위로</Button>
-            <Button size="sm" type="button" variant="outline" aria-label={`${item.name} 아래로 이동`} disabled={index === value.length - 1} onClick={() => move(index, 1)}>아래로</Button>
-            <Button size="sm" type="button" variant="ghost" aria-label={`${item.name} 연결 해제`} onClick={() => set((current) => current.filter((entry) => entry.goodId !== item.goodId))}>해제</Button>
-          </div>
-        </div></li>)}
-      </ol>}
-    </div>
+    <p className="text-muted-foreground">{GOODS_ADDITIONAL_INTRO}</p>
+    <GoodsAdditionalLinks baseGoodId={null} items={value} onChange={set} />
     <SectionError message={error ?? serverError} />
   </DraftBody>;
 }
@@ -203,7 +159,7 @@ export function GoodWorkspaceBenefitsSection({ serverError }: { serverError?: st
   const { value, set, error } = useExtra('benefits');
   const [picker, setPicker] = useState<number | null>(null), [templates, setTemplates] = useState(false);
   return <DraftBody testId="benefits">
-    <p className="text-muted-foreground">상품 상세에 표시할 안내입니다. 실제 사은품 제공 조건을 설명에 적고 재고·출고는 별도로 준비해주세요.</p>
+    <p className="text-muted-foreground">상품 상세에 보이는 안내입니다. 사은품 재고와 출고는 따로 챙겨야 합니다.</p>
     <GoodsBenefitFields values={value} onChange={set} onPickPhoto={setPicker} onOpenTemplates={() => setTemplates(true)} fieldPrefix="goods-workspace-benefit-image" />
     <SectionError message={error ?? serverError} />
     {picker !== null ? <GoodsPhotoPicker onClose={() => setPicker(null)} onSelect={(photo) => { set((current) => withGiftImage(current, picker, photo.imagePath)); setPicker(null); }} /> : null}
@@ -221,27 +177,26 @@ export function GoodWorkspaceAfterSalesSection({ serverError, phoneDefault = '' 
   const value = prefilled ? { ...stored, phone: phoneDefault } : stored;
   const [templates, setTemplates] = useState(false);
   return <DraftBody testId="after-sales">
-    <p className="text-muted-foreground">상품별 A/S 안내입니다. 입력하면 전화번호와 A/S 안내가 모두 필요하고, 필요 없으면 세 칸을 비워 두세요.</p>
     <GoodsAfterSalesFields values={value} onChange={set} />
-    {prefilled ? <small className="text-xs text-muted-foreground" data-good-workspace-after-sales-prefill="">스토어 기본 A/S 연락처를 미리 채웠습니다. A/S 안내를 입력하면 이 번호와 함께 저장됩니다.</small> : null}
+    {prefilled ? <small className="text-xs text-muted-foreground" data-good-workspace-after-sales-prefill="">전화번호는 스토어 기본 A/S 연락처로 채웠습니다. A/S 안내를 쓰면 함께 저장됩니다.</small> : null}
     <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>A/S 템플릿</button><Link className="text-sm underline underline-offset-4" href={GOODS_AFTER_SALES_TEMPLATES_PATH} target="_blank" rel="noreferrer">A/S 템플릿 관리 ↗</Link></div>
     <SectionError message={error ?? serverError} />
     {templates ? <GoodsAfterSalesTemplatePicker onClose={() => setTemplates(false)} onSelect={(template) => { set({ phone: template.phone, guide: template.guide, sellerSpecialNotes: template.sellerSpecialNotes }); setTemplates(false); }} /> : null}
   </DraftBody>;
 }
 
-/** 사이즈 안내. 공개 표시와 측정 치수. */
+/** 사이즈 안내. 고객 화면 표시와 측정 치수(저장된 상품의 패널과 같은 이름을 쓴다). */
 export function GoodWorkspaceSizeChartSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('sizeChart');
   const [templates, setTemplates] = useState(false);
   const displayId = useId();
   const preview = parseGoodsSizeChart(value.chart);
   return <DraftBody testId="size-chart">
-    <p className="text-muted-foreground">상품의 측정 치수입니다. 사이즈명은 구매 옵션과 자동으로 연결되지 않습니다. 템플릿은 자주 쓰는 표를 복사하는 기능입니다.</p>
-    <div className="flex min-w-0 flex-col gap-2"><Label htmlFor={displayId}>공개 표시</Label><NativeSelect className="w-full sm:w-40" id={displayId} value={value.enabled ? 'enabled' : 'disabled'} onChange={(event) => set((current) => ({ ...current, enabled: event.target.value === 'enabled' }))}><option value="disabled">설정안함</option><option value="enabled">설정함</option></NativeSelect></div>
+    <p className="text-muted-foreground">상품의 치수를 표로 보여 줍니다. 표의 사이즈 이름은 구매 옵션과 따로 적습니다.</p>
+    <div className="flex min-w-0 flex-col gap-2"><Label htmlFor={displayId}>고객 화면 표시</Label><NativeSelect className="w-full sm:w-72" id={displayId} value={value.enabled ? 'enabled' : 'disabled'} onChange={(event) => set((current) => ({ ...current, enabled: event.target.value === 'enabled' }))}><option value="disabled">표시 안 함 · 표는 그대로 보관</option><option value="enabled">표시</option></NativeSelect></div>
     <GoodsSizeChartFields chart={value.chart} onChange={(chart) => set((current) => ({ ...current, chart }))} />
-    <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>사이즈 템플릿 불러오기</button><Link className="text-sm underline underline-offset-4" href={GOODS_SIZE_TEMPLATES_PATH} target="_blank" rel="noreferrer">사이즈 템플릿 관리 ↗</Link></div>
-    {preview ? <details className="min-w-0 rounded-lg border"><summary className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50">저장 전 사이즈 안내 미리보기</summary><div className="flex min-w-0 flex-col gap-3 border-t p-3"><GoodSizeChart chart={preview} /></div></details> : null}
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>사이즈 템플릿에서 가져오기</button><Link className="text-sm underline underline-offset-4" href={GOODS_SIZE_TEMPLATES_PATH} target="_blank" rel="noreferrer">사이즈 템플릿 관리 ↗</Link></div>
+    {preview ? <details className="min-w-0 rounded-lg border"><summary className="cursor-pointer rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50">저장 전 사이즈 안내 미리보기</summary><div className="flex min-w-0 flex-col gap-3 border-t p-3">{!value.enabled ? <p className="text-muted-foreground">고객 화면 표시를 ‘표시 안 함’으로 두었습니다. 저장해도 보이지 않습니다.</p> : null}<GoodSizeChart chart={preview} /></div></details> : null}
     <SectionError message={error ?? serverError} />
     {templates ? <GoodsSizeTemplatePicker onClose={() => setTemplates(false)} onSelect={(template) => { set((current) => ({ enabled: current.enabled, chart: structuredClone(template.chart) })); setTemplates(false); }} /> : null}
   </DraftBody>;
@@ -251,7 +206,6 @@ export function GoodWorkspaceSizeChartSection({ serverError }: { serverError?: s
 export function GoodWorkspaceListingColorsSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('listingColors');
   return <DraftBody testId="listing-colors">
-    <p className="text-muted-foreground">실제 상품에 제공하는 색만 등록하세요. 표시 여부는 스토어 전시 설정에서 정하며, 옵션·재고는 바뀌지 않습니다.</p>
     <div className="flex min-w-0 flex-col gap-3"><GoodsListingColorFields colors={value} onChange={set} /></div>
     <SectionError message={error ?? serverError} />
   </DraftBody>;
@@ -261,27 +215,24 @@ export function GoodWorkspaceListingColorsSection({ serverError }: { serverError
 export function GoodWorkspaceTransactionTermsSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('transactionTerms');
   return <DraftBody testId="transaction-terms">
-    <p className="text-muted-foreground">입력한 복수구매 할인과 착불·수량별 배송비를 상품과 함께 저장합니다. &apos;사용&apos;으로 둔 항목은 저장하면 바로 결제에 적용됩니다.</p>
     <section aria-label="복수구매 할인" className={GOOD_SUBPANEL_CLASS}><h3 className="text-base leading-snug font-medium">복수구매 할인</h3>
       <GoodsVolumeDiscountFields value={value.volume} onChange={(volume) => set((current) => ({ ...current, volume }))} /></section>
     <section aria-label="착불·수량별 배송비" className={GOOD_SUBPANEL_CLASS}><h3 className="text-base leading-snug font-medium">착불·수량별 배송비</h3>
-      <GoodsDeliveryPricingFields value={value.delivery} onChange={(delivery) => set((current) => ({ ...current, delivery }))} /></section>
+      <GoodsDeliveryRuleFields value={value.delivery} onChange={(delivery) => set((current) => ({ ...current, delivery }))} /></section>
     <SectionError message={error ?? serverError} />
   </DraftBody>;
 }
 
-/** 배송비 묶음그룹. 기본 정보의 지금 출고지에 속한 그룹만 고를 수 있다. */
+/** 배송비 묶음그룹. 기본 정보의 지금 출고지에 속한 그룹만 고를 수 있다(공용 선택창). 고른 그룹의 뜻은 필드의 요약 상자가 예시 금액과 함께 보이고, "?"는 섹션 제목(GoodSection)에 있다. */
 export function GoodWorkspaceShippingChargeGroupSection({ accountId, serverError }: { accountId: string; serverError?: string }) {
   const { value, set, error, workspace } = useExtra('shippingChargeGroup');
   const { identity, blocked } = useShippingChargeGroupSession(accountId);
   const originId = workspace?.originId || null;
   return <DraftBody testId="shipping-charge-group">
-    <p className="text-muted-foreground">고른 묶음그룹을 상품과 함께 배정합니다. 묶음 기본료는 같은 주문의 대상 상품 수량·금액으로 계산합니다. 출고지를 먼저 고른 뒤 그 출고지의 그룹을 고르세요.</p>
     {identity ? <ShippingChargeGroupField identity={identity} originId={originId} value={value?.id ?? null}
       selectedGroup={(value?.display as ShippingChargeGroupSummaryValue | undefined) ?? null}
       onChange={(id, group) => set(id && group ? { id, revision: group.revision, originId: group.originId, display: group } : null)} />
       : <p className={blocked ? 'text-sm text-destructive' : 'text-sm text-muted-foreground'} role={blocked ? 'alert' : 'status'}>{blocked ? '로그인한 계정이 바뀌었거나 다시 로그인했습니다. 지금 계정으로 화면을 새로고침해주세요.' : '현재 로그인 상태를 확인하고 있습니다.'}</p>}
-    {value && originId && value.originId !== originId ? <p className="text-sm text-[var(--wc-warning)]" role="status">고른 묶음그룹의 출고지가 지금 출고지와 다릅니다. 출고지를 맞추거나 묶음그룹을 다시 골라주세요.</p> : null}
     <SectionError message={error ?? serverError} />
   </DraftBody>;
 }
@@ -290,7 +241,6 @@ export function GoodWorkspaceShippingChargeGroupSection({ accountId, serverError
 export function GoodWorkspaceSubscriptionSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('subscriptionPolicy');
   return <DraftBody testId="subscription-policy">
-    <p className="text-muted-foreground">상품별 정기배송 주기와 안내를 저장합니다. 카드 자동결제 연결과 서비스 공개 준비가 완료된 상품만 고객에게 신청 버튼이 표시됩니다.</p>
     <GoodsSubscriptionPolicyFields value={value} onChange={set} />
     <SectionError message={error ?? serverError} />
   </DraftBody>;
@@ -332,9 +282,9 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
     else { setMessage(result.error); if (!result.uncertain) setPendingFile(null); }
   }
   return <DraftBody testId="fulfillment">
-    <p className="text-muted-foreground">고객이 주문서에서 선택할 수령 방식과 선결제 비용입니다. 택배만 쓰면 바꿀 것이 없습니다. 바꾸면 설정 근거와 확인 체크가 필요합니다.</p>
+    <p className="text-muted-foreground">택배만 쓰면 바꿀 것이 없습니다. 다른 수령 방식을 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.</p>
     <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" disabled={pending || Boolean(pendingFile)}>
-      <legend className="float-left w-full p-0 text-sm font-medium text-foreground">상품 제공 방식</legend>
+      <legend className="sr-only">상품 제공 방식</legend>
       <GoodsFulfillmentDraftFields draft={value} onChange={(draft) => set(draft as GoodWorkspaceExtraDraft['fulfillment'])} onUpload={(file) => { void upload(file); }} fieldId={fieldId} />
     </fieldset>
     {pendingFile ? <p className="flex flex-wrap items-center gap-2 text-sm" role="status">{pendingFile.name}이(가) 올라갔는지 아직 확인하지 못했습니다. <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending} onClick={() => { void verify(); }}>같은 업로드 결과 확인</button></p> : null}
@@ -346,9 +296,14 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
 /** 주문 후 제작. */
 export function GoodWorkspaceProductionSection({ serverError }: { serverError?: string }) {
   const { value, set, error } = useExtra('production');
+  /* 규칙 5: 예약판매와 주문 후 제작은 함께 쓸 수 없다(DB가 거절). 판매 시기에서 예약판매를 골라 두었으면 여기서 켜지 못하게 막고 이유와 푸는 방법을 적는다.
+     반대 방향(주문 후 제작을 켠 뒤 예약판매 고르기)은 판매 시기 카드가 막는다. 이미 켜져 있으면 끌 수 있게 열어 둔다. */
+  const preorderChosen = Boolean(useGoodWorkspaceSections()?.sections.preorderPlan) && !value?.enabled;
   return <DraftBody testId="production">
-    <p className="text-muted-foreground">주문 후 제작하는 상품의 발송 예정 기간입니다. 쓰지 않으면 바꿀 것이 없습니다. 바꾸면 설정 근거와 확인 체크가 필요합니다.</p>
-    <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4"><legend className="float-left w-full p-0 text-sm font-medium text-foreground">주문 후 제작</legend>
+    {preorderChosen
+      ? <p className="text-warning" data-good-production-blocked="" role="status">판매 시기에서 예약판매를 골라 두어 주문 후 제작을 함께 쓸 수 없습니다. 주문 후 제작을 쓰려면 판매 시기를 ‘바로 판매’나 ‘기간을 정해 판매’로 바꿉니다.</p>
+      : <p className="text-muted-foreground">쓰지 않으면 바꿀 것이 없습니다. 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.</p>}
+    <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4 disabled:opacity-60" disabled={preorderChosen}><legend className="sr-only">주문 후 제작</legend>
       <GoodsProductionFields draft={value} onChange={(draft) => set(draft)} idPrefix="workspace-production" />
     </fieldset>
     <SectionError message={error ?? serverError} />

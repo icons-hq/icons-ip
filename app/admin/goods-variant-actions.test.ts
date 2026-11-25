@@ -23,9 +23,9 @@ beforeEach(() => {
   mocks.client.mockResolvedValue({ rpc: mocks.rpc });
   mocks.rpc.mockResolvedValue({ data: { ipId: 'rilakkuma' }, error: null });
 });
-describe('옵션 사용·복원 액션', () => {
-  it('복원 RPC 입력과 모든 공개 가격·구매 표면 갱신을 유지한다', async () => {
-    expect(await setGoodsVariantActiveAction({}, form())).toEqual({ message: '옵션을 복원했습니다.' });
+describe('옵션 사용 중지·다시 사용 액션', () => {
+  it('다시 사용 RPC 입력과 모든 공개 가격·구매 표면 갱신을 유지한다', async () => {
+    expect(await setGoodsVariantActiveAction({}, form())).toEqual({ message: '옵션을 다시 사용합니다.' });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_set_goods_variant_active', {
       target_good_id: 'g1', target_variant_id: variantId, target_active: true,
       target_expected_updated_at: '2026-09-01T00:00:00Z', target_price: 2000,
@@ -36,8 +36,8 @@ describe('옵션 사용·복원 액션', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/[goodId]', 'page');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/checkout/[orderId]', 'page');
   });
-  /* 옵션 복원은 재입고 전이일 수 있다 — 굿즈 저장·실재고 조정처럼 응답 뒤 재입고 메일을 보낸다(L2 리뷰 l2-data-2). */
-  it('복원에 성공하면 응답 뒤 재입고 메일을 보내고, 사용 중지·실패에는 보내지 않는다', async () => {
+  /* 옵션을 다시 사용하면 재입고 전이일 수 있다 — 굿즈 저장·실재고 조정처럼 응답 뒤 재입고 메일을 보낸다(L2 리뷰 l2-data-2). */
+  it('다시 사용에 성공하면 응답 뒤 재입고 메일을 보내고, 사용 중지·실패에는 보내지 않는다', async () => {
     await setGoodsVariantActiveAction({}, form());
     expect(mocks.after).toHaveBeenCalledTimes(1);
     (mocks.after.mock.calls[0][0] as () => unknown)();
@@ -48,9 +48,20 @@ describe('옵션 사용·복원 액션', () => {
     await setGoodsVariantActiveAction({}, form());
     expect(mocks.after).not.toHaveBeenCalled();
   });
-  it('사용 중지에는 복원 가격을 보내지 않는다', async () => {
-    expect(await setGoodsVariantActiveAction({}, form({ active: 'false', price: '' }))).toHaveProperty('message');
+  it('사용 중지에는 다시 사용할 판매가를 보내지 않는다', async () => {
+    expect(await setGoodsVariantActiveAction({}, form({ active: 'false', price: '' }))).toEqual({ message: '옵션을 사용 중지했습니다. 재고와 주문 기록은 그대로 남습니다.' });
     expect(mocks.rpc.mock.calls[0][1].target_price).toBeNull();
+  });
+  /* 화면 규칙 4: 옵션의 이 상태는 '사용 중지', 되돌리기는 '다시 사용'이다. 상품의 상태인 '보관'·'복원'은 상품을 말할 때만 쓴다. */
+  it.each([
+    ['variant_price_below_base', '다시 사용할 판매가는 지금 상품 판매가 이상이어야 합니다.'],
+    ['goods_options_limit', '사용 중인 옵션은 100개까지 둘 수 있습니다. 다른 옵션을 먼저 사용 중지해주세요.'],
+    ['goods_variant_combination_exists', '옵션값이 같은 옵션이 이미 사용 중입니다. 그 옵션을 확인해주세요.'],
+    ['catalog_archived', '보관된 상품입니다. 상품을 복원한 뒤 옵션을 변경해주세요.'],
+  ])('거절 %s 는 옵션 상태를 한 이름으로 말한다', async (message, copy) => {
+    mocks.rpc.mockResolvedValueOnce({ error: { message } });
+    expect(await setGoodsVariantActiveAction({}, form())).toEqual({ error: copy });
+    expect(await setGoodsVariantActiveAction({}, form({ price: '-1' }))).toEqual({ error: '옵션과 다시 사용할 판매가를 확인해주세요. 목록이 오래되었다면 새로고침해주세요.' });
   });
   it.each<Record<string, string>>([{ variantId: 'bad' }, { price: '-1' }, { price: '1.1' }, { expectedUpdatedAt: 'bad' }, { active: 'yes' }])('잘못된 입력을 RPC 전에 거절한다', async values => {
     expect(await setGoodsVariantActiveAction({}, form(values))).toHaveProperty('error');

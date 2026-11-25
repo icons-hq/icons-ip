@@ -5,6 +5,8 @@ import { CATEGORY_BULK_LINE_LIMIT, categoryBulkResultLabel } from '@/lib/admin/c
 import { ADMIN_CLAIM_BULK_ACTION_LABELS, ADMIN_CLAIM_BULK_LIMIT, ADMIN_CLAIM_BULK_OUTCOME_LABELS } from '@/lib/admin/claim-bulk';
 import { REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT } from '@/lib/admin/inquiry-reply-templates';
 import { GOODS_LIST_STOCK_OPTIONS } from '@/lib/admin/goods-list';
+import { GOODS_OPTION_NONE_LABEL, GOODS_OPTION_STOP_PANEL_TITLE } from '@/lib/admin/goods-option-editor';
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { ADMIN_NAV_GROUPS, ADMIN_SCREENS } from '@/lib/admin/navigation';
 import { shipmentBarcodeGapWarning } from '@/lib/admin/shipment-workbook';
 import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
@@ -157,17 +159,87 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
 
   it('등록 화면 한 번에 저장과 저장 뒤 항목(상태를 바꾸는 4개)을 안내한다(R13·D6②·T15b 1027T-024)', () => {
     const editor = repoFile('components/admin/GoodEditor.tsx');
-    expect(editor).toContain('기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매, 아래 함께 저장할 설정');
-    /* T15b: 저장 전에도 나머지 설정을 입력해 함께 저장한다. 저장 뒤에만 하는 것은 재고 조정·옵션 사용·복사·보관이다. */
+    expect(editor).toContain('이 화면에 입력한 내용은 KC·예약판매와 아래 ‘상품과 함께 저장할 설정’까지 한 번에 저장합니다.');
+    /* T15b: 저장 전에도 나머지 설정을 입력해 함께 저장한다. 저장 뒤에만 하는 것은 재고 조정·옵션 사용 중지·다시 사용·상품 복사·상품 보관·복원이다. */
     expect(repoFile('components/admin/sections/GoodSection.tsx')).toContain('상품과 함께 저장할 설정');
     expect(text).toContain('상품과 함께 저장할 설정 카드의 입력');
-    expect(text).toContain('재고 조정·옵션 사용·복사·보관만 저장한 뒤 같은 자리에서 합니다.');
+    expect(text).toContain('재고 조정, 옵션 사용 중지·다시 사용, 상품 복사, 상품 보관·복원만 저장한 뒤 같은 자리에서 합니다.');
+    /* 화면(저장 안내)도 같은 말이다. */
+    expect(editor).toContain('재고 조정, 옵션 사용 중지·다시 사용, 상품 복사, 상품 보관·복원만 저장한 뒤 같은 자리에서 합니다.');
     expect(text).toContain('저장 막대에는 [임시저장]과 [실제 등록] 두 버튼만 있습니다.');
     expect(text).not.toContain('저장 막대에 저장 후 공개가 나오고');
     expect(text).not.toContain('저장하면 이어서 설정할 수 있어요');
     expect(text).not.toContain('자리표시');
     expect(text).not.toContain('초안 저장 → KC 검토 → 공개');
     expect(text).not.toContain('고정 저장 영역은 기본 상품·이미지·옵션·고시·배송·판매 조건만 저장합니다.');
+  });
+
+  /*
+   * 2026-11-25 상품 등록 화면 정리: 가이드가 적은 버튼·칸 이름은 화면 코드에 적힌 그대로다. 화면 이름을 바꾸면 여기가 깨지니
+   * 가이드(lib/admin/guide/topics/goods-sales.ts)도 함께 고친다. 대괄호는 버튼, 따옴표는 칸·선택지 이름이다.
+   */
+  it('상품 등록 화면 정리 뒤의 버튼·칸 이름을 화면 그대로 적는다(2026-11-25)', () => {
+    const buttons: readonly (readonly [file: string, name: string])[] = [
+      ['components/admin/GoodNoticePicker.tsx', '템플릿에서 가져오기'],
+      ['components/admin/GoodNoticePicker.tsx', '다른 상품에서 복사'],
+      ['components/admin/GoodCategoryFields.tsx', '카테고리 선택'],
+      ['components/admin/GoodCategoryFields.tsx', '카테고리 추가'],
+      ['components/admin/GoodCategoryFields.tsx', '자주 쓰는 카테고리'],
+      ['components/admin/GoodDisplayOrderField.tsx', '지금 순서 보기'],
+      ['components/admin/GoodDisplayOrderField.tsx', '이 앞에 두기'],
+      ['components/admin/GoodsOptionEditor.tsx', '다른 상품 옵션 불러오기'],
+      ['components/admin/GoodsOptionImportDialog.tsx', '이대로 불러오기'],
+      ['components/admin/GoodVariantsPanel.tsx', '다시 사용'],
+      ['components/admin/GoodEditor.tsx', '업로드한 이미지를 설명에 넣기'],
+      ['components/admin/GoodsTransactionTermsPanel.tsx', '내 입력 유지하고 최신 저장본 기준으로 바꾸기'],
+      ['components/admin/PreorderPlanFields.tsx', '전체 같은 수량 넣기'],
+      ['components/admin/PreorderPlanFields.tsx', '재고수량과 같게'],
+      ['components/admin/GoodsPreordersPanel.tsx', '예약판매 저장'],
+      ['components/admin/GoodsPreordersPanel.tsx', '모든 옵션 예약판매 저장'],
+    ];
+    for (const [file, name] of buttons) {
+      expect(repoFile(file), `${file} · ${name}`).toContain(name);
+      expect(text, `가이드 · [${name}]`).toContain(`[${name}]`);
+    }
+    /* 이름이 adminGoodsCopy를 거쳐 화면에 나오는 버튼. */
+    expect(repoFile('components/admin/GoodsAdditionalLinks.tsx')).toContain("adminGoodsCopy('추가 구성 상품 찾기')");
+    expect(text).toContain(`[${adminGoodsCopy('추가 구성 상품 찾기')}]`);
+    expect(repoFile('components/admin/GoodsAdditionalPanel.tsx')).toContain("adminGoodsCopy('추가상품 설정 저장')");
+    expect(text).toContain(`[${adminGoodsCopy('추가상품 설정 저장')}]`);
+    /* 이름이 상수에 있는 것: 옵션 만들기 버튼(개수가 들어간다)·옵션 없음·사용 중지 패널. */
+    expect(repoFile('lib/admin/goods-option-editor.ts')).toContain('개 만들기');
+    expect(text).toContain('[옵션 N개 만들기]');
+    expect(text).toContain(`‘${GOODS_OPTION_NONE_LABEL}’`);
+    expect(repoFile('components/admin/GoodsOptionEditor.tsx')).toContain('title="옵션 있음"');
+    expect(text).toContain('‘옵션 있음’');
+    expect(text).toContain(`‘${GOODS_OPTION_STOP_PANEL_TITLE}’에서 [다시 사용]`);
+
+    const names: readonly (readonly [file: string, name: string])[] = [
+      ['components/admin/GoodsPriceFields.tsx', '고객 화면 할인 표시'],
+      ['components/admin/GoodsPriceFields.tsx', '할인율 표시'],
+      ['components/admin/GoodsPriceFields.tsx', '할인가만 표시'],
+      ['components/admin/GoodSaleTiming.tsx', '판매 시기'],
+      ['components/admin/GoodSaleTiming.tsx', '예약판매'],
+      ['components/admin/PreorderPlanFields.tsx', '옵션별 예약 물량'],
+      ['components/admin/PreorderPlanFields.tsx', '옵션마다 일정을 다르게'],
+      ['components/admin/PreorderCapacityStockHint.tsx', '재고수량과 다름'],
+      ['components/admin/GoodsCustomInputEditor.tsx', '입력칸 이름'],
+      ['components/admin/GoodsCustomInputEditor.tsx', '사용 상태'],
+      ['components/admin/GoodSizeChartPanel.tsx', '고객 화면 표시'],
+      ['components/admin/GoodSizeChartPanel.tsx', '표시 안 함'],
+      ['components/admin/sections/GoodSection.tsx', '드물게 쓰는 설정'],
+    ];
+    for (const [file, name] of names) {
+      expect(repoFile(file), `${file} · ${name}`).toContain(name);
+      expect(text, `가이드 · ${name}`).toContain(name);
+    }
+    /* 판매 시기의 세 카드 이름도 화면 상수 그대로다. */
+    const timing = repoFile('components/admin/GoodSaleTiming.tsx');
+    for (const card of ['바로 판매', '기간을 정해 판매', '예약판매']) expect(timing).toContain(`'${card}'`);
+
+    for (const stale of ['[예약 조건 추가]', '최근 저장된 상품에서 복사', '옵션목록으로 적용', '[설명에 넣기]', '내 입력 유지 · 최신 버전', '옵션 사용을 설정', '사용여부 Y', '판매기간·예약판매', '판매기간 바로 아래', '대체 설명을 적고', '기본 옵션명']) {
+      expect(text, `옛 말: ${stale}`).not.toContain(stale);
+    }
   });
 
   it('잠긴 운영 섹션의 이유·저장 위치 바로가기와 펼침 유지를 안내한다(R14)', () => {
@@ -180,7 +252,7 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     for (const label of ['title="구매 제한"', 'legend="최소/최대 구매수량"', 'legend="1인 최대 구매수량"', '<legend>옵션별 구매 제한 (선택)</legend>', '최대 구매수량(주문당)']) {
       expect(fields).toContain(label);
     }
-    /* 11/11 ADM-011·1027T-021 결정 "펼친 채로": 구매 제한은 접힌 줄이 아니라 판매기간·예약판매 아래 펼친 소항목이다. */
+    /* 11/11 ADM-011·1027T-021 결정 "펼친 채로": 구매 제한은 접힌 줄이 아니라 판매 시기 아래 펼친 소항목이다. */
     for (const label of ['펼쳐진 구매 제한', '최소/최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한', '최대 구매수량(주문당)']) {
       expect(text).toContain(label);
     }

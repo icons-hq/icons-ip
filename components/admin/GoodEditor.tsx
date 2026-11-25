@@ -21,7 +21,8 @@ import type { ReturnAddressOption } from '@/lib/admin/return-addresses';
 /* 기본값을 매 렌더 새 배열로 만들면 미리보기 useMemo가 매번 다시 계산된다. */
 const NO_RETURN_ADDRESSES: ReturnAddressOption[] = [];
 const NO_SUGGEST_NAMES: readonly string[] = [];
-import { GoodsSalePeriodFields } from './GoodsSalePeriodFields';
+import { GoodSaleTiming } from './GoodSaleTiming';
+import { GoodDisplayOrderField } from './GoodDisplayOrderField';
 import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { goodEditorValues, createGoodEditorDraft, goodEditorFingerprint, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS, type GoodNoticeDefaults } from '@/lib/admin/good-editor';
 import { goodsOptionStockMissing, goodsOptionStockTotals, inheritRandomOptionLimits, initialGoodsOptionRows, isSingleGoodsOption, restoreGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
@@ -33,10 +34,13 @@ import { readAdminFormData } from '@/lib/admin/form-capture';
 import { withLocalRecoveryValues } from '@/lib/admin/local-autosave';
 import { publicMediaUrl } from '@/lib/media';
 import { AdminFormGrid, AdminNotice } from './console/AdminKit';
+import { AdminHelpTip } from './console/AdminHelpTip';
+import { GOOD_EDITOR_HELP } from '@/lib/admin/help/good-editor';
 import { GoodsClaimPolicyFields } from './GoodsClaimPolicyFields';
 import { GoodsAttributeEditor } from './GoodsAttributeEditor';
 import { goodsAttributeSubmissionReady } from '@/lib/admin/goods-attributes';
-import { GoodAdditionalCategoryField, GoodCategoryField } from './GoodCategoryFields';
+import { GoodAdditionalCategoryField, GoodCategoryField, categoryTreeOrder } from './GoodCategoryFields';
+import { preorderPlanHasInput, type PreorderPlan } from '@/lib/admin/goods-preorders';
 import { GoodsShippingNoticeField } from './GoodsShippingNoticeField';
 import type { GoodShippingPolicy } from '@/lib/fulfillment';
 import { GoodsFulfillmentFields } from './GoodsFulfillmentFields';
@@ -54,7 +58,7 @@ import { useAdminLocalAutosave } from './useAdminLocalAutosave';
 import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 import { ADMIN_LEAVE_RECOVERABLE_MESSAGE } from '@/lib/admin/leave-guard';
 import { AdminLocalDraftNotice } from './AdminLocalDraftNotice';
-import { goodFormValues } from '@/lib/admin/good-preview';
+import { goodFormValues, goodPreviewPeriodNote } from '@/lib/admin/good-preview';
 import { GOODS_HTML_MAX_LENGTH, goodsHtmlCleanedLengthWarning, sanitizeGoodsDescription } from '@/lib/goods-description';
 import type { Ip } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
@@ -72,7 +76,7 @@ import { GoodIdentifierFields } from './GoodIdentifierFields';
 import { GoodsDraftLibraryDialog } from './GoodsDraftLibraryDialog';
 import { saveGoodsDraftAction } from '@/app/admin/goods-draft-actions';
 import { collectGoodsDraftValues, validGoodsDraftIdentity, type GoodsDraft, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
-import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, GoodEditorSubsection, GoodFoldedRow, GoodWorkspaceDetails, focusGoodWorkspaceTarget, useFocusFirstGoodError, useGoodWorkspaceSections } from './GoodWorkspace';
+import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, GoodFoldedRow, GoodWorkspaceDetails, focusGoodWorkspaceTarget, useFocusFirstGoodError, useGoodWorkspaceSections } from './GoodWorkspace';
 import { GOOD_WORKSPACE_ERROR_SECTIONS, GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, goodWorkspaceKcWithTemplate, prepareGoodWorkspaceSections } from '@/lib/admin/good-workspace-sections';
 import { DEFAULT_FULFILLMENT_ORIGIN_ID } from '@/lib/admin/fulfillment-origins';
 import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodRealRegistrationBlocker, goodRemainingByCard, GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE, type GoodEditorSectionKey } from '@/lib/admin/good-workspace';
@@ -136,7 +140,7 @@ function GoodsNoticeFields({
  * R19: 미리보기 입력(detail·ip·배송 정책)이 그대로면 편집기의 다른 상태 변화에 다시 그리지 않는다.
  * 펼침 상태(R14)는 바깥 details가 키 밖 상태로 기억하고, 펼침이 바뀌어도 이 내용은 다시 그리지 않는다.
  */
-const GoodPreviewContent = memo(function GoodPreviewContent({ detail, ip, shippingPolicy }: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
+const GoodPreviewContent = memo(function GoodPreviewContent({ detail, ip, shippingPolicy, periodNote }: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null; periodNote?: string }) {
   const good = detail.good;
   /* 아직 저장하지 않은 신규 굿즈는 갈 곳이 없다 — 없는 상세로 보내는 대신 목록으로 둔다. */
   const href = good.id ? goodDetailHref(good) : '/shop';
@@ -144,8 +148,8 @@ const GoodPreviewContent = memo(function GoodPreviewContent({ detail, ip, shippi
   return (
       <div className="flex min-w-0 flex-col gap-4 border-t px-4 py-4 sm:px-5 sm:py-5">
         <p className="text-sm text-muted-foreground">
-          지금 폼에 입력된 값으로 그린 화면입니다. 저장하기 전 모습이며, 미리보기를 열어도 저장된 상품은 바뀌지 않습니다.
-          KC 표는 마지막으로 저장해 검토를 완료한 자료만 표시합니다. 상품명·IP·고시정보(제조자·제조국·소재·크기)나 옵션을 바꿔 저장하면 KC 검토가 풀려 다시 검토해야 합니다.
+          지금 입력한 내용이 고객 화면에 어떻게 보일지 미리 봅니다. 저장하기 전에는 실제 상품이 바뀌지 않습니다. KC 표에는 검토를 마치고 저장한 내용만 나옵니다.
+          {periodNote ? ` ${periodNote}` : ''}
         </p>
         <div className="flex min-w-0 flex-col gap-2">
           <span className="text-xs font-medium text-muted-foreground">고객 화면 목록 카드</span>
@@ -174,7 +178,7 @@ const GoodPreviewContent = memo(function GoodPreviewContent({ detail, ip, shippi
   );
 });
 
-function GoodPreviewPanel(props: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
+function GoodPreviewPanel(props: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null; periodNote?: string }) {
   /* details 에 display 를 덮어쓰면 접힘이 깨지는 브라우저가 있어 기본 display 를 유지한다. */
   return <GoodWorkspaceDetails stateId="good-preview" id="good-preview" className="group/preview min-w-0 scroll-mt-24 rounded-xl border bg-card text-sm text-card-foreground" data-good-preview="">
     <summary className="flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-3 text-base font-medium outline-none select-none group-open/preview:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-5 [&::-webkit-details-marker]:hidden">공개 화면 미리보기<ChevronDown aria-hidden="true" className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-open/preview:rotate-180 motion-reduce:transition-none" /></summary>
@@ -194,11 +198,23 @@ export function groupGoodsEntryVisible(screens: readonly AdminScreen[] = ADMIN_S
   return screens.some((screen) => screen.id === 'goods-groups-create' && !screen.navHidden);
 }
 const SHARED_SHIPPING_FIELDS = ['originId','shippingFeeType','individualFee'];
+/** 저장된 상품에서 예약 입력을 저장하지 않은 채 상품 저장을 눌렀을 때의 안내. 버튼 이름은 예약판매 패널에 적힌 그대로다. */
+export const GOOD_UNSAVED_PREORDER_MESSAGE = '예약판매 입력을 아직 저장하지 않았습니다. 판매 시기의 [예약판매 저장]을 먼저 눌러주세요. 예약판매를 하지 않으려면 판매 시기를 ‘바로 판매’로 바꿉니다.';
 /** 상품 등록 방식 탭(셸의 콘솔 전환과 같은 구분 선택 모양). */
 const EDITOR_TAB_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
 /** 저장 막대 버튼의 좁은 화면 크기. */
 const SAVE_BAR_BUTTON_CLASS = 'max-md:h-7 max-md:gap-1 max-md:px-1.5 max-md:text-[0.8rem]';
 const SHARED_QUANTITY_FIELDS = ['orderQuantityLimitEnabled','minOrderQty','maxOrderQty','memberPurchaseLimitEnabled','memberLifetimeQtyLimit'];
+/*
+ * 판매상태(goods.stock)가 실제로 바꾸는 것만 쓴다. 판매 중지(soldout)는 재고와 상관없이 고객 화면에 품절로 보이고 DB 주문 판정도 거절한다.
+ * 소량 재고(low)는 구매를 막지 않고 수량으로 자동 정해지지도 않는다 — 고객에게는 장바구니의 '재고 N개 남음'으로만 보인다(components/screens/Cart).
+ * 재고수량이 0이면 판매상태와 상관없이 품절로 읽는다(lib/catalog toGood · ProductCard의 stockQty <= 0).
+ */
+const STOCK_EFFECT = {
+  ok: '정상으로 판매합니다. 재고수량이 0이 되면 자동으로 품절로 보입니다.',
+  low: '그대로 살 수 있고, 장바구니에 남은 재고 수가 보입니다. 재고가 줄어도 이 상태로 자동으로 바뀌지는 않아 직접 골라야 합니다.',
+  soldout: '재고가 있어도 고객 화면에 품절로 보이고 살 수 없습니다. 다시 팔려면 정상 판매로 바꿉니다.',
+} satisfies Record<keyof typeof ADMIN_STOCK_LABELS, string>;
 
 /** 이벤트 대상이 저장 막대의 [실제 등록] 버튼(또는 그 안)인가. 공개 제출은 이 버튼을 직접 눌렀을 때만 받는다. */
 function isRegisterButton(target: EventTarget | null): boolean {
@@ -366,6 +382,12 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const errors = attributesCleared.categoryId === GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE && categoryId ? { ...attributesCleared, categoryId: undefined } : attributesCleared;
   /* 고시 템플릿 제안: 대표 카테고리 이름을 말단에서 위로 올라가며 맞는 템플릿을 찾는다(GoodNoticePicker). */
   const suggestNames = useMemo(() => (categoryId ? categoryPath(categories, categoryId).reverse() : NO_SUGGEST_NAMES), [categories, categoryId]);
+  /* 옵션 불러오기 선택창의 카테고리 조건: 카테고리 관리와 같은 순서(상위 아래에 하위)로 들여써 보인다. 받은 배열 순서 그대로면 들여쓰기가 엉뚱한 상위 아래로 보인다. */
+  const optionImportCategories = useMemo(() => {
+    const order = categoryTreeOrder(categories);
+    return categories.filter(category => !category.archivedAt).sort((left, right) => (order.get(left.id) ?? 0) - (order.get(right.id) ?? 0))
+      .map(category => ({ id: category.id, name: `${'　'.repeat(Math.max(0, category.depth - 1))}${category.name}` }));
+  }, [categories]);
   const attributesReady = groupOwned || goodsAttributeSubmissionReady(values.productAttributes, categoryId);
   const [attributePreview, setAttributePreview] = useState<{id:string;name:string;value:string}[]>([]);
   const onAttributeChange = useCallback((submission: string, attributeDraft: string, initialize: boolean, preview: {id:string;name:string;value:string}[]) => {
@@ -396,6 +418,19 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     if (locked && !groupOwned && initial.categoryId && !categoryId) {
       event.preventDefault(); setClientErrors({ categoryId: GOOD_PUBLISHED_CATEGORY_CLEAR_MESSAGE });
       focusGoodWorkspaceTarget('good-section-category', 'categoryId'); return;
+    }
+    /*
+     * 저장된 상품의 예약판매는 판매 시기 안의 [예약판매 저장]으로 따로 저장한다. 예약 입력을 넣고 상품만 저장하면 "저장했습니다"로 보이는데
+     * 예약은 걸리지 않는다(2026-11-19 예약 없이 일반 재고로 팔린 사고와 같은 모양). 저장하지 않은 예약 입력이 있으면 상품 저장을 멈추고 할 일을 알린다.
+     */
+    /* 단, 판매기간이 저장돼 있는 상품은 이 상품 저장으로 판매기간을 먼저 꺼야 예약판매를 저장할 수 있다(예약판매 패널이 그동안 저장 버튼을 잠근다).
+       그 선행 저장까지 막으면 두 저장이 서로를 기다린다. 넣어 둔 예약 입력은 폼 밖에 보관돼 있어 이 저장 뒤에도 그대로 남는다. */
+    if (selected && lockedValues.salePeriodEnabled !== 'true' && workspace?.readPanelStash?.(`preorder-wanted:${selected.id}`) === true) {
+      const plan = (workspace.readPanelStash(`preorder-plan:${selected.id}`) ?? workspace.readPanelStash(`random-preorder-plan:${selected.id}`)) as PreorderPlan | undefined;
+      if (plan && preorderPlanHasInput(plan)) {
+        event.preventDefault(); setClientErrors({ form: GOOD_UNSAVED_PREORDER_MESSAGE });
+        focusGoodWorkspaceTarget('good-operation-preorders'); return;
+      }
     }
     const changes = locked ? changedGoodLockedFields(lockedValues, goodFormValues(submitted)) : [];
     if (changes.length) {
@@ -458,7 +493,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       const name = input.name || artworkName || input.dataset.errorField || (input.closest('[data-option-editor]') ? 'variants' : 'form');
       const label = input.labels?.[0]?.textContent?.trim() || input.getAttribute('aria-label')?.trim() || name;
       /* 같은 칸에 오류가 여럿이면 포커스가 가는 첫 입력의 안내를 보인다. */
-      fieldErrors[name] ??= input.validity.customError ? input.validationMessage : `${label} 칸을 확인해주세요. ${input.validationMessage}`;
+      fieldErrors[name] ??= input.validity.customError ? input.validationMessage : input.validity.valueMissing ? `${label} 칸을 채워주세요.` : `${label} 칸을 확인해주세요. ${input.validationMessage}`;
     }
     setClientErrors(fieldErrors);
     for (const input of invalid) {
@@ -514,10 +549,14 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
    */
   const previewValues = useDeferredValue(values);
   const previewImageUrls = useDeferredValue(imageUrls);
+  /* 특정기간만 할인은 폼의 price가 판매가 그대로라 화면 입력(priceDraft)에서 기간을 읽어야 미리보기에 할인이 나온다. */
+  const previewPriceDraft = useDeferredValue(priceDraft);
   const { ip: previewIp, detail: previewDetail, shippingPolicy } = useMemo(() => buildGoodEditorPreview({
-    values: previewValues, imageUrls: previewImageUrls, selected, catalogIps, origins, returnAddresses, shippingNoticeOptions,
-  }), [previewValues, previewImageUrls, selected, catalogIps, origins, returnAddresses, shippingNoticeOptions]);
+    values: previewValues, imageUrls: previewImageUrls, selected, catalogIps, origins, returnAddresses, shippingNoticeOptions, priceDraft: previewPriceDraft,
+  }), [previewValues, previewImageUrls, previewPriceDraft, selected, catalogIps, origins, returnAddresses, shippingNoticeOptions]);
   const previewWithAttributes = useMemo(() => ({ ...previewDetail, attributes: attributePreview }), [previewDetail, attributePreview]);
+  /* 특정기간만 할인은 기간 안에서만 고객 화면에 나온다. 시작 전이면 미리보기에 할인이 없는 까닭을 알린다. */
+  const periodNote = goodPreviewPeriodNote(priceResult.period);
   const notice = Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, initial[field.formName]])) as GoodsNoticeInfo;
   const htmlDescription = values.descriptionFormat === 'html';
   const detailImageCount = GOODS_DETAIL_IMAGE_FIELD_NAMES.filter((name) => values[name]).length;
@@ -566,7 +605,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const kcBlockedVisible = Boolean(state.kcPublishBlocked && state.message && !published && readiness?.publicReview !== 'current' && !draftSaved);
   /* T15b: 새 상품의 [실제 등록]이 KC 밖의 공개 조건에 막혔다. 임시저장으로 남았고 공개는 [실제 등록]을 다시 눌러 이어서 한다. */
   const publishBlockedVisible = Boolean(state.publishBlocked && state.message && !published && !draftSaved);
-  const statusLabel = pending ? '저장 중…' : draftSaved ? '임시저장 완료' : registrationBlocked && clientErrors.form ? '실제 등록 전 확인 필요 · 저장하지 않음' : Object.keys(errors).some((key) => errors[key]) ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음'
+  const statusLabel = pending ? '저장 중…' : draftSaved ? '임시저장 완료' : registrationBlocked && clientErrors.form ? '실제 등록 전 확인 필요 · 저장하지 않음' : Object.keys(errors).some((key) => errors[key]) ? '저장 실패 · 입력은 그대로 남음' : dirty ? '미저장 변경 있음'
     : kcBlockedVisible || publishBlockedVisible ? '초안 저장 완료 · 공개 보류' : state.kcPublishBlocked || state.publishBlocked ? (published ? '저장된 내용과 같음' : '초안 저장 완료') : state.message ? (published ? '실제 등록 완료' : '초안 저장 완료') : selected && !published && !selected.archivedAt ? '초안 · 고객 화면 미공개' : selected ? '저장된 내용과 같음' : '새 상품 · 아직 저장 전';
   /* 저장 다음에 무엇을 하는지 저장 안내를 열지 않아도 보이게 한다. */
   const kcLink = <a className="text-foreground underline underline-offset-4" href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보로 이동</a>;
@@ -575,7 +614,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const showRemainingCount = showPublishProgress && remaining.length > 0 && !(kcIsNextStep && remaining.length === 1 && remaining[0].key === 'kc');
   const nextStep: ReactNode = selected?.archivedAt ? null : published ? <span className="inline-flex items-center gap-1 text-warning"><AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />[실제 등록]을 누르면 공개 중인 상품 화면에 바로 반영됩니다. 반영하지 않고 보관만 하려면 [임시저장]을 누릅니다.</span>
     : kcIsNextStep ? <>KC 검토를 마쳐야 [실제 등록]으로 공개할 수 있습니다. 그 전에는 [임시저장]으로 저장합니다. {kcLink}</>
-    : kcContextChanged ? '바꾼 상품명·IP·고시정보나 옵션을 저장하면 KC를 다시 검토해야 공개할 수 있습니다. 지금은 [임시저장]으로 저장합니다.'
+    : kcContextChanged ? '바꾼 상품명·IP·상품정보제공고시나 옵션을 저장하면 KC를 다시 검토해야 공개할 수 있습니다. 지금은 [임시저장]으로 저장합니다.'
     : remaining.length ? '[실제 등록]을 누르면 저장과 함께 바로 공개합니다. 필수 입력이 남아 있으면 그때 알려 드립니다. [임시저장]은 고객 화면에 보이지 않습니다.'
     /* 새 상품은 서버가 공개를 막아도 래퍼가 초안으로 저장해 둔다. 저장된 상품은 KC 밖의 이유로 막히면 저장도 되돌린다(입력은 화면에 남는다). */
     : !selected ? '[실제 등록]을 누르면 저장과 함께 바로 공개합니다. 공개 조건에 막히면 초안으로 저장해 두고 이유를 알려 드립니다.'
@@ -618,7 +657,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <OwnedFields locked={groupOwned} fields={['categoryId']} values={initial}><GoodCategoryField categories={categories} primary={categoryId} onPrimaryChange={setCategoryId} error={errors.categoryId} /></OwnedFields>
         </div>
         {/* TKT-009: 잠금 안내의 버튼 하나 → 확인창 1회 → 바로 초안 전환·잠금 해제. 판매 준비 카드의 초안으로 되돌리기와 같은 서버 계약이다. */}
-        {locked && selected && <div className="flex min-w-0 flex-col gap-2" data-good-lock=""><AdminNotice title="공개 중 잠금: 상품명·연결 IP·제조자·제조국·소재·크기" tone="neutral">KC 검토를 받은 실제 상품과 화면 정보가 달라지지 않게 잠가 둡니다. 고치려면 [초안으로 전환 후 수정]을 누른 뒤 수정하고, KC를 다시 검토해야 다시 공개할 수 있습니다.</AdminNotice>
+        {locked && selected && <div className="flex min-w-0 flex-col gap-2" data-good-lock=""><AdminNotice title="공개 중에는 상품명, 연결 IP, 제조사 / 수입사, 원산지, 소재, 크기 · 중량, 옵션 구성을 바꿀 수 없습니다" tone="neutral">KC 검토를 받은 상품과 화면 내용이 어긋나지 않도록 잠가 두었습니다. 고치려면 [초안으로 전환 후 수정]을 누릅니다. 고친 뒤에는 KC를 다시 검토해야 공개할 수 있습니다.</AdminNotice>
           <div><GoodDraftSwitch id={selected.id} disabled={pending || draftBusy || Boolean(selected.archivedAt)} /></div></div>}
         {justUnpublished && !locked ? <div data-good-unlocked=""><AdminNotice tone="info" title="초안으로 전환했습니다"><span role="status">고객 화면에서 내려갔고 잠긴 항목을 고칠 수 있습니다. 저장한 뒤 KC를 다시 검토해야 공개할 수 있습니다.</span></AdminNotice></div> : null}
         <div className="flex min-w-0 flex-col gap-1.5">
@@ -633,7 +672,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           ADM-004(복잡도 표 190행): 용어 도움말은 고르는 동안(연결 IP·대표 카테고리가 비어 있을 때)만 보인다. 입력칸이 아니라 안내 문구라 ADM-004 "복잡함 줄이기"
           지시 범위다 — 묶음 10의 "펼친 채로" 원칙은 입력 섹션 대상이라 여기에 걸리지 않는다(오케스트레이터 판단, T15a 리뷰).
         */}
-        {!locked && !groupOwned && (!values.ipId || !categoryId) ? <p className="-mt-2 text-xs text-muted-foreground" data-good-identity-help="">연결 IP는 브랜드·작품, 카테고리는 쇼핑 분류입니다. 대표 카테고리를 골라야 공개할 수 있습니다.</p> : null}
+        {!locked && !groupOwned && (!values.ipId || !categoryId) ? <p className="-mt-2 text-xs text-muted-foreground" data-good-identity-help="">연결 IP는 상품이 속한 브랜드·작품입니다. 대표 카테고리를 골라야 공개할 수 있습니다.</p> : null}
         {canOpenIp && values.ipId && <a className="w-fit text-sm underline underline-offset-4" href={`/admin/catalog/ips/${encodeURIComponent(values.ipId)}`} target="_blank" rel="noreferrer">연결 IP의 공개 상태 확인 (새 탭)</a>}
         <div className="min-w-0 scroll-mt-24 outline-none" id="good-section-attributes" tabIndex={-1}>
           <OwnedFields locked={groupOwned} fields={[]} values={initial}><GoodsAttributeEditor categoryId={categoryId} goodId={selected?.id ?? null} initialSubmission={initial.productAttributes} initialDraft={initial.productAttributeDraft} error={errors.productAttributes} onChange={onAttributeChange} onRequiredMissing={setMissingAttributes} /></OwnedFields>
@@ -644,25 +683,23 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         2. 판매 정보: 판매가 → 할인 → 재고수량 → 옵션 순서는 회귀 금지(MD 피드백). 그 뒤 판매기간 → 예약판매 → 구매 제한을 접지 않고 펼쳐 둔다
         (11/11 ADM-011·1027T-021·1027T-023 결정 "둘 다 펼친 채로" — 10/27 회의 R12·R13 원안). 판매 제한(19금)은 구매 제한 바로 아래다(11/18 MD 요청).
       */}
-      <GoodEditorSection title="판매 정보" id="good-section-price" errorCount={errorCount('price', 'variants', 'period', 'limits', 'restriction') + (errors.workspacePreorders ? 1 : 0)} summary={`판매가 ${priceResult.regularPrice ? formatWon(priceResult.regularPrice) : '미입력'}${priceDraft.discountEnabled ? priceResult.discountAmount > 0 && priceResult.salePrice !== null ? ` · ${priceResult.period ? '기간 ' : ''}할인가 ${formatWon(priceResult.salePrice)}` : ' · 할인 입력 확인' : instantDiscount?.summary ? ` · 진행·예정 기간 할인 ${instantDiscount.summary.minPrice === instantDiscount.summary.maxPrice ? formatWon(instantDiscount.summary.minPrice) : `${formatWon(instantDiscount.summary.minPrice)}~${formatWon(instantDiscount.summary.maxPrice)}`}` : ' · 할인 없음'}${dirty ? ' · 미저장 입력' : ''}`}>
+      <GoodEditorSection title="판매 정보" id="good-section-price" errorCount={errorCount('price', 'variants', 'period', 'limits', 'restriction') + (errors.workspacePreorders ? 1 : 0)} summary={`판매가 ${priceResult.regularPrice ? formatWon(priceResult.regularPrice) : '미입력'}${priceDraft.discountEnabled ? priceResult.discountAmount > 0 && priceResult.salePrice !== null ? ` · ${priceResult.period ? '기간 ' : ''}할인가 ${formatWon(priceResult.salePrice)}` : ' · 할인 입력 확인 필요' : instantDiscount?.summary ? ` · 진행·예정 기간 할인 ${instantDiscount.summary.minPrice === instantDiscount.summary.maxPrice ? formatWon(instantDiscount.summary.minPrice) : `${formatWon(instantDiscount.summary.minPrice)}~${formatWon(instantDiscount.summary.maxPrice)}`}` : ' · 할인 없음'}${dirty ? ' · 미저장 입력' : ''}`}>
         <GoodsPriceFields draft={priceDraft} onDraftChange={setPriceDraft} result={priceResult} errors={errors} instant={instantDiscount} showDiscountRate={initial.showDiscountRate} />
         <div className="flex min-w-0 scroll-mt-24 flex-col gap-3 border-t pt-5 outline-none" id="good-section-variants" tabIndex={-1}>
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="text-sm font-medium text-foreground">재고수량 / 옵션</h2><span className="text-xs text-muted-foreground">{stockSummary}</span></div>
-          <GoodsOptionEditor structureLocked={groupOwned} onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={priceResult.basePrice ?? 0}
+          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="text-sm font-medium text-foreground">재고수량 / 옵션</h2><AdminHelpTip className="self-center" help={GOOD_EDITOR_HELP.options} label="재고수량 / 옵션" /><span className="text-xs text-muted-foreground">{stockSummary}</span></div>
+          <GoodsOptionEditor structureLocked={groupOwned} onRowsChange={setRows}
+            compositionLockedReason={locked && !groupOwned ? '공개 중에는 옵션을 더하거나 빼거나 옵션 이름을 바꿀 수 없습니다. 재고수량·옵션가·사용여부는 바꿀 수 있습니다. 옵션을 바꾸려면 위 [초안으로 전환 후 수정]을 누릅니다.' : null} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={priceResult.basePrice ?? 0}
             priceDraft={priceDraft} error={errors.variants} axisValues={initial}
             savedCodes={{ goodCode: selected?.code ?? null, options: variants }}
             optionImport={{ accountId, target: selected ? { ...selected, variants } : null, databaseVersion: JSON.stringify([selected, variants]),
-              categories: categories.filter(category => !category.archivedAt).map(category => ({ id: category.id, name: `${'　'.repeat(Math.max(0, category.depth - 1))}${category.name}` })),
+              categories: optionImportCategories,
               pending: pending || draftBusy, blockedReason: groupOwned ? '그룹 구성에서 옵션을 관리합니다.' : selected?.archivedAt ? '보관된 상품에는 옵션을 불러올 수 없습니다.' : locked ? '다른 상품 옵션을 불러오려면 먼저 상품을 비공개 초안으로 전환해주세요.' : null,
               onApplied: () => { setDirty(true); setOptionImportRevision(value => value + 1); } }}
             canSearchErp={canSearchErp} onErpItemSelect={groupOwned ? undefined : applyErpItem} onRegularPriceApply={(price) => setPriceDraft((current) => ({ ...current, regularPrice: String(price) }))}
             erpNotice={<GoodsErpCategoryNotice suggestion={erpCategory} currentCategoryId={categoryId} onReplace={setCategoryId} onReview={() => focusGoodWorkspaceTarget('good-section-category', 'categoryId')} />} />
         </div>
-        <GoodEditorSubsection title="판매기간" id="good-section-period" errorCount={errorCount('period')} summary={values.salePeriodEnabled === 'true' ? `${values.saleStartsAt?.replace('T', ' ') || '시작 미입력'} ~ ${values.saleEndsAt?.replace('T', ' ') || '종료 미입력'} · KST` : '설정안함'}>
-          <GoodsSalePeriodFields values={values} error={errors.saleStartsAt} onChange={patch => { setValues(current => ({ ...current, ...patch })); setDirty(true); }} />
-        </GoodEditorSubsection>
-        {/* 예약판매 입력은 이름이 없고 소속 폼을 뗐다(GOOD_DETACHED_FORM_ID). Enter로 상품이 저장되지 않게 막고, 자동복구는 이 안의 입력을 수정으로 세지 않는다. */}
-        {preorderSlot ? <div className="contents" data-good-preorder-slot="" onKeyDown={(event) => { if (event.key === 'Enter' && event.target instanceof HTMLInputElement) event.preventDefault(); }}>{preorderSlot}</div> : null}
+        <GoodSaleTiming values={values} error={errors.saleStartsAt} errorCount={errorCount('period')} preorderSlot={preorderSlot}
+          onChange={patch => { setValues(current => ({ ...current, ...patch })); setDirty(true); }} />
         <GoodsPurchaseLimitFields quantityReadOnly={aggregationOwned} values={initial} current={values} errors={errors} rows={rows} onRowsChange={setRows} randomSale={randomSale} />
         <GoodsSaleRestrictionFields values={initial} current={values} errors={errors} />
       </GoodEditorSection>
@@ -680,7 +717,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         <OwnedFields locked={groupOwned} fields={['description','descriptionFormat']} values={initial}>
           <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서 (상세페이지 소스)</option></SelectField>
           <div className="flex min-w-0 flex-col gap-3 rounded-lg border p-4" data-good-html-tools="" hidden={!htmlDescription}>
-            <p className="text-sm text-muted-foreground">다른 판매처에 쓰는 상세페이지 HTML 소스를 그대로 붙여넣을 수 있습니다. https로 시작하는 호스팅 이미지 주소는 그대로 표시되므로 호스팅 이미지를 바꾸면 이 상세페이지에도 반영됩니다. 제목·문단·목록·표·강조·링크와 아래 도구의 정렬·글자 크기·인용·구분선 서식을 지원합니다. 임의 CSS·스크립트·이벤트는 제거됩니다.</p>
+            <p className="text-sm text-muted-foreground">다른 판매처의 상세페이지 HTML을 그대로 붙여넣을 수 있습니다. 스크립트와 CSS는 지워집니다.</p>
             <div className="flex flex-wrap gap-2">
               <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" onClick={() => insertDescription('<h2>제목</h2>\n')} type="button">제목 넣기</button>
               <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" onClick={() => insertDescription('<p>문단 내용</p>\n')} type="button">문단 넣기</button>
@@ -690,12 +727,12 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             <GoodsDescriptionTools accountId={accountId} formRef={editorRef} disabled={groupOwned || !htmlDescription || pending || draftBusy || Boolean(selected?.archivedAt)} />
           </div>
           <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? `상세페이지 HTML (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)` : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? undefined : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
-          {descriptionWarnings.length > 0 && <div data-good-html-review=""><AdminNotice role="status" title="저장 전 확인: 입력 원문은 편집기에 남아 있으며 아래 미리보기의 결과가 저장됩니다." tone="warning"><ul className="flex list-disc flex-col gap-1 pl-5 wrap-anywhere">{descriptionWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></AdminNotice></div>}
+          {descriptionWarnings.length > 0 && <div data-good-html-review=""><AdminNotice role="status" title="저장 전 확인: 아래 미리보기에 보이는 내용으로 저장됩니다. 입력한 원문은 편집 칸에 그대로 남아 있습니다." tone="warning"><ul className="flex list-disc flex-col gap-1 pl-5 wrap-anywhere">{descriptionWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></AdminNotice></div>}
           <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" data-good-html-tools="" disabled={!htmlDescription} hidden={!htmlDescription}>
-            <ArtworkUploadField autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="이미지 확인이 끝나면 대체 설명을 적고 [업로드한 이미지를 설명에 넣기]를 누릅니다. HTML 본문에는 최대 20장을 넣을 수 있습니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
-            <Field defaultValue={initial.descriptionImageAlt} label="HTML 이미지 대체 설명" name="descriptionImageAlt" maxLength={300} />
+            <ArtworkUploadField autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="올린 뒤 이미지 설명을 적고 [업로드한 이미지를 설명에 넣기]를 누릅니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
+            <Field defaultValue={initial.descriptionImageAlt} label="이미지 설명 (선택)" name="descriptionImageAlt" maxLength={300} placeholder="예: 빨간 실이 감긴 아크릴 키링 앞면" />
             <button className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" onClick={() => insertDescription()} type="button">업로드한 이미지를 설명에 넣기</button>
-            <p className="text-sm text-muted-foreground">호스팅 이미지 주소(https://…)는 업로드 없이 HTML에 그대로 쓰면 됩니다. http 주소는 https로 바꿔 저장합니다. 호스팅하지 않은 이미지만 파일을 업로드한 후 넣어주세요. 아래 상품 미리보기에서 공개될 결과를 확인할 수 있습니다.</p>
+            <p className="text-sm text-muted-foreground">https 이미지 주소는 올리지 않고 HTML에 그대로 써도 되며, 그 주소의 이미지를 바꾸면 상세페이지도 바뀝니다. http 주소는 https로 바꿔 저장합니다. 올린 이미지는 최대 20장까지 넣을 수 있습니다.</p>
           </fieldset>
         </OwnedFields>
         {/* 2026-11-19 MD 요청: 긴 상세 이미지는 썸네일처럼 여러 장(최대 10장)을 올리고 순서를 바꾼다. 첫 칸 이름은 옛 한 장 칸(detailImagePath) 그대로다. */}
@@ -717,7 +754,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <GoodEditorSection title="배송·반품·결제" id="good-section-delivery" errorCount={errorCount('shipping', 'claims', 'sale')} summary={`${origin?.name ?? '출고지 확인 필요'} · ${shippingFee}`}>
         <GoodFoldedRow title="출고지·배송비" id="good-section-shipping" errorCount={errorCount('shipping')} isDefault={shippingDefault} defaultOpen={!initial.originId} summary={`${origin?.name ?? '출고지 확인 필요'} · ${shippingFee} · ${shippingNotice}`}>
           <OwnedFields locked={aggregationOwned} fields={SHARED_SHIPPING_FIELDS} values={initial}><GoodsFulfillmentFields regionSummaries={regionSummaries} origins={origins} value={{ originId: initial.originId || null, shippingFeeType: initial.shippingFeeType as 'policy' | 'free' | 'individual', individualFee: Number(initial.individualFee) }} errors={errors} /></OwnedFields>
-          <GoodsShippingNoticeField options={shippingNoticeOptions} value={initial.shippingNoticeTemplate} error={errors.shippingNoticeTemplate} />
+          <GoodsShippingNoticeField options={shippingNoticeOptions} value={initial.shippingNoticeTemplate} error={errors.shippingNoticeTemplate} currentName={selected?.shippingNoticeSnapshot?.name} />
         </GoodFoldedRow>
         <GoodsClaimPolicyFields values={initial} current={values} errors={errors as Record<string, string>} returnAddresses={returnAddresses} />
         <GoodsPaymentMethodFields values={initial} current={values} errors={errors} />
@@ -727,15 +764,18 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <GoodEditorSection title="추가 설정" id="good-section-information" defaultOpen={false} errorCount={errorCount('information')} summary={`표시문구 ${formatGoodBadgeText(parseGoodBadgeText(values.badge ?? '').badges) || '없음'} · ${ADMIN_STOCK_LABELS[values.stock as keyof typeof ADMIN_STOCK_LABELS] ?? '정상 판매'} · ${values.code || suggestedCode || '상품 자동코드 자동 생성'}`}>
         <AdminFormGrid>
           <GoodBadgesField defaultValue={initial.badge} error={errors.badge} />
-          <SelectField defaultValue={initial.stock} error={errors.stock} label="판매상태" name="stock">{Object.entries(ADMIN_STOCK_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</SelectField>
+          <div className="flex min-w-0 flex-col gap-2">
+            <SelectField defaultValue={initial.stock} error={errors.stock} label="판매상태" name="stock">{Object.entries(ADMIN_STOCK_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</SelectField>
+            <p className="text-sm text-muted-foreground" data-good-stock-effect="">{STOCK_EFFECT[values.stock as keyof typeof STOCK_EFFECT] ?? STOCK_EFFECT.ok}</p>
+          </div>
         </AdminFormGrid>
         <OwnedFields locked={groupOwned} fields={['additionalCategoryIds']} values={initial}><GoodAdditionalCategoryField categories={categories} primary={categoryId} value={initial.additionalCategoryIds} error={errors.additionalCategoryIds} /></OwnedFields>
         <GoodsCustomInputEditor value={values.customInputs} revision={initial.customInputsExpectedRevision ?? '0'} error={errors.customInputs} onChange={changeCustomInputs} />
         <section className="flex min-w-0 flex-col gap-5 border-t pt-5" aria-labelledby="good-search-settings-title">
           <h2 className="text-sm font-medium text-foreground" id="good-search-settings-title">검색설정·상품 자동코드</h2>
           <AdminFormGrid>
-            <Field readOnly={groupOwned} defaultValue={initial.nameEn} error={errors.nameEn} label="영문 상품명 (선택)" name="nameEn" maxLength={200} />
-            <Field defaultValue={initial.displayOrder} error={errors.displayOrder} label="진열 순서 (선택)" name="displayOrder" min={0} type="number" />
+            <Field readOnly={groupOwned} defaultValue={initial.nameEn} error={errors.nameEn} label="영문 상품명 (선택)" name="nameEn" maxLength={200} placeholder="예: Red String Keyring" hint="상품 상세의 상품명 아래에 보이고, 검색에도 쓰입니다." />
+            <GoodDisplayOrderField defaultValue={initial.displayOrder} error={errors.displayOrder} goodId={selected?.id ?? null} />
           </AdminFormGrid>
           <OwnedFields locked={groupOwned} fields={['searchKeywords']} values={initial}><TextArea
             defaultValue={initial.searchKeywords}
@@ -743,9 +783,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             label="검색 키워드 (선택)"
             maxLength={4200}
             name="searchKeywords"
-            placeholder="한 줄에 하나 또는 쉼표로 구분해 입력해주세요."
+            placeholder="한 줄에 하나, 또는 쉼표로 구분 (예: 키링, 아크릴)"
+            hint="고객·어드민 검색에만 쓰이고 상세 화면에는 보이지 않습니다."
           /></OwnedFields>
-          <p className="text-sm text-muted-foreground">고객 통합 검색과 어드민 상품 검색에만 쓰이며, 공개 상세에는 표시하지 않습니다.</p>
           {/* 새 상품은 내부 id 를 비워 보낸다 — 배포 전 임시저장·자동복구에 남은 옛 'URL' 값(대문자·이미 쓰는 값)이 숨은 칸에 갇혀
               고칠 수 없는 오류가 되지 않게, 서버가 상품명으로 새로 만든다(ADR-0050). 저장된 상품만 지금 id 를 그대로 보낸다. */}
           <GoodIdentifierFields code={initial.code} defaultVariantCode={initial.defaultVariantCode ?? variants.find((v) => v.isDefault)?.code} hideVariantCode onCodeSuggestion={setSuggestedCode} errors={errors as Record<string, string>} ipId={values.ipId} name={values.name} slug={selected ? initial.id : ''} />
@@ -757,15 +797,14 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <div className="fixed right-(--admin-content-inset) bottom-(--admin-content-inset) left-(--admin-content-left) z-20 grid min-w-0 grid-cols-1 items-center gap-x-4 gap-y-1.5 border-t bg-background px-4 py-2 after:pointer-events-none md:gap-y-2 md:py-3 after:absolute after:inset-x-0 after:top-full after:h-(--admin-content-inset) after:bg-sidebar md:px-6 xl:grid-cols-[minmax(10rem,1fr)_auto] print:hidden" role="group" aria-label="기본 상품 저장" data-good-workspace-save="">
         <div className="flex min-w-0 flex-col gap-0.5">
           <GoodWorkspaceDetails stateId="good-save-info" className="group/save-info relative min-w-0" data-good-save-info="" onKeyDown={(event) => { if (event.key === 'Escape' && event.currentTarget.open) { event.currentTarget.open = false; event.currentTarget.querySelector('summary')?.focus(); } }}><summary className="flex w-fit cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-md outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"><strong className="text-sm font-medium" role="status">{statusLabel}</strong><span className="text-xs text-muted-foreground underline underline-offset-4">저장 안내</span></summary>
-            <div className="absolute bottom-[calc(100%+1.25rem)] left-0 z-30 flex w-[min(32.5rem,calc(100vw-2rem))] flex-col gap-2 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-md [&>p]:text-muted-foreground"><p>{atomicSections ? '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 KC·예약판매, 아래 함께 저장할 설정(판매 방식·기간 할인·추가 구성·사은품·A/S·사이즈·색상칩·할인·배송비·묶음그룹·정기배송·수령 방식·제작·공급가)을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다. 재고 조정·옵션 사용·복사·보관만 저장 뒤 같은 자리에서 합니다.'
+            <div className="absolute bottom-[calc(100%+1.25rem)] left-0 z-30 flex w-[min(32.5rem,calc(100vw-2rem))] flex-col gap-2 rounded-xl border bg-popover p-4 text-sm text-popover-foreground shadow-md [&>p]:text-muted-foreground"><p>{atomicSections ? '이 화면에 입력한 내용은 KC·예약판매와 아래 ‘상품과 함께 저장할 설정’까지 한 번에 저장합니다. 하나라도 저장하지 못하면 아무것도 저장되지 않고 입력은 그대로 남습니다. 재고 조정, 옵션 사용 중지·다시 사용, 상품 복사, 상품 보관·복원만 저장한 뒤 같은 자리에서 합니다.'
               : '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건만 저장합니다. KC·재고 조정·혜택은 각 영역에서 별도 저장합니다.'}</p>
-            <p>{!selected ? '[임시저장]은 내 계정에 최대 40건을 보관하고 고객 화면에는 보이지 않습니다. 업로드를 마친 이미지와 입력값을 불러올 수 있으며, [실제 등록]을 누르면 저장과 함께 바로 공개합니다.'
-              : published ? '공개 중인 상품의 [임시저장]은 입력을 이 브라우저에만 보관하고 고객 화면은 바꾸지 않습니다. [실제 등록]을 누르면 바로 반영됩니다.'
-              : '[임시저장]은 상품을 고객 화면에 보이지 않는 상태로 저장합니다. [실제 등록]을 누르면 저장과 함께 바로 공개합니다.'} 브라우저 자동 복구도 함께 유지됩니다.</p>
-            {dirty && <p>브라우저 복구 기록은 이 브라우저에만 남는 기록이라 저장한 것이 아닙니다. KC·예약판매·함께 저장할 설정 입력은 복구되지 않습니다.</p>}
-            {selected?.publishedAt && <p>저장하면 공개 중인 상품 화면에 반영됩니다.</p>}
+            <p>{!selected ? '[임시저장]은 내 계정에 최대 40건까지 보관하고 고객 화면에는 보이지 않습니다. 올린 이미지와 입력한 내용을 나중에 불러올 수 있습니다.'
+              : published ? '공개 중인 상품의 [임시저장]은 입력을 이 브라우저에만 보관하고 고객 화면은 바꾸지 않습니다.'
+              : '[임시저장]은 상품을 고객 화면에 보이지 않는 상태로 저장합니다.'} [임시저장]을 누르지 않아도 입력은 이 브라우저에 자동으로 보관됩니다.</p>
+            {dirty && <p>브라우저 복구 기록은 이 브라우저에만 남습니다. 상품을 저장한 것은 아닙니다. KC·예약판매·함께 저장할 설정 입력은 복구되지 않습니다.</p>}
             {/* ADM-004(복잡도 표 25·27행): 등록 화면의 순서 안내는 한 문장으로 줄이고, 저장된 초안의 순서는 판매 준비 카드(다음 할 일·판매 준비 안내)가 말한다. */}
-            {atomicSections ? <p>[실제 등록]은 공개 조건과 KC를 모두 채우면 저장과 함께 공개하고(서버가 막으면 초안으로 저장해 두고 이유를 알림), KC를 검토 완료로 저장했더라도 그 뒤 상품명·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.</p> : null}
+            {atomicSections ? <p>[실제 등록]을 누르면 저장하면서 바로 공개합니다. 공개 조건이나 KC가 덜 채워졌으면 초안으로 저장해 두고 이유를 알려 줍니다. KC 검토를 마친 뒤에도 상품명·IP·상품정보제공고시(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토해야 합니다.</p> : null}
             </div>
           </GoodWorkspaceDetails>
           {nextStep ? <p className="text-xs text-muted-foreground" data-good-next-step="">{nextStep}</p> : null}
@@ -792,14 +831,19 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         {localSaveMessage ? <p className={`text-xs xl:col-span-2 ${localSaveMessage.ok ? 'text-success' : 'text-destructive'}`} role="status">{localSaveMessage.text}</p> : null}
         {justPublished && !dirty ? <AdminNotice className="xl:col-span-2" tone="success"><span role="status">공개했습니다. <a className="underline underline-offset-4" href={selected ? goodDetailHref(selected) : '/shop'} rel="noreferrer" target="_blank">고객 화면에서 보기</a></span></AdminNotice> : draftSaved ? null : kcBlockedVisible ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{state.message}</span>{selected && <> <a href="#good-operation-kc" className="underline underline-offset-4" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a></>}</AdminNotice>
           : publishBlockedVisible ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{state.message}</span>{selected && <> <a href="#good-operation-publish" className="underline underline-offset-4" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-publish'); }}>판매 준비로 이동</a></>}</AdminNotice>
-          : state.kcPublishBlocked || state.publishBlocked ? null : <div className="empty:hidden xl:col-span-2"><ActionNotice state={state} /></div>}
+          /* 제출 전에 멈춘 이유(남은 필수 칸·저장하지 않은 예약 입력)는 화면 맨 위 목록에만 있으면 보이지 않는다. 늘 보이는 저장 막대에도 적는다. */
+          : clientErrors.form ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{clientErrors.form}</span></AdminNotice>
+          /* 초안으로 전환한 직후에는 그 전 저장 시도의 오류("초안으로 전환한 뒤 수정해주세요")를 다시 보이지 않는다. */
+          : state.kcPublishBlocked || state.publishBlocked || (justUnpublished && !dirty && state.errors) ? null : <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 empty:hidden xl:col-span-2"><ActionNotice state={state} />
+            {/* 저장과 함께 공개한 직후(새 상품 포함)에도 고객 화면으로 가는 길을 준다. */}
+            {selected && published && state.message && !state.errors && !dirty ? <a className="text-sm underline underline-offset-4" href={goodDetailHref(selected)} rel="noreferrer" target="_blank">고객 화면에서 보기</a> : null}</div>}
       </div>
     </form>
     {draftOpen ? <GoodsDraftLibraryDialog onClose={() => setDraftOpen(false)} onLoad={async loaded => {
       if (dirty && !await adminConfirm('현재 입력을 선택한 임시저장 내용으로 바꾸시겠습니까? 저장하지 않은 입력은 이 화면에서 사라집니다.')) return false;
       onLoadServerDraft(loaded); return true;
     }}/> : null}
-    <GoodPreviewPanel detail={previewWithAttributes} ip={previewIp} shippingPolicy={shippingPolicy} />
+    <GoodPreviewPanel detail={previewWithAttributes} ip={previewIp} shippingPolicy={shippingPolicy} periodNote={periodNote} />
   </>;
 }
 

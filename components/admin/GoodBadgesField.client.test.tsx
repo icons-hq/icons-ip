@@ -73,6 +73,15 @@ describe('GoodBadgesField', () => {
     expect(render('').hidden.props.value).toBe('NEW, EXCLUSIVE');
   });
 
+  /* 2026-11-25: 고른 개수에 맞춰 보이는 모습을 한 줄로 말하고, 순서를 바꾸는 방법은 순서가 있는 두 개 이상일 때만 말한다. */
+  it('고른 개수에 맞춰 상품 카드와 상세에 보이는 모습을 말한다', () => {
+    /* 같은 시험 안에서 처음 상태로 다시 그린다(훅 상태를 비운다). */
+    const fresh = (value: string) => { hooks.states = []; hooks.refs = []; return render(value); };
+    expect(fresh('').hint).toBe('고르지 않으면 상품 카드와 상세에 표시문구가 없습니다. 여러 개를 고를 수 있고, 고른 순서대로 보입니다.');
+    expect(fresh('NEW').hint).toBe('상품 카드와 상세에 NEW만 보입니다.');
+    expect(fresh('EXCLUSIVE, NEW').hint).toBe('상품 카드와 상세에 EXCLUSIVE → NEW 순서로 보입니다. 순서를 바꾸려면 체크를 끄고 다시 고릅니다.');
+  });
+
   it('오류를 칸 아래에 알리고 설명과 함께 읽히게 한다', () => {
     const view = render('NEW', '상품 표시문구는 NEW, EXCLUSIVE 중에서만 고를 수 있습니다.');
     const fieldset = view.all.find(node => node.type === 'fieldset')!;

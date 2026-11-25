@@ -176,6 +176,8 @@ const catalog = [
   sql('goods_preorder_schedule_bulk'),
   // 접수 중 예약 조건 교체와 주문 접수의 잠금 순서(일회용 복제 DB 두 세션).
   script('goods_preorder_schedule_concurrency.sh', 'PREORDER_SCHEDULE_TEST_SCOPE'),
+  // 예약판매 한 번에 저장(옵션 선택 판매 상품, migration 20261126110000): 권한·한 트랜잭션·이미 적용 중인 옵션 건너뛰기·판매기간과의 배타·랜덤 판매 조건.
+  sql('goods_preorder_bulk_save'),
   sql('admin_review_sorting', { admin: true }),
   run(
     'review_helpful_regression.py',
@@ -213,6 +215,10 @@ const catalog = [
   // 즉시할인 기간(TKT-033·ADR-0040): 기간 즉시할인을 기간 할인 원장에 쓰고 기간 경계·고객 가격·체크아웃 견적·주문이 같고,
   // 할인 프로모션·일괄 즉시할인·목록 할인 중지(기간 없는 즉시할인 포함)와 서로 덮지 않는다.
   sql('goods_instant_discount_period', { kc: true }),
+  // 다른 상품 옵션 불러오기 선택창 조회(migration 20261126111000): 선택형 옵션이 있는 상품만 나오고 총 개수·페이지가 맞는지, 권한·실행 권한 봉인.
+  sql('admin_goods_option_source_search'),
+  // 추가구성상품 선택창 조회(migration 20261126112000): 지금 연결할 수 있는 상품만 나오고 총 개수·페이지가 맞는지, 편집 중인 상품 제외, 권한·실행 권한 봉인.
+  sql('admin_goods_additional_candidate_search', { kc: true }),
 ];
 
 const storefront = [

@@ -259,7 +259,7 @@ function appliedDiscountLabel(draft: GoodsPriceDraft, amount: number): string {
 /**
  * ERP 판매가 적용 버튼(자동 적용하지 않는다). 안내 금액은 적용 뒤의 입력으로 다시 계산한다.
  * 두 모드 모두 ERP 판매가를 할인 전 금액으로 보고 상품 할인은 그대로 둔다.
- * - 옵션 미사용: 판매가 칸에 ERP 판매가를 넣는다. % 할인·남은 기본 옵션 옵션가도 반영해 결과를 알린다.
+ * - 옵션 미사용: 판매가 칸에 ERP 판매가를 넣는다. % 할인·남은 옵션가도 반영해 결과를 알린다.
  * - 옵션 사용: 그 옵션의 옵션가 = ERP 판매가 − 판매가(할인 전). 옵션가는 할인가에 더하므로
  *   그 옵션의 할인 전 금액이 ERP 판매가가 되고 상품 할인 금액만큼 낮은 할인가로 판다. 할인 전·후 금액을 함께 알린다.
  *   판매가가 비었거나 0원이면 ERP 판매가 전액이 옵션가가 되므로 적용하지 않는다. 음수도 적용하지 않는다.
@@ -269,7 +269,7 @@ export function planErpSalePrice({ salePrice, mode, price, extraPrice = 0 }: {
   mode: 'single' | 'multiple';
   /** 현재 판매가·할인 입력 */
   price: GoodsPriceDraft;
-  /** 옵션 미사용: 기본 옵션에 남아 있는 옵션가(원) */
+  /** 옵션 없음: 한 가지뿐인 옵션에 남아 있는 옵션가(원) */
   extraPrice?: number;
 }): ErpSalePricePlan {
   if (!Number.isSafeInteger(salePrice) || salePrice < 0 || salePrice > INT32_MAX) {
@@ -291,7 +291,7 @@ export function planErpSalePrice({ salePrice, mode, price, extraPrice = 0 }: {
     }
     const extra = Number.isSafeInteger(extraPrice) && extraPrice > 0 ? extraPrice : 0;
     if (extra) {
-      message += ` 기본 옵션 옵션가 ${formatWon(extra)}이 더해져 고객 판매 금액은 ${formatWon(customerPrice + extra)}입니다. ERP 판매가에 맞추려면 기본 옵션 옵션가를 0원으로 바꿔주세요.`;
+      message += ` 남아 있는 옵션가 ${formatWon(extra)}이 더해져 고객 판매 금액은 ${formatWon(customerPrice + extra)}입니다. ERP 판매가에 맞추려면 옵션가를 0원으로 바꿔주세요.`;
       attention = true;
     }
     return { ok: true, target: 'regularPrice', value: salePrice, message, attention };

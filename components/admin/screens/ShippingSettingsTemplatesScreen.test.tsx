@@ -20,7 +20,7 @@ it('배송 설정 템플릿과 안내 문구의 진입점을 구분하고 비활
 it('기존 템플릿은 수량·착불 정책 유지가 기본이며 명시적 적용과 구별한다', () => {
   const { template } = shippingFixtures(); const legacy = { ...template, settings: { ...template.settings, delivery: undefined } };
   const html = renderToStaticMarkup(<ShippingSettingsTemplateForm template={legacy} identity={shippingIdentity} scope={createGoodsDescriptionToolScope(shippingIds.actor)} origins={[]} regions={[]} onClose={() => {}} onSaved={() => {}} />);
-  expect(html).toContain('상품에 저장된 확장 배송비 유지'); expect(html).toContain('사용 중인 수량별 배송비가 있으면 위 기본 배송비보다 우선합니다');
+  expect(html).toContain('상품에 저장된 수량별·착불 설정 유지'); expect(html).toContain('사용 중인 수량별 배송비가 있으면 위 기본 배송비보다 우선합니다');
   expect(html).not.toContain('첫 번째 한도 초과 추가금');
 });
 it('템플릿의 3구간·선불/착불 선택은 기존 공용 입력 필드를 사용한다', () => {
@@ -28,7 +28,7 @@ it('템플릿의 3구간·선불/착불 선택은 기존 공용 입력 필드를
   const html = renderToStaticMarkup(<ShippingSettingsTemplateForm template={{ ...template, settings: { ...template.settings, delivery: { mode: 'replace', policy } } }}
     identity={shippingIdentity} scope={createGoodsDescriptionToolScope(shippingIds.actor)} origins={[]} regions={[]} onClose={() => {}} onSaved={() => {}} />);
   for (const label of ['2구간 배송비', '3구간 배송비', '두 번째 수량 한도', '두 번째 한도 초과 추가금', '구매자 선택 · 선결제 또는 착불']) expect(html).toContain(label);
-  expect(html).toContain('value="4"'); expect(html).toContain('상품에 있던 확장 배송비(수량별·착불)를 끄고'); expect(html).not.toContain('복수구매 할인 상태');
+  expect(html).toContain('value="4"'); expect(html).toContain('상품에 있던 수량별·착불 설정을 끄고'); expect(html).not.toContain('복수구매 할인 상태');
   /* kit 버튼의 기본 type은 button이다 — 새 버전 저장만 폼 제출이고 불러오기·취소는 제출하지 않는다. */
   expect(html).toMatch(/<button[^>]*type="submit"[^>]*>새 버전 저장<\/button>/);
   expect(html).toMatch(/<button[^>]*type="button"[^>]*>최신 저장본 불러오기<\/button>/);
@@ -41,5 +41,5 @@ it('사용 중인 수량 운임을 무료라는 기본 설정과 혼동하지 �
 it('비활성 확장 정책은 기본 배송비·선결제로 계산함을 표시한다', () => {
   const { effective, policy } = shippingFixtures();
   const html = renderToStaticMarkup(<ShippingSettingsDeliverySummary effective={{ ...effective, delivery: { ...policy, status: 'disabled' } }} />);
-  expect(html).toContain('<strong>무료배송 · 선결제</strong>'); expect(html).toContain('확장 배송비 사용 안 함'); expect(html).not.toContain('수량별 배송비 적용');
+  expect(html).toContain('<strong>무료배송 · 선결제</strong>'); expect(html).toContain('수량별·착불 설정 사용 안 함'); expect(html).not.toContain('수량별 배송비 적용');
 });

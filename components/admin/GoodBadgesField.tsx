@@ -50,10 +50,10 @@ export function GoodBadgesField({ defaultValue, error }: { defaultValue: string;
         })}
       </div>
       <p className="text-sm leading-normal text-muted-foreground" id={hintId}>
-        {selected.length
+        {selected.length > 1
           ? `상품 카드와 상세에 ${selected.join(' → ')} 순서로 보입니다.`
-          : '고르지 않으면 상품 카드와 상세에 표시문구가 없습니다.'}
-        {' '}여러 개를 고를 수 있고 고른 순서대로 보입니다. 순서를 바꾸려면 체크를 끄고 다시 고릅니다.
+          : selected.length === 1 ? `상품 카드와 상세에 ${selected[0]}만 보입니다.` : '고르지 않으면 상품 카드와 상세에 표시문구가 없습니다.'}
+        {selected.length > 1 ? ' 순서를 바꾸려면 체크를 끄고 다시 고릅니다.' : selected.length === 0 ? ' 여러 개를 고를 수 있고, 고른 순서대로 보입니다.' : ''}
       </p>
       {error ? <p className="text-sm text-destructive" id={errorId} role="alert">{error}</p> : null}
     </fieldset>

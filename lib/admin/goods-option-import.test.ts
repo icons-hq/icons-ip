@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { exactGoodsOptionIdentity, goodsOptionImportTargetVersion, parseGoodsOptionImportFilters, parseGoodsOptionImportSource, planGoodsOptionImport,
+import { diagnoseGoodsOptionImportSource, exactGoodsOptionIdentity, goodsOptionImportTargetVersion, parseGoodsOptionImportFilters, parseGoodsOptionImportSource, planGoodsOptionImport,
   type GoodsOptionImportSource, type GoodsOptionImportTarget } from './goods-option-import';
 import type { GoodsOptionRow } from './goods-option-editor';
 
@@ -30,8 +30,11 @@ describe('다른 상품 선택형 옵션을 현재 초안에 적용', () => {
     expect(result.plan.rows.map(row => row.extraPrice)).toEqual([2000, 5000]);
     expect(result.plan.rows[0]).toMatchObject({ id, code: 'OWN-01', stockQty: 8, expectedStockQty: 8, isActive: false });
     expect(result.plan.priceChanged).toBe(1);
-    expect(plan([blank], { ...source, rows: [{ ...source.rows[0], price: 9000 }] }, true)).toMatchObject({ ok: false });
-    expect(plan([blank], source, true, 2147483647)).toMatchObject({ ok: false });
+    /* 옵션가를 불러올 수 없는 두 원인을 가려 말한다: 고른 상품의 옵션이 그 상품 판매가보다 쌈 / 불러온 뒤 금액이 저장할 수 있는 범위를 넘음. */
+    expect(plan([blank], { ...source, rows: [{ ...source.rows[0], price: 9000 }] }, true)).toEqual({ ok: false,
+      error: '고른 상품의 옵션(원본 빨강)이 그 상품 판매가보다 싸서 옵션가를 불러올 수 없습니다. [옵션가도 불러오기]를 끄고 다시 비교해 주세요.' });
+    expect(plan([blank], source, true, 2147483647)).toEqual({ ok: false,
+      error: '옵션(원본 빨강)의 불러온 뒤 판매 금액이 저장할 수 있는 금액을 넘습니다. 지금 상품의 판매가와 고른 상품의 옵션 판매가를 확인해 주세요.' });
     expect(plan([blank], { ...source, rows: [{ ...source.rows[0], price: 9000 }] })).toMatchObject({ ok: true });
   });
   it('축의 객체 순서만 바뀌면 같은 조합이며 축 이름·공백·한글 조합형은 함부로 합치지 않는다', () => {
@@ -56,8 +59,8 @@ describe('다른 상품 선택형 옵션을 현재 초안에 적용', () => {
   });
   it('보존할 중지 옵션까지 100개 한도를 계산하고 잘못된 현재 입력은 덮어쓰지 않는다', () => {
     const current = Array.from({ length: 99 }, (_, i) => ({ ...blank, name: `기존 ${i}`, attributes: { 번호: String(i) } }));
-    expect(plan(current)).toMatchObject({ ok: false, error: expect.stringContaining('101개') });
-    expect(plan([{ ...blank, stockQty: -1 }])).toMatchObject({ ok: false });
+    expect(plan(current)).toEqual({ ok: false, error: '지금 상품의 옵션에 불러올 옵션을 더하면 101개가 됩니다. 옵션은 사용 중지한 것까지 합쳐 100개까지 둘 수 있습니다. 쓰지 않는 옵션을 옵션목록에서 뺀 뒤 다시 비교해 주세요.' });
+    expect(plan([{ ...blank, stockQty: -1 }])).toMatchObject({ ok: false, error: expect.stringContaining('저장할 수 없는 값이 있습니다') });
     expect(plan([{ ...blank, attributes: { 색상: '빨강' } }, { ...blank, attributes: { 색상: '빨강' } }])).toMatchObject({ ok: false });
   });
   it('원본에 삽입된 ID·재고·ERP는 반영하지 않고 세 축과 실제 존재하는 조합만 가져온다', () => {
@@ -87,5 +90,47 @@ describe('다른 상품 선택형 옵션을 현재 초안에 적용', () => {
     expect(parseGoodsOptionImportFilters({ query: ' 원본 ', field: 'code', categoryId: '', page: 2 })).toEqual({ query: '원본', field: 'code', categoryId: '', page: 2 });
     expect(parseGoodsOptionImportFilters({ query: '', field: 'erp', categoryId: '', page: 1 })).toBeNull();
     expect(parseGoodsOptionImportFilters({ query: '', field: 'name', categoryId: '', page: 0 })).toBeNull();
+  });
+  /* 화면 규칙 2: 옵션 불러오기 선택창만 "선택형 옵션이 있는 상품만"·"지금 편집 중인 상품 제외" 조건을 더한다. 기존 호출의 결과 모양은 그대로다. */
+  it('옵션 원본 조건은 선택 인자다: 주지 않으면 기존 호출과 같은 값이고, 주면 정해진 모양만 받는다', () => {
+    const base = { query: '', field: 'name', categoryId: '', page: 1 };
+    const plain = parseGoodsOptionImportFilters(base)!;
+    expect(Object.keys(plain).sort()).toEqual(['categoryId', 'field', 'page', 'query']);
+    for (const absent of [{ optionSourcesOnly: undefined }, { optionSourcesOnly: null }, { optionSourcesOnly: false }, { excludeGoodId: null }]) {
+      expect(parseGoodsOptionImportFilters({ ...base, ...absent })).toEqual(plain);
+    }
+    expect(parseGoodsOptionImportFilters({ ...base, optionSourcesOnly: true })).toEqual({ ...plain, optionSourcesOnly: true });
+    expect(parseGoodsOptionImportFilters({ ...base, optionSourcesOnly: true, excludeGoodId: 'good-1' })).toEqual({ ...plain, optionSourcesOnly: true, excludeGoodId: 'good-1' });
+    /* 제외 상품은 옵션 원본 조회에서만 뜻이 있다. 조건 없이 오면 기존 검색을 바꾸지 않게 버린다. */
+    expect(parseGoodsOptionImportFilters({ ...base, excludeGoodId: 'good-1' })).toEqual(plain);
+    for (const invalid of [{ optionSourcesOnly: 'true' }, { optionSourcesOnly: 1 }, { optionSourcesOnly: true, excludeGoodId: 'Bad/Id' }, { excludeGoodId: 7 }]) {
+      expect(parseGoodsOptionImportFilters({ ...base, ...invalid })).toBeNull();
+    }
+  });
+  /* 지금까지는 불러올 수 없는 모든 경우가 한 문구였다. 원인마다 무엇이 문제이고 어떻게 고치는지를 말한다. */
+  it('불러올 수 없는 상품은 원인을 가려 알린다', () => {
+    const row = (attributes: Record<string, string>, name = '옵션') => ({ name, attributes, price: 10000 });
+    const problem = (rows: unknown[], overrides: Record<string, unknown> = {}) => {
+      const result = diagnoseGoodsOptionImportSource({ ...source, ...overrides, rows });
+      if (result.ok) throw new Error('expected a problem');
+      /* 목록 조회·서버·화면이 같은 판정을 쓴다. */
+      expect(parseGoodsOptionImportSource({ ...source, ...overrides, rows })).toBeNull();
+      expect(plan([blank], { ...source, ...overrides, rows } as GoodsOptionImportSource)).toEqual({ ok: false, error: result.error });
+      return [result.problem, result.error];
+    };
+    expect(problem([])).toEqual(['no_active', "이 상품은 옵션이 모두 사용 중지돼 있어 불러올 옵션이 없습니다. 그 상품의 '옵션 사용 중지·다시 사용'에서 [다시 사용]을 누른 뒤 불러와 주세요."]);
+    expect(problem([row({}, '기본 옵션')])).toEqual(['no_options', '이 상품은 옵션 없이 파는 상품이라 불러올 옵션이 없습니다. 다른 상품을 골라 주세요.']);
+    expect(problem([row({ 색상: '빨강' }), row({}, '기본 옵션')])).toEqual(['mixed', '이 상품에는 옵션값이 없는 옵션이 섞여 있어 불러올 수 없습니다. 그 상품의 옵션목록에서 옵션값이 없는 옵션을 사용 중지하거나 삭제한 뒤 불러와 주세요.']);
+    expect(problem([row({ 색상: '빨강' }), row({ 색상: '빨강', 사이즈: 'M' })])[0]).toBe('axis_mismatch');
+    expect(problem([row({ 색상: '빨강' }), row({ 사이즈: 'M' })])[1]).toContain('옵션마다 옵션명이 달라 불러올 수 없습니다');
+    expect(problem([row({ 색상: '빨강' }), row({ 색상: '빨강' }, '또 빨강')])).toEqual(['duplicate', '이 상품에는 옵션값이 똑같은 옵션이 두 개 있어 불러올 수 없습니다. 그 상품에서 겹치는 옵션 하나를 사용 중지한 뒤 불러와 주세요.']);
+    expect(problem(Array.from({ length: 101 }, (_, index) => row({ 번호: String(index) })))).toEqual(['too_many', '이 상품은 사용 중인 옵션이 101개라 불러올 수 없습니다. 옵션은 100개까지 불러올 수 있습니다.']);
+    expect(problem([row({ 가: '1', 나: '2', 다: '3', 라: '4' })])[0]).toBe('axis_limit');
+    /* 상품명·판매가·옵션 이름·옵션값을 읽을 수 없는 경우는 한 묶음이다. */
+    for (const unreadable of [problem([row({ 색상: '빨강' })], { name: '' }), problem([row({ 색상: '빨강' })], { basePrice: -1 }),
+      problem([{ ...row({ 색상: '빨강' }), price: 1.5 }]), problem([row({ 색상: '빨강' }, '')]), problem([row({ 색상: '가'.repeat(81) })])]) {
+      expect(unreadable).toEqual(['unreadable', '이 상품의 상품명·판매가나 옵션 이름·옵션값·옵션 판매가를 읽지 못해 불러올 수 없습니다. 그 상품을 열어 값을 확인한 뒤 다시 불러와 주세요.']);
+    }
+    expect(diagnoseGoodsOptionImportSource(source)).toEqual({ ok: true, source });
   });
 });

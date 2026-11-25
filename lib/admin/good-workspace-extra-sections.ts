@@ -62,7 +62,7 @@ export type GoodWorkspaceExtraKey = keyof GoodWorkspaceExtraDraft;
 export const EMPTY_GOOD_WORKSPACE_BENEFITS: GoodsBenefitValues = { eventText: '', giftText: '', giftImagePaths: [] };
 export const EMPTY_GOOD_WORKSPACE_AFTER_SALES: GoodsAfterSalesValues = { phone: '', guide: '', sellerSpecialNotes: '' };
 export const EMPTY_GOOD_WORKSPACE_SUBSCRIPTION: GoodsSubscriptionDraft = { enabled: false, intervals: [], message: '' };
-/** 새 상품의 할인·확장 배송비 기본 입력(저장된 설정이 없는 상품과 같다). */
+/** 새 상품의 복수구매 할인·이 상품만의 배송비 규칙 기본 입력(저장된 설정이 없는 상품과 같다). */
 export function emptyGoodWorkspaceTerms(): GoodsTermsDraft {
   return goodsTermsDraft({ volume: null, delivery: null } as unknown as GoodsTransactionAdminTerms);
 }
@@ -234,7 +234,7 @@ export function prepareGoodWorkspaceExtraSections(extras: Partial<GoodWorkspaceE
   }
   if (extras.listingColors?.length) {
     const parsed = parseGoodsColorChips(extras.listingColors.map((chip) => ({ label: chip.label.trim(), hex: chip.hex.toLowerCase() })));
-    if (!parsed) return fail('listingColors', '서로 다른 색상 이름(1~30자)과 6자리 색상값을 최대 20개까지 입력해주세요.');
+    if (!parsed) return fail('listingColors', '색 이름은 서로 다르게 1~30자로 적어주세요. 색은 20개까지 넣을 수 있습니다.');
     value.listingColors = parsed;
   }
   if (extras.transactionTerms) {
@@ -432,9 +432,9 @@ export function goodWorkspaceExtraSectionFailure(message: string, code?: string)
     benefits: () => goodsBenefitsError(inner),
     afterSales: () => goodsAfterSalesError(inner),
     sizeChart: () => goodsSizeChartError(inner),
-    listingColors: () => '서로 다른 색상 이름(1~30자)과 6자리 색상값을 최대 20개까지 입력해주세요.',
+    listingColors: () => '색 이름은 서로 다르게 1~30자로 적어주세요. 색은 20개까지 넣을 수 있습니다.',
     transactionTerms: () => permission ? '현재 계정과 상품관리 권한을 확인해주세요.' : inner.includes('runtime')
-      ? '현재 상품 거래 경로에서 복수구매 할인·확장 배송비를 적용할 수 없습니다. 운영 설정을 확인해주세요.'
+      ? '지금은 복수구매 할인과 이 상품만의 배송비 규칙을 쓸 수 없습니다. 운영 설정을 확인해주세요.'
       : inner.includes('collect') ? '착불은 출고지의 수납 주체·방법·증빙·분쟁 연락처가 준비되어야 사용할 수 있습니다.'
       : '복수구매 할인·착불·수량별 배송비 입력을 확인해주세요.',
     shippingChargeGroup: () => shippingChargeGroupError(inner),

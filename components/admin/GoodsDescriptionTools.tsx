@@ -157,13 +157,13 @@ function DescriptionToolDialog({ kind, initialText, onClose, onApply }: { kind: 
         event.preventDefault(); event.stopPropagation(); submit();
       }
     }}>
-      <p className="text-sm text-muted-foreground wrap-anywhere">입력한 내용을 선택한 부분에 넣습니다. 선택한 글이 있으면 바뀝니다. 상품 저장 후 공개 화면에 반영됩니다.</p>
+      <p className="text-sm text-muted-foreground wrap-anywhere">입력한 내용을 선택한 위치에 넣고, 선택한 글이 있으면 그 글을 바꿉니다. 상품을 저장해야 공개 화면에 반영됩니다.</p>
       {kind !== 'link' ? <><label className={LABEL_CLASS}>{kind === 'quote' ? '인용할 내용' : '서식을 적용할 내용'}<textarea className={`${GOOD_TEXTAREA_CLASS} resize-y`} data-slot="textarea" rows={5} value={text} maxLength={GOODS_HTML_MAX_LENGTH}
         onChange={event => { setText(event.target.value); setError(''); }} /></label>
         {kind === 'quote' ? <label className={LABEL_CLASS}>인용 모양<select className={SELECT_CLASS} value={quoteStyle} onChange={event => setQuoteStyle(event.target.value as ContentQuoteStyle)}>
           {CONTENT_QUOTE_STYLES.map(style => <option key={style} value={style}>{QUOTE_LABELS[style]}</option>)}
         </select></label> : <>
-          <p className="text-sm text-muted-foreground wrap-anywhere">선택한 HTML에서 글자만 가져옵니다. 이 창의 내용은 한 문단으로 넣으며 기존 선택 영역의 이미지·태그는 바뀝니다.</p>
+          <p className="text-sm text-muted-foreground wrap-anywhere">선택한 HTML에서 글자만 가져와 한 문단으로 바꿉니다. 선택한 곳의 이미지·태그는 사라집니다.</p>
           <div className="grid min-w-0 gap-3 sm:grid-cols-2"><label className={LABEL_CLASS}>정렬<select className={SELECT_CLASS} value={alignment} onChange={event => setAlignment(event.target.value as ContentAlignment)}>
             {CONTENT_ALIGNMENTS.map(align => <option key={align} value={align}>{{ left: '왼쪽', center: '가운데', right: '오른쪽' }[align]}</option>)}
           </select></label><label className={LABEL_CLASS}>글자 크기<select className={SELECT_CLASS} value={size} onChange={event => setSize(event.target.value as ContentFontSize)}>
@@ -178,7 +178,7 @@ function DescriptionToolDialog({ kind, initialText, onClose, onApply }: { kind: 
         : <><label className={LABEL_CLASS}>링크 문구<input className={GOOD_INPUT_CLASS} data-slot="input" value={text} maxLength={GOODS_HTML_MAX_LENGTH} onChange={event => { setText(event.target.value); setError(''); }} /></label>
           <label className={LABEL_CLASS}>링크 주소<input className={GOOD_INPUT_CLASS} data-slot="input" value={href} maxLength={GOODS_HTML_MAX_LENGTH} placeholder="https://example.com 또는 /shop"
             onChange={event => { setHref(event.target.value); setError(''); }} /></label>
-          <p className="text-xs text-muted-foreground">https·http·mailto·tel 주소 또는 /로 시작하는 내부 경로를 사용할 수 있습니다.</p></>}
+          <p className="text-xs text-muted-foreground">https·http·mailto·tel 주소나 /로 시작하는 사이트 안 경로를 쓸 수 있습니다.</p></>}
       {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
       {/* wc-goods-description은 상세설명 내용의 표식이다(공개 화면의 같은 이름). 관리자 미리보기 상자 모양만 유틸리티로 둔다. */}
       {preview?.ok ? <div role="group" aria-label="서식 미리보기" className="max-h-60 min-w-0 overflow-auto rounded-lg border p-4 wrap-anywhere wc-goods-description" dangerouslySetInnerHTML={{ __html: sanitizeGoodsDescription(preview.value).html }} /> : null}

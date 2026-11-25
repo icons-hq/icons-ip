@@ -34,7 +34,19 @@ export type GoodsOptionAxis = { name: string; values: string };
 export const GOODS_OPTION_AXIS_LIMIT = 3;
 export const GOODS_OPTION_ROW_LIMIT = 100;
 type Result = { ok: true; rows: GoodsOptionRow[] } | { ok: false; error: string };
-const INVALID = '저장할 수 없는 옵션 값이 있습니다. 옵션명·옵션 자동코드·ERP 코드·바코드·ERP 품명·옵션가·재고수량·안전재고·사용여부·옵션별 구매 제한을 확인해주세요. 옵션 자동코드와 옵션값 조합은 옵션끼리 겹칠 수 없습니다. 옵션가·재고수량·안전재고는 0 이상, 옵션별 구매 제한은 1 이상의 정수로 넣습니다. 옵션은 1~100개까지 저장할 수 있습니다.';
+/*
+ * 화면에 적는 이름(docs/admin-screen-rules.md 규칙 4 — 같은 것은 이름 하나).
+ * - 옵션명: 고르는 기준(색상, 사이즈). 옵션값: 그 안의 선택지(빨강, 파랑). 옵션: 옵션값을 짝지은 한 줄(빨강 / S). 그 줄의 이름은 '옵션 이름'.
+ * - 옵션의 archived_at 상태는 '사용 중지', 되돌리기는 '다시 사용'. '보관'은 상품·IP의 상태에만 쓴다.
+ * - 옵션 없이 파는 상품은 '옵션 없음'. 저장된 줄 이름 '기본 옵션'은 주문·엑셀에 남는 값이라 그대로 둔다.
+ */
+/** 저장된 옵션을 사용 중지·다시 사용하는 패널(GoodVariantsPanel)의 이름. 편집 표 '옵션목록'과 구분한다. */
+export const GOODS_OPTION_STOP_PANEL_TITLE = '옵션 사용 중지·다시 사용';
+/** 옵션 없이 파는 상품을 부르는 이름. */
+export const GOODS_OPTION_NONE_LABEL = '옵션 없음';
+/** 저장된 옵션을 목록에서 뺐을 때 상품 저장이 하는 일(private.save_goods_options): 주문·장바구니·재출고에 쓰였으면 사용 중지, 아니면 삭제. */
+export const GOODS_OPTION_REMOVAL_NOTE = '주문이나 장바구니에 쓰인 옵션은 지워지지 않고 사용 중지로 남습니다. 쓰인 적 없는 옵션은 재고와 함께 지워집니다. 상품을 저장해야 반영됩니다.';
+const INVALID = '저장할 수 없는 옵션 값이 있습니다. 옵션 이름·옵션 자동코드·ERP 코드·바코드·ERP 품명·옵션가·재고수량·안전재고·사용여부·옵션별 구매 제한을 확인해주세요. 옵션 자동코드와 옵션값 조합은 옵션끼리 겹칠 수 없습니다. 옵션가·재고수량·안전재고는 0 이상, 옵션별 구매 제한은 1 이상의 정수로 넣습니다. 옵션은 1~100개까지 저장할 수 있습니다.';
 /** 0901-015: 재고수량 칸을 비운 채로는 저장하지 않는다. 재고가 없으면 0을 직접 입력한다. 화면 검증과 서버 정규화가 같은 문구를 쓴다. */
 export const GOODS_OPTION_STOCK_REQUIRED = '재고수량을 입력해주세요. 재고가 없으면 0을 입력합니다.';
 const signature = (attributes: Record<string, string>) => JSON.stringify(Object.entries(attributes).sort(([a], [b]) => a.localeCompare(b)));
@@ -80,6 +92,123 @@ export function generateGoodsOptionRows(axes: GoodsOptionAxis[], previous: Goods
   /* 새 조합의 재고 칸은 비워 둔다(0901-015). 이미 있던 조합은 입력값을 그대로 둔다. */
   return { ok: true, rows: combinations.map((attributes) => previous.find((row) => signature(row.attributes) === signature(attributes))
     ?? { name: Object.values(attributes).join(' / '), code: '', attributes, extraPrice: 0, stockQty: Number.NaN }) };
+}
+
+/** 빠지는 옵션의 이름을 확인창에 보인다(규칙 7 — 사라지는 것의 개수와 이름). 셋까지 적고 나머지는 개수로 줄인다. */
+function optionNameList(rows: readonly Pick<GoodsOptionRow, 'name'>[]): string {
+  const names = rows.map((row) => row.name.trim()).filter(Boolean);
+  const shown = names.slice(0, 3).join(', ');
+  return names.length > 3 ? `${shown} 외 ${names.length - 3}개` : shown;
+}
+
+/**
+ * 옵션명·옵션값을 적는 동안 보여 줄 결과('글보다 화면' 3 — 설명 대신 결과를 보인다).
+ * - empty: 아직 아무것도 적지 않았다. invalid: 무엇을 더 적어야 하는지(reason).
+ * - over: 100개를 넘는다. same: 지금 옵션목록과 같다(만들 것이 없다). ready: 만들 수 있다.
+ */
+export type GoodsOptionGenerationPreview =
+  | { state: 'empty' }
+  | { state: 'invalid'; reason: string }
+  | { state: 'over'; count: number; formula: string }
+  | { state: 'same'; count: number; formula: string }
+  | {
+    state: 'ready'; count: number; formula: string; rows: GoodsOptionRow[];
+    /** 지금 목록에서 그대로 남는 옵션 수·새로 생기는 옵션 수 */
+    kept: number; added: number;
+    /** 목록에서 빠지는 지금 옵션. 옵션 없음에서 처음 만들 때는 옵션 없이 팔던 한 줄이다. */
+    removed: GoodsOptionRow[];
+    /** 옵션 없음 상태에서 처음 만든다(빠지는 줄은 옵션 없이 팔던 재고 한 줄). */
+    fromSingle: boolean;
+  };
+
+export function previewGoodsOptionGeneration(axes: readonly GoodsOptionAxis[], previous: GoodsOptionRow[]): GoodsOptionGenerationPreview {
+  /* 첫 옵션명은 늘 쓰고, 둘째·셋째는 적은 것만 쓴다([옵션 만들기]와 같은 기준). */
+  const entered = axes.map((axis, index) => ({ position: index + 1, name: axis.name.trim(),
+    values: [...new Set(axis.values.split(/[,\n]/).map((value) => value.trim()).filter(Boolean))] }))
+    .filter((axis, index) => index === 0 || axis.name || axis.values.length);
+  if (entered.every((axis) => !axis.name && !axis.values.length)) return { state: 'empty' };
+  if (entered.length > GOODS_OPTION_AXIS_LIMIT) return { state: 'invalid', reason: `옵션명은 ${GOODS_OPTION_AXIS_LIMIT}개까지 쓸 수 있습니다.` };
+  for (const axis of entered) {
+    /* 1(일)·3(삼)은 받침이 있고 2(이)는 없다. */
+    const [object, topic] = axis.position === 2 ? ['를', '는'] : ['을', '은'];
+    if (!axis.name) return { state: 'invalid', reason: `옵션명 ${axis.position}${object} 적어 주세요.` };
+    if (!axis.values.length) return { state: 'invalid', reason: `옵션값 ${axis.position}${object} 적어 주세요.` };
+    if (axis.name.length > 40) return { state: 'invalid', reason: `옵션명 ${axis.position}${topic} 40자까지 적을 수 있습니다.` };
+    if (axis.values.some((value) => value.length > 80)) return { state: 'invalid', reason: `옵션값 ${axis.position}${topic} 하나에 80자까지 적을 수 있습니다.` };
+  }
+  if (new Set(entered.map((axis) => axis.name)).size !== entered.length) return { state: 'invalid', reason: '옵션명이 겹칩니다. 서로 다른 이름으로 적어 주세요.' };
+  const count = entered.reduce((total, axis) => total * axis.values.length, 1);
+  const formula = entered.map((axis) => `${axis.name} ${axis.values.length}`).join(' × ');
+  if (count > GOODS_OPTION_ROW_LIMIT) return { state: 'over', count, formula };
+  const generated = generateGoodsOptionRows(entered.map((axis) => ({ name: axis.name, values: axis.values.join(',') })), previous);
+  if (!generated.ok) return { state: 'invalid', reason: generated.error };
+  const next = new Set(generated.rows);
+  const removed = previous.filter((row) => !next.has(row));
+  const kept = previous.length - removed.length;
+  const added = generated.rows.length - kept;
+  if (!added && !removed.length) return { state: 'same', count, formula };
+  return { state: 'ready', count, formula, rows: generated.rows, kept, added, removed, fromSingle: isSingleGoodsOption(previous) };
+}
+
+/** 옵션값을 적는 동안 버튼 옆에 보이는 한 줄. 아직 적지 않았으면 null. */
+export function goodsOptionGenerationSummary(preview: GoodsOptionGenerationPreview): string | null {
+  switch (preview.state) {
+    case 'empty': return null;
+    case 'invalid': return preview.reason;
+    case 'over': return `옵션은 ${GOODS_OPTION_ROW_LIMIT}개까지 만들 수 있습니다. 지금 ${preview.count.toLocaleString('ko-KR')}개입니다(${preview.formula}).`;
+    case 'same': return `지금 옵션목록과 같습니다(${preview.formula}).`;
+    default: {
+      if (preview.fromSingle) return `옵션 ${preview.count}개가 만들어집니다(${preview.formula}).`;
+      const parts = [`그대로 ${preview.kept}개`, preview.added ? `새로 ${preview.added}개` : '', preview.removed.length ? `빠짐 ${preview.removed.length}개` : ''].filter(Boolean);
+      return `옵션이 ${preview.count}개가 됩니다(${preview.formula}) · ${parts.join(' · ')}`;
+    }
+  }
+}
+
+/** 버튼 이름은 누르면 일어나는 일이다('글보다 화면' 4). 만들 수 없으면 누를 수 없고, 달라지는 것이 없으면 '바뀐 내용 없음'이다. */
+export function goodsOptionGenerationLabel(preview: GoodsOptionGenerationPreview): string {
+  if (preview.state === 'same') return '바뀐 내용 없음';
+  if (preview.state !== 'ready') return '옵션 만들기';
+  return preview.fromSingle ? `옵션 ${preview.count}개 만들기` : `옵션 ${preview.count}개로 바꾸기`;
+}
+
+/**
+ * 옵션을 만들기 전 확인 문구(규칙 7). 지금 목록에서 빠지는 것이 없으면 null — 묻지 않는다.
+ * - 옵션 없음에서 처음 만들 때: 옵션 없이 넣어 둔 재고수량(1 이상)·ERP 코드·바코드·ERP 품명·안전재고는 새 옵션으로 넘어가지 않는다.
+ * - 옵션이 있을 때: 옵션값 조합이 정확히 같은 줄만 남고 나머지는 빠진다(옵션명을 한 글자만 고쳐도 모두 새 옵션이다).
+ */
+export function goodsOptionGenerationNotice(preview: GoodsOptionGenerationPreview): string | null {
+  if (preview.state !== 'ready' || !preview.removed.length) return null;
+  if (preview.fromSingle) {
+    const [base] = preview.removed;
+    const stock = Number.isFinite(base.stockQty) ? Math.trunc(base.stockQty) : 0;
+    const carried = [base.erpCode?.trim() ? 'ERP 코드' : '', base.barcode?.trim() ? '바코드' : '', base.erpName?.trim() ? 'ERP 품명' : '', base.lowStockThreshold != null ? '안전재고' : ''].filter(Boolean);
+    if (stock <= 0 && !carried.length) return null;
+    return [
+      stock > 0 ? `입력한 재고수량 ${stock.toLocaleString('ko-KR')}개는 옵션별 재고로 나눠지지 않습니다. 옵션마다 재고를 다시 넣어야 합니다.` : '',
+      carried.length ? `적어 둔 ${carried.join('·')}도 새 옵션으로 넘어가지 않습니다. 옵션마다 다시 넣어야 합니다.` : '',
+    ].filter(Boolean).join(' ');
+  }
+  const total = preview.kept + preview.removed.length;
+  return `지금 옵션 ${total}개 중 ${preview.removed.length}개가 목록에서 ${preview.added ? `빠지고 새 옵션 ${preview.added}개가 생깁니다` : '빠집니다'}. 빠지는 옵션의 재고 입력도 사라집니다.`
+    + ` 빠지는 옵션: ${optionNameList(preview.removed)}.`
+    + (preview.removed.some((row) => row.id) ? ` ${GOODS_OPTION_REMOVAL_NOTE}` : '');
+}
+
+/** 옵션 없음에서 옵션을 만든 뒤 재고 칸 옆에 남기는 참고 수량. 옵션 없이 넣어 둔 재고가 1개 이상일 때만 남긴다. */
+export function goodsOptionPreviousSingleStock(preview: GoodsOptionGenerationPreview): number | null {
+  if (preview.state !== 'ready' || !preview.fromSingle) return null;
+  const stock = preview.removed[0]?.stockQty;
+  return Number.isFinite(stock) && stock > 0 ? Math.trunc(stock) : null;
+}
+
+/**
+ * 옵션목록의 [삭제]·[선택삭제] 전 확인 문구(규칙 7). 저장된 옵션(id 있는 줄)을 뺄 때만 묻고,
+ * 아직 저장한 적 없는 새 줄만 빼면 null — 묻지 않는다.
+ */
+export function goodsOptionRemovalNotice(removed: readonly GoodsOptionRow[]): string | null {
+  if (!removed.some((row) => row.id)) return null;
+  return `${removed.length === 1 ? `옵션(${optionNameList(removed)})을` : `옵션 ${removed.length}개(${optionNameList(removed)})를`} 목록에서 뺍니다. ${GOODS_OPTION_REMOVAL_NOTE}`;
 }
 export function initialGoodsOptionRows(variants: (AdminGoodsVariant & GoodsVariantPurchaseLimits)[], basePrice: number): GoodsOptionRow[] {
   const rows = variants.filter((variant) => !variant.archivedAt || variant.isDefault)
@@ -192,7 +321,7 @@ export function inheritRandomOptionLimits(previous: readonly GoodsOptionRow[], n
   return changed ? rows : next;
 }
 
-/** 저장된 상품코드와 이 상품의 저장된 옵션 전체(보관된 옵션 포함). 새 상품이면 `{ goodCode: null, options: [] }`. */
+/** 저장된 상품코드와 이 상품의 저장된 옵션 전체(사용 중지한 옵션 포함). 새 상품이면 `{ goodCode: null, options: [] }`. */
 export type GoodsOptionSavedCodes = {
   goodCode: string | null;
   options: readonly Pick<AdminGoodsVariant, 'id' | 'code'>[];
@@ -204,7 +333,7 @@ const optionCode = (value: string | null | undefined) => (value ?? '').trim().to
  * 옵션 자동코드 칸이 보여 줄 저장 시 코드(예상). 행마다 코드 또는 예상할 수 없으면 null.
  * 서버(private.save_goods_options → private.set_goods_variant_code)는 옵션을 위에서부터 저장하며, 빈 옵션 자동코드에
  * `상품코드-01`부터 아직 쓰이지 않은 첫 번호를 붙인다(옵션 자동코드는 앞뒤 공백을 지우고 대문자로 저장한다).
- * 목록에서 뺀 옵션·보관된 옵션의 코드는 저장이 끝날 때까지 남아 있어 건너뛰고, 위 옵션이 받거나 입력한 코드도 피한다.
+ * 목록에서 뺀 옵션·사용 중지한 옵션의 코드는 저장이 끝날 때까지 남아 있어 건너뛰고, 위 옵션이 받거나 입력한 코드도 피한다.
  * 저장된 옵션은 옵션 자동코드를 비우면 기존 코드를 유지한다. 새 상품의 첫 저장은 옵션을 다시 만들어 -01부터 붙인다.
  * 저장된 옵션 정보가 없거나 상품코드를 이번 저장에서 바꾸면(기본 옵션 코드가 함께 바뀐다) 예상하지 않는다.
  * 다른 상품이 이 상품코드로 시작하는 옵션코드를 직접 쓰는 경우는 화면에서 알 수 없다.
@@ -232,7 +361,7 @@ export function predictGoodsOptionCodes(rows: readonly GoodsOptionRow[], goodCod
   });
 }
 
-/** 옵션 미사용(기본 옵션 한 개만으로 판매) 상태인지. */
+/** 옵션 없음(옵션값이 없는 한 줄만으로 판매) 상태인지. */
 export function isSingleGoodsOption(rows: readonly GoodsOptionRow[]): boolean {
   return rows.length === 1 && Object.keys(rows[0]?.attributes ?? {}).length === 0;
 }
@@ -274,17 +403,17 @@ export function applyGoodsOptionBulkEdit(rows: readonly GoodsOptionRow[], keys: 
   return rows.map((row) => keys.has(goodsOptionRowKey(row)) ? { ...row, ...edit } : row);
 }
 
-/** 선택삭제. 옵션은 한 개 이상 남아야 하며, 주문에 쓰인 옵션은 저장할 때 삭제 대신 보관된다. */
+/** 선택삭제. 옵션은 한 개 이상 남아야 하며, 주문에 쓰인 옵션은 저장할 때 삭제 대신 사용 중지로 남는다. */
 export function removeGoodsOptionRows(rows: readonly GoodsOptionRow[], keys: ReadonlySet<string>): Result {
   const next = rows.filter((row) => !keys.has(goodsOptionRowKey(row)));
   if (next.length === rows.length) return { ok: false, error: '삭제할 옵션을 선택해주세요.' };
-  if (!next.length) return { ok: false, error: '옵션은 1개 이상 남아야 합니다. 옵션을 쓰지 않으려면 옵션 사용을 설정안함으로 바꿔주세요.' };
+  if (!next.length) return { ok: false, error: `옵션은 1개 이상 남아야 합니다. 옵션 없이 팔려면 위에서 '${GOODS_OPTION_NONE_LABEL}'을 골라주세요.` };
   return { ok: true, rows: next };
 }
 
 /**
- * 옵션 사용 → 설정안함. 첫 행(기본 옵션 id·옵션 자동코드·재고·ERP 정보)을 남기고 옵션값을 지운다.
- * 옵션 없이 파는 상품 화면에는 옵션별 사용여부 칸이 없으므로, 중지된 첫 옵션은 사용으로 되돌린다.
+ * 옵션 있음 → 옵션 없음. 첫 행(id·옵션 자동코드·재고·ERP 정보)을 남기고 옵션값을 지운다.
+ * 옵션 없이 파는 상품 화면에는 옵션별 사용여부 칸이 없으므로, 사용 중지된 첫 옵션은 사용으로 되돌린다.
  */
 export function collapseGoodsOptionRows(rows: readonly GoodsOptionRow[]): GoodsOptionRow[] {
   const [first] = rows;
@@ -292,14 +421,16 @@ export function collapseGoodsOptionRows(rows: readonly GoodsOptionRow[]): GoodsO
   return [first.isActive === false ? { ...first, attributes: {}, isActive: true } : { ...first, attributes: {} }];
 }
 
-/** 옵션 사용을 설정안함으로 바꾸기 전 확인 문구. 무엇이 남고 무엇이 빠지는지 알린다. */
+/**
+ * '옵션 없음'으로 바꾸기 전 확인 문구. 무엇이 남고 무엇이 빠지는지 알린다(규칙 7).
+ * 판매상태 칸은 상품 편집의 '추가 설정' 카드에 있다(예전 문구는 '기본 정보'라고 잘못 가리켰다).
+ */
 export function goodsOptionCollapseNotice(rows: readonly GoodsOptionRow[]): string {
-  const [first] = rows;
-  const removed = Math.max(0, rows.length - 1);
-  return `옵션 사용을 설정안함으로 바꾸면 첫 옵션(${first?.name ?? ''})만 옵션값 없이 기본 옵션으로 남습니다. 옵션 자동코드·재고수량·ERP 정보는 유지됩니다.`
-    + (first?.isActive === false ? ' 첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 기본 정보의 판매상태를 판매 중지로 바꿔주세요.' : '')
-    + (removed ? ` 나머지 옵션 ${removed}개는 옵션목록에서 빠지고, 주문·장바구니에 쓰인 옵션은 저장할 때 삭제 대신 보관됩니다.` : '')
-    + ' 계속할까요?';
+  const [first, ...rest] = rows;
+  return `'${GOODS_OPTION_NONE_LABEL}'으로 바꾸면 첫 옵션(${first?.name ?? ''})만 옵션값 없이 남습니다. 첫 옵션의 재고수량·옵션 자동코드·ERP 정보는 그대로입니다.`
+    + (first?.isActive === false ? ' 첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 추가 설정의 판매상태를 판매 중지로 바꿔주세요.' : '')
+    + (rest.length ? ` 나머지 옵션 ${rest.length}개(${optionNameList(rest)})는 목록에서 빠지고 재고 입력도 사라집니다.` : '')
+    + (rest.some((row) => row.id) ? ` ${GOODS_OPTION_REMOVAL_NOTE}` : '');
 }
 
 /**
@@ -327,7 +458,7 @@ const erpIdentityKey = (value: string | null | undefined) => value?.trim().toLow
 /**
  * 옵션의 ERP 품명에서 ERP 품목을 고를 때. ERP 코드·바코드는 저장할 때 옵션 전체에서 하나뿐이어야 하므로
  * (대소문자·앞뒤 공백 무시) 같은 상품의 다른 옵션이 이미 쓰는 값이면 채우지 않고 이유를 돌려준다.
- * 바코드는 비어 있어 ERP 품목 값으로 채울 때만 비교한다. 다른 상품·보관된 옵션과의 충돌은 저장 오류가 알린다.
+ * 바코드는 비어 있어 ERP 품목 값으로 채울 때만 비교한다. 다른 상품·사용 중지한 옵션과의 충돌은 저장 오류가 알린다.
  */
 export function selectErpItemForGoodsOption(
   rows: readonly GoodsOptionRow[],

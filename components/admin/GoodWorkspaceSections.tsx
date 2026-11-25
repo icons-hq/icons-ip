@@ -6,19 +6,20 @@ import {
   MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcChoice, goodsKcReviewProblems, goodsKcSoleNotApplicable, goodsKcSubjectModel,
   goodsKcProductNotApplicableConfirm, planGoodsKcProductNotApplicable, publicGoodsKcDisclosures, type GoodsKcChoice, type GoodsKcModelInput,
 } from '@/lib/admin/goods-kc';
-import { goodWorkspaceKcVariants, goodWorkspacePreorderCapacity, type GoodWorkspaceKcDraft, type GoodWorkspacePreorderDraft } from '@/lib/admin/good-workspace-sections';
-import { PreorderCapacityStockHint } from './PreorderCapacityStockHint';
-import { goodsOptionRowKey } from '@/lib/admin/goods-option-editor';
+import {
+  goodWorkspaceKcVariants, goodWorkspacePreorderTargets, goodWorkspaceRandomSale, withGoodWorkspacePreorderPlan, type GoodWorkspaceKcDraft,
+} from '@/lib/admin/good-workspace-sections';
+import { useGoodSaleTiming, type GoodPreorderSlotKind } from './GoodSaleTimingContext';
+import { PreorderPlanFields, RANDOM_PREORDER_CAPACITY_NOTE } from './PreorderPlanFields';
 import {
   GOODS_KC_SUBJECT_ATTESTATION, GOODS_KC_SUBJECT_GUIDE, GOODS_OTHER_CERTIFICATIONS_GUIDE, GoodsKcSubjectChoice, GoodsOtherCertificationsFields,
   ModelFields, ProductNotApplicable,
 } from './GoodsKcPanel';
-import { GOOD_DETACHED_FORM_ID, GoodEditorSubsection, useGoodWorkspaceSections } from './GoodWorkspace';
-import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
+import { useGoodWorkspaceSections } from './GoodWorkspace';
+import { GOOD_NOTE_CLASS } from './GoodEditorParts';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
-import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { adminConfirm } from '@/lib/admin/confirm';
-import { preorderApplyProblems, type PreorderApplyProblems } from '@/lib/admin/goods-preorders';
+import { preorderPlanProblems } from '@/lib/admin/goods-preorders';
 
 /*
  * 등록 화면의 원자 저장 섹션(10/27 회의 R13·D6②). 입력은 GoodWorkspaceProvider(폼 키 밖)에 두고,
@@ -83,7 +84,7 @@ export function GoodWorkspaceKcCard({ serverError, disabled = false }: { serverE
       </label>
     </div> : null}
     <div className="flex min-w-0 flex-col gap-3 border-t pt-4" data-good-workspace-other-certifications="">
-      <div className="flex flex-col gap-1"><h3 className="text-sm font-medium">기타 인증 <span className="font-normal text-muted-foreground">· 상품과 함께 저장</span></h3>
+      <div className="flex flex-col gap-1"><h3 className="text-sm font-medium">기타 인증</h3>
         <p className="text-sm text-muted-foreground">{GOODS_OTHER_CERTIFICATIONS_GUIDE}</p></div>
       <GoodsOtherCertificationsFields entries={otherCertifications} disabled={disabled}
         onChange={(next) => setSections((current) => ({ ...current, otherCertifications: next }))} />
@@ -93,90 +94,75 @@ export function GoodWorkspaceKcCard({ serverError, disabled = false }: { serverE
   </div>;
 }
 
-const PREORDER_LABEL_CLASS = 'flex min-w-0 flex-col gap-2 text-sm font-medium text-foreground';
-const PREORDER_CELL_CLASS = 'flex min-w-0 flex-col gap-1.5';
-
-let draftSequence = 0;
-/** 새 예약 조건. 예약판매는 상품을 저장하면 바로 적용된다(2026-11-19 — 임시저장·승인 근거 없음). */
-export function emptyGoodWorkspacePreorder(optionKey: string): GoodWorkspacePreorderDraft {
-  draftSequence += 1;
-  return { key: `preorder-${draftSequence}`, optionKey, capacityQty: '', capacityFromStock: true, startsAt: '', endsAt: '', expectedShipDate: '' };
-}
-
 /*
- * 등록 화면의 예약 조건 입력. 판매 정보 카드(기본 폼 안)에 놓이지만 입력은 이름 없이 provider에 있고, 소속 폼을 떼어(GOOD_DETACHED_FORM_ID)
- * 기본 폼의 브라우저 검증·Enter 제출에 섞이지 않는다. 검증은 저장할 때 prepareGoodWorkspaceSections가 한 번에 한다.
- * 넣은 조건은 상품을 저장하면 바로 예약판매로 적용된다. 저장이 막히면(섹션 오류) 그때만 칸 옆에 이유를 보인다.
+ * 등록 화면의 예약판매 입력(판매 시기에서 '예약판매'를 골랐을 때만 열린다). 판매 정보 카드(기본 폼 안)에 놓이지만 입력은 이름 없이 provider에 있고,
+ * 소속 폼을 떼어(GOOD_DETACHED_FORM_ID) 기본 폼의 브라우저 검증·Enter 제출에 섞이지 않는다. 검증은 저장할 때 prepareGoodWorkspaceSections가 한 번에 한다.
+ * 일정은 한 번 넣고 예약 물량만 옵션별로 정한다(규칙 6). 상품을 저장하면 바로 예약판매로 적용되고, 저장이 막히면(섹션 오류) 그때만 칸 옆에 이유를 보인다.
+ * 랜덤 판매를 골랐으면 모든 옵션이 같은 일정으로 예약해야 하므로 옵션을 빼거나 일정을 다르게 넣는 칸을 보이지 않는다(ADR-0027).
  */
 export function GoodWorkspacePreorderCard({ serverError, disabled = false }: { serverError?: string; disabled?: boolean }) {
   const workspace = useGoodWorkspaceSections();
   if (!workspace) return null;
   const { sections, setSections, optionRows, sectionErrors } = workspace;
-  const entries = sections.preorders;
-  const options = optionRows.map((row, index) => ({ key: goodsOptionRowKey(row), label: `${row.name.trim() || `옵션 ${index + 1}`}${row.isActive === false ? ' (사용 중지)' : ''}` }));
-  const update = (key: string, changes: Partial<GoodWorkspacePreorderDraft>) =>
-    setSections((current) => ({ ...current, preorders: current.preorders.map((entry) => entry.key === key ? { ...entry, ...changes } : entry) }));
-  const free = options.find((option) => !entries.some((entry) => entry.optionKey === option.key));
+  const plan = sections.preorderPlan;
+  if (!plan) return null;
+  const targets = goodWorkspacePreorderTargets(optionRows);
+  const all = goodWorkspaceRandomSale(sections);
   const error = sectionErrors.workspacePreorders ?? serverError;
-  const form = GOOD_DETACHED_FORM_ID;
   return <div className="flex min-w-0 flex-col gap-4 text-sm" data-good-workspace-preorders="">
-    <p className="text-sm text-muted-foreground">예약판매할 옵션의 예약 물량·접수 기간·발송 예정일을 입력합니다. 상품을 저장하면 바로 예약판매로 적용되고,
-      접수 시작 전에는 고객 화면에 &apos;판매 예정&apos;으로 보이며 주문은 받지 않습니다. 예약판매 옵션은 일반 판매기간과 함께 쓸 수 없습니다.</p>
-    {!entries.length && <p className="text-sm text-muted-foreground">입력한 예약 조건이 없습니다. 필요 없으면 비워 두세요.</p>}
-    {entries.map((entry, index) => {
-      /* 저장을 시도해 섹션 오류가 났을 때만 칸별 안내를 보인다. 칸을 고치면 다음 그리기에서 바로 사라진다. */
-      /* 예약 물량은 기본으로 대상 옵션의 재고수량을 따라간다(재고수량을 나중에 넣거나 바꿔도 따라간다). 직접 고치면 그 값을 쓴다. */
-      const stockQty = optionRows.find((row) => goodsOptionRowKey(row) === entry.optionKey)?.stockQty;
-      const capacityQty = goodWorkspacePreorderCapacity(entry, optionRows);
-      const problems: PreorderApplyProblems = error ? preorderApplyProblems({ ...entry, capacityQty }) : {};
-      const problemId = (field: keyof PreorderApplyProblems) => `${entry.key}-${field}-problem`;
-      const invalid = (field: keyof PreorderApplyProblems) => problems[field] ? { 'aria-invalid': true, 'aria-describedby': problemId(field) } as const : {};
-      const hint = (field: keyof PreorderApplyProblems) => problems[field]
-        ? <span className="text-xs font-medium text-destructive" data-preorder-field-problem="" id={problemId(field)}>{problems[field]}</span> : null;
-      return <fieldset key={entry.key} className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4" disabled={disabled}>
-        <legend className="float-left w-full p-0 text-sm font-medium">예약 조건 {index + 1}</legend>
-        <div className="flex min-w-0 flex-col gap-2">
-          <label className={PREORDER_LABEL_CLASS} htmlFor={`${entry.key}-option`}>예약 대상 옵션</label>
-          <NativeSelect className="w-full" form={form} id={`${entry.key}-option`} value={entry.optionKey} onChange={(event) => update(entry.key, { optionKey: event.target.value })}>
-            {options.some((option) => option.key === entry.optionKey) ? null : <option value={entry.optionKey} disabled>옵션을 다시 선택해주세요</option>}
-            {options.map((option) => <option key={option.key} value={option.key} disabled={option.key !== entry.optionKey && entries.some((other) => other.optionKey === option.key)}>{option.label}</option>)}
-          </NativeSelect>
-        </div>
-        <div className="grid min-w-0 gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,10.5rem),1fr))]">
-          <div className={PREORDER_CELL_CLASS}><label className={PREORDER_LABEL_CLASS}><span>예약 물량</span><input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" form={form} type="number" min={1} max={2147483647} step={1} inputMode="numeric" value={capacityQty} placeholder="예: 100"
-            onChange={(event) => update(entry.key, { capacityQty: event.target.value, capacityFromStock: false })} {...invalid('capacityQty')} /></label>{hint('capacityQty')}
-            <PreorderCapacityStockHint fromStock={entry.capacityFromStock === true} capacity={capacityQty} stockQty={Number.isFinite(stockQty) ? stockQty : 0} disabled={disabled}
-              onUseStock={() => update(entry.key, { capacityFromStock: true })} /></div>
-          <div className={PREORDER_CELL_CLASS}><label className={PREORDER_LABEL_CLASS}><span>접수 시작 (KST)</span><input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={entry.startsAt} onChange={(event) => update(entry.key, { startsAt: event.target.value })} {...invalid('startsAt')} /></label>{hint('startsAt')}</div>
-          <div className={PREORDER_CELL_CLASS}><label className={PREORDER_LABEL_CLASS}><span>접수 종료 (KST)</span><input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="datetime-local" value={entry.endsAt} onChange={(event) => update(entry.key, { endsAt: event.target.value })} {...invalid('endsAt')} /></label>{hint('endsAt')}</div>
-          <div className={PREORDER_CELL_CLASS}><label className={PREORDER_LABEL_CLASS}><span>발송 예정일</span><input className={GOOD_INPUT_CLASS} data-slot="input" form={form} type="date" value={entry.expectedShipDate} min={entry.endsAt.slice(0, 10) || undefined} onChange={(event) => update(entry.key, { expectedShipDate: event.target.value })} {...invalid('expectedShipDate')} /></label>{hint('expectedShipDate')}</div>
-        </div>
-        <div><button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" form={form} onClick={() => setSections((current) => ({ ...current, preorders: current.preorders.filter((item) => item.key !== entry.key) }))}>이 예약 조건 빼기</button></div>
-      </fieldset>;
-    })}
-    <div><button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" form={form} disabled={disabled || !free}
-      onClick={() => free && setSections((current) => ({ ...current, preorders: [...current.preorders, emptyGoodWorkspacePreorder(free.key)] }))}>예약 조건 추가</button></div>
+    {targets.length
+      ? <PreorderPlanFields plan={plan} targets={targets} table={targets.length > 1} all={all} disabled={disabled} idPrefix="workspace-preorder"
+        /* 저장을 시도해 섹션 오류가 났을 때만 칸별 안내를 보인다. 칸을 고치면 다음 그리기에서 바로 사라진다. */
+        problems={error ? preorderPlanProblems(plan, targets, { all, table: targets.length > 1 }) : null}
+        capacityNote={all ? RANDOM_PREORDER_CAPACITY_NOTE : undefined}
+        onChange={(update) => setSections((current) => current.preorderPlan ? withGoodWorkspacePreorderPlan(current, update(current.preorderPlan), optionRows) : current)} />
+      : <p className="text-sm text-muted-foreground">사용 중인 옵션이 없습니다. 위 옵션목록에서 옵션을 사용으로 바꾸면 예약 물량을 넣을 수 있습니다.</p>}
+    <p className="text-xs text-muted-foreground">상품을 저장하면 바로 적용됩니다. 저장한 뒤에는 예약 물량과 일정을 고칠 수 없고, 바꾸려면 접수를 중지하고 새로 저장합니다.</p>
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
   </div>;
 }
 
-/** 등록 화면 예약판매 줄의 요약. */
-export function goodWorkspacePreorderSummary(entries: readonly unknown[]): string {
-  return entries.length ? `예약 조건 ${entries.length}개 · 저장하면 적용` : '설정안함';
+/**
+ * 예약판매 자리의 틀. 판매 시기에서 예약판매를 고르지 않았을 때도 같은 id의 빈 자리로 남아 오류 포커스·'예약판매로 이동' 링크가 닿고,
+ * 안의 패널(저장된 상품)이 마운트된 채 예약 상태를 판매 시기에 알린다. 열고 닫을 때 같은 요소를 써서 안의 입력·불러온 값이 다시 만들어지지 않는다.
+ */
+function GoodPreorderSlotShell({ title, mode, open, children }: { title: string; mode?: string; open: boolean; children: ReactNode }) {
+  /* 판매 시기 안에서는 바로 위 카드가 이미 '예약판매'라고 말한다. 제목을 한 번 더 쓰지 않고(읽기 도구용으로만 남긴다), 따로 저장하는 패널만 '예약 조건 · 별도 저장'으로 밝힌다. */
+  const inTiming = Boolean(useGoodSaleTiming());
+  return <section aria-labelledby={open ? 'good-operation-preorders-title' : undefined} className={open ? `flex min-w-0 scroll-mt-24 flex-col gap-4 outline-none${inTiming ? '' : ' border-t pt-5'}` : 'flex min-w-0 scroll-mt-24 flex-col gap-4 outline-none empty:-mt-4'}
+    data-good-subsection={open ? '' : undefined} data-good-preorder-open={open ? 'true' : 'false'} id="good-operation-preorders" tabIndex={-1}>
+    {open ? <div className={inTiming && !mode ? 'sr-only' : 'flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1'}>
+      <h2 className="text-sm font-medium text-foreground" data-good-section-title="" id="good-operation-preorders-title">{inTiming && mode ? '예약 조건' : title}</h2>
+      {mode ? <span className="text-xs text-muted-foreground" data-good-operation-mode="">{mode}</span> : null}
+    </div> : null}
+    {children}
+  </section>;
 }
 
 /**
- * 판매 정보 카드의 예약판매(11/11 1027T-023 결정 "펼친 채로" — 판매기간 바로 뒤). 등록 화면은 상품과 함께 저장하는 입력이고,
- * 저장된 상품은 같은 자리(같은 id)의 예약판매 패널이 별도 저장으로 이어 받는다.
+ * 등록 화면의 예약판매 자리(판매 시기 안). 상품과 함께 저장하는 입력이고, 저장된 상품은 같은 자리(같은 id)의 예약판매 패널이 별도 저장으로 이어 받는다.
+ * 판매 시기 밖(시험)에서는 예약 입력이 있을 때 열린다.
  */
 export function GoodWorkspacePreorderRow({ title, serverError, disabled = false }: { title: string; serverError?: string; disabled?: boolean }) {
   const workspace = useGoodWorkspaceSections();
-  return <GoodEditorSubsection id="good-operation-preorders" title={title} mode="상품과 함께 저장" summary={goodWorkspacePreorderSummary(workspace?.sections.preorders ?? [])}>
-    <GoodWorkspacePreorderCard serverError={serverError} disabled={disabled} />
-  </GoodEditorSubsection>;
+  const timing = useGoodSaleTiming();
+  const open = Boolean(workspace?.sections.preorderPlan) && (!timing || timing.mode === 'preorder');
+  const error = workspace?.sectionErrors.workspacePreorders ?? serverError;
+  return <GoodPreorderSlotShell title={title} open={open}>
+    {open ? <GoodWorkspacePreorderCard serverError={serverError} disabled={disabled} />
+      /* 예약판매를 고르지 않았는데 예약 오류가 돌아왔으면(다른 창에서 바뀐 경우) 같은 자리에서 알린다. */
+      : error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+  </GoodPreorderSlotShell>;
 }
+/* 판매 시기가 자리의 종류를 읽는 표식(GOOD_PREORDER_SLOT_KIND). */
+GoodWorkspacePreorderRow.goodPreorderSlotKind = 'draft' satisfies GoodPreorderSlotKind;
 
-/** 저장된 상품의 예약판매 패널을 같은 자리에 둔다. 패널은 별도 저장이고, 입력은 기본 폼에 섞이지 않는다(GoodsPreordersPanel). */
+/**
+ * 저장된 상품의 예약판매 패널을 같은 자리에 둔다. 패널은 별도 저장이고, 입력은 기본 폼에 섞이지 않는다(GoodsPreordersPanel).
+ * 판매 시기에서 예약판매를 고르지 않았으면 제목 없이 패널만 남는다(패널이 지난 예약 기록만 접어서 보이거나 아무것도 그리지 않는다).
+ */
 export function GoodSavedPreorderSection({ title, children }: { title: string; children: ReactNode }) {
-  return <GoodEditorSubsection id="good-operation-preorders" title={title} mode="별도 저장">{children}</GoodEditorSubsection>;
+  const timing = useGoodSaleTiming();
+  return <GoodPreorderSlotShell title={title} mode="별도 저장" open={!timing || timing.mode === 'preorder'}>{children}</GoodPreorderSlotShell>;
 }
+GoodSavedPreorderSection.goodPreorderSlotKind = 'saved' satisfies GoodPreorderSlotKind;
