@@ -252,26 +252,31 @@ describe('goods list screen', () => {
       expect(row(html, 'sold-out')).toMatch(/text-destructive[^>]*>0개</);
       expect(row(html, 'draft')).not.toMatch(/(font-semibold text-destructive|text-warning)[^>]*>0개</);
     });
-    /* 판매기간 밖 상품은 설정 준비가 끝났어도 지금 팔지 않는다 — 고객 화면처럼 판매 예정·판매 종료다. */
-    it('판매기간 시작 전은 판매 예정, 끝난 뒤는 판매 종료이고, 다른 준비 사유가 막으면 판매 준비 중이다', () => {
-      const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 5, ips: [], goods: [
-        { ...base, id: 'before-start', salePeriodLabel: '판매 예정', readiness: ready },
-        { ...base, id: 'after-end', salePeriodLabel: '판매 종료', readiness: ready },
-        { ...base, id: 'before-start-empty', salePeriodLabel: '판매 예정', readiness: blocked('stock_unavailable') },
-        { ...base, id: 'before-start-unready', salePeriodLabel: '판매 예정', readiness: blocked('image_missing') },
+    /* 판매기간 밖 상품은 판매 가능 0개라 '판매 가능 수량 없음'으로 막히지만, 고객 화면처럼 판매 예정·판매 종료다. */
+    it('판매기간 시작 전은 판매 예정, 끝난 뒤는 판매 종료이고, 재고가 있으면 수량 없음 경고·빨간 0개를 붙이지 않는다', () => {
+      const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 6, ips: [], goods: [
+        { ...base, id: 'before-start', salePeriodLabel: '판매 예정', readiness: blocked('stock_unavailable') },
+        { ...base, id: 'after-end', salePeriodLabel: '판매 종료', readiness: blocked('stock_unavailable') },
+        { ...base, id: 'before-start-empty', activeStockQty: 0, stockQty: 0, salePeriodLabel: '판매 예정', readiness: blocked('stock_unavailable') },
+        { ...base, id: 'before-start-unready', salePeriodLabel: '판매 예정', readiness: { ...blocked('stock_unavailable'), reasons: [...blocked('stock_unavailable').reasons, ...blocked('image_missing').reasons] } },
         { ...base, id: 'before-start-stopped', stock: 'soldout' as const, salePeriodLabel: '판매 예정', readiness: blocked('stopped') },
+        { ...base, id: 'ready-before-start', salePeriodLabel: '판매 예정', readiness: ready },
       ] }} />);
       const cell = (id: string) => row(html, id).split('data-goods-list="sale-status"')[1]?.split('</td>')[0] ?? '';
       expect(cell('before-start')).toMatch(/<span[^>]*data-tone="info"[^>]*>판매 예정<\/span>/);
-      expect(cell('before-start')).toContain('공개 · 설정 준비 완료');
-      expect(cell('before-start')).not.toMatch(/>판매중<\/span>/);
+      expect(cell('before-start')).not.toContain('품절');
+      expect(cell('before-start')).not.toContain('판매 가능 수량 없음');
+      expect(row(html, 'before-start')).not.toMatch(/text-destructive/);
       expect(cell('after-end')).toMatch(/<span[^>]*data-tone="neutral"[^>]*>판매 종료<\/span>/);
-      // 시작 전인데 재고가 0이면 판매 예정이고, 시작 전에 채워야 할 수량 없음 사유와 빨간 0개는 그대로 보인다.
+      expect(row(html, 'after-end')).not.toMatch(/text-destructive/);
+      // 시작 전인데 재고도 0이면 시작 전에 채울 일이라 수량 없음 사유와 빨간 0개를 남긴다.
       expect(cell('before-start-empty')).toMatch(/data-tone="info"[^>]*>판매 예정<\/span>/);
       expect(cell('before-start-empty')).toContain('판매 가능 수량 없음');
       expect(row(html, 'before-start-empty')).toMatch(/text-destructive[^>]*>0개</);
       expect(cell('before-start-unready')).toMatch(/data-tone="warning"[^>]*>판매 준비 중<\/span>/);
       expect(cell('before-start-stopped')).toMatch(/data-tone="danger"[^>]*>판매중지<\/span>/);
+      expect(cell('ready-before-start')).toMatch(/data-tone="info"[^>]*>판매 예정<\/span>/);
+      expect(cell('ready-before-start')).toContain('공개 · 설정 준비 완료');
     });
     /* 접수 전 예약판매는 판매 가능 0개라 '판매 가능 수량 없음'으로 막히지만, 고객 화면처럼 '판매 예정'이다(품절·빨간 수량·경고 링크 없음). */
     it('예약판매만 있는 상품의 판매 가능 0개는 품절이 아니라 고객 화면과 같은 예약 상태다', () => {
