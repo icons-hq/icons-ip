@@ -47,6 +47,23 @@ describe('goods workbook confirmation screen', () => {
     expect(html).toContain('제조국 찾기');
     expect(mocks.prepare).not.toHaveBeenCalled(); expect(mocks.commit).not.toHaveBeenCalled();
   });
+  it('판매가가 바뀌는 행은 이전 → 새 금액을 보이고 0원·자릿수 오타는 확인 표시를 붙인다(CAT-108)', () => {
+    const same = (price: number) => ({ regularPrice: price, salePrice: price });
+    const html = renderToStaticMarkup(
+      <GoodsImportScreen
+        initialView={{
+          ...view,
+          groups: [
+            { ...group, index: 0, name: '인상', priceChange: { saved: same(29000), next: same(30000), publishing: false } },
+            { ...group, index: 1, name: '오타', priceChange: { saved: same(29000), next: same(2900), publishing: false } },
+          ],
+        }}
+      />,
+    );
+    expect(html).toContain('판매가 29,000원 → 30,000원');
+    expect(html).toContain('판매가 29,000원 → 2,900원 (이전 금액의 절반 이하');
+    expect(html.match(/data-price-check="true"/g)).toHaveLength(1);
+  });
   it('finishes unchanged groups without suggesting product changes', () => {
     const html = renderToStaticMarkup(
       <GoodsImportScreen
