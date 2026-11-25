@@ -176,9 +176,10 @@ const STATUS_TONES = {
   erpLinkedGoods: { apply: 'info', barcode_changed: 'warning', skip: 'neutral', failed: 'danger' },
   /** 상품 목록 옵션별 재고 창의 옵션별 저장 결과 — components/admin/GoodsOptionStockDialog. 저장하지 못했거나 결과를 모르는 옵션은 다시 확인을 부른다 */
   optionStockEdit: { saved: 'success', recheck: 'warning', uncertain: 'warning' },
-  /** 상품 목록의 예약판매 상태 — 고객 화면 문구 그대로(lib/goods-preorders preorderUnavailableLabel). 접수 전은 아직 열지 않은 것(파랑),
-   *  물량 마감은 품절과 같은 위험색, 접수가 끝나거나 멈춘 것은 조용한 색이다 */
-  goodsPreorderSale: { '판매 예정': 'info', '예약 물량 마감': 'danger', '예약 접수 종료': 'neutral', '예약 접수 중지': 'neutral' },
+  /** 상품 목록의 판매기간·예약판매 상태 — 고객 화면 문구 그대로(lib/goods-sale-period goodsSaleUnavailableLabel,
+   *  lib/goods-preorders preorderUnavailableLabel). 시작·접수 전은 아직 열지 않은 것(파랑), 물량 마감은 품절과 같은 위험색,
+   *  판매기간·접수가 끝나거나 멈춘 것은 조용한 색이다 */
+  goodsSaleState: { '판매 예정': 'info', '판매 종료': 'neutral', '예약 물량 마감': 'danger', '예약 접수 종료': 'neutral', '예약 접수 중지': 'neutral' },
   // [ops]
   /** 쿠폰 혜택상태(lib/admin/coupons couponPhase) — 중지는 coupon.archived(보관)와 같은 색이다. */
   couponPhase: { scheduled: 'info', live: 'success', ended: 'neutral', stopped: 'neutral' },
