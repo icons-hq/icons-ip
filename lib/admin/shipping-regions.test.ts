@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyShippingRegionPolicy, parseShippingRegionPolicyInput, parseShippingRegionRulesTsv, shippingRegionPolicyProblems, shippingRegionRulesTsv, shippingRegionExpiryWarnings, type ShippingRegionPolicy, type ShippingRegionPolicyInput } from './shipping-regions';
+import { emptyShippingRegionPolicy, parseShippingRegionFees, parseShippingRegionPolicyInput, shippingRegionFeeGroups, parseShippingRegionRulesTsv, shippingRegionPolicyProblems, shippingRegionRulesTsv, shippingRegionExpiryWarnings, type ShippingRegionPolicy, type ShippingRegionPolicyInput } from './shipping-regions';
 const draft = emptyShippingRegionPolicy('00000000-0000-4000-8000-000000000001', 'hanjin');
 const policy: ShippingRegionPolicyInput = { ...draft, name: '합성 정책', startsAt: '2026-09-10T00:00:00Z', endsAt: null, openEnded: true,
   sourceEvidence: 'TEST-ONLY:synthetic-carrier-reply', feeUnit: 'per_shipment', unlistedDisposition: 'standard', chargePolicyGoods: true,
@@ -75,5 +75,22 @@ describe('지역 배송 정책 초안과 활성화', () => {
     expect(parseShippingRegionRulesTsv('00100\t00110\t\t합성 지역\t추가료 부과\t').rules?.[0].amount).toBeNull();
     expect(parseShippingRegionRulesTsv('100,110,가나다').error).toContain('6개 열');
     expect(parseShippingRegionRulesTsv('00100\t00110\t\t합성 지역\t알 수 없음\t0').error).toContain('처리');
+  });
+});
+
+describe('지역 추가료 금액 바꾸기', () => {
+  it('추가료 부과 줄만 지역명별로 묶어 줄 수와 금액 범위를 센다', () => {
+    const row = (regionLabel: string, disposition: '' | 'surcharge' | 'standard', amount: number | null) => ({ id: null, postalFrom: '10000', postalTo: '10000', addressPrefix: '', regionLabel, disposition, amount });
+    expect(shippingRegionFeeGroups([row('도서산간', 'surcharge', 1000), row('제주', 'surcharge', 3000), row('도서산간', 'surcharge', 1000),
+      row('제주', 'surcharge', 5000), row('표준', 'standard', null), row('미정', 'surcharge', null), row('빈 처리', '', 2000)])).toEqual([
+      { regionLabel: '도서산간', rowCount: 2, minAmount: 1000, maxAmount: 1000 },
+      { regionLabel: '제주', rowCount: 2, minAmount: 3000, maxAmount: 5000 },
+    ]);
+  });
+  it('지역명별 금액은 0~1,000,000원 정수만 받는다', () => {
+    expect(parseShippingRegionFees({ 도서산간: 0, 제주: 1000000 })).toEqual({ 도서산간: 0, 제주: 1000000 });
+    for (const value of [{}, null, [], 'x', { 도서산간: -1 }, { 도서산간: 1.5 }, { 도서산간: 1000001 }, { 도서산간: '1000' }, { ' ': 1000 }, { ['가'.repeat(101)]: 1000 }]) {
+      expect(parseShippingRegionFees(value)).toBeNull();
+    }
   });
 });
