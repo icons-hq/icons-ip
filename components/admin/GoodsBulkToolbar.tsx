@@ -160,7 +160,7 @@ export function GoodsBulkSkippedList({ skipped, command }: { skipped: GoodsBulkS
 }
 
 /* kind="ip"는 IP 필터 결과 전체(보관 제외, 최대 1,000개)에 기간 할인만 건다(A10). 조건이 안 맞는 상품은 확인 단계에서
-   건너뛰기로 정해지고, 저장한 뒤 건너뛴 목록을 그대로 보여 준다. 다른 명령도 같은 방식이다(20261126120000). */
+   건너뛰기로 정해지고, 저장한 뒤 건너뛴 목록을 그대로 보여 준다. 다른 명령도 같은 방식이다(20261126150000). */
 /** `selectionActions`: 같은 선택에 거는 다른 동작(선택 해제·마케팅 링크 등). 선택 개수는 이 막대에서 한 번만 보인다. */
 export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selectedIds, identity, disabled = false, onCompleted, ipTitle, selectionActions }: {
   kind: GoodsBulkKind; selectedIds: string[]; shippingGoodIds?: string[]; identity: GoodsGroupIdentity; disabled?: boolean; onCompleted: () => void; ipTitle?: string;

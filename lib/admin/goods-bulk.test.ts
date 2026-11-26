@@ -82,7 +82,7 @@ describe('상품 일괄 변경 계약', () => {
     expect(goodsBulkError('active_price_period_requires_reset')).not.toContain('굿즈');
     expect(goodsBulkError('goods_bulk_no_active_discount')).toContain('멈출 기간 할인이 없습니다');
   });
-  /* D4(20261126120000): 공개·초안·판매상태·보관·복원·판매가·판매기간도 상품마다 건너뛴다. 미리보기와 저장이 같은 판정을 쓴다. */
+  /* D4(20261126150000): 공개·초안·판매상태·보관·복원·판매가·판매기간도 상품마다 건너뛴다. 미리보기와 저장이 같은 판정을 쓴다. */
   it('모든 명령의 비교가 상품별 건너뛰기를 받고, 할인이 아니면 모두 건너뛰어도 이유를 보여 주려고 받는다', () => {
     const publish: GoodsBulkRequest = { kind: 'goods', ids: ['good-a', 'good-b'], command: 'publish', values: {} };
     const rows = [{ ...preview.goods[0], id: 'good-a', skip: null }, { ...preview.goods[0], id: 'good-b', skip: 'goods_category_required' }];

@@ -40,7 +40,7 @@ create function pg_temp.inline_list_discount_ends(p_good text) returns timestamp
 -- 1. 할인 중지 후 판매가 변경 ------------------------------------------------------------------------------------------
 select pg_temp.inline_discount(1);
 select pg_temp.inline_assert(pg_temp.inline_commit(1)->>'state'='completed','individual period discount on both options');
--- 목록은 진행·예정 할인이 있다고 읽고(판매가 칸 = '할인 중지 후 변경'), 판매가만 바꾸는 비교는 그 상품을 이유와 함께 건너뛴다(20261126120000). 저장은 거절된다.
+-- 목록은 진행·예정 할인이 있다고 읽고(판매가 칸 = '할인 중지 후 변경'), 판매가만 바꾸는 비교는 그 상품을 이유와 함께 건너뛴다(20261126150000). 저장은 거절된다.
 select pg_temp.inline_assert(pg_temp.inline_list_discount_ends('inline-a') is not null,'list sees the upcoming discount');
 select pg_temp.inline_assert((select r->>'skip'='active_price_period_requires_reset' and (r->>'nextPrice')::int=10000
  from jsonb_array_elements(pg_temp.inline_preview(2,'price','{"mode":"set","value":12000}')->'goods') r),'price review names the blocking discount');

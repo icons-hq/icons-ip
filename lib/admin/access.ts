@@ -76,7 +76,7 @@ const SCREEN_CAPABILITIES: Record<string, AdminCapability> = {
   qna: 'cs.manage', inquiries: 'cs.manage', 'inquiry-chat': 'cs.manage', reviews: 'cs.manage', 'review-insights': 'cs.manage', 'review-events': 'cs.manage', faq: 'cs.manage',
   /* 운영자별 처리 이력(1014-105)은 운영자 활동 기록이라 매니저 관리 권한으로만 연다(통합·주매니저, 전환 전 호환 단계는 admin). 문의마다의 처리 이력은 문의 화면에 있다. */
   'inquiry-operator-history': 'operators.manage',
-  members: 'platform.manage', curations: 'store.manage', 'coupon-register': 'marketing.manage', coupons: 'marketing.manage',
+  'overseas-adult': 'platform.manage', members: 'platform.manage', curations: 'store.manage', 'coupon-register': 'marketing.manage', coupons: 'marketing.manage',
   'discount-promotions': 'catalog.manage',
   'shopping-stories': 'store.manage',
   'store-presentation': 'store.manage',

@@ -171,6 +171,15 @@ describe('loadOrderLineViews', () => {
     expect((await loadOrderLineViews(client, [order()])).get(transactionOrder)?.[0]).toMatchObject({ purchaseAmount: 20000, regularAmount: null });
   });
 
+  it.each([true, false, undefined])('해외 수동 심사는 주문 상품별 확인 결과(%s)를 따른다', async (readable) => {
+    mocks.adult.mockResolvedValue('scoped');
+    const { client } = fakeClient({ goods: { data: [goodRow({ sale_restriction: 'adult', adult_readable: readable })], error: null } });
+    const line = (await loadOrderLineViews(client, [order()])).get(transactionOrder)?.[0];
+    expect(line?.adultMasked).toBe(readable !== true);
+    if (readable) expect(line?.thumbnail).toBeTruthy();
+    else expect(line?.thumbnail).toBeNull();
+  });
+
   it('성인 인증 확인이 실패하면 19금 상품을 가림 상태로 접는다', async () => {
     mocks.adult.mockRejectedValue(Object.assign(new Error('boom'), { code: 'X' }));
     const { client } = fakeClient({ goods: { data: [goodRow({ sale_restriction: 'adult' })], error: null } });

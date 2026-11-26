@@ -28,7 +28,7 @@ describe('상품 1개짜리 일괄 변경', () => {
     expect(result).toEqual({ ok: false, message: GOODS_BULK_UNCERTAIN, operationId: mocks.preview.mock.calls[0][0] });
     expect(GOODS_BULK_UNCERTAIN).toContain('[저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');
   });
-  /* D4(20261126120000): 미리보기가 그 상품을 건너뛴다고 하면 저장을 부르지 않고, 이유를 문장으로 돌려준 뒤 비교 요청을 닫는다. */
+  /* D4(20261126150000): 미리보기가 그 상품을 건너뛴다고 하면 저장을 부르지 않고, 이유를 문장으로 돌려준 뒤 비교 요청을 닫는다. */
   it('미리보기가 건너뛴다고 한 상품은 저장하지 않고 이유를 알린다 — 본 값이 다르면 그 안내가 먼저다', async () => {
     mocks.preview.mockImplementationOnce(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, good({ skip: 'active_price_period_requires_reset' })));
     const blocked = await runSingleGoodBulk(identity, 'good-a', 'price', { mode: 'set', value: 12000 }, () => null);

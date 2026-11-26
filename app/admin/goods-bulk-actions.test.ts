@@ -48,7 +48,7 @@ it('랜덤 판매 조건 거절은 일괄 변경 일반 실패 대신 이유를 
   expect(await previewGoodsBulkAction(id, request, identity)).toMatchObject({ error: '판매 중인 옵션이 2개 이상이어야 랜덤 판매를 쓸 수 있습니다.' });
   expect(mocks.refresh).not.toHaveBeenCalled();
 });
-/* D4(20261126120000): 미리보기가 상품마다 건너뛸 이유를 싣고, 저장 영수증이 건너뛴 상품을 싣는다. 액션은 그대로 넘긴다. */
+/* D4(20261126150000): 미리보기가 상품마다 건너뛸 이유를 싣고, 저장 영수증이 건너뛴 상품을 싣는다. 액션은 그대로 넘긴다. */
 it('건너뛸 상품이 섞인 미리보기와 영수증을 그대로 넘긴다', async () => {
   const row = { id: 'good-a', name: '상품 A', code: 'A', price: 1000, nextPrice: 1000, priceMin: 1000, priceMax: 1000, nextMin: 1000, nextMax: 1000,
     published: false, archived: true, stopped: false, skip: 'good_archived', discounts: null, stock: 'ok', saleStartsAt: null, saleEndsAt: null };

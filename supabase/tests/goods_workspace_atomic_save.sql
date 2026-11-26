@@ -290,7 +290,7 @@ $$;
 create function pg_temp.workspace_after_sales() returns jsonb language sql as $$
   select jsonb_build_object('phone','02-1234-5678','guide','TEST-ONLY A/S 안내','sellerSpecialNotes','');
 $$;
--- 주문 후 제작·수령 방식은 설정 근거·확인 체크 없이 보낸다(20261126126000). 사용(p_enabled)인데 발송 예정 기간이 없으면 그 섹션이 거절된다.
+-- 주문 후 제작·수령 방식은 설정 근거·확인 체크 없이 보낸다(20261126156000). 사용(p_enabled)인데 발송 예정 기간이 없으면 그 섹션이 거절된다.
 create function pg_temp.workspace_production(p_enabled boolean) returns jsonb language sql as $$
   select jsonb_build_object('enabled',p_enabled,'leadDays',null,'dayBasis','calendar','closedDates','[]'::jsonb,'publicNote','');
 $$;

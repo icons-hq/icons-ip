@@ -94,7 +94,12 @@ describe('/legal/[document] 라우트', () => {
   });
 
   it.each(LEGAL_DOCUMENT_SLUGS)('%s 문서는 오픈 전 최초 판(2026-11-25)만 보이고 개정 안내·이전 본문·사전 공지가 없다', async (slug) => {
-    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date('2026-11-25T03:00:00Z'));
+    const html = await (async () => {
+      try { return renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) })); }
+      finally { vi.useRealTimers(); }
+    })();
     expect(html).toContain('<p class="wc-document__effective">시행일 2026-11-25</p>');
     for (const absent of ['개정 사전 공지', '개정 안내', '이전 정책 본문', '<details class="wc-document__previous">']) {
       expect(html, absent).not.toContain(absent);

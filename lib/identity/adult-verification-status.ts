@@ -6,7 +6,7 @@
 export type AdultVerificationRevokedReason = 'superseded' | 'subject_moved' | 'underage_result' | 'operator';
 
 export type AdultVerificationStatus =
-  | { readonly status: 'verified'; readonly verifiedAt: string; readonly expiresAt: string }
+  | { readonly status: 'verified'; readonly scope?: 'selected'; readonly verifiedAt: string; readonly expiresAt: string }
   | { readonly status: 'expired'; readonly verifiedAt: string; readonly expiresAt: string }
   | { readonly status: 'revoked'; readonly reason: AdultVerificationRevokedReason; readonly revokedAt: string }
   | { readonly status: 'none' };
@@ -21,7 +21,7 @@ export function parseAdultVerificationStatus(value: unknown): AdultVerificationS
   if (!value || typeof value !== 'object' || Array.isArray(value)) return { status: 'none' };
   const row = value as Record<string, unknown>;
   if ((row.status === 'verified' || row.status === 'expired') && isoString(row.verifiedAt) && isoString(row.expiresAt)) {
-    return { status: row.status, verifiedAt: row.verifiedAt, expiresAt: row.expiresAt };
+    return { status: row.status, ...(row.status === 'verified' && row.scope === 'selected' ? { scope: 'selected' as const } : {}), verifiedAt: row.verifiedAt, expiresAt: row.expiresAt };
   }
   if (
     row.status === 'revoked'

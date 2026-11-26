@@ -1,5 +1,5 @@
 \set ON_ERROR_STOP on
--- 연관상품 관리 화면이 되읽는 '공개'(20261126124000_goods_relations_admin_visibility). goods_kc_fixture.sql 뒤에 실행한다(상품 공개에 쓴다).
+-- 연관상품 관리 화면이 되읽는 '공개'(20261126154000_goods_relations_admin_visibility). goods_kc_fixture.sql 뒤에 실행한다(상품 공개에 쓴다).
 -- 고르는 창(admin_search_goods_for_relation)과 저장 뒤 화면(admin_get_goods_relation·admin_list_goods_relations)이 같은 판정을 쓰는지,
 -- 판매 제한(19금) 상품이 public=true·visibility=restricted로 나오는지, 보는 운영자의 성인 인증·성인 상품 공개 설정이 그 값을 바꾸지 않는지,
 -- 고객 화면의 성인 인증 조건(get_good_relation_compositions)은 그대로인지, 권한·실행 권한·운영자 계약을 본다. 준비물은 모두 rollback된다.

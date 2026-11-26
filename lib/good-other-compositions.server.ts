@@ -1,3 +1,4 @@
+import { canReadAdultRows } from '@/lib/adult-goods';
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
@@ -17,7 +18,7 @@ export async function loadGoodOtherCompositions(goodId: string): Promise<PublicG
     // Include the current card so a publication change between reads hides the groups too.
     const ids = [...new Set([goodId, ...references.groups.flatMap(group => group.goods.map(member => member.goodId))])];
     const reads = [];
-    const adultGoods = await getAdultGoodsAccess() === 'full' ? 'full' : 'hidden';
+    const adultGoods = canReadAdultRows(await getAdultGoodsAccess()) ? 'full' : 'hidden';
     for (let offset = 0; offset < ids.length; offset += 1000) reads.push(getCatalogGoodsByIds(ids.slice(offset, offset + 1000), { adultGoods, storefrontReadCache: true }));
     const goods = (await Promise.all(reads)).flat();
     return resolveGoodOtherCompositions(references, goods, goodId);

@@ -4,6 +4,8 @@ import { getBusinessInfo } from '@/lib/legal/business-info.server';
 import { LegalDocumentScreen } from '@/components/screens/LegalDocument';
 import { LEGAL_DOCUMENT_SLUGS, getLegalDocument } from '@/lib/legal/documents';
 
+export const dynamic = 'force-dynamic';
+
 type PageProps = { params: Promise<{ document: string }> };
 
 export function generateStaticParams() {

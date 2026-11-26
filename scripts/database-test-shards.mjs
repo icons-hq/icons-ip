@@ -219,13 +219,13 @@ const catalog = [
   sql('admin_goods_option_source_search'),
   // 추가구성상품 선택창 조회(migration 20261126112000): 지금 연결할 수 있는 상품만 나오고 총 개수·페이지가 맞는지, 편집 중인 상품 제외, 권한·실행 권한 봉인.
   sql('admin_goods_additional_candidate_search', { kc: true }),
-  // 상품 일괄 변경(migration 20261126120000): 막힌 상품만 건너뛰고 나머지를 적용, 미리보기의 시험 적용은 아무것도 남기지 않음, [판매중으로]는 판매중지 상품만.
+  // 상품 일괄 변경(migration 20261126150000): 막힌 상품만 건너뛰고 나머지를 적용, 미리보기의 시험 적용은 아무것도 남기지 않음, [판매중으로]는 판매중지 상품만.
   sql('goods_bulk_skip_blocked', { kc: true }),
-  // 카테고리 관리(migration 20261126121000): 근거 없이 저장·저장돼 있던 근거 보존·순서 바꾸기(admin_reorder_categories)·권한·감사·재시도.
+  // 카테고리 관리(migration 20261126151000): 근거 없이 저장·저장돼 있던 근거 보존·순서 바꾸기(admin_reorder_categories)·권한·감사·재시도.
   sql('category_evidence_optional'),
-  // 상품정보제공고시 [다른 상품에서 복사] 선택창 조회(migration 20261126125000): 고시를 적어 둔 상품만, 총 개수·페이지, 편집 중인 상품 제외, 권한·실행 권한 봉인.
+  // 상품정보제공고시 [다른 상품에서 복사] 선택창 조회(migration 20261126155000): 고시를 적어 둔 상품만, 총 개수·페이지, 편집 중인 상품 제외, 권한·실행 권한 봉인.
   sql('admin_goods_notice_source_search'),
-  // 수령 방식·주문 후 제작 저장(migration 20261126126000): 설정 근거·확인 체크 없이 저장, 옛 호출 호환, 저장돼 있던 근거 보존.
+  // 수령 방식·주문 후 제작 저장(migration 20261126156000): 설정 근거·확인 체크 없이 저장, 옛 호출 호환, 저장돼 있던 근거 보존.
   sql('goods_fulfillment_production_no_evidence'),
 ];
 
@@ -336,7 +336,7 @@ const storefront = [
   sql('goods_display_visibility', { kc: true }),
   sql('goods_relation_visual_compositions', { kc: true }),
   sql('goods_other_compositions', { admin: true, kc: true }),
-  // 연관상품 관리 화면의 '공개' 되읽기(migration 20261126124000): 선택창과 저장 뒤 화면이 같은 판정, 판매 제한 상품은 restricted, 운영자 본인의 성인 인증과 무관.
+  // 연관상품 관리 화면의 '공개' 되읽기(migration 20261126154000): 선택창과 저장 뒤 화면이 같은 판정, 판매 제한 상품은 restricted, 운영자 본인의 성인 인증과 무관.
   sql('goods_relations_admin_visibility', { kc: true }),
   sql('story_navigation_and_home_layout'),
   // X SQUARE GNB(ADR-0043): 공개 메뉴 설정이 9개(popups 추가)가 되고 저장된 설정이 옮겨진다.

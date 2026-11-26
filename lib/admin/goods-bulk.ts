@@ -15,7 +15,7 @@ export const GOODS_BULK_IP_LIMIT = 1000;
 const IP_ID = /^[a-z0-9][a-z0-9-]{0,99}$/;
 /**
  * 건너뛰는 이유(표의 한 칸에 들어가는 짧은 말). 미리보기가 상품마다 정해 두고, 저장은 건너뛴 상품을 빼고 적용한다.
- * 할인은 겹침·할인가를 직접 판정하고, 그 밖의 명령은 DB가 저장과 같은 함수로 시험 적용해 막힌 이유를 그대로 싣는다(20261126120000).
+ * 할인은 겹침·할인가를 직접 판정하고, 그 밖의 명령은 DB가 저장과 같은 함수로 시험 적용해 막힌 이유를 그대로 싣는다(20261126150000).
  */
 export const GOODS_BULK_SKIP_LABELS: Record<string, string> = {
   price_period_overlap: '기간이 겹치는 할인이 이미 있음',
@@ -62,7 +62,7 @@ export interface GoodsBulkRequest { kind: GoodsBulkKind; ids: string[]; command:
 export type GoodsBulkStock = 'ok' | 'low' | 'soldout';
 /**
  * 미리보기 한 줄. `skip`이 있으면 저장할 때 건너뛴다. `stock`(판매상태 값)은 판매상태 명령에만, `saleStartsAt`·`saleEndsAt`(지금 판매기간)은
- * 판매기간 명령에만 싣는다(20261126120000부터 — 그 전에 만든 미리보기에는 없다).
+ * 판매기간 명령에만 싣는다(20261126150000부터 — 그 전에 만든 미리보기에는 없다).
  */
 export interface GoodsBulkGood { id: string; name: string; code: string | null; price: number; nextPrice: number; priceMin: number | null; priceMax: number | null; nextMin: number | null; nextMax: number | null; published: boolean; archived: boolean; stopped: boolean; skip?: string | null; discounts?: GoodsBulkActiveDiscounts | null; instantDiscount?: GoodsBulkInstantDiscount; stock?: GoodsBulkStock; saleStartsAt?: string | null; saleEndsAt?: string | null }
 export interface GoodsBulkPreview { state: 'ready'; operationId: string; request: GoodsBulkRequest; groups: { id: string; name: string; revision: number }[]; goods: GoodsBulkGood[]; expiresAt: string }
@@ -158,7 +158,7 @@ export function parseGoodsBulkReceipt(value: unknown, expectedId: string): Goods
 }
 /**
  * 바꿀 수 있는 상품이 하나도 없을 때(`goods_bulk_all_skipped`)의 문장. 기간 할인 걸기·중지는 DB가 상품마다의 이유를 싣지 않고
- * 미리보기부터 거절하므로(20261126120000), 그 명령에서 상품을 건너뛰는 이유를 모두 적는다 — 하나만 적으면 운영자가 엉뚱한 칸을 고친다.
+ * 미리보기부터 거절하므로(20261126150000), 그 명령에서 상품을 건너뛰는 이유를 모두 적는다 — 하나만 적으면 운영자가 엉뚱한 칸을 고친다.
  * 그 밖의 명령은 미리보기가 상품마다 이유를 보여 주므로 이 문장은 그사이 상태가 바뀐 저장에서만 나온다.
  */
 const GOODS_BULK_ALL_SKIPPED: Partial<Record<GoodsBulkCommand, string>> = {
