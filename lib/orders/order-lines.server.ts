@@ -45,7 +45,7 @@ function chunks<T>(values: readonly T[], size: number): T[][] {
   return result;
 }
 
-interface GoodRow { id: string; ip_id: string | null; image_path: string | null; bg: string | null; sale_restriction: string | null }
+interface GoodRow { id: string; ip_id: string | null; image_path: string | null; bg: string | null; sale_restriction: string | null; adult_readable?: boolean }
 interface IpRow { id: string; title: string | null }
 
 /**
@@ -65,6 +65,7 @@ async function readGoods(supabase: SupabaseServerClient, goodIds: readonly strin
           ipId: typeof row.ip_id === 'string' ? row.ip_id : null,
           imagePath: typeof row.image_path === 'string' && row.image_path ? row.image_path : null,
           bg: typeof row.bg === 'string' && row.bg ? row.bg : null,
+          adultReadable: row.adult_readable,
           saleRestriction: row.sale_restriction === 'adult' ? 'adult' : 'none',
         });
       }

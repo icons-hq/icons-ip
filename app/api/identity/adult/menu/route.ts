@@ -1,3 +1,4 @@
+import { createClient } from '@/lib/supabase/server';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { loadMyAdultVerification } from '@/lib/identity/adult-verification-status.server';
 import { adultVerificationEnabledFor } from '@/lib/identity/kcp-cert-config';
@@ -14,5 +15,7 @@ export async function GET() {
   if (!auth.user) return Response.json({ visible: false }, { headers: NO_STORE });
   if (adultVerificationEnabledFor(auth.user.id)) return Response.json({ visible: true }, { headers: NO_STORE });
   const status = await loadMyAdultVerification();
-  return Response.json({ visible: status.status !== 'none' }, { headers: NO_STORE });
+  if (status.status !== 'none') return Response.json({ visible: true }, { headers: NO_STORE });
+  const { data } = await (await createClient()).rpc('my_overseas_adult_request');
+  return Response.json({ visible: data?.open === true || Boolean(data?.request) }, { headers: NO_STORE });
 }

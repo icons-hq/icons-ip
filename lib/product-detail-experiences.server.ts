@@ -1,3 +1,4 @@
+import { canReadAdultRows } from '@/lib/adult-goods';
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
@@ -6,7 +7,7 @@ import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 
 /* 상세 보조 목록(관심·배송비 절약)은 인증 성인에게만 19금 굿즈를 싣는다. 가림 카드는 쓰지 않는다. */
 async function fullAdultGoodsOrHidden() {
-  return await getAdultGoodsAccess() === 'full' ? 'full' as const : 'hidden' as const;
+  return canReadAdultRows(await getAdultGoodsAccess()) ? 'full' as const : 'hidden' as const;
 }
 import { emptyInterestCollection, normalizeExperienceGoodsIds, parseExperienceSection, parseOwnedInterestIds, parsePublicDetailExperience, parseShippingSavings, type DetailDiscovery, type InterestCollection, type PublicDetailExperience, type ShippingSavings } from './product-detail-experiences';
 

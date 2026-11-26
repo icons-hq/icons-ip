@@ -1,5 +1,7 @@
 'use server';
 
+import { canReadAdultRows } from '@/lib/adult-goods';
+
 import { goodsCustomInputValues, parseGoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { isOnboarded } from '@/lib/auth/onboarding';
 import { getCurrentAuthState, type CurrentAuthState } from '@/lib/auth/server';
@@ -89,7 +91,7 @@ export async function syncCartAction(localItemsValue: unknown): Promise<CartActi
       .in('good_id', [...new Set(legacy.map((item) => item.goodId))]).eq('is_default', true).is('archived_at', null)
       .not('goods.published_at', 'is', null).is('goods.archived_at', null)
       // 19금 굿즈는 인증 성인에게만 기본 옵션을 찾는다(ADR-0024). 옵션 RLS도 같은 판정이다.
-      .in('goods.sale_restriction', adultGoodsRestrictions(await getAdultGoodsAccess() === 'full' ? 'full' : 'hidden'))
+      .in('goods.sale_restriction', adultGoodsRestrictions(canReadAdultRows(await getAdultGoodsAccess()) ? 'full' : 'hidden'))
       .not('goods.ips.published_at', 'is', null).is('goods.ips.archived_at', null);
     if (error) return { ok: false, mode: 'local', error: SYNC_ERROR, unresolvedItems: legacy };
     for (const row of data ?? []) defaults.set(row.good_id, row.id);

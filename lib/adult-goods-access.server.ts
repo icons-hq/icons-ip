@@ -31,11 +31,14 @@ export const getAdultGoodsAccess = cache(async (): Promise<AdultGoodsAccess> => 
   } catch {
     return 'hidden';
   }
-  if (!adultVerificationEnabledFor(userId)) return 'hidden';
+  const domesticOpen = adultVerificationEnabledFor(userId);
+  if (!domesticOpen && !userId) return 'hidden';
   const [visibility, verification] = await Promise.all([
     getAdultGoodsVisibility(),
     userId ? loadMyAdultVerification() : null,
   ]);
   if (!visibility?.enabled) return 'hidden';
+  if (verification?.status === 'verified' && verification.scope === 'selected') return 'scoped';
+  if (!domesticOpen) return 'hidden';
   return verification?.status === 'verified' ? 'full' : 'masked';
 });

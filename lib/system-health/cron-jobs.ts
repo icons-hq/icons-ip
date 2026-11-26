@@ -11,6 +11,7 @@ export interface CronJobDefinition {
 }
 
 export const CRON_JOBS = {
+  'overseas-adult-review': { label: '해외 성인 인증 사진 파기', intervalMinutes: 1 },
   'admin-artwork': { label: '관리자 아트워크 업로드 정리', intervalMinutes: 1440 },
   'bank-deposits': { label: '무통장 입금 내역 수집', intervalMinutes: 15 },
   'order-shipment-emails': { label: '배송 안내 메일 발송', intervalMinutes: 1 },

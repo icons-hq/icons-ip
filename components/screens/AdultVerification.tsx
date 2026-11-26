@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+import { OVERSEAS_REVIEW_PATH } from '@/lib/identity/overseas-adult';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
@@ -83,7 +85,7 @@ function StatusPanel({ status }: { status: AdultVerificationStatus }) {
         <p className="wc-adult-status__badge">인증 완료</p>
         <h2 className="wc-adult-status__title">성인 인증이 완료된 계정이에요</h2>
         <p className="wc-adult-status__body">
-          {formatAdultVerificationDate(status.expiresAt)}까지 19금 상품을 보고 구매할 수 있어요.
+          {formatAdultVerificationDate(status.expiresAt)}까지 {status.scope === 'selected' ? '해외 신분증 심사 대상 상품을' : '19금 상품을'} 보고 구매할 수 있어요.
         </p>
       </section>
     );
@@ -115,7 +117,7 @@ function StatusPanel({ status }: { status: AdultVerificationStatus }) {
     <section aria-label="성인 인증 상태" className="wc-adult-status">
       <h2 className="wc-adult-status__title">성인 인증이 필요해요</h2>
       <p className="wc-adult-status__body">
-        19금 상품은 휴대폰 본인확인으로 성인 인증을 마친 회원만 보고 구매할 수 있어요.
+        19금 상품은 성인 인증을 마친 회원만 보고 구매할 수 있어요.
       </p>
     </section>
   );
@@ -255,8 +257,9 @@ export function AdultVerification({
           <p className="wc-adult-actions__closed">성인 인증은 준비 중이에요. 열리면 이 화면에서 인증할 수 있어요.</p>
         )}
       </div>
+      <Link className="wc-btn" href={OVERSEAS_REVIEW_PATH + '?next=' + encodeURIComponent(next)}>해외 신분증으로 신청 · Overseas ID verification</Link>
       <div className="wc-coin-guide wc-adult-guide">
-        <p>성인 인증 안내</p>
+        <p>국내 휴대폰 성인 인증 안내</p>
         <ul>
           <li>휴대폰 본인확인은 NHN KCP를 통해 본인 명의 휴대폰으로 진행해요.</li>
           <li>
