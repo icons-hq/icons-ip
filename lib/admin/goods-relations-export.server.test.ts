@@ -72,7 +72,7 @@ describe('연관상품 XLSX 원문 검증', () => {
     expect(info.getCell('B3').value).toBe(filters.query); expect(info.getCell('B4').value).toBe('함께 사면 좋은 상품');
     expect(info.getCell('B11').value).toContain('한 시각에 고정해 찍어 둔 기록은 아닙니다');
     /* S11(2026-11-25 리뷰): 파일 안쪽도 화면의 말을 쓴다 — 연관상품·담은 상품·전시 여부(전시/전시중지)·시작 (KST). 옛 이름(편성·구성 상품·전시 사용)은 없다. */
-    expect(grouping.getRow(1).values).toEqual([, '연관상품 번호', '노출 제목', '유형', '전시상태', '전시 여부', '대표 상품 URL', '대표 상품 자동코드', '대표 상품명', '담은 상품수', '공개 상품수', '시작 (KST)', '종료 (KST)', '등록일시', '수정일시', '저장 회차']);
+    expect(grouping.getRow(1).values).toEqual([, '연관상품 번호', '노출 제목', '유형', '게시 상태', '전시 여부', '대표 상품 URL', '대표 상품 자동코드', '대표 상품명', '담은 상품수', '공개 상품수', '시작 (KST)', '종료 (KST)', '등록일시', '수정일시', '저장 회차']);
     expect(members.getRow(1).values).toEqual([, '연관상품 번호', '노출 제목', '순서', '대표 여부', '상품 URL', '상품 자동코드', '상품명', '현재 공개 가능']);
     expect(grouping.getCell('E2').value).toBe('전시');
     const shown = JSON.stringify([grouping.getSheetValues(), members.getSheetValues(), info.getSheetValues()]);

@@ -26,12 +26,12 @@ const tableHtml = (value: GoodsBulkPreview) => renderToStaticMarkup(<GoodsBulkPr
 const rows = (html: string) => html.split('<tr').slice(2).map(part => part.slice(part.indexOf('>') + 1).split('</tr>')[0].replace(/<[^>]+>/g, '|').replace(/\|+/g, '|'));
 
 describe('일괄 변경 설정: 고르면 필요한 입력만 열린다', () => {
-  it('전시상태·판매상태·기간 할인은 창 첫 줄의 선택 카드로 방향을 고른다(반대 동작을 드롭다운에 숨기지 않는다)', () => {
+  it('게시 상태·판매상태·기간 할인은 창 첫 줄의 선택 카드로 방향을 고른다(반대 동작을 드롭다운에 숨기지 않는다)', () => {
     expect(cards(formHtml('publish'))).toEqual([{ checked: true, title: '공개로' }, { checked: false, title: '초안으로' }]);
     expect(cards(formHtml('stop'))).toEqual([{ checked: false, title: '판매중으로' }, { checked: true, title: '판매중지로' }]);
     expect(cards(formHtml('discount_stop'))).toEqual([{ checked: false, title: '기간 할인 걸기' }, { checked: true, title: '기간 할인 중지' }]);
     expect(formHtml('publish')).not.toContain('<select');
-    for (const [command, title] of [['publish', '전시상태 변경'], ['unpublish', '전시상태 변경'], ['start', '판매상태 변경'], ['discount_stop', '기간 할인'], ['archive', '보관'], ['restore', '복원'], ['period', '판매기간 변경']] as const)
+    for (const [command, title] of [['publish', '게시 상태 변경'], ['unpublish', '게시 상태 변경'], ['start', '판매상태 변경'], ['discount_stop', '기간 할인'], ['archive', '보관'], ['restore', '복원'], ['period', '판매기간 변경']] as const)
       expect(goodsBulkDialogTitle(command)).toBe(title);
   });
   it("판매기간은 '기간 정하기'와 '기간 없이 계속 판매' 가운데 고른 쪽의 입력만 연다 — 날짜를 적고도 말없이 버려지지 않는다", () => {

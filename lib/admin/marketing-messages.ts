@@ -8,7 +8,7 @@ export const MARKETING_TEMPLATE_LABELS: Record<MarketingTemplate,string> = { tex
 export const MARKETING_RUN_STATES = ['queued','processing','completed','blocked','canceled','expired'] as const;
 export type MarketingRunState = typeof MARKETING_RUN_STATES[number];
 export const MARKETING_STATE_LABELS: Record<MarketingRunState|'draft',string> = { draft:'작성 중',queued:'예약 대기',processing:'등록 중',completed:'처리 완료',blocked:'확인 필요',canceled:'예약 취소',expired:'기한 지남' };
-export const MARKETING_REASON_LABELS: Record<string,string> = { sender_permission:'발행자 권한 변경',segment_changed:'세그먼트 변경·삭제',product_unavailable:'상품 공개 상태 변경',start_deadline:'예약 시각부터 1시간 경과',delivery_window_ended:'알림 등록 가능 시간 종료' };
+export const MARKETING_REASON_LABELS: Record<string,string> = { sender_permission:'발행자 권한 변경',segment_changed:'세그먼트 변경·삭제',product_unavailable:'상품 게시 상태 변경',start_deadline:'예약 시각부터 1시간 경과',delivery_window_ended:'알림 등록 가능 시간 종료' };
 export interface MarketingContent { template:MarketingTemplate; title:string; body:string; imagePath:string|null; goodIds:string[]; buttons:{label:string;path:string}[]; couponCode?:string|null }
 export type MarketingSchedule = {kind:'immediate'}|{kind:'once';at:string}|{kind:'weekly';startDate:string;endDate:string;weekday:number;time:string};
 export type MarketingExclusion = 'none'|'received'|'read';

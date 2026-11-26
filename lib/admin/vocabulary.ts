@@ -32,7 +32,7 @@ export const ADMIN_VOCABULARY = Object.freeze({
   optionCode: '옵션 자동코드',
   noticeInfo: '상품정보제공고시',
   saleStatus: '판매상태',
-  displayStatus: '전시상태',
+  displayStatus: '게시 상태',
   productInquiry: '문의 관리',
   customerInquiry: '고객문의 관리',
   orderSearch: '주문통합검색',

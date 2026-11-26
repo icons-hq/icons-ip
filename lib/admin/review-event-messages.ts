@@ -1,6 +1,6 @@
 /** 운영자 화면 전용 문구(ADR-0014 운영 어휘). 고객 화면은 이 모듈을 쓰지 않는다. */
 export function reviewEventProblemLabel(problem: string | null): string {
-  return ({ review_deleted: '리뷰 삭제', review_hidden: '리뷰 비공개', review_changed: '리뷰 정보 변경', purchase_ineligible: '취소·반품 또는 구매 자격 변경', customer_unavailable: '고객 계정 이용 불가', good_unavailable: '상품 공개 상태 변경' } as Record<string, string>)[problem ?? ''] ?? (problem ? '자격 확인 필요' : '선정 가능');
+  return ({ review_deleted: '리뷰 삭제', review_hidden: '리뷰 비공개', review_changed: '리뷰 정보 변경', purchase_ineligible: '취소·반품 또는 구매 자격 변경', customer_unavailable: '고객 계정 이용 불가', good_unavailable: '상품 게시 상태 변경' } as Record<string, string>)[problem ?? ''] ?? (problem ? '자격 확인 필요' : '선정 가능');
 }
 export function reviewEventError(message: string | undefined): string {
   const errors: Record<string, string> = {

@@ -20,7 +20,7 @@ import { AdminGoodsPicker, type AdminGoodsPickerRow } from './AdminGoodsPicker';
 export const GOODS_ADDITIONAL_INTRO = '연결한 상품은 각자의 옵션·가격 그대로 팔립니다. 품절·판매중지 상품은 고객에게 보이지 않습니다.';
 
 /** 이 창에서 연결하지 못한 이유(상품 이름 뒤에 붙인다). 조건은 저장 함수(admin_save_goods_additional)가 쓰는 '지금 고객이 살 수 있음'과 같다. */
-export const ADDITIONAL_NOT_SELLABLE_REASON = '지금 고객이 살 수 없는 상품이라 연결할 수 없습니다. 공개 상태·판매기간·재고·판매상태·판매 제한을 확인해주세요.';
+export const ADDITIONAL_NOT_SELLABLE_REASON = '지금 고객이 살 수 없는 상품이라 연결할 수 없습니다. 게시 상태·판매기간·재고·판매상태·판매 제한을 확인해주세요.';
 
 export function GoodsAdditionalLinks({ baseGoodId, items, onChange, disabled = false }: {
   /** 저장된 상품의 상품 URL. 저장 전인 새 상품은 null. 이 상품은 자기 자신을 연결할 수 없다. */

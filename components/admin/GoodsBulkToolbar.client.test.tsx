@@ -73,7 +73,7 @@ it('자주 쓰는 일괄 변경만 줄에 두고 나머지는 더보기에 둔�
   const menu = all.find(node => node.type === 'details')!;
   const inMenu = nodes(menu.props.children as ReactNode);
   expect(labels(inMenu)).toEqual(['판매기간 변경', '보관', '복원']);
-  expect(labels(all).filter(label => !labels(inMenu).includes(label))).toEqual(['전시상태 변경', '판매상태 변경', '판매가 변경', '기간 할인']);
+  expect(labels(all).filter(label => !labels(inMenu).includes(label))).toEqual(['게시 상태 변경', '판매상태 변경', '판매가 변경', '기간 할인']);
   expect(inMenu.some(node => node.type === Link && text(node.props.children as ReactNode) === '배송 변경')).toBe(true);
   expect(text(tree).indexOf('기간 할인')).toBeLessThan(text(tree).indexOf('마케팅 링크 생성/복사'));
 });
@@ -90,16 +90,16 @@ it('선택이 없으면 더보기도 다른 버튼처럼 비활성이다', async
   expect(more.props.disabled).toBe(true);
 });
 
-/* B-04: 반대 동작을 드롭다운에 숨기지 않는다 — 버튼 이름은 묶음(전시상태·판매상태·기간 할인)이고, 창 첫 줄에서 방향을 고른다. */
+/* B-04: 반대 동작을 드롭다운에 숨기지 않는다 — 버튼 이름은 묶음(게시 상태·판매상태·기간 할인)이고, 창 첫 줄에서 방향을 고른다. */
 it('묶음 버튼은 묶음 이름의 창을 열고, 창 안에서 고른 방향으로 바꾼다', async () => {
-  click(nodes(await settled(['good-a'])), '전시상태 변경');
+  click(nodes(await settled(['good-a'])), '게시 상태 변경');
   let all = nodes(render(['good-a']));
-  expect(all.find(node => node.type === CustomerServiceDialog)?.props.title).toBe('전시상태 변경');
+  expect(all.find(node => node.type === CustomerServiceDialog)?.props.title).toBe('게시 상태 변경');
   expect(form(all).command).toBe('publish');
   form(all).onCommand('unpublish');
   all = nodes(render(['good-a']));
   expect(form(all).command).toBe('unpublish');
-  expect(all.find(node => node.type === CustomerServiceDialog)?.props.title).toBe('전시상태 변경');
+  expect(all.find(node => node.type === CustomerServiceDialog)?.props.title).toBe('게시 상태 변경');
   expect(text(render(['good-a']))).toContain('고른 상품 1개');
 });
 
@@ -129,7 +129,7 @@ it('건너뛸 상품이 섞여도 나머지를 저장하고, 저장 뒤에도 �
   mocks.preview.mockImplementation(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, [good('good-a'), good('good-b', { skip: 'goods_category_required' })]));
   mocks.commit.mockImplementation(async (operationId: string) => ({ value: { state: 'completed', operationId, goodsCount: 1, groupsCount: 0, error: null,
     skipped: [{ id: 'good-b', name: '상품 good-b', code: 'GOOD-B', reason: 'goods_category_required' }] } }));
-  click(nodes(await settled(['good-a', 'good-b'])), '전시상태 변경');
+  click(nodes(await settled(['good-a', 'good-b'])), '게시 상태 변경');
   form(nodes(render(['good-a', 'good-b']))).onSubmit();
   await flush();
   let all = nodes(render(['good-a', 'good-b']));
@@ -151,7 +151,7 @@ it('건너뛸 상품이 섞여도 나머지를 저장하고, 저장 뒤에도 �
 
 it('모두 건너뛰면 이유는 보여 주되 저장은 누를 수 없다', async () => {
   mocks.preview.mockImplementation(async (operationId: string, request: GoodsBulkRequest) => ready(operationId, request, [good('good-a', { skip: 'goods_publish_incomplete' })]));
-  click(nodes(await settled(['good-a'])), '전시상태 변경');
+  click(nodes(await settled(['good-a'])), '게시 상태 변경');
   form(nodes(render(['good-a']))).onSubmit();
   await flush();
   const all = nodes(render(['good-a']));

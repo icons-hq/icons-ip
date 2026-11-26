@@ -62,10 +62,10 @@ const MENU_ITEM = 'flex w-full items-center rounded-md px-2 py-1.5 text-left tex
 
 /*
  * 하나를 고르면 그에 필요한 입력만 연다(화면 규칙 '글보다 화면' 2, 규칙 5). 반대 동작을 드롭다운에 숨기지 않고 창 첫 줄의 선택 카드로 둔다.
- * 묶음: 전시상태(공개로·초안으로), 판매상태(판매중으로·판매중지로), 기간 할인(걸기·중지). 나머지는 명령 하나짜리 창이다.
+ * 묶음: 게시 상태(공개로·초안으로), 판매상태(판매중으로·판매중지로), 기간 할인(걸기·중지). 나머지는 명령 하나짜리 창이다.
  */
 const CHOICES: { title: string; commands: [GoodsBulkCommand, string][] }[] = [
-  { title: '전시상태 변경', commands: [['publish', '고객 화면에 보입니다.'], ['unpublish', '고객 화면에서 내립니다.']] },
+  { title: '게시 상태 변경', commands: [['publish', '고객 화면에 보입니다.'], ['unpublish', '고객 화면에서 내립니다.']] },
   { title: '판매상태 변경', commands: [['start', '판매중지인 상품을 다시 팝니다.'], ['stop', '고객 화면에 품절로 보입니다.']] },
   { title: '기간 할인', commands: [['discount', '사용 중인 모든 옵션에 같은 기간으로 겁니다.'], ['discount_stop', '진행 중이거나 예정된 기간 할인을 모두 멈춥니다.']] },
 ];
