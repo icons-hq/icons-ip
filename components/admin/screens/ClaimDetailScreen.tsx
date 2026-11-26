@@ -15,7 +15,7 @@ import { adminClaimReasonText } from '@/lib/admin/claims';
 import Link from 'next/link';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
-import { ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
+import { ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS, adminOrderPanelHref } from '@/lib/admin/orders';
 import { krw } from '@/lib/format';
 import { returnFeeDeductionBasisLabel, returnFeeDeductionFeePanelNote } from '@/lib/claims/return-fee-deduction';
 import { CLAIM_DETAIL_HELP } from '@/lib/admin/help/claim-detail';
@@ -67,7 +67,7 @@ import { adminClaimExchangeStockTargets, adminClaimPendingReshipments, adminClai
  * kit Card로 감싸기만 한다. */
 
 const TIMELINE_LABELS: Record<string, string> = {
-  'admin.order.claim_intake_created': '판매자 대리 접수',
+  'admin.order.claim_intake_created': '판매자 직접 접수',
   'order.claim_withdrawn': '고객 요청 철회',
   'order.claim_refund_account_confirmed': '고객 환불계좌 등록',
   'admin.order.claim_refund_account_entered': '운영자 환불계좌 대신 입력',
@@ -465,7 +465,7 @@ export function ClaimDetailScreen({
                   {wholeOrderOnly ? <p className="text-xs text-muted-foreground" data-claim-whole-order-only="">
                     이 요청은 주문 전체로만 처리합니다. 일부 상품만 불량이면 고객에게 전체 반품, 또는 교환에서 하자·오배송 배송 건의 회수 없는 재출고를 안내하세요. 부분 환불을 약속하지 마세요.
                   </p> : null}
-                  <Link className={OUTLINE_SM} data-slot="button" href={adminOrderSearchHref(order.id)}>
+                  <Link className={OUTLINE_SM} data-slot="button" href={adminOrderPanelHref(order.id, order.orderNumber)}>
                     주문 통합검색에서 열기
                   </Link>
                 </>
@@ -531,6 +531,7 @@ export function ClaimDetailScreen({
                 /* 확인창이 누르는 대상(요청번호·주문번호·구매자)과, 승인이 택배사 회수 접수로 이어지는지를 말하게 한다. */
                 claimReference={orderClaimReferenceLabel(claim.reference)}
                 orderReference={order ? orderReferenceLabel(order.id, order.orderNumber) : null}
+                orderNumber={order?.orderNumber ?? null}
                 buyerName={order?.buyerName ?? null}
                 autoPickupOnApproval={autoPickupOnApproval}
                 refundAmount={refund?.amount ?? refundDeduction?.refundAmount ?? order?.total ?? null}

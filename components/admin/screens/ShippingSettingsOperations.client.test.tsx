@@ -3,7 +3,7 @@ import { Children, isValidElement, type ReactElement, type ReactNode } from 'rea
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], refs: [] as { current: unknown }[], memos: [] as { value: unknown; deps: unknown[] }[],
   effects: [] as { deps: unknown[]; effect: () => void | (() => void); cleanup?: () => void }[], changed: [] as number[], stateIndex: 0, refIndex: 0, memoIndex: 0, effectIndex: 0 }));
-const mocks = vi.hoisted(() => ({ save: vi.fn(), apply: vi.fn(), read: vi.fn(), seal: vi.fn(), latest: vi.fn(), find: vi.fn(), outdated: vi.fn(), preview: vi.fn(), receipt: vi.fn(), failure: vi.fn(), closed: vi.fn(),
+const mocks = vi.hoisted(() => ({ save: vi.fn(), apply: vi.fn(), read: vi.fn(), seal: vi.fn(), latest: vi.fn(), outdated: vi.fn(), preview: vi.fn(), receipt: vi.fn(), failure: vi.fn(), closed: vi.fn(),
   unsubscribe: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
   useState: (value: unknown) => { const i = hooks.stateIndex++; if (!(i in hooks.states)) hooks.states[i] = typeof value === 'function' ? value() : value; return [hooks.states[i], (next: unknown) => { hooks.states[i] = typeof next === 'function' ? next(hooks.states[i]) : next; }]; },
@@ -14,7 +14,7 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('@/app/admin/shipping-settings-template-actions', () => ({ saveShippingSettingsTemplateAction: mocks.save, applyShippingSettingsTemplateAction: mocks.apply,
   readShippingSettingsOperationAction: mocks.read, sealShippingSettingsOperationAction: mocks.seal, readShippingSettingsTemplateAction: mocks.latest,
-  findShippingSettingsGoodsAction: mocks.find, findShippingSettingsOutdatedGoodsAction: mocks.outdated, previewShippingSettingsTemplateAction: mocks.preview }));
+  findShippingSettingsOutdatedGoodsAction: mocks.outdated, previewShippingSettingsTemplateAction: mocks.preview }));
 vi.mock('@/app/admin/goods-option-import-actions', () => ({ searchGoodsOptionImportAction: vi.fn() }));
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: true }) }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe: mocks.unsubscribe } } }; } } }) }));
@@ -74,7 +74,7 @@ beforeEach(() => {
   scope = createGoodsDescriptionToolScope(ids.actor); scope.activate(); scope.setEnabled(true); scope.authenticate(ids.actor, ids.session);
   mocks.save.mockResolvedValue({ error: '응답 불명', uncertain: true }); mocks.apply.mockResolvedValue({ error: '응답 불명', uncertain: true });
   mocks.read.mockResolvedValue({ data: null }); mocks.seal.mockResolvedValue({ data: shippingFixtures().sealed }); mocks.latest.mockResolvedValue({ data: null });
-  mocks.find.mockResolvedValue({ data: shippingFixtures().candidates }); mocks.preview.mockResolvedValue({ data: shippingFixtures().preview });
+  mocks.preview.mockResolvedValue({ data: shippingFixtures().preview });
   mocks.outdated.mockResolvedValue({ data: { ids: [], total: 0 } });
 });
 afterEach(() => { resetHooks(); scope.dispose(); vi.unstubAllGlobals(); });
@@ -180,7 +180,7 @@ it('상품은 공용 상품 선택창에서 여러 개 고르고, [완료]를 �
   mode = 'apply'; render(); effects(); await flush();
   expect(picker().props).toMatchObject({ title: '상품 고르기', multiple: true, selectedKeys: [] });
   expect(String(picker().props.description)).toContain('‘합성 배송 조건’ 템플릿을 적용할 상품을 고릅니다.');
-  expect(mocks.find).not.toHaveBeenCalled(); expect(mocks.preview).not.toHaveBeenCalled();
+  expect(mocks.preview).not.toHaveBeenCalled();
   (picker().props.onSelect as (row: unknown) => void)(pickerRow()); expect(picker().props.selectedKeys).toEqual(['good-1']);
   (picker().props.onDeselect as (row: unknown) => void)(pickerRow()); expect(picker().props.selectedKeys).toEqual([]);
   await pickAndFinish();
@@ -385,7 +385,7 @@ it('수령 방식을 체크하면 적용 근거·확인 체크 없이 저장한�
 it('목록에서 선택한 상품은 서버 비교만 먼저 하고 적용 버튼 전에는 저장하지 않는다', async () => {
   mode = 'apply'; initialGoodIds = ['good-1']; node(); effects(); await flush();
   expect(mocks.preview).toHaveBeenCalledExactlyOnceWith(ids.template, ['good-1'], identity);
-  expect(mocks.find).not.toHaveBeenCalled(); expect(mocks.apply).not.toHaveBeenCalled(); expect(picker()).toBeUndefined();
+  expect(mocks.apply).not.toHaveBeenCalled(); expect(picker()).toBeUndefined();
   expect(button('1개 상품에 적용').props.disabled).toBe(false);
   click('1개 상품에 적용'); await flush(); expect(mocks.apply).toHaveBeenCalledOnce();
   expect(mocks.apply.mock.calls[0][0].goods).toEqual([shippingFixtures().guard]);

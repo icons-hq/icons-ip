@@ -3,6 +3,7 @@
 -- 보는 것:
 --   1. 조회가 아무것도 쓰지 않는다(조회 전후 주문·기한·이력·적립금·감사 기록의 행 수와 합계가 같다).
 --   2. 조회가 말한 건수·적립금 합계가 실제로 켜서 저장한 뒤 자동 처리(settle_delivered_orders)가 확정·지급한 값과 같다.
+--      쌓인 주문이 자동 처리 한 번의 한도(1,000건)를 넘어도 조회는 다음 실행분만 세고, 그 값이 첫 실행 결과와 같다.
 --   3. 정책 저장은 근거·확인 체크 없이 되고, 저장돼 있던 근거는 그대로 남으며, 옛 화면처럼 둘 다 보내는 저장도 된다.
 --   4. 권한(sales.manage)·실행 권한 봉인·운영자 계약 등록.
 -- 준비물은 모두 합성 값이고 rollback된다. goods_kc_fixture.sql은 필요 없다(주문을 직접 넣는다).
@@ -13,12 +14,12 @@ create function pg_temp.expect_error(statement text,expected text) returns void 
 end $$;
 select set_config('request.jwt.claim.sub','',true);
 -- 1: 주문 관리 권한이 있는 운영자, 2: 출고 전용 운영자(sales.manage 없음), 3: 운영자가 아닌 회원,
--- 4~7: 구매자(4 일반, 5 보유 한도·만료, 6 갚을 적립금, 7 이용 정지).
+-- 4~7: 구매자(4 일반, 5 보유 한도·만료, 6 갚을 적립금, 7 이용 정지). 8~12: 한도를 넘는 경우에 쓰는 구매자.
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
  select ('c0f1a000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'authenticated','authenticated','confirm-preview-'||n||'@example.test',now(),'{}','{}',now(),now()
- from generate_series(1,7) n;
-update public.profiles set nickname='TEST 거래확정 미리보기 '||right(id::text,1),birth_date='2000-01-01',onboarded_at=now(),consents='{"terms":true,"privacy":true}',
- role=case when right(id::text,1) in('1','2') then 'staff'::public.user_role else 'user'::public.user_role end
+ from generate_series(1,12) n;
+update public.profiles set nickname='TEST 거래확정 미리보기 '||right(id::text,2),birth_date='2000-01-01',onboarded_at=now(),consents='{"terms":true,"privacy":true}',
+ role=case when right(id::text,2) in('01','02') then 'staff'::public.user_role else 'user'::public.user_role end
  where id::text like 'c0f1a000-0000-4000-8000-%';
 insert into private.operator_memberships(profile_id,manager_role) values
  ('c0f1a000-0000-4000-8000-000000000001','primary'),('c0f1a000-0000-4000-8000-000000000002','logistics');
@@ -161,7 +162,9 @@ select 1/case when (:'preview7'::jsonb->>'orderCount')::int-(:'base7'::jsonb->>'
  and (:'preview7'::jsonb->>'storeCreditTotal')::bigint-(:'base7'::jsonb->>'storeCreditTotal')::bigint=2150
  and (:'preview7'::jsonb->>'autoAfterDays')::int=7 and (:'preview7'::jsonb->>'perRunLimit')::int=1000
  and (:'preview7'::jsonb->>'asOf')::timestamptz<=clock_timestamp()
- and (select array_agg(key order by key) from jsonb_object_keys(:'preview7'::jsonb) key)=array['asOf','autoAfterDays','orderCount','perRunLimit','storeCreditTotal']
+ and (select array_agg(key order by key) from jsonb_object_keys(:'preview7'::jsonb) key)=array['asOf','autoAfterDays','orderCount','perRunLimit','remainingDueCount','storeCreditTotal']
+ -- 한도(1,000건)를 넘지 않으면 기한이 지난 주문을 모두 본 것이라 다음 날로 넘어가는 주문이 없다.
+ and ((:'base7'::jsonb->>'remainingDueCount')::bigint<>0 or (:'preview7'::jsonb->>'remainingDueCount')::bigint=0)
  then 1 else 0 end as assert_seven_day_preview;
 -- 2일로 켜면 3일 전 배송완료(2번, 100원)가 더해지고, 30일로 켜면 이미 기한이 지난 8번(100원)만 남는다.
 select 1/case when (:'preview2'::jsonb->>'orderCount')::int-(:'base2'::jsonb->>'orderCount')::int=10
@@ -229,13 +232,66 @@ reset role;
 select 1/case when (select status='delivered' from public.orders where id=:'recent_order') and (select status='done' from public.orders where id=:'due_order')
  then 1 else 0 end as assert_off_keeps_confirmed_orders;
 
--- 9. 조회가 따라가는 원본이 바뀌면 여기서 멈춘다 — 그때는 admin_preview_purchase_confirmation_auto도 같은 조건·계산으로 맞춘다.
+-- 9. 쌓인 주문이 자동 처리 한 번의 한도(1,000건)를 넘을 때: 조회는 다음 실행이 집어 들 1,000건만 보고, 나머지는 건수만 돌려준다.
+--    지금은 자동 거래확정이 꺼져 있고(8에서 껐다) 기한이 지난 배송완료 주문은 구매자 4의 3건(진행 중인 반품 4번·결제 기록 없음 5번은 후보가 아니고
+--    2번은 후보다)과 이용 정지 구매자 7의 1건(15번 — 자리는 차지하지만 확정되지 않는다)이다. 여기에 구매자 8~12의 주문 1,005건을 더한다.
+--    순서는 고객 → 기한 → 주문이므로 다음 실행분 1,000건 = 2번 + 15번(건너뜀) + 구매자 8~12의 앞 998건이고, 구매자 12의 마지막 7건이 다음 날로 넘어간다.
+--    적립금은 구매자마다 다르게(주문당 80·90·100·110·120원), 구매자 10은 보유 한도 5,000원에 걸리게 해서 어느 주문이 실행분에 드는지에 따라 합계가 달라지게 한다.
+--    2번 100 + 구매자 8: 201×80 + 9: 201×90 + 10: 5,000(한도) + 11: 201×110 + 12: 194×120 = 84,660원.
+select count(pg_temp.delivered_order(1000+i,8+(i%5),10,10000,0,
+  pg_temp.credit_policy('fixed',(80+10*(i%5))::bigint,1000,case when i%5=2 then 5000 else 100000 end))) as bulk_orders
+ from generate_series(0,1004) i;
+select pg_temp.state_fingerprint() as before_bulk_preview \gset
+select pg_temp.as_actor(1);
+set local role authenticated;
+select public.admin_preview_purchase_confirmation_auto(7) as bulk_preview \gset
+reset role;
+select 1/case when pg_temp.state_fingerprint()=:'before_bulk_preview'::jsonb
+ and ((:'base7'::jsonb->>'orderCount')::int<>0 or (:'base7'::jsonb->>'remainingDueCount')::bigint<>0
+  or :'bulk_preview'::jsonb @> '{"orderCount":999,"storeCreditTotal":84660,"remainingDueCount":7,"perRunLimit":1000}')
+ then 1 else 0 end as assert_bulk_preview_counts_next_run_only;
+-- 켜서 저장한 뒤 첫 자동 처리가 확정한 건수와 지급한 적립금이 조회와 같다. 넘어간 주문은 그다음 실행에서 확정되고, 그 값도 다시 읽은 조회와 같다.
+select coalesce(sum(issued_amount),0) as bulk_earned_before from private.store_credit_lots where source_kind='order_done' \gset
+select pg_temp.as_actor(1);
+set local role authenticated;
+select public.admin_save_purchase_confirmation_policy('{"autoEnabled":true,"autoAfterDays":7,"buyerExtensionDays":3}',4,gen_random_uuid(),'c0f1a000-0000-4000-8000-000000000001','c0f1a000-0000-4000-9000-000000000001') as bulk_saved \gset
+reset role;
+set local role service_role;
+select public.settle_delivered_orders() as bulk_first_run \gset
+reset role;
+select coalesce(sum(issued_amount),0) as bulk_earned_first from private.store_credit_lots where source_kind='order_done' \gset
+select clock_timestamp() as bulk_between_runs \gset
+select pg_temp.as_actor(1);
+set local role authenticated;
+select public.admin_preview_purchase_confirmation_auto(7) as bulk_rest_preview \gset
+reset role;
+set local role service_role;
+select public.settle_delivered_orders() as bulk_second_run \gset
+select public.settle_delivered_orders() as bulk_third_run \gset
+reset role;
+select 1/case when :bulk_first_run=(:'bulk_preview'::jsonb->>'orderCount')::int
+ and :bulk_earned_first-:bulk_earned_before=(:'bulk_preview'::jsonb->>'storeCreditTotal')::bigint
+ and :bulk_second_run=(:'bulk_rest_preview'::jsonb->>'orderCount')::int and :bulk_third_run=0
+ and (select coalesce(sum(issued_amount),0) from private.store_credit_lots where source_kind='order_done')-:bulk_earned_first=(:'bulk_rest_preview'::jsonb->>'storeCreditTotal')::bigint
+ and (:'bulk_rest_preview'::jsonb->>'remainingDueCount')::bigint=0
+ -- 첫 실행이 남긴 주문 수는 조회가 '넘어간다'고 말한 수를 넘지 않는다(값싼 조건만 본 최대치).
+ and :bulk_second_run<=(:'bulk_preview'::jsonb->>'remainingDueCount')::bigint
+ and ((:'base7'::jsonb->>'orderCount')::int<>0 or (:'base7'::jsonb->>'remainingDueCount')::bigint<>0
+  or (:bulk_first_run=999 and :bulk_second_run=7 and :'bulk_rest_preview'::jsonb @> '{"orderCount":7,"storeCreditTotal":840}'
+   and (select status='delivered' from public.orders where id=:'suspended_order')
+   -- 다음 날로 넘어간 7건은 순서(고객 → 기한 → 주문)의 맨 끝인 구매자 12의 마지막 주문들이다.
+   and (select array_agg(id order by id) from public.orders where status='done' and done_at>:'bulk_between_runs')
+    =(select array_agg(('c0f1a000-0000-4001-8000-'||lpad((1000+i)::text,12,'0'))::uuid order by i) from generate_series(974,1004,5) i)))
+ then 1 else 0 end as assert_bulk_preview_equals_actual_runs;
+
+-- 10. 조회가 따라가는 원본이 바뀌면 여기서 멈춘다 — 그때는 admin_preview_purchase_confirmation_auto도 같은 조건·계산으로 맞춘다.
 --    자동 처리의 후보 조건·한 번에 처리하는 건수, 저장할 때 채우는 기한, 거래확정 때의 적립금 계산.
 select 1/case when (select prosrc like '%where o.status=''delivered'' and not pc.held and pc.confirmed_at is null and pc.auto_due_at<=clock_timestamp()%'
    and prosrc like '%and private.purchase_confirmation_candidate(o.id)%' and prosrc like '%order by o.user_id,pc.auto_due_at,o.id limit 1000 loop%'
    and prosrc like '%from public.profiles where id=item.user_id and suspended_at is null for no key update skip locked%'
   from pg_proc where oid='public.settle_delivered_orders()'::regprocedure)
- and (select prosrc like '%private.purchase_confirmation_candidate(o.id)%' and prosrc like '%profile.suspended_at is null%'
+ and (select prosrc like '%private.purchase_confirmation_candidate(item.id)%' and prosrc like '%profile.suspended_at is null%'
+   and prosrc like '%run_limit constant integer := 1000;%' and prosrc like '%order by due.user_id, due.due_at, due.id%'
   from pg_proc where oid='public.admin_preview_purchase_confirmation_auto(integer)'::regprocedure)
  then 1 else 0 end as assert_same_target_rule_as_worker;
 select 1/case when (select (length(prosrc)-length(replace(prosrc,'o.delivered_at+make_interval(days=>p.auto_after_days)','')))/length('o.delivered_at+make_interval(days=>p.auto_after_days)')=2

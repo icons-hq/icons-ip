@@ -10,6 +10,8 @@ import {
   warehouseStopErrorMessage,
   type OrderWarehouseStopContext,
 } from '@/lib/admin/warehouse-stop';
+import { shippingCarrierLabel, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
+import { loadShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 
@@ -18,6 +20,18 @@ export type WarehouseStopActionResult<T> = { ok: true; value: T } | { ok: false;
 function refresh(orderId: string) {
   for (const path of ['/admin/sales/orders', `/admin/sales/orders/${orderId}`, '/admin/sales/dispatch', '/admin/sales/shipping']) revalidatePath(path);
   revalidatePath('/admin');
+}
+
+/**
+ * 취소 뒤 출고 발견에 적힌 택배사 값(epost 같은 영문 값)을 택배사 관리에 등록한 이름으로 채운다 — 화면이 영문 값을 그대로 보이지 않게 한다.
+ * 택배사가 적힌 발견이 있을 때만 읽고, 이름을 읽지 못했거나 등록에 없는 택배사는 '택배사'라고만 적는다. 기록 자체는 그대로 보인다.
+ */
+async function withCarrierLabels(client: Awaited<ReturnType<typeof createClient>>, context: OrderWarehouseStopContext): Promise<OrderWarehouseStopContext> {
+  if (!context.discoveries.some(dispatch => dispatch.carrier && !dispatch.carrierLabel)) return context;
+  let registry: ShippingCarrierRegistry = [];
+  try { registry = await loadShippingCarrierRegistry(client); } catch { registry = []; }
+  return { ...context, discoveries: context.discoveries.map(dispatch => dispatch.carrier && !dispatch.carrierLabel
+    ? { ...dispatch, carrierLabel: shippingCarrierLabel(registry, dispatch.carrier) ?? '택배사' } : dispatch) };
 }
 
 /**
@@ -31,10 +45,11 @@ export async function loadOrderWarehouseStopAction(orderId: unknown): Promise<Wa
     return { ok: false, error: '관리자 권한이 필요합니다.' };
   }
   try {
-    const { data, error } = await (await createClient()).rpc('admin_order_warehouse_stop_context', { p_order_id: id });
+    const client = await createClient();
+    const { data, error } = await client.rpc('admin_order_warehouse_stop_context', { p_order_id: id });
     if (error) return { ok: false, error: warehouseStopErrorMessage(error.message) };
     const context = parseOrderWarehouseStopContext(data);
-    return context ? { ok: true, value: context } : { ok: false, error: '창고 회신 기록을 읽지 못했습니다. 새로고침해주세요.' };
+    return context ? { ok: true, value: await withCarrierLabels(client, context) } : { ok: false, error: '창고 회신 기록을 읽지 못했습니다. 새로고침해주세요.' };
   } catch (error) {
     unstable_rethrow(error);
     return { ok: false, error: '창고 회신 기록을 읽지 못했습니다. 새로고침해주세요.' };

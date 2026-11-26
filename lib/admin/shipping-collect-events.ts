@@ -3,7 +3,7 @@ import { transactionEpochMicros, transactionExactKeys, transactionInstant, trans
 export const SHIPPING_COLLECT_STATES = ['planned', 'collected', 'void', 'refund_review', 'refunded', 'mismatch'] as const;
 export type ShippingCollectState = typeof SHIPPING_COLLECT_STATES[number];
 export const SHIPPING_COLLECT_STATE_LABEL: Record<ShippingCollectState, string> = {
-  planned: '수납 예정', collected: '외부 수납 확인', void: '미수납 종료', refund_review: '외부 환급 확인 필요', refunded: '외부 전액 환급 확인', mismatch: '수납 금액 불일치',
+  planned: '수납 예정', collected: '외부 수납 확인', void: '미수납 종료', refund_review: '외부 환불 확인 필요', refunded: '외부 전액 환불 확인', mismatch: '수납 금액 불일치',
 };
 export const SHIPPING_COLLECT_WRITE_EVENTS = ['collected', 'void', 'refund_review', 'refunded', 'mismatch', 'correction'] as const;
 export type ShippingCollectWriteEvent = typeof SHIPPING_COLLECT_WRITE_EVENTS[number];
@@ -71,12 +71,12 @@ export function shippingCollectEventError(message = ''): string {
   if (message.includes('auth_context_changed') || message.includes('operator_capability_required')) return '로그인 계정이 바뀌었거나 이 작업 권한이 없습니다. 권한이 있는 계정으로 다시 로그인한 뒤 주문 화면을 다시 열어주세요.';
   if (message.includes('shipping_collect_changed')) return '다른 사람이 수납 기록을 먼저 저장했습니다. [최신 내역 불러오기]로 이력을 확인한 뒤 다시 입력해주세요.';
   if (message.includes('shipping_collect_correction_requires_latest')) return '가장 최근 기록과 같은 금액을 지정하고 정정 근거를 입력해주세요. 이미 정정된 기록은 다시 정정할 수 없습니다.';
-  if (message.includes('shipping_collect_terminal')) return '이미 끝난 착불 기록입니다(미수납 종료 또는 외부 전액 환급 확인). 더 기록할 수 없으니 이력을 확인해주세요.';
-  if (message.includes('shipping_collect_void_requires_uncollected_cancel')) return '취소된 주문의 미수납 근거가 있어야 미수납으로 종료할 수 있습니다. 수납된 금액은 환급 확인으로 처리해주세요.';
-  if (message.includes('shipping_collect_refund_requires_full_cancel')) return '외부 전액 환급은 온라인 주문이 전액 취소된 뒤에 기록할 수 있습니다. 주문 취소 상태와 운송사의 착불 전액 환급을 확인해주세요.';
+  if (message.includes('shipping_collect_terminal')) return '이미 끝난 착불 기록입니다(미수납 종료 또는 외부 전액 환불 확인). 더 기록할 수 없으니 이력을 확인해주세요.';
+  if (message.includes('shipping_collect_void_requires_uncollected_cancel')) return '취소된 주문이고 받은 착불 배송비가 없을 때만 미수납으로 끝낼 수 있습니다. 이미 받은 금액은 환불 확인으로 기록해주세요.';
+  if (message.includes('shipping_collect_refund_requires_full_cancel')) return '외부 전액 환불은 온라인 주문이 전액 취소된 뒤에 기록할 수 있습니다. 주문이 취소됐는지와 운송사가 착불 배송비를 모두 돌려줬는지 확인해주세요.';
   if (message.includes('shipping_collect_mismatch_requires_difference')) return '불일치 기록에는 예정 금액과 다른 실제 확인 금액을 입력해주세요.';
   if (message.includes('shipping_collect_amount_or_state')) return '결제된 주문인지 확인하고 주문 당시 착불 금액과 같은 금액을 입력해주세요.';
-  if (message.includes('invalid_shipping_collect_time')) return '주문 이후부터 현재까지의 실제 수납·환급 시각을 입력해주세요.';
+  if (message.includes('invalid_shipping_collect_time')) return '발생 시각은 주문한 뒤부터 지금까지로 넣어주세요.';
   return '착불 수납 기록을 저장하지 못했습니다. 기록 종류·금액·증빙을 확인하고, [최신 내역 불러오기]로 이력을 확인한 뒤 다시 입력해주세요.';
 }
 

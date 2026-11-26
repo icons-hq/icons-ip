@@ -53,7 +53,7 @@ it('택배 외 발송처리는 켜진 택배 외 방법만 보이고, 합포장 
   const methods = nodes(render()).find(node => node.type === NativeSelect)!;
   expect(methods.props.value).toBe('quick');
   expect(nodes(methods.props.children as ReactNode).map(node => node.props.value)).toEqual(['quick']);
-  expect(text(render())).toContain('건너뜀 합포장에 묶인 배송 건은 방법을 바꿀 수 없습니다');
+  expect(text(render())).toContain('건너뜀 합포장에 묶인 배송 건은 방식을 바꿀 수 없습니다');
   /* 고객이 택배를 골랐으므로 사유가 없으면 누를 수 없다. */
   expect(button('1건 발송처리').props.disabled).toBe(true);
 });
@@ -110,7 +110,7 @@ it('사유와 인계 근거를 받아 보낼 건만 같은 요청 번호로 보�
   expect(onClose).not.toHaveBeenCalled(); expect(mocks.refresh).not.toHaveBeenCalled();
   /* 결과 요약은 별도 부품이라 그 부품을 그려 본다. */
   const summary = nodes(render()).find(node => typeof node.type === 'function' && (node.type as { name?: string }).name === 'DispatchReceipt')!;
-  expect(text((summary.type as (props: unknown) => ReactNode)(summary.props))).toContain('배송 건이 그 사이 바뀌었습니다');
+  expect(text((summary.type as (props: unknown) => ReactNode)(summary.props))).toContain('다른 사람이 먼저 바꿨습니다. 목록을 새로고침한 뒤 다시 확인해주세요.');
   expect(text(render())).toContain('닫기');
 });
 

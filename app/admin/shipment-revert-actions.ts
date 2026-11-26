@@ -84,6 +84,6 @@ export async function revertShipmentDispatchAction(input: { shipmentId: unknown;
     const sent = receipt.emailSent === true;
     return { ok: true, tone: sent ? 'warning' : 'success', message: `배송 건 ${reference}${objectParticle(reference)} 발송 대기로 되돌렸습니다${count > 1 ? `(합포장으로 주문 ${count}건 함께)` : ''}. `
       + '올바른 운송장으로 다시 발송 처리해주세요.'
-      + (sent ? ' 발송 안내 메일이 이미 나갔습니다. 다시 발송해도 같은 배송 건의 메일은 다시 보내지 않으니 고객에게 올바른 운송장을 직접 안내해주세요.' : '') };
+      + (sent ? ' 배송 안내 메일이 이미 나갔습니다. 다시 발송처리해도 같은 배송 건의 메일은 다시 보내지 않으니 고객에게 올바른 운송장을 직접 안내해주세요.' : '') };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: shipmentRevertError() }; }
 }

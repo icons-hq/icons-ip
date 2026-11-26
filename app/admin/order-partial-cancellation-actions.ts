@@ -114,7 +114,7 @@ export async function startOrderPartialCancellationAction(input: StartOrderParti
   if (!orderId || !operationId || !items || account === undefined
     || typeof input.customerDecision !== 'string' || (input.note !== null && input.note !== undefined && typeof input.note !== 'string')
     || typeof input.expectedRefundAmount !== 'number' || !Number.isSafeInteger(input.expectedRefundAmount) || input.expectedRefundAmount < 0) {
-    return { ok: false, error: '취소할 상품·수량과 고객 결정 기록을 확인하고, 무통장 주문이면 환불받을 계좌까지 입력한 뒤 다시 확정해주세요.' };
+    return { ok: false, error: '취소할 상품·수량과 고객이 정한 내용을 확인하고, 무통장 주문이면 환불받을 계좌까지 입력한 뒤 다시 확정해주세요.' };
   }
   const { data, error } = await (await createClient()).rpc('admin_start_order_partial_cancellation', {
     p_order_id: orderId,
@@ -231,7 +231,7 @@ export async function recordOrderPartialCancellationTransferAction(input: { orde
   });
   refresh(orderId);
   if (error) return { ok: false, error: orderPartialCancellationErrorMessage(error.message) };
-  return { ok: true, value: '송금 완료를 기록했습니다. 구매자에게 알렸고 계좌 원문은 30일 뒤 지웁니다.' };
+  return { ok: true, value: '송금 완료를 기록했습니다. 구매자에게 알렸고 저장된 계좌번호는 30일 뒤 지웁니다.' };
 }
 
 /** 송금할 계좌 원문(감사 기록). */
@@ -244,7 +244,7 @@ export async function viewOrderPartialCancellationRefundAccountAction(partialCan
   const row = data as Record<string, unknown> | null;
   if (!row || typeof row.bankName !== 'string' || typeof row.accountNumber !== 'string' || typeof row.accountHolder !== 'string'
     || typeof row.amount !== 'number') {
-    return { ok: false, error: '계좌 원문을 읽지 못했습니다.' };
+    return { ok: false, error: '계좌번호를 읽지 못했습니다. 잠시 뒤 다시 눌러주세요.' };
   }
   return { ok: true, value: { bankName: row.bankName, accountNumber: row.accountNumber, accountHolder: row.accountHolder, amount: row.amount } };
 }

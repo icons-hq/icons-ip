@@ -12,7 +12,7 @@ describe('판매자 반품·교환 접수 화면', () => {
     expect(html).toContain('판매자 직접 취소 접수');
     expect(html).toContain('취소 · 주문 전체');
     expect(html).toContain('고객 합의 근거');
-    expect(html).toContain('승인과 결제 취소·환급은 접수 후 별도로');
+    expect(html).toContain('승인과 결제 취소·환불은 접수한 뒤 따로 진행합니다.');
     expect(html).not.toMatch(/<legend[^>]*>수거 주소<\/legend>/);
     expect(html).not.toContain('출고지별 수거 계획');
     expect(html).not.toContain('반품 · 주문 전체');

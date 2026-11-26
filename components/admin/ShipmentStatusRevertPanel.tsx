@@ -12,12 +12,12 @@ export interface ShipmentStatusRevertTarget {
   /** 배송완료 되돌리기는 배송완료 일시, 발송 되돌리기는 대표 운송장. */
   expected: string | null;
   trackingLabel: string | null;
-  /** 지금은 되돌릴 수 없는 이유. 주문 상세가 이미 아는 값(예: 발송 안내 메일을 보내는 중)만 넘기고, 있으면 버튼을 잠그고 이유를 보인다. */
+  /** 지금은 되돌릴 수 없는 이유. 주문 상세가 이미 아는 값(예: 배송 안내 메일을 보내는 중)만 넘기고, 있으면 버튼을 잠그고 이유를 보인다. */
   blockedReason?: string | null;
 }
 
 /**
- * 줄마다 누르면 일어나는 일. 설명 문단 대신 그 줄의 버튼이 무엇으로 되돌리는지와, 되돌려도 남는 발송 안내 메일을 말한다.
+ * 줄마다 누르면 일어나는 일. 설명 문단 대신 그 줄의 버튼이 무엇으로 되돌리는지와, 되돌려도 남는 배송 안내 메일을 말한다.
  * 메일 문장은 발송관리의 처리 막대([발송처리])가 말하는 것과 같은 사실이다. 이미 본 앱 알림은 버튼의 확인창이 말한다.
  */
 export const SHIPMENT_REVERT_RESULT: Record<ShipmentRevertKind, string> = {

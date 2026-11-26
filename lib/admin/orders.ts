@@ -22,7 +22,7 @@ import {
   normalizeTrackingNumber,
   type ShippingCarrierRegistry,
 } from '@/lib/orders/shipment';
-import { providerCancelsAutomatically } from '@/lib/payments/provider-capabilities';
+import { PAYMENT_PROVIDER_LABELS, PAYMENT_PROVIDER_VALUE_LABELS, providerCancelsAutomatically } from '@/lib/payments/provider-capabilities';
 
 // DB의 order_status enum과 같은 순서를 유지한다 — 상태 필터의 표시 순서가
 // 사다리 순서 그 자체다(#250).
@@ -64,9 +64,15 @@ export const ADMIN_ORDER_STATUS_LABELS: Record<AdminOrderStatus, string> = {
  * 가상계좌만 따로 거르려면 결제수단을 나눠 저장해야 한다(이름만 고친 이번 정리의 범위 밖).
  */
 export const ADMIN_PAYMENT_METHOD_LABELS = {
-  card: '토스 결제(카드·가상계좌·계좌이체)',
-  bank_transfer: '무통장 입금(직접 이체)',
+  card: `${PAYMENT_PROVIDER_VALUE_LABELS.toss}(카드·가상계좌·계좌이체)`,
+  bank_transfer: `${PAYMENT_PROVIDER_LABELS.bank_transfer}(직접 이체)`,
 } as const;
+
+/** 주문의 결제수단 값(card·bank_transfer)의 화면 이름. 목록 엑셀·조회 조건 요약이 화면과 같은 말을 쓴다. 모르는 값은 그대로 돌려준다. */
+export function adminOrderPaymentMethodLabel(method: string | null | undefined): string {
+  if (method === 'card' || method === 'bank_transfer') return ADMIN_PAYMENT_METHOD_LABELS[method];
+  return method ?? '';
+}
 
 /** 결제수단 조회 조건의 선택지(주문통합검색·상품주문별 조회). */
 export const ADMIN_PAYMENT_METHOD_OPTIONS = [
@@ -764,7 +770,7 @@ export function normalizeAdminCancellationDecisionForm(
 export const ADMIN_CANCELLATION_RECHECK_LABELS = {
   processing: '처리 상태 확인',
   needsReview: '상태 다시 확인',
-  preparedKorpay: 'Korpay 만료·취소 처리',
+  preparedKorpay: `${PAYMENT_PROVIDER_LABELS.korpay} 만료·취소 처리`,
 } as const;
 
 /**

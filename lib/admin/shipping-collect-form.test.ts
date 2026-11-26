@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { ShippingCollectEvent, ShippingCollectObligation } from '@/lib/admin/shipping-collect-events';
 import {
   shippingCollectAmountProblem, shippingCollectConfirmRequest, shippingCollectEventLabel, shippingCollectEventSummary, shippingCollectFixedAmount, shippingCollectFixedAmountNote,
-  shippingCollectKindLock, shippingCollectKindOptions, shippingCollectNowLocal, shippingCollectServerMessage,
+  shippingCollectKindLock, shippingCollectKindOptions, shippingCollectNowLocal,
 } from './shipping-collect-form';
 
 const event = (overrides: Partial<ShippingCollectEvent>): ShippingCollectEvent => ({ operationId: 'c3a00000-0000-4002-8000-000000000051', event: 'collected', amount: 2250,
@@ -99,12 +99,3 @@ describe('기록하기 확인창', () => {
   });
 });
 
-describe('서버 안내의 옛 버튼 이름', () => {
-  it('화면에 없는 옛 버튼 이름을 지금 이름으로(조사까지) 바꿔 보이고, 새 이름이면 그대로 둔다', () => {
-    expect(shippingCollectServerMessage('저장됐는지 확인하지 못했습니다. 입력은 그대로 두고 [이전 결과 확인 후 같은 요청 재시도]를 눌러주세요.')).toBe('저장됐는지 확인하지 못했습니다. 입력은 그대로 두고 [저장됐는지 확인]을 눌러주세요.');
-    expect(shippingCollectServerMessage('잠시 뒤 [이전 결과 확인]을 다시 눌러주세요.')).toBe('잠시 뒤 [저장됐는지 확인]을 다시 눌러주세요.');
-    expect(shippingCollectServerMessage('잠시 뒤 [이전 요청 무효 처리 후 다시 입력]을 다시 눌러주세요.')).toBe('잠시 뒤 [그만두고 다시 하기]를 다시 눌러주세요.');
-    expect(shippingCollectServerMessage('다른 사람이 수납 기록을 먼저 저장했습니다. [최신 내역 불러오기]로 이력을 확인한 뒤 다시 입력해주세요.')).toContain('[최신 내역 불러오기]');
-    expect(shippingCollectServerMessage('잠시 뒤 [저장됐는지 확인]을 다시 눌러주세요.')).toBe('잠시 뒤 [저장됐는지 확인]을 다시 눌러주세요.');
-  });
-});

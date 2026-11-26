@@ -36,7 +36,7 @@ describe('delivery method server actions', () => {
   });
   it('treats a committed bad-code attempt as failure without reporting a completed shipment', async () => {
     mocks.rpc.mockResolvedValue({ data: { ok: false, error: 'delivery_receipt_code_invalid', remainingAttempts: 4 }, error: null });
-    expect(await recordShipmentDeliveryAction(receipt())).toMatchObject({ ok: false, error: expect.stringContaining('일치하지') });
+    expect(await recordShipmentDeliveryAction(receipt())).toMatchObject({ ok: false, error: expect.stringContaining('확인값이 맞지 않습니다') });
     expect(mocks.revalidate).not.toHaveBeenCalled();
   });
   it('rejects non-staff before touching an order', async () => {

@@ -11,10 +11,10 @@ import { CHANGED_BY_OTHER, SAVE_UNKNOWN_MESSAGE, TEMPLATE_LATEST_UNREAD_MESSAGE 
 import {
   SHIPPING_SETTINGS_GOOD_LIMIT, SHIPPING_SETTINGS_PATH, SHIPPING_SETTINGS_RUNTIME_REJECTED, parseShippingSettingsApplyInput, parseShippingSettingsIdentity, parseShippingSettingsOperationContext,
   parseShippingSettingsOperationReceipt, parseShippingSettingsSaveRequest, shippingSettingsReceiptMatches, shippingSettingsChargeGroup,
-  type ShippingSettingsApplyInput, type ShippingSettingsCandidates, type ShippingSettingsIdentity, type ShippingSettingsOperationContext,
+  type ShippingSettingsApplyInput, type ShippingSettingsIdentity, type ShippingSettingsOperationContext,
   type ShippingSettingsOperationReceipt, type ShippingSettingsPreview, type ShippingSettingsSaveRequest, type ShippingSettingsTemplate,
 } from '@/lib/admin/shipping-settings-templates';
-import { loadShippingSettingsOutdatedGoods, parseShippingSettingsPreview, parseShippingSettingsTemplate, searchShippingSettingsGoods } from '@/lib/admin/shipping-settings-templates.server';
+import { loadShippingSettingsOutdatedGoods, parseShippingSettingsPreview, parseShippingSettingsTemplate } from '@/lib/admin/shipping-settings-templates.server';
 
 /**
  * `uncertain`: 저장·적용됐는지 모른다(화면이 [저장됐는지 확인]을 보인다). `changed`: 다른 사람이 템플릿을 먼저 바꿨다(화면이 두 길을 보인다).
@@ -89,13 +89,6 @@ export async function readShippingSettingsTemplateAction(templateId: string, ide
       settings: data.settings, createdAt: data.created_at, updatedAt: data.updated_at });
     return template?.id === templateId ? { data: template } : { error: TEMPLATE_LATEST_UNREAD_MESSAGE };
   } catch (error) { unstable_rethrow(error); return { error: TEMPLATE_LATEST_UNREAD_MESSAGE }; }
-}
-export async function findShippingSettingsGoodsAction(query: string, page: number, identity: ShippingSettingsIdentity): Promise<ShippingSettingsActionResult<ShippingSettingsCandidates>> {
-  if (typeof query !== 'string' || query.length > 100 || !Number.isSafeInteger(page) || page < 1 || page > 100000 || !parseShippingSettingsIdentity(identity)) return invalid();
-  try {
-    if (!await authorize(identity)) return denied();
-    return { data: await searchShippingSettingsGoods(query.trim(), page, identity) };
-  } catch (error) { unstable_rethrow(error); return { error: '상품을 불러오지 못했습니다. 다시 검색해주세요.' }; }
 }
 /**
  * 템플릿을 고친 뒤 다시 적용하지 않은 상품(읽기 전용). 한 번에 적용할 수 있는 100개까지의 상품과 그런 상품의 전체 수를 돌려준다.

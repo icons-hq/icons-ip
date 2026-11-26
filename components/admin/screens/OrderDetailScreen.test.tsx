@@ -1,5 +1,6 @@
 import { shipmentDeliveryFixture } from '@/lib/shipment-delivery.fixture';
 import { shipmentFixture } from '@/lib/orders/shipments.fixture';
+import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminOrderDetail } from '@/lib/admin/order-detail';
@@ -28,6 +29,9 @@ const detail: AdminOrderDetail = {
     { id: 'four', source: 'note', occurredAt: '2026-09-01T04:00:00Z', action: 'admin.order.note', body: '물류팀 확인 필요', actorName: '지우' },
   ],
 };
+type TreeElement = ReactElement<Record<string, unknown>>;
+/** 화면 함수를 직접 불러 얻은 요소 트리에서 자식 부품(아직 그리지 않은 함수 부품 포함)을 찾는다. */
+const elements = (node: ReactNode): TreeElement[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...elements(value.props.children as ReactNode)] : []);
 describe('주문 상세', () => {
   /* m27 D5②: 랜덤 판매 품목은 배정된 옵션명 옆에 '랜덤 배정' 배지를 둔다. 고른 옵션 품목에는 두지 않는다. */
   it('랜덤 배정 품목은 배정된 옵션명 옆에 랜덤 배정 배지를 표시한다', () => {
@@ -390,6 +394,29 @@ describe('주문 상세 — 이름과 눈에 보이는 값', () => {
     expect(delivered).not.toContain('구매확정 상태');
     const shipping = withStatus('shipping', { actorId: 'actor-1' });
     expect(shipping).toContain('aria-label="운영자 메모"'); expect(shipping).not.toContain('거래확정·운영자 메모'); expect(shipping).not.toContain('aria-label="거래확정"');
+  });
+  /*
+   * 주문 상세가 아는 값을 패널에 넘겨야 패널이 제 일을 한다: 어느 주문인지(확인창의 주문번호 줄), 어느 배송 건인지(방식 바꾸기 창의 수령인·상품),
+   * 착불 기록에서 고를 수 있는 종류(주문 상태), 지금은 못 되돌리는 줄(배송 안내 메일을 보내는 중).
+   */
+  it('부분 취소·출고 보류·착불 수납·배송 방식·되돌리기 패널에 주문번호·주문 상태·배송 건 요약·잠금 이유를 넘긴다', () => {
+    const shipment = shipmentFixture({ orderItemIds: ['item'], delivery: shipmentDeliveryFixture({ method: 'parcel' }) });
+    const tree = OrderDetailScreen({ noteOperationId: 'operation', actorId: 'actor-1', now: new Date('2026-09-08T00:10:00Z'), detail: { ...detail,
+      order: { ...detail.order, orderNumber: '2026090110000001', transaction: { totals: { volumeDiscountTotal: 0, onlineTotal: 12800, prepaidShippingTotal: 0, collectShippingTotal: 3000 } } as never },
+      items: [{ ...detail.items[0], variantName: '빨강' }], shipments: [shipment],
+      emailJobs: [{ shipmentId: shipment.id, status: 'processing', attempts: 1, lastErrorCode: null, updatedAt: '2026-09-08T00:05:00Z' }],
+      fulfillmentHolds: [] } });
+    const props = (name: string) => elements(tree).find(node => typeof node.type === 'function' && node.type.name === name)?.props;
+    expect(props('OrderPartialCancellationPanel')).toMatchObject({ orderId: ORDER, orderNumber: '2026090110000001' });
+    expect(props('OrderFulfillmentHoldNotice')).toMatchObject({ orderId: ORDER, orderNumber: '2026090110000001' });
+    expect(props('ShippingCollectPanel')).toMatchObject({ orderId: ORDER, orderStatus: 'shipping' });
+    expect(props('ShipmentDeliveryPanel')).toMatchObject({ shipmentId: shipment.id, summary: { recipient: '수령자', items: ['주문 당시 상품명 · 빨강 × 2'] } });
+    const targets = props('ShipmentStatusRevertPanel')?.targets as { kind: string; blockedReason: string | null }[];
+    expect(targets).toEqual([expect.objectContaining({ kind: 'dispatch', blockedReason: '배송 안내 메일을 보내는 중입니다. 몇 분 뒤 다시 시도해주세요.' })]);
+    /* 메일 작업이 끝났거나 오래 멈춰 있으면 잠그지 않는다 — 판정은 DB가 한다. */
+    const later = OrderDetailScreen({ noteOperationId: 'operation', actorId: 'actor-1', now: new Date('2026-09-08T01:00:00Z'), detail: { ...detail, shipments: [shipment],
+      emailJobs: [{ shipmentId: shipment.id, status: 'processing', attempts: 1, lastErrorCode: null, updatedAt: '2026-09-08T00:05:00Z' }] } });
+    expect((elements(later).find(node => typeof node.type === 'function' && node.type.name === 'ShipmentStatusRevertPanel')?.props.targets as { blockedReason: string | null }[])[0].blockedReason).toBeNull();
   });
   it('운영자 메모 칸은 어디에 남고 누가 보는지 말하고 쓸 내용의 예를 보인다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);

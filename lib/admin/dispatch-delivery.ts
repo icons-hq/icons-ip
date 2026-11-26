@@ -1,6 +1,7 @@
 import { productionError } from '@/lib/order-production';
 import { FULFILLMENT_METHOD_LABELS, FULFILLMENT_METHODS, type FulfillmentMethod } from '@/lib/goods-fulfillment';
 import { isUuid } from '@/lib/uuid';
+import { ADMIN_DISPATCH_ACCESS_DENIED } from './vocabulary';
 
 /*
  * 발송처리 화면의 배송 방법 적용·택배 외 일괄 발송(인계) — S36-072·S36-X04(2026-11-11 결정 묶음 4).
@@ -115,8 +116,8 @@ function dispatchSelectBlocker(shipment: DispatchDeliveryShipment): string {
   if (shipment.customerMethod === 'none' || shipment.customerMethod === 'digital') return dispatchDeliveryError('delivery_method_fixed');
   if (shipment.claimOpen) return dispatchDeliveryError('order cancellation in progress');
   if (shipment.packed) return dispatchDeliveryError('shipment_pack_method_locked');
-  if (shipment.exportedAt) return '출고지시를 이미 전달한 배송 건은 창고 출고와 겹치지 않게 방법을 바꾸지 않습니다.';
-  if (shipment.hasTracking || shipment.status !== 'ready') return '이미 발송한 배송 건은 방법을 바꾸지 않습니다.';
+  if (shipment.exportedAt) return '출고지시를 이미 보낸 배송 건은 창고 출고와 겹치지 않게 방식을 바꾸지 않습니다.';
+  if (shipment.hasTracking || shipment.status !== 'ready') return '이미 발송한 배송 건은 방식을 바꾸지 않습니다.';
   return dispatchDeliveryError('delivery_method_selection_unavailable');
 }
 
@@ -138,22 +139,22 @@ export function dispatchHandoffFromForm(form: Record<string, string>): DispatchH
 export function dispatchDeliveryError(code?: string): string {
   if (code?.startsWith('production_')) return productionError(undefined, code);
   const messages: Record<string, string> = {
-    shipment_delivery_changed: '배송 건이 그 사이 바뀌었습니다. 목록을 새로고침한 뒤 다시 확인해주세요.',
+    shipment_delivery_changed: '다른 사람이 먼저 바꿨습니다. 목록을 새로고침한 뒤 다시 확인해주세요.',
     shipment_not_found: '배송 건을 찾을 수 없습니다. 목록을 새로고침해주세요.',
-    delivery_method_fixed: '배송없음·디지털 상품은 구매 때 정한 제공 방식을 유지합니다.',
-    delivery_method_selection_unavailable: '결제된 주문의 출고지시 전달·운송장 등록 전 배송 준비 건만 방법을 바꿀 수 있습니다.',
+    delivery_method_fixed: '배송없음·디지털 상품은 주문 때 정한 방식을 바꿀 수 없습니다.',
+    delivery_method_selection_unavailable: '결제가 확인됐고 출고지시를 보내기 전·운송장 등록 전인 발송 대기 건만 방식을 바꿀 수 있습니다.',
     'order cancellation in progress': '취소·반품·교환 처리가 진행 중입니다. 주문 상세를 먼저 확인해주세요.',
     'order fulfillment hold': '출고 보류 중인 주문입니다(결제 확인 필요). 주문 상세의 출고 보류 안내를 확인해주세요.',
-    shipment_pack_method_locked: '합포장에 묶인 배송 건은 방법을 바꿀 수 없습니다. 합포장을 먼저 해제해주세요.',
-    dispatch_method_reason_required: '고객이 고른 방법과 다르면 사유를 입력해주세요.',
-    delivery_policy_unavailable: '이 출고지에서 운영 조건이 켜지지 않은 방법입니다. 배송정보 관리의 운영 조건을 확인해주세요.',
-    delivery_method_evidence_required: '발주확인이 끝난 배송 준비 건만 인계(발송)를 기록할 수 있습니다.',
+    shipment_pack_method_locked: '합포장에 묶인 배송 건은 방식을 바꿀 수 없습니다. 합포장을 먼저 해제해주세요.',
+    dispatch_method_reason_required: '고객이 고른 방식과 다르게 바꾸는 이유를 적어주세요.',
+    delivery_policy_unavailable: "이 출고지에서 운영 조건이 켜지지 않은 방식입니다. 배송정보 관리에서 운영 조건을 '사용'으로 켜주세요.",
+    delivery_method_evidence_required: '발주확인이 끝난 발송 대기 건만 인계(발송)를 기록할 수 있습니다.',
     preorder_allocation_required: '예약 품목의 입고 확인이 아직 끝나지 않았습니다. 상품 편집의 예약판매에서 이 주문을 골라 [선택한 예약 주문 입고 확인]을 먼저 눌러주세요.',
-    invalid_delivery_evidence: '실제 인계 담당자·업체·연락처·근거와, 발주확인 이후 지금까지의 인계 시각을 입력해주세요.',
-    dispatch_delivery_unchanged: '이미 같은 방법이라 바꿀 내용이 없습니다.',
-    invalid_dispatch_delivery_request: '배송 방법·대상 배송 건·사유를 다시 확인해주세요. 목록을 새로고침한 뒤 다시 시도해주세요.',
-    operation_conflict: '같은 요청 번호에 다른 내용이 기록돼 있습니다. 새로고침한 뒤 다시 처리해주세요.',
-    operator_capability_required: '현재 로그인 계정과 배송 처리 권한을 확인해주세요.',
+    invalid_delivery_evidence: '인계한 담당자·배송 업체·업체 연락처·인계 확인 내용을 모두 적고, 인계 시각은 발주확인 뒤부터 지금까지로 넣어주세요.',
+    dispatch_delivery_unchanged: '이미 같은 방식이라 바꿀 내용이 없습니다.',
+    invalid_dispatch_delivery_request: '배송 방식·대상 배송 건·이유를 다시 확인해주세요. 목록을 새로고침한 뒤 다시 해주세요.',
+    operation_conflict: '같은 처리에 다른 내용이 이미 저장돼 있습니다. 새로고침한 뒤 다시 처리해주세요.',
+    operator_capability_required: ADMIN_DISPATCH_ACCESS_DENIED,
   };
-  return (code && messages[code]) || '처리 결과를 확인하지 못했습니다. 목록을 새로고침해 현재 상태를 확인해주세요.';
+  return (code && messages[code]) || '처리됐는지 확인하지 못했습니다. 목록을 새로고침해 지금 상태를 확인해주세요.';
 }

@@ -25,9 +25,18 @@
 --    - p_operation(작업 번호)이 같은 저장을 다시 보내면 다시 처리하지 않고 처음 결과를 돌려준다. 내용이나 계정이 다르면 PT409.
 --    - 감사 기록: catalog.shipping_notice_template.saved_and_applied(요청·결과·전후), 바뀐 상품마다
 --      catalog.good.shipping_notice_template_applied(전후와 작업 번호).
+-- 5. private.apply_shipping_notice_template_reference(상품 저장·상품 엑셀이 '코드·버전'으로 템플릿을 적용하는 내부 함수):
+--    받은 버전이 아니라 그 코드의 지금 내용(가장 큰 active 버전)을 적용한다.
+--    - 이제 템플릿은 '지금 내용 하나'이고 고치면 쓰는 상품이 모두 따라가며 화면은 버전을 보이지 않는다. 그런데 이 함수가 받은 버전을
+--      그대로 적용하면, 템플릿을 고치기 전에 내려받은 상품 엑셀(옛 버전 번호가 적혀 있다)을 올린 상품만 고치기 전 안내로 조용히 돌아간다.
+--    - 받은 (코드, 버전) 줄이 실제로 있는지는 전처럼 확인한다(없으면 shipping_notice_template_not_found).
+--    - active 버전이 하나도 없는 코드(예전 방식의 초안만 있는 경우)는 전과 같다 — 받은 줄 그대로 넘겨 shipping_notice_template_not_active로 거절된다.
+--    - 코드를 비워 보내면 템플릿을 떼는 것, 버전이 없으면 거절하는 것도 전과 같다.
 -- 주문·클레임은 이 안내 글을 복사해 두지 않는다(상품에만 있다). 주문 금액·배송비·승인된 회수 주소는 건드리지 않는다.
--- 기존 함수(admin_save_shipping_notice_template·_v2, admin_apply_shipping_notice_template, 상품 저장의 코드·버전 참조)는 그대로 둔다 —
--- 상품 수정 화면과 상품 엑셀은 전처럼 코드·버전으로 템플릿을 적용한다.
+-- 템플릿 줄은 FOR NO KEY UPDATE로 잠근다(2번·4번) — 키(id, 코드·버전)를 바꾸지 않으므로, 상품에 템플릿을 붙이는 저장의 외래 키 확인
+-- (FOR KEY SHARE)과 서로 기다리지 않는다. 템플릿을 고치는 저장끼리는 전처럼 서로 막는다.
+-- 기존 함수(admin_save_shipping_notice_template·_v2, admin_apply_shipping_notice_template)는 그대로 둔다 —
+-- 상품 수정 화면과 상품 엑셀은 전처럼 코드·버전을 보내고, 버전은 '그 줄이 있는지'를 확인하는 데만 쓰인다.
 
 do $$
 declare
@@ -70,7 +79,8 @@ begin
   if actor is null or not public.has_operator_capability('catalog.manage',false) then
     raise insufficient_privilege using message = 'staff_required';
   end if;
-  select * into previous from public.shipping_notice_templates where id = target_id for update;
+  -- 키(id, 코드·버전)를 바꾸지 않는 잠금이다. 상품에 템플릿을 붙이는 저장의 외래 키 확인과 서로 기다리지 않는다.
+  select * into previous from public.shipping_notice_templates where id = target_id for no key update;
   if not found then raise no_data_found using message = 'shipping_notice_template_not_found'; end if;
   if previous.status <> 'draft' then raise check_violation using message = 'shipping_notice_template_not_draft'; end if;
   if previous.updated_at is distinct from expected_updated_at then
@@ -252,9 +262,11 @@ begin
     select * into opened from public.shipping_notice_templates where id = p_template_id;
     if not found then raise no_data_found using message = 'shipping_notice_template_not_found'; end if;
     -- 같은 템플릿(코드)을 동시에 고치는 저장을 한 줄로 세운 뒤, 지금의 가장 큰 버전을 다시 읽는다.
+    -- 줄은 FOR NO KEY UPDATE로 잠근다. FOR UPDATE면, 뒤처진 상품에 이 줄을 다시 붙이던 다른 저장(상품 잠금 → 이 줄 FOR KEY SHARE)과
+    -- 이 저장(이 줄 잠금 → 상품 잠금)이 서로 기다려 한쪽이 교착으로 실패할 수 있다.
     perform pg_advisory_xact_lock(hashtextextended('shipping_notice_template:' || opened.code, 0));
     select * into latest from public.shipping_notice_templates
-      where code = opened.code order by version desc limit 1 for update;
+      where code = opened.code order by version desc limit 1 for no key update;
     if latest.id <> opened.id or latest.updated_at is distinct from p_expected_updated_at then
       raise exception using errcode = 'PT409', message = 'shipping_notice_template_conflict';
     end if;
@@ -356,8 +368,44 @@ begin
 end
 $$;
 
+create or replace function private.apply_shipping_notice_template_reference(target_good_id text, target_code text, target_version integer)
+returns jsonb
+language plpgsql
+security definer
+set search_path to ''
+as $function$
+declare
+  template_id uuid;
+  good_stamp timestamptz;
+begin
+  if nullif(btrim(coalesce(target_code, ''), E' \t\n\r'), '') is null then
+    select updated_at into good_stamp from public.goods where id = target_good_id;
+    if not found then raise no_data_found using message = 'good_not_found'; end if;
+    return public.admin_apply_shipping_notice_template(target_good_id, null, good_stamp);
+  end if;
+  if target_version is null then raise invalid_parameter_value using message = 'shipping_notice_template_version_required'; end if;
+  select id into template_id from public.shipping_notice_templates
+    where code = btrim(target_code) and version = target_version;
+  if not found then raise check_violation using message = 'shipping_notice_template_not_found'; end if;
+  -- 받은 버전은 그 줄이 있는지만 확인하고, 적용은 그 코드의 지금 내용(가장 큰 active 버전)으로 한다.
+  -- active 버전이 하나도 없으면 받은 줄 그대로 넘긴다(전처럼 shipping_notice_template_not_active로 거절된다).
+  select coalesce((
+    select current_row.id from public.shipping_notice_templates current_row
+    where current_row.code = btrim(target_code) and current_row.status = 'active'
+    order by current_row.version desc limit 1
+  ), template_id) into template_id;
+  select updated_at into good_stamp from public.goods where id = target_good_id;
+  if not found then raise no_data_found using message = 'good_not_found'; end if;
+  return public.admin_apply_shipping_notice_template(target_good_id, template_id, good_stamp);
+end;
+$function$;
+
 -- Supabase default privileges가 새 public 함수에 anon·authenticated·service_role 실행 권한을 붙인다. 모두 거둔 뒤 필요한 롤에만 준다.
 -- 다시 정의한 활성화 함수도 봉인을 한 번 더 적어 둔다(authenticated만 실행).
+-- 코드·버전 참조 함수는 상품 저장이 안에서만 부른다. 같은 시그니처를 다시 정의해 권한은 그대로지만(어느 롤에도 실행 권한 없음) 한 번 더 적어 둔다.
+-- 운영자 계약에 등록된 함수가 아니라 다시 등록할 것은 없다.
+revoke all on function private.apply_shipping_notice_template_reference(text, text, integer)
+  from public, anon, authenticated, service_role;
 revoke all on function public.admin_activate_shipping_notice_template(uuid, timestamp with time zone, text)
   from public, anon, authenticated, service_role;
 grant execute on function public.admin_activate_shipping_notice_template(uuid, timestamp with time zone, text) to authenticated;

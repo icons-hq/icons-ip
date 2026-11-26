@@ -44,6 +44,7 @@ import { createClient } from '@/lib/supabase/server';
 import { FULFILLMENT_HOLD_BLOCKED_MESSAGE, isFulfillmentHoldError } from '@/lib/admin/fulfillment-holds';
 import { STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE } from '@/lib/admin/order-partial-cancellation';
 import { adminPaymentCancelFailureMessage, splitAdminSupportCode, withAdminSupportCode } from '@/lib/admin/payment-cancel-error';
+import { ADMIN_DISPATCH_ACCESS_DENIED, ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 
 export interface AdminOrderActionState {
   errors?: AdminOrderFieldErrors & { form?: string };
@@ -51,12 +52,9 @@ export interface AdminOrderActionState {
   confirmedOrderIds?: string[];
 }
 
-/*
- * 권한이 없을 때의 문구. 로그인이 끝난 경우도 같은 길로 오므로 둘 다 말하고, 다음 행동(계정 확인 → 권한 요청)을 쓴다.
- * 권한 이름은 설정 화면의 낱말이다(판매 관리 = sales.manage, 출고 = sales.dispatch).
- */
-const STAFF_ACCESS_DENIED = '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';
-const DISPATCH_ACCESS_DENIED = '출고 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';
+/* 권한이 없을 때의 문구는 판매·출고 화면이 함께 쓴다(lib/admin/vocabulary). */
+const STAFF_ACCESS_DENIED = ADMIN_SALES_ACCESS_DENIED;
+const DISPATCH_ACCESS_DENIED = ADMIN_DISPATCH_ACCESS_DENIED;
 /** 처리하지 못했을 때 붙이는 뒷말: 다른 사람이 먼저 처리했을 수 있으니 새로고침해서 본 뒤 다시 한다. */
 const STALE_STATE_HINT = '다른 사람이 먼저 처리했을 수 있습니다. 새로고침해 상태를 확인한 뒤 다시 눌러주세요.';
 
@@ -427,11 +425,11 @@ function staffCancellationError(message: string | null | undefined) {
   }
   /* 결제사 확인을 기다리는 재고 부족 부분 취소(ADR-0032). 클레임이 아니라 주문 상세의 부분 취소 칸에서 결제 확인을 마친다. */
   if (value.includes('partial_cancel_in_progress')) {
-    return '재고 부족 부분 취소의 결제 확인을 먼저 마쳐주세요. 이 주문 상세의 재고 부족 부분 취소 칸에서 결제사 확인(결제확인필요 해소)을 끝낸 뒤 전액 취소할 수 있습니다.';
+    return '재고 부족 부분 취소의 결제 확인을 먼저 마쳐주세요. 이 주문 상세의 재고 부족 부분 취소 칸에서 결제사 확인(결제사 확인이 계속 안 될 때)을 끝낸 뒤 전액 취소할 수 있습니다.';
   }
   if (value.includes('payment_reconciliation_required')) return '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.';
   if (value.includes('staff_cancellation_toss_only')) {
-    return '토스·나이스페이 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
+    return '토스·나이스페이 결제 주문만 이 화면에서 전액 취소할 수 있습니다. 코페이·무통장 주문은 기존 수동 절차를 따릅니다.';
   }
   if (value.includes('invalid_staff_cancellation_note')) return '기타 사유는 메모를 5자 이상 입력해주세요(최대 500자).';
   if (value.includes('invalid_staff_cancellation_reason')) return '취소 사유를 선택해주세요.';
@@ -507,7 +505,7 @@ export async function recoverAdminGoodsPaymentAction(
     return access.error ?? { errors: { form: STAFF_ACCESS_DENIED } };
   }
   if (!canAccessAdminScreen(access.auth, null, { capability: 'sales.manage', adminOnly: true })) {
-    return { errors: { form: 'Korpay 수동 복구는 관리자 계정만 수행할 수 있습니다.' } };
+    return { errors: { form: '코페이 수동 복구는 관리자 계정만 할 수 있습니다.' } };
   }
 
   const normalized = normalizeAdminGoodsManualRecoveryForm(formData);
@@ -522,9 +520,9 @@ export async function recoverAdminGoodsPaymentAction(
     if (result.outcome === 'in_progress') {
       return { errors: { form: '다른 운영 확인이 진행 중입니다. 잠시 뒤 최신 상태를 확인해주세요.' } };
     }
-    return { message: 'Korpay 전액 취소 확인을 주문에 반영했습니다.' };
+    return { message: '코페이 전액 취소 확인을 주문에 반영했습니다.' };
   } catch {
-    return { errors: { form: `Korpay 전액 취소를 주문에 반영하지 못했습니다. ${STALE_STATE_HINT}` } };
+    return { errors: { form: `코페이 전액 취소를 주문에 반영하지 못했습니다. ${STALE_STATE_HINT}` } };
   }
 }
 

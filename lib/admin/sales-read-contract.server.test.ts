@@ -9,11 +9,21 @@ import { normalizeAdminSettledFilters } from './settled';
 beforeEach(() => { vi.clearAllMocks(); mocks.rpc.mockResolvedValue({ data: [], error: null }); });
 
 describe('판매 목록 조회 계약 연결', () => {
-  it.each(['recipient', 'item', 'product'] as const)('클레임 %s 검색을 목록과 단계별 건수에 같은 값으로 보낸다', async (field) => {
+  it.each(['recipient', 'item'] as const)('클레임 %s 검색을 목록과 단계별 건수에 같은 값으로 보낸다', async (field) => {
     const filters = normalizeAdminClaimFilters({ field, query: '  CODE_%  ', dateField: 'paid', page: '2', stage: 'collected', reasonType: 'defect' });
     await getAdminClaimConsoleData('exchange', filters);
     const shared = { p_claim_type: 'exchange', p_field: field, p_query: 'CODE_%', p_date_field: 'paid', p_reason_type: 'defect' };
     expect(mocks.rpc).toHaveBeenCalledWith('admin_search_order_claims_console', expect.objectContaining({ ...shared, p_stage: 'collected', p_offset: 50 }));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_order_claim_stage_counts_console', expect.objectContaining(shared));
+  });
+
+  /* 검색 항목에서 '상품 URL'을 뺐다 — 옛 주소의 field=product는 '전체' 검색으로 읽히고, '전체'가 상품 값도 함께 찾는다(DB admin_sales_claim_matches). */
+  it("옛 주소의 클레임 product 검색은 '전체' 검색으로 보낸다", async () => {
+    const filters = normalizeAdminClaimFilters({ field: 'product', query: 'CODE', stage: 'collected' });
+    expect(filters.field).toBeUndefined();
+    await getAdminClaimConsoleData('exchange', filters);
+    const shared = { p_claim_type: 'exchange', p_field: 'all', p_query: 'CODE' };
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_order_claims_console', expect.objectContaining(shared));
     expect(mocks.rpc).toHaveBeenCalledWith('admin_order_claim_stage_counts_console', expect.objectContaining(shared));
   });
 

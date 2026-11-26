@@ -505,7 +505,7 @@ describe('admin order actions', () => {
       mocks.recoverGoodsPayment.mockResolvedValue({ outcome: 'provider_cancel_confirmed' });
 
       await expect(recoverAdminGoodsPaymentAction({}, cancellationForm())).resolves.toEqual({
-        message: 'Korpay 전액 취소 확인을 주문에 반영했습니다.',
+        message: '코페이 전액 취소 확인을 주문에 반영했습니다.',
       });
 
       expect(mocks.recoverGoodsPayment).toHaveBeenCalledWith({
@@ -535,7 +535,7 @@ describe('admin order actions', () => {
         isStaff: true,
       };
       await expect(recoverAdminGoodsPaymentAction({}, cancellationForm())).resolves.toEqual({
-        errors: { form: 'Korpay 수동 복구는 관리자 계정만 수행할 수 있습니다.' },
+        errors: { form: '코페이 수동 복구는 관리자 계정만 할 수 있습니다.' },
       });
       expect(mocks.recoverGoodsPayment).not.toHaveBeenCalled();
     });

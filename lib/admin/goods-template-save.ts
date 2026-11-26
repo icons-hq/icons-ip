@@ -7,6 +7,8 @@
 export const SAVE_CHECK_LABEL = '저장됐는지 확인';
 /** 저장 결과를 모를 때의 문장. 버튼 이름은 화면에 적힌 그대로 쓴다. */
 export const SAVE_UNKNOWN_MESSAGE = `저장됐는지 확인하지 못했습니다. [${SAVE_CHECK_LABEL}]을 누르면 같은 내용이 두 번 저장되지 않습니다.`;
+/** 결과를 모르는 저장을 더 기다리지 않고 끝내는 버튼. 그만둔 저장은 뒤늦게도 반영되지 않고, 지금 저장된 내용에서 다시 적는다. */
+export const SAVE_STOP_LABEL = '그만두고 다시 하기';
 export const CHANGED_BY_OTHER = '다른 사람이 먼저 바꿨습니다.';
 /** 앞서 누른 저장을 이어서 확인하려 했는데 그사이 내용이나 로그인한 계정이 달라진 경우. */
 export const SAVE_MISMATCH_MESSAGE = '앞서 누른 저장과 내용이나 로그인한 계정이 달라 이어서 저장하지 못했습니다. 지금 저장된 내용을 확인한 뒤 다시 저장해 주세요.';

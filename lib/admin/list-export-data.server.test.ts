@@ -142,7 +142,7 @@ describe('화면별 로더 재사용', () => {
     mocks.shipments.mockResolvedValue({ rows: [], total: 0, origins: [], carriers: [], delayNoticeFingerprint: 'a'.repeat(64) });
     const sheet = await loadAdminListExportSheet('dispatch', { tab: 'delayed', delayNotice: 'not_sent', page: '9' }, new Date());
     expect(sheet.filters).toMatchObject({ tab: 'delayed', delayNotice: 'not_sent' });
-    expect(sheet.conditions).toContainEqual(['발송지연 안내여부', '미발송']);
+    expect(sheet.conditions).toContainEqual(['지연 안내 결과', '미발송']);
     expect(sheet.columns.map(column => column.header)).toContain('상품주문번호');
     expect(sheet.columns.map(column => column.header).slice(-1)).toEqual(['지연 메모']);
     expect(sheet.recordCount).toBe(0);
@@ -163,7 +163,7 @@ describe('화면별 로더 재사용', () => {
     expect(filters).toMatchObject({ status: 'paid', query: '홍', field: 'recipient', page: 1, orderId: null });
     expect(includeRecovery).toBe(false);
     expect(options).toEqual({ pageSize: 50, includeCounts: false });
-    expect(sheet.rows[0][sheet.columns.findIndex((column) => column.header === '결제수단')]).toBe('카드');
+    expect(sheet.rows[0][sheet.columns.findIndex((column) => column.header === '결제수단')]).toBe('토스 결제(카드·가상계좌·계좌이체)');
   });
 
   it('미입금 확인은 입금 큐를 읽지 않는다', async () => {
@@ -189,6 +189,7 @@ describe('화면별 로더 재사용', () => {
     expect(at('배송메시지')).toBe('문 앞에 놓아주세요');
     expect(at('출고지')).toBe('김포');
     expect(at('주문일시')).toBe('2026-10-07 09:00');
+    /* 스마트스토어 양식 파일은 밖으로 나가는 양식이라 결제수단 값을 예전 그대로('카드') 둔다. */
     expect(at('결제수단')).toBe('카드');
     expect(at('상품주문번호')).toBe(line.productOrderNumber);
     expect(mocks.rpc).toHaveBeenCalledWith('admin_delivery_list_export_lines', { p_ids: [line.shipmentId] });
@@ -213,7 +214,7 @@ describe('화면별 로더 재사용', () => {
     expect(at('수취인')).toBe('수령');
   });
 
-  it.each([['recipient', '수령인명'], ['item', '상품주문번호'], ['product', '상품 URL']] as const)(
+  it.each([['recipient', '수령인명'], ['item', '상품주문번호']] as const)(
     '%s 조건의 모든 요청을 읽고 일치하지 않은 같은 주문 품목도 보존한다', async (field, label) => {
       const rows = Array.from({ length: 101 }, (_, index) => ({ id: `claim-${index}`, reference: index + 1,
         orderId: index === 0 ? ORDER_ID : `order-${index}`, claimType: 'return', stage: 'requested',

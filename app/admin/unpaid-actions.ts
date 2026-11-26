@@ -10,6 +10,7 @@ import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { sendOrderConfirmationEmail } from '@/lib/email/transactional.server';
 import { sendOrderConfirmationAlimtalk } from '@/lib/kakao/alimtalk/order-notices.server';
 import { createClient } from '@/lib/supabase/server';
+import { ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 
 /*
  * 미입금 확인 콘솔 액션(#256).
@@ -50,7 +51,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
     return '기한 연장은 주문당 한 번입니다. 더 기다릴 수 없다면 취소해주세요.';
   }
   if (value.includes('order_not_found')) return '주문을 찾을 수 없습니다.';
-  if (value.includes('staff required')) return '관리자 권한이 필요합니다.';
+  if (value.includes('staff required')) return ADMIN_SALES_ACCESS_DENIED;
   return fallback;
 }
 
@@ -98,7 +99,7 @@ async function recoverConfirmationEmailOnReplay(
 }
 
 async function requireStaffAction(): Promise<AdminUnpaidActionState | null> {
-  if (!await requireAdminActionAccess('/admin/sales/unpaid', { capability: 'sales.manage' })) return { error: '관리자 권한이 필요합니다.' };
+  if (!await requireAdminActionAccess('/admin/sales/unpaid', { capability: 'sales.manage' })) return { error: ADMIN_SALES_ACCESS_DENIED };
   return null;
 }
 

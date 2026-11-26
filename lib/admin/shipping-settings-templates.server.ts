@@ -67,6 +67,10 @@ export async function loadShippingSettingsOutdatedGoods(templateId: string, revi
   if (error || !Array.isArray(rows) || !transactionInteger(count) || rows.some(row => !goodId(row.id))) throw new Error('상품을 불러오지 못했습니다.');
   return { ids: rows.map(row => String(row.id)), total: count };
 }
+/**
+ * 배송정보를 적용할 상품 후보 조회. 화면의 상품 고르기는 공용 상품 선택창(AdminGoodsPicker)으로 옮겨 이 조회를 부르는 액션은 없앴다 —
+ * DB 계약을 지키는 라이브 검사(supabase/tests/*_contract.live.ts)가 이 조회의 응답 모양을 확인하므로 함수는 둔다.
+ */
 export async function searchShippingSettingsGoods(query: string, page: number, identity: ShippingSettingsIdentity): Promise<ShippingSettingsCandidates> {
   if (!parseShippingSettingsIdentity(identity)) throw new Error('로그인 정보를 다시 확인해주세요.');
   const client = await createClient(); const { data, error } = await client.rpc('admin_search_goods_for_shipping_settings_v3', {

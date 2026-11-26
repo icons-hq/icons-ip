@@ -96,7 +96,7 @@ export function EncryptedWorkbookDownloadButton({ href, label, disabled = false,
     {open ? <CustomerServiceDialog title="엑셀 비밀번호 설정" busy={pending}
       onClose={() => { setOpen(false); setError(''); }}>
       <form autoComplete="off" className="flex flex-col gap-4" data-admin-encrypted-export="" onSubmit={download}>
-        <p>{snapshot ? '보존된 거래확정 기록을 새 비밀번호로 내려받습니다.' : '현재 검색 조건의 최신 목록을 암호화해 내려받습니다.'}</p>
+        <p>{snapshot ? '만들어 둔 거래확정 엑셀을 새 비밀번호로 내려받습니다.' : '현재 검색 조건의 최신 목록을 암호화해 내려받습니다.'}</p>
         <p className="text-muted-foreground" id={hintId}>{EXPORT_PASSWORD_HINT}</p>
         <label className="flex flex-col gap-1.5 font-medium">비밀번호<Input aria-describedby={hintId} autoComplete="new-password" autoFocus data-dialog-autofocus="" disabled={pending}
           maxLength={EXPORT_PASSWORD_MAX_LENGTH} minLength={EXPORT_PASSWORD_MIN_LENGTH} name="password" required spellCheck={false} type="password" /></label>

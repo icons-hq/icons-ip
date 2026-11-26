@@ -85,7 +85,7 @@ const START_ERRORS: Record<string, string> = {
   partial_cancel_transfer_already_recorded: '이미 다른 송금 완료가 기록됐습니다.',
   partial_cancel_not_awaiting_transfer: '송금 대기 상태가 아닙니다. 새로고침해주세요.',
   partial_cancel_not_bank_transfer: '무통장 주문의 부분 취소가 아닙니다.',
-  partial_cancel_refund_account_missing: '환불계좌 원문이 없습니다(파기됨). 고객에게 계좌를 다시 받아 담당자에게 넘겨주세요.',
+  partial_cancel_refund_account_missing: '저장해 둔 환불 계좌가 없습니다(보관 기간이 지나 지웠습니다). 고객에게 계좌를 다시 받아 담당자에게 넘겨주세요.',
   bank_refund_permission_required: '송금 담당 권한이 필요합니다. 송금 권한이 있는 관리자 계정으로 로그인했는지 확인해주세요.',
   refund_account_auth_changed: '로그인 상태나 송금 담당 권한이 바뀌었습니다. 새로고침 뒤 다시 시도해주세요.',
   operator_capability_required: '이 작업을 할 권한이 없습니다. 로그인 계정의 주문 처리 권한을 계정 주매니저에게 확인해주세요.',

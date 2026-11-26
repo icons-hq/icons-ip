@@ -10,7 +10,7 @@ import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
 import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycle';
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
-import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
+import { SAVE_CHECK_LABEL, SAVE_STOP_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import {
   parseShippingSettingsApplyInput, parseShippingSettingsOperationContext, parseShippingSettingsOperationReceipt, parseShippingSettingsSaveRequest,
   shippingSettingsOperationContext, shippingSettingsReceiptMatches,
@@ -70,7 +70,7 @@ export function useShippingSettingsPending(identity: ShippingSettingsIdentity | 
 }
 
 /** 결과를 모를 때 그만두는 버튼. 누르면 앞서 누른 저장·적용이 뒤늦게 처리되지 않게 막고 입력을 다시 받는다. */
-export const SHIPPING_SETTINGS_STOP_LABEL = '그만두고 다시 하기';
+export const SHIPPING_SETTINGS_STOP_LABEL = SAVE_STOP_LABEL;
 const NOT_SAVED_YET = `아직 저장된 것이 없습니다. [${SHIPPING_SETTINGS_STOP_LABEL}]를 누른 뒤 처음부터 다시 해 주세요.`;
 /** 저장·적용되지 않은 것이 확실한 실패. `changed`는 다른 사람이 템플릿을 먼저 바꾼 경우다. */
 export interface ShippingSettingsFailure { error: string; changed: boolean }

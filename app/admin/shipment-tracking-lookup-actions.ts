@@ -8,6 +8,7 @@ import { findShippingCarrier, isTrackingNumber, normalizeTrackingNumber } from '
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
+import { ADMIN_DISPATCH_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 
 /*
  * 운송장 맞바꾸기(SHP-031)에서 상대 배송 건을 고르는 읽기 전용 조회. 상대 배송건번호(16자리)와 그 배송 건의 운송장번호를 글자로 적게 하지 않고,
@@ -53,7 +54,7 @@ export async function searchTrackingSwapCandidatesAction(
   request: { query: string; page: number },
 ): Promise<TrackingSwapCandidatesResult> {
   if (!await requireAdminActionAccess(SHIPPING_PATH, { capability: 'sales.dispatch' })) {
-    return { ok: false, error: '출고 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.' };
+    return { ok: false, error: ADMIN_DISPATCH_ACCESS_DENIED };
   }
   if (!isUuid(shipmentId)) return { ok: false, error: '배송 건을 다시 선택해주세요.' };
   const query = normalizeTrackingNumber(request.query);

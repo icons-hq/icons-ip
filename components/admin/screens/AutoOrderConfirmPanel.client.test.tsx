@@ -125,7 +125,7 @@ it('켠 채로 실행 시각을 비워 저장하면 고칠 방법을 알리고 �
 });
 
 it('저장 결과를 모르면 낱말 표의 말로 알리고, [저장됐는지 확인]은 같은 내용·같은 요청 번호로 다시 보낸다', async () => {
-  mocks.save.mockResolvedValueOnce({ error: '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 저장됐는지 확인해주세요.', uncertain: true });
+  mocks.save.mockResolvedValueOnce({ error: '저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.', uncertain: true });
   await saveRunTime('17:00');
   const asked = render(base);
   expect(text(result(asked))).toBe('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');
@@ -137,9 +137,9 @@ it('저장 결과를 모르면 낱말 표의 말로 알리고, [저장됐는지 
   expect(mocks.save.mock.calls[1]).toEqual(mocks.save.mock.calls[0]);
   expect(text(result(render(saved)))).toBe('저장했습니다. 매일 17:00에 자동 발주확인합니다.');
   /* 다른 사람이 먼저 바꾼 것처럼 알 수 있는 오류는 서버 문구를 그대로 보인다. */
-  mocks.save.mockResolvedValueOnce({ error: '다른 담당자가 먼저 설정을 바꿨습니다. 새로고침해 현재 설정을 확인해주세요.' });
+  mocks.save.mockResolvedValueOnce({ error: '다른 사람이 먼저 바꿨습니다. 새로고침해 지금 설정을 확인해주세요.' });
   timeInput(render(saved)).props.onChange?.({ target: { value: '18:00' } });
   all(render(saved)).find(element => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
   await settle();
-  expect(text(result(render(saved)))).toContain('먼저 설정을 바꿨습니다');
+  expect(text(result(render(saved)))).toContain('다른 사람이 먼저 바꿨습니다.');
 });

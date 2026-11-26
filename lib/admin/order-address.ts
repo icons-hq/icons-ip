@@ -2,6 +2,7 @@ import { normalizeCheckoutAddress, type CheckoutAddress } from '@/lib/checkout';
 import { isUuid } from '@/lib/uuid';
 import { isCommerceNumber } from '@/lib/commerce-number';
 import { CHANGED_BY_OTHER, SAVE_MISMATCH_MESSAGE, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
+import { ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 
 export interface OrderAddressContext {
   orderNumber?: string;
@@ -57,7 +58,7 @@ export const ORDER_ADDRESS_RELOAD_LABEL = '최신 배송지 불러오기';
 /** 저장됐는지 확인했는데 저장된 것이 없을 때 누른다. 같은 내용을 같은 번호로 다시 보내므로 두 번 저장되지 않는다. */
 export const ORDER_ADDRESS_RESEND_LABEL = '같은 내용으로 다시 저장';
 /** 주문 처리 쪽 화면(order-actions)과 같은 말이다. 권한 이름은 설정 화면의 낱말(판매 관리)이다. */
-export const ORDER_ADDRESS_PERMISSION_MESSAGE = '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';
+export const ORDER_ADDRESS_PERMISSION_MESSAGE = ADMIN_SALES_ACCESS_DENIED;
 
 export function normalizeOrderAddressRequest(value: unknown): { request: OrderAddressRequest } | { error: string } {
   if (!record(value) || !isUuid(value.id) || !isUuid(value.orderId) || !integer(value.revision)) return { error: '주문 정보를 확인하지 못했습니다. 화면을 새로고침한 뒤 다시 눌러 주세요.' };

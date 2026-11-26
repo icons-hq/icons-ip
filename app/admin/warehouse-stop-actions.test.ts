@@ -15,11 +15,12 @@ const OPERATION_ID = '33333333-3333-4333-8333-333333333333';
 const mocks = vi.hoisted(() => ({
   adminState: { isConfigured: true, user: { id: 'staff-1', email: 'staff@icons.gg' }, role: 'staff', isStaff: true, operatorAccess: undefined as unknown },
   rpc: vi.fn(),
+  from: vi.fn(),
   revalidatePath: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: () => mocks.adminState }));
-vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ rpc: mocks.rpc }) }));
+vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ rpc: mocks.rpc, from: mocks.from }) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); },
@@ -32,6 +33,7 @@ describe('창고 회신 기록·취소 뒤 출고 처리 액션', () => {
   beforeEach(() => {
     mocks.adminState.operatorAccess = configuredOperatorAccessFixture('primary');
     mocks.rpc.mockReset();
+    mocks.from.mockReset();
     mocks.revalidatePath.mockReset();
   });
 
@@ -100,5 +102,29 @@ describe('창고 회신 기록·취소 뒤 출고 처리 액션', () => {
     mocks.rpc.mockReset();
     expect(await loadOrderWarehouseStopAction(ORDER_ID)).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  /* 취소 뒤 출고 발견의 택배사는 영문 값(epost)으로 저장돼 있다. 화면에는 택배사 관리에 등록한 이름으로 보인다. */
+  it('취소 뒤 출고 발견의 택배사는 등록한 이름으로 채우고, 이름을 모르면 영문 값을 내지 않는다', async () => {
+    const dispatch = (id: string, carrier: string | null) => ({ id, shipmentId: SHIPMENT_ID, source: 'tracking_reply', carrier, trackingNumber: carrier ? '6890000000001' : null,
+      discoveredAt: '2026-11-20T01:00:00Z', state: 'open', restoredQty: 1, withdrawnQty: 1, shortfallQty: 0, lines: [] });
+    const context = { orderId: ORDER_ID, orderStatus: 'canceled', canRecord: true, canResolve: true, shipments: [],
+      discoveries: [dispatch('d1', 'epost'), dispatch('d2', 'unlisted'), dispatch('d3', null)] };
+    const order = vi.fn();
+    order.mockReturnValueOnce({ order }).mockResolvedValueOnce({ data: [{ code: 'epost', label: '우체국택배', is_active: true, tracking_url_template: null }], error: null });
+    mocks.from.mockReturnValue({ select: () => ({ order }) });
+    mocks.rpc.mockResolvedValue({ data: context, error: null });
+    const loaded = await loadOrderWarehouseStopAction(ORDER_ID);
+    expect(mocks.from).toHaveBeenCalledWith('shipping_carriers');
+    expect(loaded.ok && loaded.value.discoveries.map(item => item.carrierLabel)).toEqual(['우체국택배', '택배사', null]);
+    /* 택배사 이름을 읽지 못해도 기록은 보인다. */
+    mocks.from.mockReturnValue({ select: () => ({ order: () => ({ order: async () => ({ data: null, error: { message: 'timeout' } }) }) }) });
+    const failed = await loadOrderWarehouseStopAction(ORDER_ID);
+    expect(failed.ok && failed.value.discoveries.map(item => item.carrierLabel)).toEqual(['택배사', '택배사', null]);
+    /* 택배사가 적힌 발견이 없으면 택배사 목록을 읽지 않는다. */
+    mocks.from.mockClear();
+    mocks.rpc.mockResolvedValue({ data: { ...context, discoveries: [dispatch('d3', null)] }, error: null });
+    await loadOrderWarehouseStopAction(ORDER_ID);
+    expect(mocks.from).not.toHaveBeenCalled();
   });
 });

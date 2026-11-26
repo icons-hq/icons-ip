@@ -175,7 +175,7 @@ describe('InquiryDetailScreen', () => {
     const html = render();
 
     expect(html).toContain('배송중');
-    expect(html).toContain('Korpay');
+    expect(html).toContain('코페이');
     expect(html).toContain('한진택배');
     expect(html).toContain('1234567890');
     expect(html).toContain('승인 대기');
@@ -230,7 +230,7 @@ describe('InquiryDetailScreen', () => {
   it('결제 상태는 한글로, 끝난 클레임 이력은 조용한 색으로 보인다', () => {
     const input = detail();
     const html = render({ ...input, order: { ...input.order!, status: 'canceled', payment: { provider: 'toss', status: 'canceled', amount: 57000 }, claims: [{ status: 'completed', requestedAt: '2026-08-17T01:00:00.000Z', decidedAt: null, reasonType: 'change_of_mind' }] } });
-    expect(html).toContain('토스페이먼츠 · 결제취소');
+    expect(html).toContain('토스 결제 · 결제취소');
     expect(html).not.toContain('· canceled');
     expect(html).toMatch(/data-tone="neutral"[^>]*>취소 완료</);
   });

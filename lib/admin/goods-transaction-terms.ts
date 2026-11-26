@@ -150,7 +150,7 @@ export function goodsTermsError(message?: string): string {
   const messages: Record<string, string> = {
     goods_transaction_terms_changed: '상품 또는 할인·배송 설정이 변경됐습니다. 입력을 유지한 채 최신 저장본을 비교해주세요.',
     checkout_contract_upgrade_required: '주문·결제 기능 준비가 끝난 뒤 사용으로 저장할 수 있습니다. 지금은 사용 안 함으로 저장해주세요.',
-    collect_contract_not_ready: '출고지의 착불 수납 계약·수납 방법·분쟁 연락처를 먼저 준비해주세요.',
+    collect_contract_not_ready: "출고지에서 착불을 받을 준비가 안 돼 있습니다. 배송정보 관리에서 출고지의 착불 조건을 '사용'으로 저장한 뒤 다시 저장해주세요.",
     operator_operation_conflict: '같은 요청 번호에 다른 내용이 있습니다. 최신 저장본을 확인해주세요.',
     auth_context_changed: '로그인한 계정이 바뀌었습니다. 지금 계정으로 화면을 새로고침해주세요.',
     operator_capability_required: '상품관리 권한이 필요합니다.', good_not_found: '상품이 없거나 보관됐습니다. 상품 목록에서 다시 확인해주세요.',

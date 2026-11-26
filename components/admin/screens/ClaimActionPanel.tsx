@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { startTransition, useActionState, useRef, useState, type ReactNode } from 'react';
-import { ADMIN_CANCELLATION_RECHECK_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
+import { ADMIN_CANCELLATION_RECHECK_LABELS, adminOrderPanelHref } from '@/lib/admin/orders';
 import { adminClaimStageLabel, adminClaimTodayKst } from '@/lib/admin/claims';
 import { krw } from '@/lib/format';
 import { statusTone } from '@/lib/admin/status-tone';
@@ -35,8 +35,7 @@ import {
   type OrderClaimStage,
   type OrderClaimType,
 } from '@/lib/orders/claims';
-import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
-import type { AdminClaimCollection, AdminClaimReshipItem } from '@/lib/admin/claims.server';
+import type { AdminClaimCollection } from '@/lib/admin/claims.server';
 import {
   returnFeeDeductionBasisLabel,
   returnFeeDeductionHeadline,
@@ -575,12 +574,12 @@ export interface ClaimActionPanelProps {
   claimType: OrderClaimType;
   orderId: string;
   stage: OrderClaimStage;
-  /** 쓰지 않는다(재출고 등록은 회수·재배송 연락처 처리로 옮겨 갔다). 상세 화면이 넘기지 않게 되면 지운다. */
-  carriers?: ShippingCarrierRegistry;
   /** 확인창에 적는 요청번호(예: C00012). 없으면 확인창 제목에서 빠진다. */
   claimReference?: string | null;
   /** 확인창에 적는 주문번호. */
   orderReference?: string | null;
+  /** 주문의 실제 주문번호(없는 옛 주문은 null). 주문 통합검색 링크가 이 번호로 찾아 그 주문의 처리 패널까지 연다. */
+  orderNumber?: string | null;
   /** 확인창에 적는 구매자 이름. */
   buyerName?: string | null;
   /** 반품·교환을 승인하면 택배사에 회수가 자동으로 접수되는가(자동 회수 사용). 켜져 있을 때만 승인 전에 묻는다. */
@@ -599,8 +598,6 @@ export interface ClaimActionPanelProps {
   paymentProvider: string | null;
   /** 환불 원장에 이미 기록된 수단. 첫 기록이 이긴다. */
   recordedRefundMethod: OrderClaimRefundMethod | null;
-  /** 쓰지 않는다(위 carriers와 같다). */
-  reshipItems?: AdminClaimReshipItem[];
   collectionPolicy: 'origin' | 'legacy' | null;
   collectionComplete: boolean;
   collectedAt?: string | null;
@@ -645,6 +642,7 @@ export function ClaimActionPanel({
   claimType,
   claimReference = null,
   orderReference = null,
+  orderNumber = null,
   buyerName = null,
   autoPickupOnApproval = false,
   heldFrom,
@@ -871,7 +869,7 @@ export function ClaimActionPanel({
           key={collection.shipmentId} claimId={claimId} claimType={claimType}
           /* 회수 생략으로 결정한 출고지는 회수가 끝난 것으로 보지만, 요청이 열려 있는 동안 늦게 도착한 입고는 기록할 수 있다(재고 변화 없음). */
           collection={collection} canRecord={canRecordOrigin || (originCollectionOpen && collection.collectionWaived === true)} claimRevision={claimRevision} />)
-          : <p className="text-muted-foreground">수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.</p>}
+          : <p className="text-muted-foreground">수거를 승인하면 출고지별 반품지 주소와 상품이 표시됩니다.</p>}
       </section> : collectionPolicy === null ? <p className="text-destructive" role="alert">회수 정보를 불러오지 못했습니다. 새로고침해주세요.</p> : null}
   </>;
 
@@ -998,7 +996,7 @@ export function ClaimActionPanel({
             반송 {V.goods} 입고 확인
           </Button>
           <p className={HINT_CLASS}>
-            환급 기한(영업일 3일)은 확인 버튼을 누른 때가 아니라 실제 입고일부터 셉니다.
+            환불 기한(영업일 3일)은 확인 버튼을 누른 때가 아니라 실제 입고일부터 셉니다.
           </p>
         </form>
       ) : null}
@@ -1077,7 +1075,7 @@ export function ClaimActionPanel({
           <input name="orderId" type="hidden" value={orderId} />
           <input name="stage" type="hidden" value="filed" />
           <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-method" autoCancelLabel={autoCancelLabel} cancelScope={cancelScope} />
-          <SettlementNoteField id="claim-refund-note" placeholder="예: 정산 완료분이라 코페이 상계 처리" />
+          <SettlementNoteField id="claim-refund-note" placeholder="예: 이미 정산된 결제라 다음 정산에서 빼기로 결제사와 확인" />
           {partialReturn && claimType === 'return' && defectiveStock && !defectiveStock.frozen
             ? <ClaimDefectiveStockChoice idPrefix="claim-refund-file-stock" items={defectiveStock.items} /> : null}
           <Button className="w-fit" disabled={pending} size="sm" type="submit" variant={refundFiled ? 'outline' : 'default'}>
@@ -1161,7 +1159,7 @@ export function ClaimActionPanel({
         <p className="text-muted-foreground">
           이 주문에는 환불 기록이 없어 [환불 완료 확정]을 쓸 수 없습니다. 결제 내역이
           없는 주문(결제창만 열렸거나 결제 결과가 정해지기 전)의 취소는{' '}
-          <Link className="text-foreground underline underline-offset-4" href={adminOrderSearchHref(orderId)}>주문 통합검색에서 이 주문을 열어</Link>
+          <Link className="text-foreground underline underline-offset-4" href={adminOrderPanelHref(orderId, orderNumber)}>주문 통합검색에서 이 주문을 열어</Link>
           {' '}[{orderPanelRecheckLabel}]으로 닫습니다. {PAYMENT_PROVIDER_LABELS.korpay} 결제창 주문은 그 자리의
           [{ADMIN_CANCELLATION_RECHECK_LABELS.preparedKorpay}] 버튼으로 처리합니다.
         </p>

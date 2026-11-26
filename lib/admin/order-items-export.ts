@@ -46,7 +46,7 @@ export function orderItemsExportSheet(rows: AdminOrderItemRow[], filters: AdminO
       ['중복 제외 주문 수', String(new Set(rows.map(row => row.orderId)).size)]],
     notes: ['한 행은 상품주문 한 개입니다. 상품명·옵션·판매가는 주문 당시 기록입니다.',
       '상품 금액은 판매가 × 수량입니다. 품목 배분 열은 주문의 복수구매·쿠폰·적립금을 거래확정 엑셀과 같은 규칙으로 품목에 나눈 값이며 배송비는 포함하지 않습니다. 주문 당시 기록이 없어 나눌 수 없으면 빈칸입니다.',
-      '취소·반품·환급 및 발주확인의 처리 단위는 주문 전체입니다.',
+      '취소·반품·환불과 발주확인은 주문 전체 단위로 처리합니다.',
       ...(partial ? ['취소 수량은 재고 부족 부분 취소로 뺀 수량입니다. 그 행의 수량·상품 금액·품목 실결제액은 남은 몫이고, 복수구매·쿠폰·적립금 배분 열은 주문 당시 값입니다.'] : [])],
     filters: { view: 'items', field: filters.field, query: filters.query || null, status: filters.status, from: filters.from, to: filters.to,
       dateField: filters.dateField ?? 'ordered', paymentMethod: filters.paymentMethod ?? null, sort: filters.sort ?? 'newest', fingerprint },

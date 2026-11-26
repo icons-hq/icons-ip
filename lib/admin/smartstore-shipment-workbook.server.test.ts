@@ -55,7 +55,7 @@ describe('엑스스퀘어 표준 양식 출고지시', () => {
     expect(lines.get('양식')).toEqual(['엑스스퀘어 표준 양식']);
     expect(lines.get('출고지')).toEqual(['김포']);
     expect(lines.get('건수')).toEqual(['1건 · 엑셀 1행']);
-    expect(lines.get('안내')!.join(' ')).toContain('엑셀 일괄 운송장 등록');
+    expect(lines.get('안내')!.join(' ')).toContain('"운송장 올리기"에 올립니다');
     expect(lines.get('개인정보')![0]).toContain('개인정보');
     const everyText = [...lines.values()].flat().join(' ');
     expect(everyText).not.toMatch(/네이버|스마트스토어|발송처리/);

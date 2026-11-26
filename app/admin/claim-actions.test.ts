@@ -264,7 +264,7 @@ describe.each(receiptActions)('$name', (contract) => {
 describe('회수 확인 성공', () => {
   it.each([
     ['collecting', '이 출고지의 회수를 확인했습니다. 남은 출고지를 확인해주세요.'],
-    ['collected', '모든 출고지의 회수를 확인했습니다. 환급 기한은 가장 늦은 실제 입고일부터 셉니다. 다음 처리 단계를 확인해주세요.'],
+    ['collected', '모든 출고지의 회수를 확인했습니다. 환불 기한은 가장 늦은 실제 입고일부터 셉니다. 다음 처리 단계를 확인해주세요.'],
   ])('%s 응답은 정규화한 인자와 해당 반품 화면만 재검증한다', async (data, message) => {
     mocks.rpc.mockResolvedValue({ data, error: null });
 
@@ -421,7 +421,7 @@ describe('waiveOrderClaimCollectionAction', () => {
   it('확인 체크 값이 없어도 사유·사진이 맞으면 기록한다(체크는 화면의 확인창이 대신한다)', async () => {
     mocks.rpc.mockResolvedValue({ data: { claimId: CLAIM_ID, shipmentId: SHIPMENT_ID, productionPending: false, replayed: false }, error: null });
     const unchecked = waiverForm(); unchecked.delete('confirmed');
-    expect((await waiveOrderClaimCollectionAction({}, unchecked)).message).toBe('회수 생략을 기록했습니다. 회수·재배송 연락처 처리에서 회수 없이 재출고합니다.');
+    expect((await waiveOrderClaimCollectionAction({}, unchecked)).message).toBe("회수 생략을 기록했습니다. '재출고 등록'에서 회수 없이 재출고합니다.");
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
   });
   it('사유·사진이 모자라면 RPC를 부르지 않는다', async () => {

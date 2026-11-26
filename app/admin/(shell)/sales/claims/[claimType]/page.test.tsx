@@ -40,6 +40,7 @@ function workspace(claimType = 'return') {
     detail: { claim: { id: CLAIM_ID, reference: 12, claimType }, payment: null, order: null },
     carriers: [],
     cancellationForm: null,
+    autoPickupOnApproval: true,
   };
 }
 
@@ -75,6 +76,8 @@ it('claimId가 있으면 상세 라우트와 같은 로더로 읽어 팝업 안�
   expect(screen?.props).toMatchObject({
     actorId: 'staff-1',
     embedded: true,
+    /* 자동 회수 접수 스위치를 팝업에도 넘겨야 팝업 안의 승인도 '택배사에 회수가 접수된다'는 확인창을 띄운다. */
+    autoPickupOnApproval: true,
     backHref: '/admin/sales/claims/returns?stage=open&page=2',
     detailHref: `/admin/sales/claims/returns/${CLAIM_ID}?back=${encodeURIComponent('stage=open&page=2')}`,
   });

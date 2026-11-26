@@ -49,7 +49,7 @@ describe('결제 취소 실패 안내', () => {
   it('가상계좌 환불·반납 코드를 운영자 말로 옮긴다', () => {
     const required = adminPaymentCancelFailureMessage('provider_refund_account_required');
     expect(required).toContain('환불 계좌가 없어');
-    expect(required).toContain('주문 상세에서 환급 계좌를 입력하면');
+    expect(required).toContain('주문 상세에서 환불 계좌를 입력하면');
     expect(required).toContain('토스페이먼츠 상점관리자에서 환불한 뒤');
     // 2026-11-25: 고객에게 알림·메일이 자동으로 가고, 운영자가 받은 계좌를 대신 입력할 수 있다(VAC-041·VAC-042).
     expect(required).toContain('앱 알림과 메일');

@@ -6,7 +6,7 @@ import { parseReturnFeeDeduction, type ReturnFeeDeduction } from '@/lib/claims/r
 import { formatOrderDateTime } from '@/lib/orders';
 import { krwAmountWords } from '@/lib/format';
 import type { AdminConfirmRequest } from './confirm';
-import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from './goods-template-save';
+import { SAVE_CHECK_LABEL, SAVE_STOP_LABEL, SAVE_UNKNOWN_MESSAGE } from './goods-template-save';
 
 export type BankRefundIdentity = ClaimRefundAccountIdentity;
 export const BANK_REFUND_KINDS = ['confirm_cancellation', 'file_transfer', 'complete_transfer'] as const;
@@ -17,7 +17,7 @@ export const BANK_REFUND_LABELS: Record<BankRefundKind, string> = {
 /** 결과를 모를 때 화면이 아직 보낸 내용을 들고 있으면 누르는 버튼. 같은 번호로 다시 보내 두 번 저장되지 않는다. */
 export const BANK_REFUND_RESEND_LABEL = '같은 내용으로 다시 저장';
 /** 결과를 모르는 기록을 그만두는 버튼(화면이 보낸 내용을 잃었을 때). 그만둔 기록은 뒤늦게도 저장되지 않는다. */
-export const BANK_REFUND_ABANDON_LABEL = '그만두고 다시 하기';
+export const BANK_REFUND_ABANDON_LABEL = SAVE_STOP_LABEL;
 export const BANK_REFUND_RELOAD_LABEL = '최신 환불 상태 확인';
 export const BANK_REFUND_CUSTOM_TIME_LABEL = '다른 시각 적기';
 export const BANK_REFUND_VIEW_ACCOUNT_LABEL = '계좌번호 전체 보기';

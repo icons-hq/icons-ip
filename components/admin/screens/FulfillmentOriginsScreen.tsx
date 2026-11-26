@@ -65,8 +65,9 @@ export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, 
     {origin ? <AdminSectionCard key={origin.id} summary={<OriginFacts origin={origin} />} title={origin.name}>
       <FulfillmentOriginForm origin={origin} carriers={carriers} canEdit={canEdit} impact={canEdit ? impact : undefined} />
       <ShipmentExportColumnsEditor origin={origin} canEdit={canEdit} />
-      <DeliveryPoliciesPanel originId={origin.id} canEdit={canEdit} />
-      {canEdit && accountId && <ShippingCollectContractPanel originId={origin.id} accountId={accountId} canEdit />}
+      {/* 사용 안 함인 출고지에서는 수령 방식·착불 조건을 켤 수 없다 — 두 패널이 누르기 전에 잠그고 이유를 보인다. */}
+      <DeliveryPoliciesPanel originId={origin.id} canEdit={canEdit} originActive={origin.active} />
+      {canEdit && accountId && <ShippingCollectContractPanel originId={origin.id} accountId={accountId} canEdit originActive={origin.active} />}
       {canEdit ? <StockDigestOriginRecipientsPanel key={origin.id} originId={origin.id} /> : null}
     </AdminSectionCard> : null}
     {canEdit && tab === NEW_FULFILLMENT_ORIGIN_TAB ? <AdminSectionCard title="새 출고지" summary="저장하면 새 출고지 탭으로 이동합니다."><FulfillmentOriginForm carriers={carriers} canEdit /></AdminSectionCard> : null}

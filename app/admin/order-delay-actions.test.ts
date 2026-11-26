@@ -11,11 +11,11 @@ const notice={id,title:'발송 지연 안내',customerBody:'별도 고객 문구
  targets:[{id:'40000000-0000-4000-8000-000000000002',orderId:'40000000-0000-4000-8000-000000000003',buyerName:'실제 구매자',recipientEmail:'buyer@example.test',shipmentIds:[id],shipmentLabels:['김포 · 00000001'],messageBody:'별도 고객 문구\n발송 예정일: 확인 중',inAppStatus:'prepared',emailStatus:'prepared',emailProviderState:null,errorCode:null,retryable:false,attempts:0}]};
 beforeEach(()=>{vi.clearAllMocks();mocks.auth.mockResolvedValue({isConfigured:true,user:{id:'staff'},isStaff: true, operatorAccess: legacyOperatorAccessFixture()});mocks.dispatcher.mockReturnValue({});});
 describe('지연 안내 서버 액션',()=>{
- it('직원 권한 없이 대상·내용을 저장하거나 고객에게 요청하지 못한다',async()=>{
+ it('판매 관리 권한 없이 대상·내용을 저장하거나 고객에게 요청하지 못한다',async()=>{
   mocks.auth.mockResolvedValue({isConfigured:true,user:{id:'buyer'},isStaff:false});
-  expect(await prepareOrderDelayNoticeAction({requestId:id,shipmentIds:[id],title:'안내',body:'고객 문구',expectedShipDate:null})).toEqual({error:'직원 권한이 필요합니다.'});
-  expect(await requestOrderDelayNoticeAction(id)).toEqual({error:'직원 권한이 필요합니다.'});
-  expect(await retryOrderDelayNoticeAction(id)).toEqual({error:'직원 권한이 필요합니다.'});
+  expect(await prepareOrderDelayNoticeAction({requestId:id,shipmentIds:[id],title:'안내',body:'고객 문구',expectedShipDate:null})).toEqual({error:'판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.'});
+  expect(await requestOrderDelayNoticeAction(id)).toEqual({error:'판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.'});
+  expect(await retryOrderDelayNoticeAction(id)).toEqual({error:'판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.'});
   expect(mocks.rpc).not.toHaveBeenCalled();
  });
  it('클라이언트 수신자를 받지 않고 선택한 배송 건과 별도 고객 문구만 DB에 전달한다',async()=>{

@@ -1,4 +1,5 @@
 import { isUuid } from '@/lib/uuid';
+import { SAVE_STOP_LABEL } from './goods-template-save';
 import { GOODS_TRANSACTION_INT_MAX, GOODS_TRANSACTION_MAX_LINES, GOODS_TRANSACTION_SELECTION_MAX_BYTES, transactionEpochMicros,
   transactionExactKeys, transactionGoodId, transactionInstant, transactionInteger } from '@/lib/goods-transaction-values';
 import { normalizeShippingAddress } from '@/lib/shipping-regions';
@@ -130,7 +131,7 @@ export function shippingChargeGroupRegionalProblems(policy: ShippingChargeGroupR
 }
 
 /** 결과를 모를 때 그만두는 버튼. 누르면 앞서 누른 저장이 뒤늦게 처리되지 않게 막는다(배송정보 템플릿 화면과 같은 이름). */
-export const SHIPPING_CHARGE_GROUP_STOP_LABEL = '그만두고 다시 하기';
+export const SHIPPING_CHARGE_GROUP_STOP_LABEL = SAVE_STOP_LABEL;
 /**
  * 묶음그룹을 '사용'으로 저장하거나 상품을 넣고 빼려면 쇼핑몰 전체에 걸린 주문 설정이 켜져 있어야 한다(꺼져 있으면 DB가 거절한다).
  * 그 설정을 켜는 어드민 화면은 없고 개발 담당자가 켠다 — '운영 설정을 확인'이 아니라 누구에게 요청하는지를 말한다

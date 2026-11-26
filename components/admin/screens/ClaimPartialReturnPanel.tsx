@@ -3,7 +3,7 @@ import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { krw } from '@/lib/format';
 import { orderPartialCancellationSummary } from '@/lib/orders/partial-cancellation';
 import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
-import { adminOrderSearchHref } from '@/lib/admin/orders';
+import { adminOrderDetailHrefFromBack } from '@/lib/admin/orders';
 import { ADMIN_SUPPORT_CODE_LABEL } from '@/lib/admin/payment-cancel-error';
 import { ClaimPartialReturnTransfer } from './ClaimPartialReturnTransfer';
 
@@ -95,7 +95,7 @@ export function ClaimPartialReturnPanel({ partialReturn, orderId, claimId }: {
       ) : null}
       <p className="text-xs text-muted-foreground">
         환불 금액은 [환불 접수 완료로 기록]을 누를 때 정해지고 바뀌지 않습니다. 남은 상품은 주문에 그대로 남고, 남은 상품을 모두 반품하면 주문 전체 반품으로 받습니다.{' '}
-        <Link className="underline" href={adminOrderSearchHref(orderId)}>주문 상세의 부분 환불 기록</Link>
+        <Link className="underline" href={`${adminOrderDetailHrefFromBack(orderId)}#partial-cancellation`}>주문 상세의 부분 환불 기록</Link>
       </p>
     </section>
   );

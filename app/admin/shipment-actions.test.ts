@@ -5,7 +5,7 @@ import { DEFAULT_SHIPMENT_EXPORT_COLUMNS } from '@/lib/admin/shipment-workbook';
 
 const ID = '00000000-0000-4000-8000-000000000001';
 /* 권한이 없을 때의 안내: 무엇이 필요한지와 어디서 받는지까지 말한다. */
-const NO_PERMISSION = '이 작업을 할 권한이 없습니다. 계정 주매니저나 물류출고관리 권한이 필요합니다. 판매자 정보 > 매니저 관리 담당자에게 권한을 요청해주세요.';
+const NO_PERMISSION = '출고 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';
 const SECOND = '00000000-0000-4000-8000-000000000002';
 const STAMP = '2026-09-08T00:00:00Z';
 const credentials = { password: '1234', passwordConfirmation: '1234' };
@@ -411,7 +411,7 @@ describe('발송 대기 행 운송장·배송 방법 액션 (S36-072·S36-X04)',
     mocks.rpc.mockResolvedValue({ data: { ...receipt, operationId: SECOND }, error: null });
     expect(await applyDispatchDeliveryAction(input)).toMatchObject({ ok: false });
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'operation_conflict' } });
-    expect(await applyDispatchDeliveryAction(input)).toEqual({ ok: false, error: expect.stringContaining('같은 요청 번호') });
+    expect(await applyDispatchDeliveryAction(input)).toEqual({ ok: false, error: expect.stringContaining('같은 처리에 다른 내용이 이미 저장돼 있습니다') });
     mocks.rpc.mockClear();
     await applyDispatchDeliveryAction({ ...input, method: 'parcel', handoff: null, reason: '' });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_dispatch_apply_delivery', expect.objectContaining({ p_method: 'parcel', p_reason: null, p_handoff: null }));

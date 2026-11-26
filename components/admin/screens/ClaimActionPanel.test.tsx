@@ -92,7 +92,8 @@ describe('ClaimActionPanel 처리 결과', () => {
     expect(html).toMatch(/처리 상태 <span[^>]*data-tone="info"[^>]*>처리중</);
     // 이 건을 닫는 유일한 버튼(주문 패널 재확인)을 항상 보이는 문구가 가리킨다.
     expect(html).toContain(`[${ADMIN_CANCELLATION_RECHECK_LABELS.processing}]으로 닫습니다`);
-    expect(html).toContain(`href="/admin/sales/orders?query=${ORDER_ID}"`);
+    /* 주문 통합검색에서 그 주문을 찾고 처리 패널까지 연다(재확인 버튼은 그 패널에만 있다). */
+    expect(html).toContain(`href="/admin/sales/orders?query=${ORDER_ID}&amp;order=${ORDER_ID}"`);
     expect(html).not.toContain('결제 내역을 먼저 확인해주세요');
   });
 
@@ -371,7 +372,7 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
     const html = await render({ claimType: 'return', stage: 'requested', collectionPolicy: 'origin', collectionComplete: false, collections: [] });
 
     expect(html).toContain('출고지별 회수 확인');
-    expect(html).toContain('수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.');
+    expect(html).toContain('수거를 승인하면 출고지별 반품지 주소와 상품이 표시됩니다.');
   });
 
   /* 코드 리뷰: 보류 뒤 canHold→canResume으로 렌더 자리가 바뀌어 부품이 다시 마운트되면서 완료 문구와 포커스가 사라졌다. */

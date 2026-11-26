@@ -208,7 +208,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('claim_not_held')) return '보류 상태가 아닙니다.';
   if (value.includes('claim_not_found')) return '클레임을 찾을 수 없습니다.';
   if (value.includes('claim_operational_fee_conflict')) return '다른 담당자가 먼저 금액을 바꿨습니다. 새로고침해 바뀐 금액을 확인한 뒤 다시 저장해주세요.';
-  if (value.includes('invalid_claim_operational_fee')) return '운영 확인액(0~1,000,000원)·비용 유형·금액 의미·메모(1~500자)·확인 근거(1~1,000자)를 확인해주세요.';
+  if (value.includes('invalid_claim_operational_fee')) return '운영 확인액(0~1,000,000원)·비용 유형·비용 메모(1~500자)·확인 근거(1~1,000자)를 확인해주세요.';
   if (value.includes('unknown shipping carrier')) return '쓸 수 없는 택배사입니다. 택배사를 다시 골라주세요.';
   /* 운송장 등록 판정(SHP-030~032). 재출고·일괄 재출고 결과표가 같은 문구를 쓴다. */
   if (value.includes('tracking_number_in_use')) return '다른 주문의 배송 건(대표·추가 운송장 또는 교환 재출고)에 이미 등록된 운송장번호입니다. 교환품 상자의 운송장번호를 다시 확인해주세요.';
@@ -217,7 +217,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('invalid settlement note')) return '환불 메모는 앞뒤 공백 없이 300자 이내로 적어주세요.';
   if (value.includes('invalid refund method') || value.includes('invalid refund stage')) return '환불 수단이나 처리 단계를 확인하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
   if (value.includes('bank_refund_method_required') || value.includes('bank_refund_confirmation_required') || value.includes('bank_refund_evidence_required')) {
-    return '무통장 결제는 결제사 취소가 아니라 환불 처리 칸의 [취소 확정]과 실제 송금 완료 증빙으로 환불합니다. 상세에서 처리해주세요.';
+    return '무통장 결제는 결제사 취소가 아니라 요청 상세의 무통장 환불 칸에서 [취소 확정 · 재고 복원]과 [송금 완료 기록]으로 환불합니다. 상세에서 처리해주세요.';
   }
   if (value.includes('operator_capability_required') || value.includes('staff required') || value.includes('staff_required')) {
     return '이 처리를 할 권한이 없습니다. 반품·교환 처리 권한을 확인해주세요.';
@@ -458,7 +458,7 @@ export async function bulkDecideOrderClaimsAction(
     if (latestError) return { ok: false, message: '요청을 다시 읽지 못했습니다. 최신 상태를 확인해주세요.' };
     if (!latest) return { ok: false, message: '클레임을 찾을 수 없습니다.' };
     if (latest.claim_type !== claimType) {
-      return { ok: false, message: `${ORDER_CLAIM_TYPE_LABELS[claimType]} 요청이 아닙니다. 해당 목록에서 처리해주세요.` };
+      return { ok: false, message: `${ORDER_CLAIM_TYPE_LABELS[claimType]} 요청이 아닙니다. 이 요청의 유형에 맞는 목록에서 처리해주세요.` };
     }
     const { decided, state } = await decideOneOrderClaim(supabase, actorId, { claimId, decision, note });
     if (decided) revalidateClaimSurfaces(claimId, claimType);
@@ -502,7 +502,7 @@ export async function recordOrderClaimCollectionAction(
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return {
     message: normalized.value.stage === 'collected'
-      ? adminGoodsCopy(`반송 상품 입고를 확인했습니다. 환급 기한은 실제 입고일(${normalized.value.receivedOn ?? '오늘'})부터 셉니다.`)
+      ? adminGoodsCopy(`반송 상품 입고를 확인했습니다. 환불 기한은 실제 입고일(${normalized.value.receivedOn ?? '오늘'})부터 셉니다.`)
       : '수거중으로 표시했습니다.',
   };
 }
@@ -537,7 +537,7 @@ export async function recordOrderClaimOriginCollectionAction(
   if (data !== 'collecting' && data !== 'collected') return fail(COLLECTION_FAILED);
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return { message: data === 'collected'
-    ? '모든 출고지의 회수를 확인했습니다. 환급 기한은 가장 늦은 실제 입고일부터 셉니다. 다음 처리 단계를 확인해주세요.'
+    ? '모든 출고지의 회수를 확인했습니다. 환불 기한은 가장 늦은 실제 입고일부터 셉니다. 다음 처리 단계를 확인해주세요.'
     : bundleId ? '이 반품지의 회수를 확인했습니다. 남은 반품지·출고지를 확인해주세요.' : '이 출고지의 회수를 확인했습니다. 남은 출고지를 확인해주세요.' };
 }
 
@@ -634,7 +634,7 @@ export async function waiveOrderClaimCollectionAction(
   revalidateClaimSurfaces(claimId, 'exchange');
   return { message: result.productionPending === true
     ? '회수 생략을 기록했습니다. 주문 상세의 주문제작 처리에서 교환품 제작을 마치면 회수 없이 재출고합니다.'
-    : '회수 생략을 기록했습니다. 회수·재배송 연락처 처리에서 회수 없이 재출고합니다.' };
+    : "회수 생략을 기록했습니다. '재출고 등록'에서 회수 없이 재출고합니다." };
 }
 
 /**
@@ -878,7 +878,7 @@ export async function recordOrderClaimRefundAction(
     // Bank refunds need cancellation evidence, an awaiting-transfer phase and a
     // separate immutable transfer receipt; the card orchestrator cannot do it.
     if (current.payment?.provider === 'bank_transfer') {
-      return { error: '무통장 환불 처리에서 취소 확정과 실제 송금 완료 증빙을 각각 기록해주세요.' };
+      return { error: '무통장 환불 칸에서 [취소 확정 · 재고 복원]과 [송금 완료 기록]을 각각 남겨주세요.' };
     }
 
     if (current.claim.stage !== 'completed') {

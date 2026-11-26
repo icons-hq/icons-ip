@@ -11,7 +11,7 @@ const ORDER_ID = '76b3ad83-aaaf-455f-a07e-7c7d0143da59';
 const ITEM_ID = '1fe5f1e8-19a4-4f34-8cc6-4742e7d9fad3';
 const SECOND_ITEM_ID = '2fe5f1e8-19a4-4f34-8cc6-4742e7d9fad4';
 
-function row(overrides: Partial<AdminOrderItemRow> & { fulfillmentHold?: boolean } = {}): AdminOrderItemRow {
+function row(overrides: Partial<AdminOrderItemRow> = {}): AdminOrderItemRow {
   return {
     id: ITEM_ID, orderId: ORDER_ID, userId: '378dae74-b218-4c2f-80ff-27af804b736b', buyerName: '합성 구매자', recipientName: '합성 수령인',
     status: 'paid', createdAt: '2026-09-01T14:59:59Z', goodId: 'good', goodName: '합성 상품', variantName: '선택 옵션', variantCode: 'ABC-001',

@@ -176,15 +176,15 @@ describe('목록에 없는 예전 안내', () => {
 
 /*
  * N-4·N-6: 템플릿을 고치면 그 템플릿을 쓰는 상품도 함께 바뀌므로 드문 경우다(보관했다 복원한 상품, 예전 엑셀을 다시 올린 상품).
- * 같은 템플릿의 고치기 전 내용이 남아 있으면, 다시 고르면 지금 내용으로 바뀐다고 알린다.
+ * 같은 템플릿의 고치기 전 내용이 남아 있으면, 상품을 저장하면 지금 내용으로 바뀐다고 알린다.
  */
 describe('같은 템플릿의 고치기 전 내용', () => {
   const latestOnly = [option('basic', 2, '기본 배송'), option('figure', 2, '피규어 안내')];
 
-  it('값은 그대로 두고, 같은 템플릿을 다시 고르면 지금 내용으로 바뀐다고 알린다', () => {
+  it('값은 그대로 두고, 상품을 저장하면 지금 내용으로 바뀐다고 알린다', () => {
     props = { options: latestOnly, value: 'figure@1', currentName: '피규어 안내' };
     expect(box().props).toMatchObject({ value: 'figure@1', text: '피규어 안내' });
-    expect(texts(outdated()!).join('')).toBe('이 상품에는 템플릿을 고치기 전 내용이 적용돼 있습니다. [템플릿 고르기]에서 같은 템플릿을 다시 고르면 지금 내용으로 바뀝니다.');
+    expect(texts(outdated()!).join('')).toBe('이 상품에는 템플릿을 고치기 전 내용이 적용돼 있습니다. 상품을 저장하면 지금 내용으로 바뀝니다.');
     expect(unlisted()).toBeUndefined();
     open().onSelect(latestOnly[1]);
     expect(box().props).toMatchObject({ value: 'figure@2', text: '피규어 안내' });

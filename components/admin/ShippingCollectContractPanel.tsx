@@ -11,7 +11,7 @@ import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-t
 import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
 import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycle';
 import { adminConfirm } from '@/lib/admin/confirm';
-import { CHANGED_BY_OTHER, RELOAD_SAVED_CONFIRM, SAVE_CHECK_LABEL, TEMPLATE_DISCARD_INPUT_CONFIRM, TEMPLATE_DISCARD_INPUT_LABEL, TEMPLATE_SAVE_OVER_LATEST_LABEL, TEMPLATE_SAVE_OVER_LATEST_NOTE } from '@/lib/admin/goods-template-save';
+import { CHANGED_BY_OTHER, RELOAD_SAVED_CONFIRM, SAVE_CHECK_LABEL, SAVE_STOP_LABEL, TEMPLATE_DISCARD_INPUT_CONFIRM, TEMPLATE_DISCARD_INPUT_LABEL, TEMPLATE_SAVE_OVER_LATEST_LABEL, TEMPLATE_SAVE_OVER_LATEST_NOTE } from '@/lib/admin/goods-template-save';
 import { statusTone } from '@/lib/admin/status-tone';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/client';
@@ -29,7 +29,7 @@ const TABLE_HEAD = 'h-9 px-2 text-left align-middle font-medium whitespace-nowra
 const TABLE_CELL = 'px-2 py-1.5 align-middle';
 const SAVE_LABEL = '착불 조건 저장';
 const SAVED_VIEW_LABEL = '지금 저장된 내용 보기';
-const RESTART_LABEL = '그만두고 다시 하기';
+const RESTART_LABEL = SAVE_STOP_LABEL;
 const LEAVE_MESSAGE = `착불 조건을 고친 뒤 [${SAVE_LABEL}]을 누르지 않았습니다. 이 화면을 떠나면 적은 내용이 사라집니다. 이동할까요?`;
 
 type Edit = { base: ShippingCollectDocument; values: ShippingCollectValues; status: ShippingCollectStatus; latest: ShippingCollectDocument | null;

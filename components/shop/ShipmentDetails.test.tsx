@@ -54,7 +54,8 @@ describe('origin names on customer and admin shipment displays', () => {
     const one = renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture()]} />);
     expect(one).toContain('<h3>한진택배 배송 · 배송 중</h3>'); expect(one).toContain('>배송조회</a>'); expect(one).not.toContain('김포');
     const admin = renderToStaticMarkup(<ShipmentDetails admin shipments={[shipmentFixture()]} />);
-    expect(admin).toContain('<h3>김포 · 배송 중</h3>'); expect(admin).toContain('김포 배송조회');
+    /* 어드민은 발송관리와 같은 배송 건 상태 이름(발송 대기 · 배송중 · 배송완료)으로 부른다. 고객 화면의 이름은 그대로다. */
+    expect(admin).toContain('<h3>김포 · 배송중</h3>'); expect(admin).toContain('김포 배송조회'); expect(admin).not.toContain('배송 중');
   });
 
   /* R26: 배송 건의 택배사를 알면 장바구니와 같은 규칙, 모르면(발송 전·택배 아님) 기존 '배송 묶음 N'. */

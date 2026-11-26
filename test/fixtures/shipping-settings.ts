@@ -1,4 +1,4 @@
-import type { ShippingSettingsApplyInput, ShippingSettingsCandidates, ShippingSettingsIdentity, ShippingSettingsOperationContext,
+import type { ShippingSettingsApplyInput, ShippingSettingsIdentity, ShippingSettingsOperationContext,
   ShippingSettingsOperationReceipt, ShippingSettingsPreview, ShippingSettingsSaveRequest, ShippingSettingsTemplate } from '@/lib/admin/shipping-settings-templates';
 import type { DeliveryTermsInput } from '@/lib/admin/goods-transaction-terms';
 
@@ -29,7 +29,5 @@ export function shippingFixtures() {
     goods: [{ id: guard.id, updatedAt: next, transactionRevision: 3, deliveryVersionId: shippingIds.delivery }] };
   const saved: ShippingSettingsOperationReceipt = { ...applied, command: 'save', expectedRevision: 0, state: 'saved', appliedCount: 0, goods: [] };
   const sealed: ShippingSettingsOperationReceipt = { ...applied, state: 'sealed', template: null, appliedCount: 0, goods: [] };
-  const candidates: ShippingSettingsCandidates = { rows: [{ id: guard.id, name: '합성 상품', code: 'TEST-1', updatedAt: at, settings,
-    templateId: null, templateRevision: null, ownerGoodId: guard.ownerGoodId, familyGoodIds: guard.familyGoodIds, editable: true, blocker: null, effective }], page: 1, pageSize: 20, total: 1 };
-  return { at, next, policy, settings, template, guard, effective, preview, context, apply, save, applied, saved, sealed, candidates };
+  return { at, next, policy, settings, template, guard, effective, preview, context, apply, save, applied, saved, sealed };
 }

@@ -52,6 +52,8 @@ const operators = [
   sql('order_number_time'),
   // 결제 전 주문 내용 확인·구매 조건 동의 기록(PAY-015): service_role 멱등 기록·제한 굿즈 스냅샷·운영자 읽기.
   sql('order_purchase_acknowledgement'),
+  // 자동 거래확정을 켜기 전 미리 읽기(migration 20261127100000): 조회는 아무것도 쓰지 않고, 말한 건수·적립금이 실제 자동 확정 결과와 같다. 정책 저장은 근거·확인 체크 없이 된다.
+  sql('purchase_confirmation_preview'),
   sql('erp_read'),
   // MD(catalog.manage) ERP 품목 반입 권한과 연결 상품 판매가·바코드 반영(1027T-016·1027T-X04).
   sql('erp_linked_goods_apply', { kc: true }),
@@ -102,6 +104,8 @@ const operators = [
   sql('stock_reconcile_claim_shipments', { admin: true }),
   // 반품배송비 차감(QNA-033·ADR-0031): 스위치 OFF 불변, 접수 때 결정, 카드 부분 취소 확인 뒤 확정 환불액, 무통장 송금액.
   sql('claim_refund_deduction'),
+  // 배송비 청구 설정 저장(migration 20261127101000): 근거·확인 체크 없이 저장, 저장돼 있던 근거 보존, 옛 호출 호환, 금액·계좌 검증과 권한·감사는 그대로.
+  sql('claim_fee_policy_no_evidence'),
   // 상품별 반품/교환지·회수 묶음(배송 건 × 반품지)·고객 회수 주소(S36-040·S36-044·QNA-031).
   sql('goods_return_addresses', { admin: true, kc: true }),
   script('goods_return_address_concurrency.sh', 'RETURN_ADDRESS_TEST_SCOPE'),
@@ -227,6 +231,10 @@ const catalog = [
   sql('admin_goods_notice_source_search'),
   // 수령 방식·주문 후 제작 저장(migration 20261126156000): 설정 근거·확인 체크 없이 저장, 옛 호출 호환, 저장돼 있던 근거 보존.
   sql('goods_fulfillment_production_no_evidence'),
+  // 출고지의 택배 외 수령 방식·착불 조건(migration 20261127102000): 근거 칸 없이 '사용'으로 저장, 옛 호출 호환, 저장돼 있던 근거 보존, 고객에게 보이는 값의 필수 검사는 그대로.
+  sql('delivery_policy_collect_no_evidence'),
+  // 배송 안내 템플릿 한 번에 저장·적용(migration 20261127106000): 코드 자동·버전 자동, 고치면 그 템플릿을 쓰는 상품의 안내도 함께 바뀜(보관 상품 제외), 목록 조회, 근거 없이 사용.
+  sql('shipping_notice_template_single_save'),
 ];
 
 const storefront = [
@@ -359,6 +367,10 @@ const storefront = [
   sql('review_event_templates', { admin: true }),
   script('review_events_concurrency.sh', 'REVIEW_EVENTS_TEST_SCOPE'),
   script('goods_relation_visual_concurrency.sh', 'GOODS_RELATION_VISUAL_TEST_SCOPE'),
+  // 지역별 추가배송비 한 번에 저장·적용(migration 20261127104000): 근거 없이 적용, 겹치는 설정은 확인한 목록대로만 정리, 주문 견적이 끊기지 않음, 권한·감사.
+  sql('shipping_region_policy_single_save'),
+  // 배송비 묶음그룹의 지역표를 근거 없이 저장(위 migration이 공용 검사를 풀었다 — 그 뒤에 둔다): 저장돼 있던 근거 보존, 지역 변경 확인 값·최고 관리자 권한은 그대로.
+  sql('shipping_charge_group_region_no_evidence'),
 ];
 
 const commerce = [

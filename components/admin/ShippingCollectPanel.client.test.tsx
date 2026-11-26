@@ -133,9 +133,9 @@ it('저장 결과를 모를 때 화면에 요청 번호를 내보이지 않고 [
 it('수납 상태를 말할 때 기록 번호(기록 N)를 쓰지 않는다', async () => {
   render();expect(nodes.map(node => text(node)).join('|')).not.toMatch(/기록 \d/);
 });
-it('서버가 옛 버튼 이름으로 안내해도 화면에는 지금 버튼 이름으로 보인다', async () => {
-  mocks.save.mockResolvedValueOnce({ ok: false, uncertain: true, error: '저장됐는지 확인하지 못했습니다. 입력은 그대로 두고 [이전 결과 확인 후 같은 요청 재시도]를 눌러주세요.' });
+it('저장됐는지 모를 때 서버가 준 안내(낱말 표의 문장)를 그대로 보인다', async () => {
+  mocks.save.mockResolvedValueOnce({ ok: false, uncertain: true, error: '저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.' });
   fill();submit();await flush();render();
   const alerts = nodes.filter(node => node.props.role === 'alert').map(node => text(node)).join('|');
-  expect(alerts).toContain('입력은 그대로 두고 [저장됐는지 확인]을 눌러주세요.');expect(alerts).not.toContain('이전 결과 확인');
+  expect(alerts).toContain('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');expect(alerts).not.toContain('이전 결과 확인');
 });

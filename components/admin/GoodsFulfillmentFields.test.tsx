@@ -37,7 +37,7 @@ describe('출고지·배송비', () => {
 
   it('출고지를 고르지 않았으면 0원으로 쓰지 않고 고르라고 한다', () => {
     const html = render({ originId: null, shippingFeeType: 'policy', individualFee: 0 });
-    expect(html).toContain('<option value="" selected="">설정 전');
+    expect(html).toContain('<option value="" selected="">고르지 않음');
     expect(text(html)).toContain('출고지를 고르면 배송비가 정해집니다');
     expect(text(html)).not.toContain('배송비 0원');
   });
@@ -52,7 +52,7 @@ describe('출고지·배송비', () => {
   it('지역 추가료 요약은 출고지 설정에서 가져오고 없으면 확인하라고 한다', () => {
     const summary = { originId: origin.id, label: '지역 추가료 정책 없음 · 기본 배송비만 적용', detail: '', checkedAt: '2026-11-25T00:00:00Z' };
     expect(text(render({ originId: origin.id }, { regionSummaries: [summary] }))).toContain('지역 추가료 정책 없음 · 기본 배송비만 적용 ·');
-    expect(text(render({ originId: origin.id }))).toContain('지역 추가료 확인 필요 · 지역 배송 정책에서 적용 상태를 확인해주세요.');
+    expect(text(render({ originId: origin.id }))).toContain('지역별 추가배송비 확인 필요 · 지역별 추가배송비 화면에서 적용 중인지 확인해주세요.');
     expect(text(render({ originId: origin.id }))).toContain('이미 받은 주문의 배송비와 반품 주소는 바뀌지 않습니다.');
   });
 
@@ -63,8 +63,8 @@ describe('출고지·배송비', () => {
     expect(html.match(/aria-describedby="good-shipping-type-error"/g)).toHaveLength(3);
   });
 
-  it('사용 중지된 출고지는 배송비 옆에 확인이 필요하다고 알린다', () => {
-    expect(goodShippingFeeReadback({ feeType: 'policy', origin: { ...origin, active: false }, individualFee: 0 })).toContain('사용 중지된 출고지 (확인 필요)');
+  it('사용 안 함인 출고지는 배송비 옆에 확인이 필요하다고 알린다', () => {
+    expect(goodShippingFeeReadback({ feeType: 'policy', origin: { ...origin, active: false }, individualFee: 0 })).toContain('사용 안 함인 출고지 (확인 필요)');
     expect(goodShippingFeeReadback({ feeType: 'policy', origin: { ...origin, freeThreshold: null }, individualFee: 0 })).toBe('배송비 3,000원 · 무료 기준 없음');
   });
 });

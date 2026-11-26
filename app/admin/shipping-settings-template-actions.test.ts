@@ -5,7 +5,7 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => ({ rpc
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
 vi.mock('@/lib/admin/revalidate-goods.server', () => ({ revalidateGoodsSurfaces: mocks.revalidateGoods }));
-import { applyShippingSettingsTemplateAction, findShippingSettingsGoodsAction, findShippingSettingsOutdatedGoodsAction, previewShippingSettingsTemplateAction, readShippingSettingsOperationAction,
+import { applyShippingSettingsTemplateAction, findShippingSettingsOutdatedGoodsAction, previewShippingSettingsTemplateAction, readShippingSettingsOperationAction,
   readShippingSettingsTemplateAction, saveShippingSettingsTemplateAction, sealShippingSettingsOperationAction } from './shipping-settings-template-actions';
 import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { shippingFixtures, shippingIdentity as identity, shippingIds as ids } from '@/test/fixtures/shipping-settings';
@@ -36,7 +36,6 @@ describe('배송정보 템플릿 현재 인증과 엄격 요청', () => {
     expect(await applyShippingSettingsTemplateAction({ ...apply, originUpdatedAt: '2026-02-30T00:00:00Z' })).toHaveProperty('error');
     expect(await previewShippingSettingsTemplateAction(ids.template, Array.from({ length: 101 }, (_, i) => `good-${i}`), identity)).toHaveProperty('error');
     expect(await previewShippingSettingsTemplateAction(ids.template, ['good-1', 'good-1'], identity)).toHaveProperty('error');
-    expect(await findShippingSettingsGoodsAction('a', 0, identity)).toHaveProperty('error');
     expect(mocks.claims).not.toHaveBeenCalled(); expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
@@ -66,12 +65,6 @@ describe('배송 정책 저장·적용과 실제 결과 결속', () => {
     mocks.rpc.mockResolvedValueOnce(ok({ ...receipt, operationId: ids.other }));
     const mismatch = command === 'save' ? await saveShippingSettingsTemplateAction(fixtures.save) : await applyShippingSettingsTemplateAction(fixtures.apply);
     expect(mismatch).toMatchObject({ uncertain: true });
-  });
-  it('검색 후보의 실제 운임과 원상품 경계를 현재 identity로 읽는다', async () => {
-    const { candidates } = shippingFixtures(); mocks.rpc.mockResolvedValue(ok(candidates));
-    expect(await findShippingSettingsGoodsAction(' 합성 ', 1, identity)).toEqual({ data: candidates });
-    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('admin_search_goods_for_shipping_settings_v3', { p_query: '합성', p_page: 1,
-      p_expected_actor_id: ids.actor, p_expected_session_id: ids.session });
   });
   it('미리보기의 identity·선택 상품을 대조하고 현재 확장 정책을 보존한다', async () => {
     const { preview } = shippingFixtures(); mocks.rpc.mockResolvedValueOnce(ok(preview));

@@ -10,7 +10,7 @@ vi.mock('next/navigation', () => ({ unstable_rethrow: () => {} }));
 const ACTOR = 'b1000000-0000-4000-8000-000000000001', SESSION = 'b1000000-0000-4000-8000-000000000002', OPERATION = 'b1000000-0000-4000-8000-000000000003';
 const identity = { actorId: ACTOR, sessionId: SESSION };
 const policy = { revision: 3, autoEnabled: true, autoAfterDays: 7, buyerExtensionDays: null, evidence: '', updatedAt: '2026-11-26T03:00:00Z' };
-const preview = { autoAfterDays: 7, orderCount: 12, storeCreditTotal: 3400, perRunLimit: 1000, asOf: '2026-11-26T03:00:00.123456+00:00' };
+const preview = { autoAfterDays: 7, orderCount: 12, storeCreditTotal: 3400, perRunLimit: 1000, remainingDueCount: 0, asOf: '2026-11-26T03:00:00.123456+00:00' };
 const values = { autoEnabled: true, autoAfterDays: 7, buyerExtensionDays: null };
 
 beforeEach(() => { vi.clearAllMocks(); mocks.access.mockResolvedValue({ user: { id: ACTOR } }); });
@@ -36,15 +36,21 @@ describe('자동 거래확정 미리 읽기', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
-  it('읽지 못했거나 모양이 다른 값은 수치로 쓰지 않고, 저장하지 않았다고 알린다', async () => {
-    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'XX000', message: 'boom' } });
-    expect(await previewPurchaseConfirmationAutoAction(7)).toEqual({ error: '지금 켜면 거래확정될 주문 수를 불러오지 못해 저장하지 않았습니다. 잠시 뒤 다시 [저장]을 눌러주세요.' });
+  /* 읽지 못했다고 저장을 막으면, 대상이 쌓여 조회가 제한 시간에 걸리는 가게는 자동 거래확정을 켤 길이 없어진다(DB 리뷰 6-1). */
+  it('읽지 못했거나 모양이 다른 값은 수치로 쓰지 않고 unread로 알린다 — 화면이 그래도 저장할지 묻는다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
+    expect(await previewPurchaseConfirmationAutoAction(7)).toEqual({ unread: true });
     mocks.rpc.mockResolvedValueOnce({ data: { ...preview, orderCount: '12' }, error: null });
-    expect(await previewPurchaseConfirmationAutoAction(7)).toHaveProperty('error');
+    expect(await previewPurchaseConfirmationAutoAction(7)).toEqual({ unread: true });
     mocks.rpc.mockRejectedValueOnce(new Error('network'));
-    expect(await previewPurchaseConfirmationAutoAction(7)).toHaveProperty('error');
+    expect(await previewPurchaseConfirmationAutoAction(7)).toEqual({ unread: true });
+  });
+
+  it('권한·로그인 문제는 저장도 되지 않으므로 unread가 아니라 오류다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'operator_capability_required' } });
-    expect((await previewPurchaseConfirmationAutoAction(7)).error).toContain('권한이 없거나 로그인이 끝났습니다');
+    const denied = await previewPurchaseConfirmationAutoAction(7);
+    expect(denied.error).toContain('권한이 없거나 로그인이 끝났습니다');
+    expect(denied).not.toHaveProperty('unread');
   });
 });
 

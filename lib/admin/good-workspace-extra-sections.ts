@@ -1,4 +1,5 @@
 import { isUuid } from '@/lib/uuid';
+import { SHIPPING_CHARGE_GROUP_RUNTIME_OFF } from './shipping-charge-groups';
 import { parseGoodsAfterSalesValues, type GoodsAfterSalesValues } from '@/lib/goods-after-sales';
 import { goodsAfterSalesError } from '@/lib/admin/goods-after-sales-messages';
 import { parseGoodsBenefitValues, type GoodsBenefitValues } from '@/lib/goods-benefits';
@@ -408,9 +409,9 @@ function pricePeriodError(message: string) {
 function shippingChargeGroupError(message: string) {
   if (message.includes('shipping_charge_group_changed')) return '고른 묶음그룹이 그 사이 바뀌었습니다. 묶음그룹을 다시 골라주세요.';
   if (message.includes('origin')) return '묶음그룹의 출고지와 이 상품의 출고지가 같아야 합니다. 출고지 또는 묶음그룹을 다시 확인해주세요.';
-  if (message.includes('checkout_contract') || message.includes('runtime')) return '현재 상품 거래 경로에서 묶음배송을 적용할 수 없습니다. 운영 설정을 확인해주세요.';
-  if (message.includes('insufficient_privilege') || message.includes('operator_capability')) return '현재 계정과 로그인 상태로 묶음그룹을 배정할 수 없습니다. 화면을 다시 열어주세요.';
-  return '묶음그룹을 배정하지 못했습니다. 묶음그룹과 출고지를 다시 확인해주세요.';
+  if (message.includes('checkout_contract') || message.includes('runtime')) return SHIPPING_CHARGE_GROUP_RUNTIME_OFF;
+  if (message.includes('insufficient_privilege') || message.includes('operator_capability')) return '지금 로그인한 계정으로는 이 상품을 묶음그룹에 넣을 수 없습니다. 화면을 다시 열어주세요.';
+  return '상품을 묶음그룹에 넣지 못했습니다. 묶음그룹과 출고지를 다시 확인해주세요.';
 }
 function additionalError(message: string) {
   if (message.includes('additional_good_unavailable')) return '판매 중이 아닌 상품은 추가 구성으로 연결할 수 없습니다. 연결할 상품을 다시 확인해주세요.';
@@ -435,8 +436,8 @@ export function goodWorkspaceExtraSectionFailure(message: string, code?: string)
     sizeChart: () => goodsSizeChartError(inner),
     listingColors: () => '색 이름은 서로 다르게 1~30자로 적어주세요. 색은 20개까지 넣을 수 있습니다.',
     transactionTerms: () => permission ? '현재 계정과 상품관리 권한을 확인해주세요.' : inner.includes('runtime')
-      ? '지금은 복수구매 할인과 이 상품만의 배송비 규칙을 쓸 수 없습니다. 운영 설정을 확인해주세요.'
-      : inner.includes('collect') ? '착불은 출고지의 수납 주체·방법·증빙·분쟁 연락처가 준비되어야 사용할 수 있습니다.'
+      ? '지금 쇼핑몰 설정에서는 복수구매 할인과 이 상품만의 배송비 규칙을 쓸 수 없습니다. 써야 하면 개발 담당자에게 요청해 주세요.'
+      : inner.includes('collect') ? '착불은 출고지에서 착불을 받을 준비가 돼 있어야 저장할 수 있습니다. 배송정보 관리에서 출고지의 착불 조건을 먼저 준비해주세요.'
       : '복수구매 할인·착불·수량별 배송비 입력을 확인해주세요.',
     shippingChargeGroup: () => shippingChargeGroupError(inner),
     subscriptionPolicy: () => goodsSubscriptionPolicyError(inner),

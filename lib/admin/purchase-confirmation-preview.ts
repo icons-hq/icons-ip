@@ -5,9 +5,12 @@ import type { AdminConfirmRequest } from './confirm';
 /*
  * 자동 거래확정 정책 화면의 말(확인창·한 줄 요약·저장 결과).
  *
- * 켜서 저장하면 꺼져 있던 동안 배송완료된 주문도 기한을 받고, 기한이 지난 주문은 다음 자동 처리 때 거래확정되며 적립금이 지급된다.
+ * 켜서 저장하면 꺼져 있던 동안 배송완료된 주문도 기한을 받고, 기한이 지난 주문은 다음 자동 처리부터 거래확정되며 적립금이 지급된다.
  * 그 건수와 금액은 DB의 읽기 전용 조회 `admin_preview_purchase_confirmation_auto`가 실제 자동 처리와 같은 조건으로 센다
  * (supabase/migrations/20261127100000_purchase_confirmation_preview.sql). 여기서는 그 값을 운영자가 읽을 문장으로만 바꾼다.
+ *
+ * 조회는 자동 처리 한 번이 집어 드는 주문(1,000건)까지만 세고 나머지는 건수만 준다 — 쌓인 주문이 많아도 제한 시간 안에 끝나게 하려는 것이다.
+ * 그래도 읽지 못하면(시간 초과 등) 화면은 건수를 읽지 못했다고 말하고 저장할 길을 남긴다(`purchaseConfirmationAutoEnableUnreadConfirm`).
  */
 
 /** 자동 처리가 매일 도는 시각. cron `settle-delivered-orders`(UTC 18:00)와 같다. */
@@ -15,20 +18,34 @@ export const PURCHASE_CONFIRMATION_AUTO_RUN_TIME = '03:00 (KST)';
 /** 저장된 정책을 다시 읽는 버튼. 오류 문장이 이 이름을 그대로 쓴다. */
 export const PURCHASE_CONFIRMATION_RELOAD_LABEL = '저장된 정책 다시 불러오기';
 
-/** 지금 켜면 다음 자동 처리에서 확정될 주문 수와 지급될 적립금 합계. 조회 시점 값이다. */
+/** 지금 켜면 다음 자동 처리 한 번에서 확정될 주문 수와 지급될 적립금 합계, 그 뒤로 넘어가는 주문 수. 조회 시점 값이다. */
 export interface PurchaseConfirmationAutoPreview {
   autoAfterDays: number;
+  /** 다음 자동 처리 한 번에서 거래확정될 주문 수(`perRunLimit` 이하). */
   orderCount: number;
+  /** 그 주문들에 지급될 적립금 합계. 넘어가는 주문의 적립금은 들어 있지 않다. */
   storeCreditTotal: number;
-  /** 자동 처리가 한 번에 확정하는 최대 건수. 넘는 주문은 다음 날로 넘어간다. */
+  /** 자동 처리가 한 번에 집어 드는 최대 건수. */
   perRunLimit: number;
+  /**
+   * 다음 실행분을 채우고 남은, 기한이 지난 배송완료 주문 수. 0이면 `orderCount`가 지금 대상의 전부다.
+   * 취소·반품·교환이 진행 중인 주문처럼 자동 처리가 건너뛸 주문이 섞여 있을 수 있는 최대치다.
+   */
+  remainingDueCount: number;
   asOf: string;
 }
 
+/** 미리 읽기의 결과: 읽은 값, 읽지 못함(그래도 저장할 수 있다), 저장도 되지 않는 오류(권한·로그인·기간) 가운데 하나. */
+export type PurchaseConfirmationAutoPreviewRead =
+  | { preview: PurchaseConfirmationAutoPreview; unread?: undefined; error?: undefined }
+  | { unread: true; preview?: undefined; error?: undefined }
+  | { error: string; preview?: undefined; unread?: undefined };
+
 export function parsePurchaseConfirmationAutoPreview(value: unknown): PurchaseConfirmationAutoPreview | null {
-  return transactionRecord(value) && transactionExactKeys(value, ['autoAfterDays', 'orderCount', 'storeCreditTotal', 'perRunLimit', 'asOf'])
+  return transactionRecord(value) && transactionExactKeys(value, ['autoAfterDays', 'orderCount', 'storeCreditTotal', 'perRunLimit', 'remainingDueCount', 'asOf'])
     && transactionInteger(value.autoAfterDays, 1, 36500) && transactionInteger(value.orderCount) && transactionInteger(value.storeCreditTotal)
-    && transactionInteger(value.perRunLimit, 1) && transactionInstant(value.asOf) ? value as unknown as PurchaseConfirmationAutoPreview : null;
+    && transactionInteger(value.perRunLimit, 1) && transactionInteger(value.remainingDueCount) && transactionInstant(value.asOf)
+    ? value as unknown as PurchaseConfirmationAutoPreview : null;
 }
 
 const count = (value: number) => value.toLocaleString('ko-KR');
@@ -36,7 +53,7 @@ const count = (value: number) => value.toLocaleString('ko-KR');
 /** 자동 거래확정을 켜기 전 확인창. 수치는 `preview`(조회 시점)에서만 가져온다. */
 export function purchaseConfirmationAutoEnableConfirm(preview: PurchaseConfirmationAutoPreview): AdminConfirmRequest {
   const target = `배송완료 뒤 ${count(preview.autoAfterDays)}일이 지난 주문`;
-  if (preview.orderCount === 0) {
+  if (preview.orderCount === 0 && preview.remainingDueCount === 0) {
     return {
       title: '자동 거래확정을 켤까요?',
       message: [
@@ -52,12 +69,33 @@ export function purchaseConfirmationAutoEnableConfirm(preview: PurchaseConfirmat
     title: '자동 거래확정을 켤까요?',
     message: [
       `지금 켜면 주문 ${count(preview.orderCount)}건이 다음 ${PURCHASE_CONFIRMATION_AUTO_RUN_TIME} 자동 처리 때 거래확정되고, ${credit}. 되돌릴 수 없습니다.`,
-      ...(preview.orderCount > preview.perRunLimit
-        ? [`한 번에 ${count(preview.perRunLimit)}건까지 거래확정합니다. 나머지는 다음 날 자동 처리로 넘어갑니다.`] : []),
+      /* 건수와 적립금은 다음 실행 한 번의 값이다. 넘어가는 주문이 있으면 그 범위를 사실대로 말한다. */
+      ...(preview.remainingDueCount > 0 ? [
+        `한 번에 ${count(preview.perRunLimit)}건까지 거래확정합니다. 기한이 지난 배송완료 주문이 ${count(preview.remainingDueCount)}건 더 있고, `
+        + '취소·반품·교환이 진행 중인 주문 등을 뺀 나머지는 다음 날부터 차례로 거래확정됩니다. 그 주문의 적립금은 위 금액에 들어 있지 않습니다.',
+      ] : []),
       `대상은 ${target}입니다. 전에 자동 확정 기한을 받은 주문은 그 기한을 따릅니다.`,
       '지금 기준 수치입니다. 자동 처리 때까지 기한이 되는 주문이 더 있거나 취소·반품·교환이 접수되면 달라집니다.',
     ].join('\n'),
     confirmLabel: '자동 거래확정 켜기',
+    cancelLabel: '돌아가기',
+    destructive: true,
+  };
+}
+
+/**
+ * 건수를 읽지 못했을 때의 확인창. 읽지 못해도 켤 수는 있어야 한다 — 꺼져 있는 동안 대상은 계속 쌓이므로 막아 두면 켤 길이 없어진다.
+ * 수치 없이, 저장하면 실제로 일어나는 일만 말한다.
+ */
+export function purchaseConfirmationAutoEnableUnreadConfirm(autoAfterDays: number): AdminConfirmRequest {
+  return {
+    title: '자동 거래확정을 켤까요?',
+    message: [
+      '지금 켜면 거래확정될 주문 수와 지급될 적립금을 읽지 못했습니다.',
+      `그래도 저장하면 배송완료 뒤 ${count(autoAfterDays)}일이 지난 주문이 다음 ${PURCHASE_CONFIRMATION_AUTO_RUN_TIME} 자동 처리부터 거래확정되고, 주문할 때의 적립 조건대로 적립금이 지급됩니다. 되돌릴 수 없습니다.`,
+      '[돌아가기]를 누른 뒤 [저장]을 다시 누르면 주문 수를 다시 읽습니다.',
+    ].join('\n'),
+    confirmLabel: '그래도 저장',
     cancelLabel: '돌아가기',
     destructive: true,
   };
@@ -83,7 +121,7 @@ export function purchaseConfirmationPolicyReadback(draft: { autoEnabled: boolean
 type PolicySwitch = Pick<PurchaseConfirmationPolicy, 'autoEnabled'>;
 /** 저장한 뒤 무엇이 달라졌는지 한 줄로 말한다. */
 export function purchaseConfirmationPolicySavedMessage(before: PolicySwitch, after: PolicySwitch) {
-  if (after.autoEnabled && !before.autoEnabled) return `자동 거래확정을 켰습니다. 기한이 지난 주문은 다음 ${PURCHASE_CONFIRMATION_AUTO_RUN_TIME} 자동 처리 때 거래확정됩니다.`;
+  if (after.autoEnabled && !before.autoEnabled) return `자동 거래확정을 켰습니다. 기한이 지난 주문은 다음 ${PURCHASE_CONFIRMATION_AUTO_RUN_TIME} 자동 처리부터 거래확정됩니다.`;
   if (!after.autoEnabled && before.autoEnabled) return '자동 거래확정을 껐습니다. 앞으로는 자동으로 거래확정하지 않습니다. 이미 거래확정된 주문은 그대로입니다.';
   if (after.autoEnabled) return '저장했습니다. 지금부터 배송완료되는 주문에 적용합니다. 이미 기한을 받은 주문은 그 기한 그대로입니다.';
   return '저장했습니다. 자동 거래확정은 꺼져 있습니다.';

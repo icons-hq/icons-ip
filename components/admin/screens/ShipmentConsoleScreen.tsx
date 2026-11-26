@@ -13,7 +13,7 @@ import {ShipmentConsoleRowTracking} from './ShipmentConsoleRowTracking';
 import {ShipmentConsoleMethodButton} from './ShipmentConsoleMethodButton';
 import {OrderPreviewLink,OrderPreviewNewTabLink} from './OrderPreview';
 import {adminOrderPreviewHref} from '@/lib/admin/order-preview';
-import {adminOrderDetailHrefFromBack} from '@/lib/admin/orders';
+import {ADMIN_PAYMENT_METHOD_OPTIONS,adminOrderDetailHrefFromBack} from '@/lib/admin/orders';
 import {formatOrderDateTime,orderReferenceLabel} from '@/lib/orders';
 import {orderShipment} from '@/lib/orders/shipment';
 import {DELIVERY_METHOD_LABELS} from '@/lib/shipment-delivery';
@@ -227,7 +227,7 @@ export function ShipmentConsoleScreen({data,registeredCount,registeredExtraCount
    <SalesFilterField label="출고지" htmlFor="sales-shipment-origin"><SalesSelect id="sales-shipment-origin" name="originId" value={filters.originId??''}
     options={[{value:'',label:'전체 출고지'},...origins.map(origin=>({value:origin.id,label:origin.name}))]}/></SalesFilterField>
    {canReadOrders?<SalesFilterField label="결제수단" htmlFor="sales-shipment-payment"><SalesSelect id="sales-shipment-payment" name="paymentMethod" value={filters.paymentMethod??''}
-    options={[{value:'',label:'전체'},{value:'card',label:'카드'},{value:'bank_transfer',label:'무통장 입금'}]}/></SalesFilterField>:null}
+    options={ADMIN_PAYMENT_METHOD_OPTIONS}/></SalesFilterField>:null}
    {/* 열 이름과 같은 이름을 쓴다(화면 규칙 4). '발송 처리'가 고객이 받았다는 뜻이 아니라는 설명은 "?" 한 곳에 둔다(규칙 3). */}
    {delayNoticeColumn?<SalesFilterField label="지연 안내 결과" htmlFor="sales-shipment-delay-notice"><SalesSelect id="sales-shipment-delay-notice" name="delayNotice" value={filters.delayNotice??''} options={SHIPMENT_DELAY_NOTICE_OPTIONS}/><AdminHelpTip help={SALES_DISPATCH_HELP.delayNoticeResult} label="지연 안내 결과"/></SalesFilterField>:null}
    </>}/>

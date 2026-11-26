@@ -167,10 +167,13 @@ function OrderVirtualAccountFacts({ order, canManage }: { order: AdminOrderRecor
   if (!account) return null;
   /* 에스크로 결제가 아니면(작업 없음·건너뜀) 배송 정보 등록 칸을 그리지 않는다. */
   const escrow = account.escrow && account.escrow.deliveryState !== 'skipped' ? account.escrow : null;
+  /* 환불 계좌 저장 확인창이 계좌와 함께 되읽을 금액. 아래 '환불' 줄에 보이는, 아직 끝나지 않은 환불이 하나뿐일 때만 넘긴다(모르면 계좌만 되읽는다). */
+  const openRefunds = order.refunds.filter((refund) => refund.status === 'requested');
+  const entryRefundAmount = openRefunds.length === 1 ? openRefunds[0].amount : null;
   return (
     <div className="flex flex-col gap-2" data-order-virtual-account={account.state}>
       <dl className={FACTS_CLASS}>
-        <div className={FACT_CLASS}><dt className={FACT_TERM}>결제수단</dt><dd className={FACT_VALUE}>가상계좌</dd></div>
+        <div className={FACT_CLASS}><dt className={FACT_TERM}>결제수단</dt><dd className={FACT_VALUE}>무통장입금(가상계좌)</dd></div>
         <div className={FACT_CLASS}><dt className={FACT_TERM}>입금 상태</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('virtualAccount', account.state)}>{ADMIN_VIRTUAL_ACCOUNT_STATE_LABELS[account.state]}</AdminStatusBadge></dd></div>
         <div className={FACT_CLASS}><dt className={FACT_TERM}>입금 은행 · 계좌번호</dt><dd className={`${FACT_VALUE} tabular-nums`}>{tossBankLabel(account.bankCode)} {account.accountNumber}</dd></div>
         <div className={FACT_CLASS}><dt className={FACT_TERM}>입금 금액</dt><dd className={`${FACT_VALUE} tabular-nums`}>{formatKrwExact(account.amount)}</dd></div>
@@ -185,7 +188,7 @@ function OrderVirtualAccountFacts({ order, canManage }: { order: AdminOrderRecor
       {escrow?.deliveryState === 'manual_required' ? <AdminNotice role="status" tone="danger">{ADMIN_ESCROW_MANUAL_REQUIRED_HINT}</AdminNotice> : null}
       <VirtualAccountRefundNotice canManage={canManage} orderId={order.id} refund={account.refund} />
       {canManage && order.cancellationRequest?.stage === 'needs_review' ? <VirtualAccountRefundAccountEntry claimId={order.cancellationRequest.id}
-        claimType={order.cancellationRequest.claimType} lastErrorCode={order.cancellationRequest.lastErrorCode} orderId={order.id} /> : null}
+        claimType={order.cancellationRequest.claimType} lastErrorCode={order.cancellationRequest.lastErrorCode} orderId={order.id} refundAmount={entryRefundAmount} /> : null}
       {account.refund && account.refund.state !== 'failed' ? <p className="text-xs leading-relaxed text-muted-foreground">{adminVirtualAccountRefundHint(account.refund)}</p> : null}
       <p className="text-xs leading-relaxed text-muted-foreground">{ADMIN_VIRTUAL_ACCOUNT_STATE_HINTS[account.state]} {adminVirtualAccountPartialCancelHint(account)}</p>
     </div>
@@ -749,8 +752,8 @@ function ReconcileCancellationForm({
       : ADMIN_CANCELLATION_RECHECK_LABELS.needsReview;
   const confirmation: AdminConfirmInput = preparedKorpay
     ? {
-        title: 'Korpay 결제 만료를 확인할까요?',
-        message: `Korpay 주문 ${preparedKorpay.providerOrderId} · ₩${preparedKorpay.amount.toLocaleString('ko-KR')} ${preparedKorpay.currency} 결제가 유효 시간을 넘겨 만료됐는지 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 바로 끝납니다.`,
+        title: '코페이 결제 만료를 확인할까요?',
+        message: `코페이 주문 ${preparedKorpay.providerOrderId} · ₩${preparedKorpay.amount.toLocaleString('ko-KR')} ${preparedKorpay.currency} 결제가 유효 시간을 넘겨 만료됐는지 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 바로 끝납니다.`,
         confirmLabel: label,
         cancelLabel: ADMIN_CONFIRM_BACK,
       }
@@ -907,7 +910,7 @@ function ManualKorpayCancellationForm({
         type="submit"
         variant="destructive"
       >
-        {running ? '반영 중' : 'Korpay 전액 취소 반영'}
+        {running ? '반영 중' : '코페이 전액 취소 반영'}
       </Button>
     </form>
   );
@@ -997,7 +1000,7 @@ function OrderDetail({
         <strong className="text-lg font-semibold tabular-nums">{formatKrwExact(order.total)}</strong>
       </header>
 
-      <OrderFulfillmentHoldNotice canManage={canManage} holds={order.fulfillmentHolds ?? []} orderId={order.id} />
+      <OrderFulfillmentHoldNotice canManage={canManage} holds={order.fulfillmentHolds ?? []} orderId={order.id} orderNumber={order.orderNumber} />
 
       <dl className={FACTS_CLASS}>
         <div className={FACT_CLASS}><dt className={FACT_TERM}>구매자</dt><dd className={FACT_VALUE}>{order.buyerName}</dd></div>
@@ -1103,10 +1106,10 @@ function OrderDetail({
           ) : null}
           {manualRecoveryAttempt ? (
             <>
-              <h4 className="text-sm font-medium text-foreground">Korpay 원장 확인 정보</h4>
+              <h4 className="text-sm font-medium text-foreground">코페이 원장 확인 정보</h4>
               <dl className={FACTS_CLASS}>
                 <div className={FACT_CLASS}>
-                  <dt className={FACT_TERM}>Korpay 주문번호</dt>
+                  <dt className={FACT_TERM}>코페이 주문번호</dt>
                   <dd className={`${FACT_VALUE} tabular-nums`}>{manualRecoveryAttempt.providerOrderId}</dd>
                 </div>
                 <div className={FACT_CLASS}>

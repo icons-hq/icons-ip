@@ -38,3 +38,26 @@ it('화면은 배송 건의 추가 운송장을 품목 줄에 싣고, 엑셀·�
   order.mockReturnValueOnce(chain).mockImplementationOnce(async () => ({ data: null, error: { message: 'private' } }));
   expect((await getAdminOrderItemData(normalizeAdminOrderItemFilters({ view: 'items' }))).rows[0]).not.toHaveProperty('extraTrackingNumbers');
 });
+
+/* I-01: 출고 보류 주문은 DB가 발주확인을 거절한다 — 화면 조회가 신규주문 줄에 보류 여부를 실어 체크칸을 빼게 한다. */
+it('화면은 신규주문 줄의 출고 보류를 싣고, 엑셀·읽기 실패·다른 상태 줄은 싣지 않는다', async () => {
+  const HELD = '76b3ad83-aaaf-455f-907e-7c7d0143da59', OPEN = '86b3ad83-aaaf-455f-907e-7c7d0143da59', SHIPPED = '96b3ad83-aaaf-455f-907e-7c7d0143da59';
+  const item = (id: string, orderId: string, status: string) => ({ id, orderId, userId: '378dae74-b218-4c2f-80ff-27af804b736b',
+    buyerName: '합성 구매자', recipientName: '합성 수취인', status, createdAt: '2026-11-01T00:00:00Z', goodId: 'good', goodName: '합성 상품',
+    variantName: null, variantCode: null, customInputs: null, qty: 1, unitPrice: 1000, itemAmount: 1000, shipmentId: null, shipmentStatus: null,
+    originName: null, trackingNumber: null, carrierLabel: null, claim: null });
+  const rows = [item('1fe5f1e8-19a4-4f34-8cc6-4742e7d9fad3', HELD, 'paid'), item('2fe5f1e8-19a4-4f34-8cc6-4742e7d9fad3', OPEN, 'paid'), item('3fe5f1e8-19a4-4f34-8cc6-4742e7d9fad3', SHIPPED, 'shipping')];
+  const hold = { reason: 'test_payment', placedAt: '2026-11-01T00:00:00Z', note: null };
+  /* 조회는 보류가 있는 주문만 돌려준다. */
+  let holds: { data: unknown; error: unknown } = { data: { [HELD]: [hold] }, error: null };
+  rpc.mockImplementation(async (name: string) => name === 'admin_order_fulfillment_holds' ? holds : { data: { ...empty, rows, total: 3, orderCount: 3, qty: 3 }, error: null });
+  const screen = await getAdminOrderItemData(normalizeAdminOrderItemFilters({ view: 'items' }));
+  expect(rpc).toHaveBeenCalledWith('admin_order_fulfillment_holds', { p_order_ids: [HELD, OPEN] });
+  expect(screen.rows.map(row => row.fulfillmentHold ?? false)).toEqual([true, false, false]);
+  rpc.mockClear();
+  const exported = await getAdminOrderItemData(normalizeAdminOrderItemFilters({ view: 'items' }), 500, { strictAllocations: true });
+  expect(exported.rows.every(row => !('fulfillmentHold' in row))).toBe(true);
+  expect(rpc).not.toHaveBeenCalledWith('admin_order_fulfillment_holds', expect.anything());
+  holds = { data: null, error: { message: 'private' } };
+  expect((await getAdminOrderItemData(normalizeAdminOrderItemFilters({ view: 'items' }))).rows.every(row => !('fulfillmentHold' in row))).toBe(true);
+});

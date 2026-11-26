@@ -122,8 +122,8 @@ describe('주문 처리 확인창', () => {
 
   it('Korpay 전액 취소 반영: 확인란 대신 원장에서 직접 확인했는지를 묻는다', () => {
     const request = adminKorpayRecoveryRequest({ providerOrderId: 'O0123456789ABCDEF', amount: 32000, currency: 'KRW' });
-    expect(request.title).toBe('Korpay 원장에서 전액 취소를 확인하셨나요?');
-    expect(request.message).toBe('Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW\n이 결제가 Korpay 원장에서 전액 취소된 것을 직접 확인한 경우에만 반영합니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 바로 끝냅니다.');
+    expect(request.title).toBe('코페이 원장에서 전액 취소를 확인하셨나요?');
+    expect(request.message).toBe('코페이 주문 O0123456789ABCDEF · ₩32,000 KRW\n이 결제가 코페이 원장에서 전액 취소된 것을 직접 확인한 경우에만 반영합니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 바로 끝냅니다.');
     expect(request).toMatchObject({ confirmLabel: '전액 취소 반영', cancelLabel: '돌아가기', destructive: true });
   });
 

@@ -12,6 +12,7 @@ import { shipmentDelayNoticeLabel } from './shipment-delay-notice';
 import {
   ADMIN_ORDER_SEARCH_FIELDS,
   ADMIN_ORDER_STATUS_LABELS,
+  adminOrderPaymentMethodLabel,
   type AdminOrderFilters,
   type AdminOrderRecord,
 } from './orders';
@@ -27,6 +28,8 @@ import {
   ADMIN_CLAIM_DATE_FIELDS,
   ADMIN_CLAIM_SEARCH_FIELDS,
   adminClaimReasonText,
+  adminClaimStageLabel,
+  adminClaimStageOptions,
   type AdminClaimFilters,
   type AdminClaimRow,
 } from './claims';
@@ -44,17 +47,17 @@ import {
 import { orderReferenceLabel, paymentStatusLabel } from '@/lib/orders';
 import {
   ORDER_CLAIM_REFUND_METHOD_LABELS,
-  ORDER_CLAIM_STAGE_LABELS,
   ORDER_CLAIM_TYPE_LABELS,
   orderClaimReferenceLabel,
   orderClaimSlaState,
   type OrderClaimType,
 } from '@/lib/orders/claims';
-import { shipmentStatusLabel, type ShipmentRecord, type ShipmentStatus } from '@/lib/orders/shipments';
+import type { ShipmentRecord, ShipmentStatus } from '@/lib/orders/shipments';
+import { adminDeliveryStatusLabel, adminShipmentStatusLabel } from './shipment-status-labels';
 import { bankTransferDepositNameWithCode } from '@/lib/payments/bank-transfer';
 import type { OrderItemAllocation } from './item-allocation';
-import { DELIVERY_METHOD_LABELS, deliveryStatusLabel, type ShipmentDeliverySummary } from '@/lib/shipment-delivery';
-import { refundTransferPartialLabel, refundTransferRowKey, type RefundTransferRow } from './refund-transfers';
+import { DELIVERY_METHOD_LABELS, type ShipmentDeliverySummary } from '@/lib/shipment-delivery';
+import { refundTransferPartialLabel, refundTransferRowKey, refundTransferTypeLabel, type RefundTransferRow } from './refund-transfers';
 
 interface ColumnSpec<Row> extends ListExportColumn {
   value: (row: Row) => ListExportCellValue | undefined;
@@ -74,8 +77,14 @@ function table<Row>(columns: ColumnSpec<Row>[], rows: Row[]) {
 const blank = (value: string | null | undefined) => (value ? value : null);
 const nullable = (value: string) => (value ? value : null);
 
-/** 결제수단 표기. DB enum은 card·bank_transfer 두 가지다. */
-export function listExportPaymentMethodLabel(method: string | null | undefined) {
+/** 결제수단 표기. 화면의 조회 조건과 같은 이름을 쓴다(lib/admin/orders의 ADMIN_PAYMENT_METHOD_LABELS) — 값은 card·bank_transfer 둘뿐이다. */
+export const listExportPaymentMethodLabel = adminOrderPaymentMethodLabel;
+
+/**
+ * 스마트스토어 양식 파일(출고지시·배송 목록)의 결제수단 값. 밖으로 나가는 양식이라 화면 이름을 따라 바꾸지 않고 예전 값을 그대로 둔다
+ * (docs/admin-copy-guide.md 원칙 9).
+ */
+export function externalFormatPaymentMethodLabel(method: string | null | undefined) {
   if (method === 'card') return '카드';
   if (method === 'bank_transfer') return '무통장 입금';
   return method ?? '';
@@ -104,13 +113,14 @@ export function listExportContact(value: unknown): ListExportContact | null {
   return Object.values(contact).some(Boolean) ? contact : null;
 }
 
+/* 배송 건 상태는 화면과 같은 어드민 이름(발송 대기 · 배송중 · 배송완료 — lib/admin/shipment-status-labels)으로 적는다. */
 function deliveryLabels(delivery: ShipmentDeliverySummary | null | undefined, status: ShipmentStatus | null) {
   /* 배송 방식이 없던 시절의 배송 건은 택배다(isParcelShipment와 같은 규칙). */
-  if (delivery === undefined) return { method: '택배', status: status ? shipmentStatusLabel(status) : '' };
-  if (!delivery) return { method: '확인 필요', status: status ? shipmentStatusLabel(status) : '' };
+  if (delivery === undefined) return { method: '택배', status: status ? adminShipmentStatusLabel(status) : '' };
+  if (!delivery) return { method: '확인 필요', status: status ? adminShipmentStatusLabel(status) : '' };
   return {
     method: DELIVERY_METHOD_LABELS[delivery.method],
-    status: status ? deliveryStatusLabel(delivery.method, status) : '',
+    status: status ? adminDeliveryStatusLabel(delivery.method, status) : '',
   };
 }
 
@@ -159,7 +169,7 @@ export function ordersListExportSheet(input: {
     column('구매자', 'text', 16, ({ order }) => order.buyerName),
     column('이메일', 'text', 36, ({ order }) => blank(order.buyerEmail)),
     column('수취인', 'text', 12, ({ order }) => blank(order.address?.recipientName)),
-    column('결제수단', 'text', 12, ({ paymentMethod }) => nullable(listExportPaymentMethodLabel(paymentMethod))),
+    column('결제수단', 'text', 30, ({ paymentMethod }) => nullable(listExportPaymentMethodLabel(paymentMethod))),
     column('결제 상태', 'text', 12, ({ order }) => nullable(order.payments.map((payment) => paymentStatusLabel(payment.status)).join(', '))),
     column('결제금액', 'amount', 12, ({ order }) => order.total),
     column('선물 주문', 'text', 12, ({ order }) => order.isGift ? '선물 · 수령인용 가격표 제외' : '일반 주문'),
@@ -183,7 +193,7 @@ export function ordersListExportSheet(input: {
     column('택배사', 'text', 12, ({ shipment }) => blank(shipment?.carrierLabel)),
     column('운송장번호', 'code', 18, ({ shipment }) => blank(shipment?.trackingNumber)),
     column(V.claimRequest, 'text', 20, ({ order }) => (order.cancellationRequest
-      ? `${ORDER_CLAIM_TYPE_LABELS[order.cancellationRequest.claimType]} · ${ORDER_CLAIM_STAGE_LABELS[order.cancellationRequest.stage]}`
+      ? adminClaimStageLabel(order.cancellationRequest.claimType, order.cancellationRequest.stage)
       : null)),
   ];
 
@@ -205,7 +215,7 @@ export function ordersListExportSheet(input: {
     notes: [
       `한 행은 주문의 ${V.goods} 한 줄입니다. 결제금액과 (주문) 열은 같은 주문의 행마다 반복되므로 주문번호별로 한 번만 합산해주세요.`,
       `${V.goods} 금액은 복수구매·쿠폰·적립금 차감 전 품목 소계입니다. 품목 실결제액은 해당 할인과 적립금을 차감하며 배송비를 제외합니다. 주문 당시 배분 기록을 쓰고, 배분 기록이 없는 주문은 주문 당시 쿠폰 기록을 거래확정 엑셀과 같은 규칙(대상 품목 금액 비례)으로 나눈 값을 씁니다. 기록이 없거나 합계가 맞지 않으면 빈칸입니다.`,
-      '착불 배송비는 온라인 결제금액·PG 매출·PG 환급액에 포함하지 않습니다. 이 금액만으로 실제 수납 완료를 판단하지 마세요.',
+      '착불 배송비는 온라인 결제금액·결제사 매출·결제사 환불액에 들어가지 않습니다. 이 금액만 보고 실제로 받았다고 판단하지 마세요.',
       '선물 주문은 내부 운영용 주소를 포함합니다. 수령인에게 가격·결제정보가 있는 이 파일을 동봉하지 마세요.',
     ],
     filters: {
@@ -279,14 +289,14 @@ export function shipmentsListExportSheet(input: {
       ['출고지', originName],
       [SALES_DATE_FIELDS.find(option => option.value === (filters.dateField ?? 'ordered'))!.label, listExportPeriodLabel(filters.from, filters.to)],
       ['검색어', queryText(filters.query)],
-      ...(isDispatch ? [['발송지연 안내여부', filters.delayNotice ? shipmentDelayNoticeLabel(filters.delayNotice) : '전체'] as [string, string]] : []),
-      ...(filters.method ? [['배송방법', DELIVERY_METHOD_LABELS[filters.method]] as [string, string]] : []),
+      ...(isDispatch ? [['지연 안내 결과', filters.delayNotice ? shipmentDelayNoticeLabel(filters.delayNotice) : '전체'] as [string, string]] : []),
+      ...(filters.method ? [['배송 방식', DELIVERY_METHOD_LABELS[filters.method]] as [string, string]] : []),
       ...(filters.paymentMethod ? [['결제수단', listExportPaymentMethodLabel(filters.paymentMethod)] as [string, string]] : []),
     ],
     notes: [
       `한 행은 배송 건의 ${V.goods} 한 줄입니다. 배송비는 같은 배송건번호의 첫 행에 한 번만 기록합니다. 기록되지 않은 금액·날짜는 빈칸입니다.`,
-      '운송장 회신은 택배사와 운송장번호를 채운 뒤 이 XLSX를 발주·발송 관리의 "엑셀 일괄 운송장 등록"에 올립니다. 비밀번호를 건 XLSX는 해제하지 않고 그대로 올리고 "파일 비밀번호" 칸에 입력합니다. 상품주문번호는 전체 번호를 유지해주세요.',
-      ...(isDispatch ? ['창고에 전달하는 출고지시 파일과 다른 확인용 목록입니다. 이 파일을 내려받아도 출고지시 전달 기록은 바뀌지 않습니다.'] : []),
+      '운송장 회신은 택배사와 운송장번호를 채운 뒤 이 XLSX를 발주·발송 관리의 "운송장 올리기"에 올립니다. 비밀번호를 건 XLSX는 풀지 않고 그대로 올리고 "파일 비밀번호" 칸에 비밀번호를 적습니다. 상품주문번호는 전체 번호를 그대로 둬주세요.',
+      ...(isDispatch ? ['창고에 보내는 출고지시 파일과 다른 확인용 목록입니다. 이 파일을 내려받아도 "출고지시 보냄"으로 바뀌지 않습니다.'] : []),
     ],
     filters: {
       ...(filters.dateField ? { dateField: filters.dateField } : {}),
@@ -338,6 +348,8 @@ export function claimsListExportSheet(input: {
   const { claimType, filters, now } = input;
   /* 회수가 있는 유형만 배송지를 싣는다. 취소는 출고 전 중단이라 주소가 필요 없다. */
   const withDelivery = claimType !== 'cancel';
+  /* 목록 화면의 기한 칸 이름과 같다(ClaimQueueKitTable): 환불 기한은 반품의 약관 기한이고, 취소·교환에서는 처리 진행을 말한다. */
+  const deadlineLabel = claimType === 'return' ? '환불 기한' : '처리 기한';
   const lines = input.rows.flatMap<ClaimLine>((claim) => {
     const order = input.orders.get(claim.orderId);
     const contact = withDelivery ? order?.contact ?? null : null;
@@ -357,15 +369,15 @@ export function claimsListExportSheet(input: {
     column('주문번호', 'code', 22, ({ claim }) => orderReferenceLabel(claim.orderId, claim.orderNumber)),
     column('유형', 'text', 8, ({ claim }) => ORDER_CLAIM_TYPE_LABELS[claim.claimType]),
     column('사유', 'text', 20, ({ claim }) => adminClaimReasonText(claim.reasonType, claim.staffReasonCode)),
-    column(V.claimStatus, 'text', 12, ({ claim }) => ORDER_CLAIM_STAGE_LABELS[claim.stage]),
+    column(V.claimStatus, 'text', 12, ({ claim }) => adminClaimStageLabel(claim.claimType, claim.stage)),
     column('구매자', 'text', 16, ({ claim }) => claim.buyerName),
     column('이메일', 'text', 36, ({ claim }) => blank(claim.buyerEmail)),
     column('결제금액', 'amount', 12, ({ claim }) => claim.orderTotal),
-    column('접수일시', 'text', 17, ({ claim }) => nullable(kstDateTimeText(claim.requestedAt))),
+    column('접수일', 'text', 17, ({ claim }) => nullable(kstDateTimeText(claim.requestedAt))),
     column('입고 확인일시', 'text', 17, ({ claim }) => nullable(kstDateTimeText(claim.collectedAt))),
     column('완료일시', 'text', 17, ({ claim }) => nullable(kstDateTimeText(claim.completedAt))),
-    column(claimType === 'return' ? '환급 기한' : '처리 기한', 'text', 12, ({ claim }) => orderClaimSlaState(claim, now).label),
-    column('환불 수단', 'text', 12, ({ claim }) => (claim.refundMethod ? ORDER_CLAIM_REFUND_METHOD_LABELS[claim.refundMethod] : '미접수')),
+    column(deadlineLabel, 'text', 12, ({ claim }) => orderClaimSlaState(claim, now).label),
+    column('환불 수단', 'text', 12, ({ claim }) => (claim.refundMethod ? ORDER_CLAIM_REFUND_METHOD_LABELS[claim.refundMethod] : '접수 전')),
     column('처리자', 'text', 14, ({ claim }) => claim.handlerName ?? '미배정'),
     column(V.goods + '명', 'text', 32, ({ item }) => blank(item?.name)),
     column(V.option, 'text', 18, ({ item }) => blank(item?.variantName)),
@@ -392,7 +404,8 @@ export function claimsListExportSheet(input: {
     ...table(columns, lines),
     recordCount: input.rows.length,
     conditions: [
-      [V.claimStatus, ADMIN_CLAIM_STAGE_OPTIONS.find((option) => option.value === filters.stage)?.label ?? filters.stage],
+      [V.claimStatus, adminClaimStageOptions(claimType).find((option) => option.value === filters.stage)?.label
+        ?? ADMIN_CLAIM_STAGE_OPTIONS.find((option) => option.value === filters.stage)?.label ?? filters.stage],
       ['사유', ADMIN_CLAIM_REASON_OPTIONS.find((option) => option.value === filters.reasonType)?.label ?? filters.reasonType],
       [filters.dateField ? ADMIN_CLAIM_DATE_FIELDS.find(option => option.value === filters.dateField)!.label : '접수일', listExportPeriodLabel(filters.from, filters.to)],
       ['검색어', queryText(filters.query)],
@@ -401,7 +414,7 @@ export function claimsListExportSheet(input: {
     notes: [
       `한 행은 요청 주문의 ${V.goods} 한 줄입니다. ${V.claimRequest}은 주문 단위로 처리되며 결제금액은 같은 요청의 행마다 반복됩니다.`,
       ...(withDelivery ? ['배송지와 운송장은 원래 주문의 출고 정보입니다. 회수 주소는 요청 상세에서 확인합니다.'] : []),
-      `${claimType === 'return' ? '환급' : '처리'} 기한은 내려받은 시각 기준입니다.`,
+      `${deadlineLabel}은 내려받은 시각 기준입니다.`,
     ],
     filters: {
       ...(filters.dateField ? { dateField: filters.dateField } : {}),
@@ -434,8 +447,9 @@ export interface RefundTransferExportAccount {
   accountNumber: string | null;
   accountHolder: string | null;
 }
+/* 화면의 낱말과 같다: 환불 접수 기록이 없으면 '접수 전'(RefundTransfersScreen), 계좌를 싣지 못한 줄은 상세에서 본다. */
 const REFUND_TRANSFER_ACCOUNT_STATUS_LABELS: Record<RefundTransferAccountStatus, string> = {
-  revealed: '확인됨', not_filed: '환불 접수 전', unavailable: '요청 상세 확인 필요',
+  revealed: '확인됨', not_filed: '접수 전', unavailable: '상세에서 확인',
 };
 
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
@@ -466,9 +480,10 @@ export function refundTransfersListExportSheet(input: {
   }
   const lines = input.rows.map<RefundTransferLine>(row => ({ row, account: includeAccount ? accounts?.get(refundTransferRowKey(row)) ?? null : null }));
   const columns: ColumnSpec<RefundTransferLine>[] = [
-    column(V.claimNumber, 'code', 10, ({ row }) => (row.kind === 'partial_cancellation' ? refundTransferPartialLabel(row).label : orderClaimReferenceLabel(row.reference))),
-    column('송금 대기 금액', 'amount', 14, ({ row }) => row.amount),
-    column('결제자', 'text', 16, ({ row }) => row.payerName || '이름 미등록'),
+    /* 부분 환불 줄은 요청번호가 없다 — 화면의 유형 칸과 같은 이름('부분 취소 2차')을 적는다. */
+    column(V.claimNumber, 'code', 12, ({ row }) => (row.kind === 'partial_cancellation' ? refundTransferTypeLabel({ ...row, gift: false }) : orderClaimReferenceLabel(row.reference))),
+    column('송금할 금액', 'amount', 14, ({ row }) => row.amount),
+    column('결제자', 'text', 16, ({ row }) => row.payerName || '이름 없음'),
     ...(includeAccount ? [
       column<RefundTransferLine>('은행', 'text', 14, ({ account }) => blank(account?.bankName)),
       column<RefundTransferLine>('계좌번호', 'code', 22, ({ account }) => blank(account?.accountNumber)),
@@ -479,8 +494,8 @@ export function refundTransfersListExportSheet(input: {
     column('유형', 'text', 12, ({ row }) => `${row.gift ? '선물 · ' : ''}${row.kind === 'partial_cancellation' ? refundTransferPartialLabel(row).kind : row.claimType === 'cancel' ? '취소' : '반품'}`),
     column('주문번호', 'code', 22, ({ row }) => orderReferenceLabel(row.orderId, row.orderNumber)),
     column('취소 확정일', 'text', 17, ({ row }) => nullable(kstDateTimeText(row.confirmedAt))),
-    column('환불 접수일', 'text', 17, ({ row }) => (row.filedAt ? nullable(kstDateTimeText(row.filedAt)) : '미접수')),
-    column('요청자', 'text', 16, ({ row }) => (row.kind === 'partial_cancellation' ? '운영자 처리' : row.requesterName || '이름 미등록')),
+    column('환불 접수일', 'text', 17, ({ row }) => (row.filedAt ? nullable(kstDateTimeText(row.filedAt)) : row.kind === 'partial_cancellation' ? null : '접수 전')),
+    column('요청자', 'text', 16, ({ row }) => (row.kind === 'partial_cancellation' ? '운영자 처리' : row.requesterName || '이름 없음')),
   ];
   return {
     screen: 'refund-transfers',
@@ -489,11 +504,11 @@ export function refundTransfersListExportSheet(input: {
     recordCount: input.rows.length,
     conditions: [['대상', '송금 대기 중인 무통장 환불 전체']],
     notes: [
-      '한 행은 송금을 기다리는 무통장 환불 요청 한 건입니다. 결제자에게 송금 대기 금액을 보낸 뒤 요청 상세에서 송금 완료를 기록해야 이 목록에서 빠집니다.',
+      '한 행은 송금을 기다리는 무통장 환불 요청 한 건입니다. 결제자에게 송금할 금액을 보낸 뒤 요청 상세에서 송금 완료를 기록해야 이 목록에서 빠집니다.',
       ...(input.rows.some(row => row.kind === 'partial_cancellation') ? ['유형이 "부분 취소"인 행은 재고 부족 부분 취소의 환불입니다. 송금 완료는 주문 상세의 부분 취소 기록에서 적습니다.'] : []),
       ...(includeAccount ? [
-        '은행·계좌번호·예금주는 고객이 환불 접수 때 등록한 계좌 원문입니다. 계좌 상태가 "확인됨"이 아닌 요청은 계좌 칸이 비어 있으니 요청 상세에서 확인한 뒤 송금하세요.',
-        '이 파일을 내려받을 때 요청마다 계좌 열람 기록(담당자·시각)이 남았습니다. 송금에만 쓰고, 송금이 끝나면 파일을 삭제해주세요.',
+        '은행·계좌번호·예금주는 고객이 환불받을 계좌로 등록한 그대로입니다. 계좌 상태가 "확인됨"이 아닌 요청은 계좌 칸이 비어 있으니 요청 상세에서 확인한 뒤 송금하세요.',
+        '이 파일을 내려받을 때 요청마다 누가 언제 계좌를 봤는지 기록이 남았습니다. 송금에만 쓰고, 송금이 끝나면 파일을 지워주세요.',
       ] : []),
       '선물 주문도 환불은 결제자 기준입니다. 요청자와 결제자를 혼동하지 마세요.',
       '대기 일수는 취소 확정일부터 내려받은 날까지 한국 날짜로 셉니다.',

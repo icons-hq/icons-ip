@@ -20,8 +20,8 @@ export type PgSettlementActionResult =
   | { ok: true; kind: 'created' | 'accepted' | 'paused' | 'busy' | 'complete' | 'failed'; job: PgSettlementJob }
   | { ok: false; error: string; uncertain?: boolean; recoveryRequired?: boolean };
 const object = (value: unknown): Record<string, unknown> | null => value !== null && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
-const unknown = (): PgSettlementActionResult => ({ ok: false, uncertain: true, error: '처리 결과를 확인하지 못했습니다. 같은 요청의 현재 상태를 다시 확인해주세요.' });
-const unavailable = (): PgSettlementActionResult => ({ ok: false, error: '이 환경의 PG 정산 연결이 꺼져 있습니다. 저장된 자료는 계속 조회할 수 있습니다.' });
+const unknown = (): PgSettlementActionResult => ({ ok: false, uncertain: true, error: '가져왔는지 확인하지 못했습니다. [가져왔는지 확인]을 누르면 같은 자료를 두 번 가져오지 않습니다.' });
+const unavailable = (): PgSettlementActionResult => ({ ok: false, error: '결제사 정산 연결이 꺼져 있어 새로 가져올 수 없습니다. 전에 가져온 자료는 그대로 볼 수 있습니다.' });
 
 /** Test dependency seam supplies a synthetic provider only outside product entry points. */
 export function createPgSettlementWorker(dependencies: SettlementWorkerDependencies) {
@@ -42,7 +42,7 @@ export function createPgSettlementWorker(dependencies: SettlementWorkerDependenc
       if (!isUuid(actorId) || !isUuid(operationId) || !parseSettlementQuery(query) || !['test', 'live'].includes(query.mode) || query.account && !parseSettlementAccountKey(query.account)) return { ok: false, error: settlementFailureLabel('invalid_request')! };
       const config = await dependencies.configuration(query.account);
       if (!config) return unavailable();
-      if (config.mode !== query.mode) return { ok: false, error: '조회 환경과 연결된 PG 환경이 다릅니다. 테스트·실거래 선택을 확인해주세요.' };
+      if (config.mode !== query.mode) return { ok: false, error: "지금 연결된 결제사 환경과 고른 자료 구분이 다릅니다. '자료 구분'(실거래 자료·테스트 자료)을 확인해주세요." };
       const account = config.account;
       if (query.account && query.account !== 'current' && (!account || settlementAccountKey(account) !== query.account)) return unavailable();
       try {
@@ -50,9 +50,9 @@ export function createPgSettlementWorker(dependencies: SettlementWorkerDependenc
           p_actor_id: actorId, p_operation_id: operationId, p_query: parseSettlementQuery(query), p_mode: config.mode,
           p_scope_hash: config.scopeHash, p_mid: config.mId, p_integration: account?.integration ?? 'toss_payment', p_profile_id: account?.profileId ?? null,
         });
-        if (error?.code === '42501') return { ok: false, error: '현재 정산 관리 권한을 확인해주세요.' };
+        if (error?.code === '42501') return { ok: false, error: '정산 관리 권한이 없거나 로그인이 끝났습니다. 로그인 계정을 확인해주세요.' };
         if (error?.code === '23505' && error.message === 'settlement_operation_conflict') return {
-          ok: false, recoveryRequired: true, error: '이 수집 요청의 계정 또는 연결 정보가 바뀌었습니다. 저장된 작업을 다시 불러와 현재 상태를 확인해주세요.',
+          ok: false, recoveryRequired: true, error: '가져오던 자료의 정산 계정이나 연결이 바뀌었습니다. 화면을 새로고침해 지금 상태를 확인해주세요.',
         };
         const job = error ? null : parsePgSettlementJob(object(data)?.job);
         if (!job || job.operationId !== operationId || !jobMatchesQuery(job, query) || (account ? !settlementAccountMatches(job, account) : job.integration !== 'toss_payment')) return unknown();
@@ -60,7 +60,7 @@ export function createPgSettlementWorker(dependencies: SettlementWorkerDependenc
       } catch { return unknown(); }
     },
     async advance(actorId: string, importId: string): Promise<PgSettlementActionResult> {
-      if (!isUuid(actorId) || !isUuid(importId)) return { ok: false, error: '수집 작업을 확인해주세요.' };
+      if (!isUuid(actorId) || !isUuid(importId)) return { ok: false, error: '가져오던 자료를 찾지 못했습니다. 화면을 새로고침한 뒤 다시 해주세요.' };
       const initial = await read(importId);
       if (!initial) return unknown();
       if (initial.state === 'complete' || initial.state === 'failed') return resultFromJob(initial, 'busy');
@@ -72,7 +72,7 @@ export function createPgSettlementWorker(dependencies: SettlementWorkerDependenc
         const { data, error } = await dependencies.serviceRpc('service_claim_pg_settlement_import', {
           p_actor_id: actorId, p_import_id: importId, p_scope_hash: config.scopeHash,
         });
-        if (error?.code === '42501') return { ok: false, error: '현재 정산 관리 권한을 확인해주세요.' };
+        if (error?.code === '42501') return { ok: false, error: '정산 관리 권한이 없거나 로그인이 끝났습니다. 로그인 계정을 확인해주세요.' };
         claim = error ? null : object(data);
       } catch { return unknown(); }
       const job = parsePgSettlementJob(claim?.job);

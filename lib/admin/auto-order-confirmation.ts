@@ -1,5 +1,7 @@
 import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
 import { isUuid } from '@/lib/uuid';
+import { CHANGED_BY_OTHER, SAVE_UNKNOWN_MESSAGE } from './goods-template-save';
+import { ADMIN_SALES_ACCESS_DENIED } from './vocabulary';
 
 /** 자동 발주확인(ADR-0025) 설정은 발주확인/발송관리 화면에서 바로 바꾼다. */
 export const AUTO_ORDER_CONFIRMATION_PATH = '/admin/sales/dispatch';
@@ -54,8 +56,8 @@ export function parseAutoOrderConfirmation(value: unknown): AutoOrderConfirmatio
 }
 
 export function autoOrderConfirmationError(code?: string, message?: string) {
-  if (code === 'PT409' || message?.includes('auto_order_confirmation_changed')) return '다른 담당자가 먼저 설정을 바꿨습니다. 새로고침해 현재 설정을 확인해주세요.';
-  if (['42501', '28000'].includes(code ?? '') || message?.includes('operator_capability_required')) return '현재 로그인 계정과 주문 관리 권한을 확인해주세요.';
+  if (code === 'PT409' || message?.includes('auto_order_confirmation_changed')) return `${CHANGED_BY_OTHER} 새로고침해 지금 설정을 확인해주세요.`;
+  if (['42501', '28000'].includes(code ?? '') || message?.includes('operator_capability_required')) return ADMIN_SALES_ACCESS_DENIED;
   if (code === '22023' || message?.includes('invalid_auto_order_confirmation')) return '실행 시각을 00:00~23:59 사이로 입력해주세요.';
-  return '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 저장됐는지 확인해주세요.';
+  return SAVE_UNKNOWN_MESSAGE;
 }

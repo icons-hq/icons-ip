@@ -17,8 +17,8 @@ const noop = () => undefined;
 
 describe('환불 완료 확정 확인창', () => {
   const rows: AdminClaimBulkRefundRow[] = [
-    { claimId: A, reference: 'C00001', providerLabel: '토스페이먼츠', amount: 12000, blocker: null },
-    { claimId: B, reference: 'C00002', providerLabel: '토스페이먼츠', amount: 8000, blocker: null },
+    { claimId: A, reference: 'C00001', providerLabel: '토스 결제', amount: 12000, blocker: null },
+    { claimId: B, reference: 'C00002', providerLabel: '토스 결제', amount: 8000, blocker: null },
     { claimId: C, reference: 'C00003', providerLabel: '무통장 입금', amount: 5000, blocker: '무통장 입금 결제는 결제사 취소가 없습니다.' },
   ];
 
@@ -26,7 +26,7 @@ describe('환불 완료 확정 확인창', () => {
     const html = renderToStaticMarkup(<RefundStep onRun={noop} preview={{ step: 'refund', rows, totals: adminClaimBulkRefundTotals(rows) }} progress={0} running={false} />);
     expect(html).toContain('확정하면 되돌릴 수 없습니다');
     expect(html).toMatch(/처리 <strong[^>]*>2건<\/strong> · 환불 합계 <strong[^>]*>₩20,000<\/strong>/);
-    expect(html).toContain('토스페이먼츠 2건 · ');
+    expect(html).toContain('토스 결제 2건 · ');
     expect(html).toContain('건너뜀 1건');
     expect(html).toContain('건너뜀 · 무통장 입금 결제는 결제사 취소가 없습니다.');
     expect(html).not.toContain('제외');
@@ -46,9 +46,9 @@ describe('환불 완료 확정 확인창', () => {
 /* A-1(일괄): 단순 변심 반품의 환불 금액은 반품배송비를 뺀 값이라, 결제사가 부분 취소를 받지 않으면 합계가 그보다 커진다 — 확인창이 미리 말한다. */
 describe('반품배송비를 뺀 환불 행', () => {
   const rows: AdminClaimBulkRefundRow[] = [
-    { claimId: A, reference: 'C00001', providerLabel: '토스페이먼츠', amount: 27000, deductionAmount: 3000, blocker: null },
-    { claimId: B, reference: 'C00002', providerLabel: '토스페이먼츠', amount: 12000, blocker: null },
-    { claimId: C, reference: 'C00003', providerLabel: '토스페이먼츠', amount: 9000, deductionAmount: 3000, blocker: '보류 중인 요청입니다.' },
+    { claimId: A, reference: 'C00001', providerLabel: '토스 결제', amount: 27000, deductionAmount: 3000, blocker: null },
+    { claimId: B, reference: 'C00002', providerLabel: '토스 결제', amount: 12000, blocker: null },
+    { claimId: C, reference: 'C00003', providerLabel: '토스 결제', amount: 9000, deductionAmount: 3000, blocker: '보류 중인 요청입니다.' },
   ];
   it('부분 취소를 받지 않는 결제는 전액을 환불해 합계가 최대 얼마까지 느는지 말한다(건너뛰는 행은 세지 않는다)', () => {
     const html = renderToStaticMarkup(<RefundStep onRun={noop} preview={{ step: 'refund', rows, totals: adminClaimBulkRefundTotals(rows) }} progress={0} running={false} />);
@@ -65,8 +65,8 @@ describe('반품배송비를 뺀 환불 행', () => {
 describe('부분 반품 환불 행(CLM-136)', () => {
   it('부분 반품은 고른 상품 몫을 금액으로 보이고 전액 취소가 아님을 알린다', () => {
     const rows: AdminClaimBulkRefundRow[] = [
-      { claimId: A, reference: 'C00001', providerLabel: '토스페이먼츠', amount: 6500, deductionAmount: 3000, partialReturn: true, blocker: null },
-      { claimId: B, reference: 'C00002', providerLabel: '토스페이먼츠', amount: 12000, blocker: null },
+      { claimId: A, reference: 'C00001', providerLabel: '토스 결제', amount: 6500, deductionAmount: 3000, partialReturn: true, blocker: null },
+      { claimId: B, reference: 'C00002', providerLabel: '토스 결제', amount: 12000, blocker: null },
     ];
     const html = renderToStaticMarkup(<RefundStep onRun={noop} preview={{ step: 'refund', rows, totals: adminClaimBulkRefundTotals(rows) }} progress={0} running={false} />);
     expect(html).toMatch(/환불 합계 <strong[^>]*>₩18,500<\/strong>/);
@@ -116,9 +116,9 @@ describe('회수 확인 확인창', () => {
  */
 describe('취소 승인 확인창', () => {
   const rows: AdminClaimBulkApproveRow[] = [
-    { claimId: A, reference: 'C00001', providerLabel: '토스페이먼츠', amount: 30000, providerCancel: true, effect: '승인하고 토스 전액 취소를 요청합니다', blocker: null },
+    { claimId: A, reference: 'C00001', providerLabel: '토스 결제', amount: 30000, providerCancel: true, effect: '승인하고 토스 전액 취소를 요청합니다', blocker: null },
     { claimId: B, reference: 'C00002', providerLabel: '나이스페이', amount: 12000, providerCancel: true, effect: '승인하고 나이스페이 전액 취소를 요청합니다', blocker: null },
-    { claimId: C, reference: 'C00003', providerLabel: '토스페이먼츠', amount: 8000, providerCancel: true, effect: '승인하고 토스 전액 취소를 요청합니다', blocker: '이미 승인한 요청입니다.' },
+    { claimId: C, reference: 'C00003', providerLabel: '토스 결제', amount: 8000, providerCancel: true, effect: '승인하고 토스 전액 취소를 요청합니다', blocker: '이미 승인한 요청입니다.' },
   ];
   const render = (list = rows, running = false) => renderToStaticMarkup(<ApproveStep onRun={noop} preview={{ step: 'approve', rows: list, totals: adminClaimBulkApproveTotals(list) }} progress={1} running={running} />);
 
@@ -126,7 +126,7 @@ describe('취소 승인 확인창', () => {
     const html = render();
     expect(html).toContain('승인하면 되돌릴 수 없습니다');
     expect(html).toMatch(/승인 <strong[^>]*>2건<\/strong> · 취소 금액 합계 <strong[^>]*>₩42,000<\/strong>/);
-    expect(html).toContain('토스페이먼츠 1건');
+    expect(html).toContain('토스 결제 1건');
     expect(html).toContain('결제사에 취소 요청');
     expect(html).toContain('건너뜀 1건');
     expect(html).toContain('건너뜀 · 이미 승인한 요청입니다.');

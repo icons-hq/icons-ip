@@ -67,7 +67,7 @@ export function GoodsShippingNoticeField({ options, value, error, currentName, s
   const listed = list.find((option) => noticeValue(option) === picked);
   /* 목록에 없는 값은 저장돼 있던 예전 안내뿐이다(선택창은 목록에 있는 것만 고르게 한다). */
   const unlisted = Boolean(picked) && !listed;
-  /* 같은 템플릿을 그 뒤에 고쳤는데 이 상품에는 고치기 전 내용이 남아 있는 경우. 같은 템플릿을 다시 고르면 지금 내용으로 바뀐다. */
+  /* 같은 템플릿을 그 뒤에 고쳤는데 이 상품에는 고치기 전 내용이 남아 있는 경우. 상품을 저장하면 DB가 그 템플릿의 지금 내용을 적용한다(옛 버전 번호가 실려 가도 같다). */
   const outdated = unlisted && list.some((option) => option.code === picked.split('@')[0]);
   /* 저장돼 있던 안내가 목록에 없는데 지금 다른 것을 골라 둔 상태. 이때만 [원래 안내로]가 보인다. */
   const canRestore = Boolean(savedValue) && picked !== savedValue && !list.some((option) => noticeValue(option) === savedValue);
@@ -81,7 +81,7 @@ export function GoodsShippingNoticeField({ options, value, error, currentName, s
         <Link className="text-sm underline underline-offset-4" href={SHIPPING_NOTICE_TEMPLATES_PATH} rel="noreferrer" target="_blank">배송 안내 템플릿 관리 ↗</Link>
       </AdminPickedBox>
     </AdminField>
-    {outdated ? <p className="text-xs text-muted-foreground" data-goods-shipping-notice-outdated="">이 상품에는 템플릿을 고치기 전 내용이 적용돼 있습니다. [템플릿 고르기]에서 같은 템플릿을 다시 고르면 지금 내용으로 바뀝니다.</p>
+    {outdated ? <p className="text-xs text-muted-foreground" data-goods-shipping-notice-outdated="">이 상품에는 템플릿을 고치기 전 내용이 적용돼 있습니다. 상품을 저장하면 지금 내용으로 바뀝니다.</p>
       : unlisted ? <p className="text-xs text-muted-foreground" data-goods-shipping-notice-unlisted="">지금 적용 중인 안내는 템플릿 목록에 없습니다. 바꾸지 않으면 저장해도 그대로 유지됩니다.</p>
         : canRestore ? <p className="text-xs text-muted-foreground" data-goods-shipping-notice-replaced="">{`원래 쓰던 안내${currentName ? `(${currentName})` : ''}는 템플릿 목록에 없어 [템플릿 고르기]로는 다시 고를 수 없습니다. 되돌리려면 [원래 안내로]를 누릅니다.`}</p> : null}
     {open ? <AdminPickerDialog<GoodsShippingNoticeOption>

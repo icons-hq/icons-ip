@@ -61,11 +61,11 @@ it('닫으면 실행하지 않고, 실패 뒤 같은 사유로 다시 누르면 
 
 it('발송 되돌리기는 대표 운송장을 대조값으로 보내고, 표 안에서는 결과를 표 위 알림으로 올린다', async () => {
   const report = vi.fn(); hooks.report = report;
-  mocks.dispatch.mockResolvedValue({ ok: true, tone: 'warning', message: '발송 대기로 되돌렸습니다. 발송 안내 메일이 이미 나갔습니다.' });
+  mocks.dispatch.mockResolvedValue({ ok: true, tone: 'warning', message: '발송 대기로 되돌렸습니다. 배송 안내 메일이 이미 나갔습니다.' });
   await click({ kind: 'dispatch', expected: '1000000012', trackingLabel: '한진택배 1000000012', packCount: null });
   expect(requests[0].title).toBe('발송 되돌리기');
   expect(requests[0].message).toContain('운송장 한진택배 1000000012와 추가 운송장·발송 시각을 비워');
   expect(mocks.dispatch).toHaveBeenCalledWith(expect.objectContaining({ shipmentId, expectedTrackingNumber: '1000000012' }));
-  expect(report).toHaveBeenCalledWith({ tone: 'warning', message: '발송 대기로 되돌렸습니다. 발송 안내 메일이 이미 나갔습니다.' });
+  expect(report).toHaveBeenCalledWith({ tone: 'warning', message: '발송 대기로 되돌렸습니다. 배송 안내 메일이 이미 나갔습니다.' });
   expect(nodes(render({ kind: 'dispatch', expected: '1000000012' })).some(node => node.type === AdminNotice)).toBe(false);
 });

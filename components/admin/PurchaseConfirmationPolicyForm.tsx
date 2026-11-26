@@ -1,12 +1,12 @@
 'use client';
-import { useState, useTransition } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { previewPurchaseConfirmationAutoAction, readPurchaseConfirmationPolicyAction, savePurchaseConfirmationPolicyAction } from '@/app/admin/purchase-confirmation-actions';
 import type { PurchaseConfirmationPolicy } from '@/lib/purchase-confirmation';
 import { adminConfirm } from '@/lib/admin/confirm';
 import { RELOAD_SAVED_CONFIRM, SAVE_CHECK_LABEL } from '@/lib/admin/goods-template-save';
 import {
-  PURCHASE_CONFIRMATION_RELOAD_LABEL, purchaseConfirmationAutoEnableConfirm, purchaseConfirmationPolicyReadback,
-  purchaseConfirmationPolicySavedMessage, validConfirmationDays,
+  PURCHASE_CONFIRMATION_RELOAD_LABEL, purchaseConfirmationAutoEnableConfirm, purchaseConfirmationAutoEnableUnreadConfirm,
+  purchaseConfirmationPolicyReadback, purchaseConfirmationPolicySavedMessage, validConfirmationDays, type PurchaseConfirmationAutoPreviewRead,
 } from '@/lib/admin/purchase-confirmation-preview';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -31,8 +31,12 @@ const draftOf = (p: PurchaseConfirmationPolicy): Draft => ({ autoEnabled: p.auto
 /**
  * 거래확정 정책: 자동 거래확정을 켤지, 배송완료 뒤 며칠째에 확정할지, 구매자가 그 날짜를 며칠 미룰 수 있는지.
  *
- * 켜서 저장하면 꺼져 있던 동안 배송완료된 주문에도 기한이 생겨, 기한이 지난 주문이 다음 자동 처리 때 거래확정되고 적립금이 지급된다.
+ * 켜서 저장하면 꺼져 있던 동안 배송완료된 주문에도 기한이 생겨, 기한이 지난 주문이 다음 자동 처리부터 거래확정되고 적립금이 지급된다.
  * 그래서 꺼져 있던 정책을 켜는 저장만, 지금 확정될 주문 수와 지급될 적립금 합계를 읽어 확인창으로 보인 뒤 저장한다.
+ * 수치를 읽지 못해도 저장은 막지 않는다 — 읽지 못했다고 말하는 확인창을 띄우고 [그래도 저장]으로 켤 수 있다.
+ *
+ * 확인창(adminConfirm)은 전환(startTransition) 밖에서 띄운다. 전환 안에서 띄우면 확인창을 그리는 상태 갱신이 전환이 끝날 때까지 미뤄져
+ * 창이 뜨지 않은 채 멈춘다. 확인을 먼저 받고, 저장만 전환 안에서 한다.
  */
 export function PurchaseConfirmationPolicyForm({ initial, actorId, sessionId }: { initial: PurchaseConfirmationPolicy; actorId: string; sessionId: string | null }) {
   const [policy, setPolicy] = useState(initial);
@@ -42,9 +46,13 @@ export function PurchaseConfirmationPolicyForm({ initial, actorId, sessionId }: 
   const [attempt, setAttempt] = useState<Attempt | null>(null);
   /* 다른 사람이 먼저 바꿨다 — 저장된 정책을 다시 읽기 전에는 저장할 수 없다. */
   const [stale, setStale] = useState(false);
+  /* 켜기 전 주문 수를 읽고 확인창의 답을 기다리는 동안. 읽는 데 몇 초가 걸릴 수 있어 그동안 칸을 잠그고 버튼이 하는 일을 말한다. */
+  const [counting, setCounting] = useState(false);
+  /* 확인창이 떠 있는 동안의 거듭 누름을 막는다(상태가 화면에 반영되기 전의 두 번째 누름 포함). */
+  const asking = useRef(false);
   const [pending, start] = useTransition();
   const session = useGoodsGroupSession(actorId, sessionId);
-  const busy = pending || session.blocked;
+  const busy = pending || counting || session.blocked;
   const locked = busy || attempt !== null || stale;
   const saved = draftOf(policy);
   const dirty = draft.autoEnabled !== saved.autoEnabled || draft.autoEnabled && (draft.days !== saved.days || draft.extension !== saved.extension);
@@ -62,8 +70,18 @@ export function PurchaseConfirmationPolicyForm({ initial, actorId, sessionId }: 
     setMessage({ text: result.error ?? '저장하지 못했습니다. 잠시 뒤 다시 저장해주세요.', error: true });
   }
 
-  function save() {
-    if (locked || !sessionId) return;
+  /** 켜기 전 확인: 지금 확정될 주문 수와 적립금을 읽어 보이고, 읽지 못했으면 그렇게 말하고 그래도 저장할지 묻는다. */
+  async function confirmEnable(days: number): Promise<boolean> {
+    let read: PurchaseConfirmationAutoPreviewRead;
+    try { read = await previewPurchaseConfirmationAutoAction(days); } catch { read = { unread: true }; }
+    if (!session.current()) return false;
+    if (read.error) { setMessage({ text: read.error, error: true }); return false; }
+    const request = read.preview ? purchaseConfirmationAutoEnableConfirm(read.preview) : purchaseConfirmationAutoEnableUnreadConfirm(days);
+    return await adminConfirm(request) && session.current();
+  }
+
+  async function save() {
+    if (locked || asking.current || !sessionId) return;
     /* 끌 때는 기간 칸이 닫혀 있다. 저장돼 있던 기간을 그대로 보내 끄는 일이 기간까지 바꾸지 않게 한다. */
     let values: PolicyValues = { autoEnabled: false, autoAfterDays: policy.autoAfterDays, buyerExtensionDays: policy.buyerExtensionDays };
     if (draft.autoEnabled) {
@@ -75,24 +93,27 @@ export function PurchaseConfirmationPolicyForm({ initial, actorId, sessionId }: 
       values = { autoEnabled: true, autoAfterDays: Number(draft.days), buyerExtensionDays: draft.extension === '' ? null : Number(draft.extension) };
     }
     const sending: Attempt = { values, revision: policy.revision, operationId: crypto.randomUUID(), before: policy };
-    start(async () => {
-      if (values.autoEnabled && !policy.autoEnabled) {
-        const read = await previewPurchaseConfirmationAutoAction(values.autoAfterDays);
-        if (!session.current()) return;
-        if (!('preview' in read) || !read.preview) { setMessage({ text: read.error ?? '저장하지 않았습니다. 잠시 뒤 다시 [저장]을 눌러주세요.', error: true }); return; }
-        if (!await adminConfirm(purchaseConfirmationAutoEnableConfirm(read.preview)) || !session.current()) return;
-      }
-      await send(sending);
-    });
+    if (values.autoEnabled && values.autoAfterDays !== null && !policy.autoEnabled) {
+      asking.current = true; setCounting(true); setMessage(null);
+      let confirmed = false;
+      try { confirmed = await confirmEnable(values.autoAfterDays); } finally { asking.current = false; setCounting(false); }
+      if (!confirmed) return;
+    }
+    start(() => send(sending));
   }
 
   function check() { if (!attempt || busy) return; const sending = attempt; start(() => send(sending)); }
 
-  function reload() {
-    if (busy) return;
+  async function reload() {
+    if (busy || asking.current) return;
+    /* 저장 결과를 모르거나 다른 사람이 먼저 바꾼 뒤에는 다시 읽는 것이 다음 할 일이라 묻지 않는다. 그 밖에 고친 값이 있으면 사라진다고 먼저 묻는다. */
+    if (!attempt && !stale && dirty) {
+      asking.current = true;
+      let confirmed = false;
+      try { confirmed = await adminConfirm(RELOAD_SAVED_CONFIRM) && session.current(); } finally { asking.current = false; }
+      if (!confirmed) return;
+    }
     start(async () => {
-      /* 저장 결과를 모르거나 다른 사람이 먼저 바꾼 뒤에는 다시 읽는 것이 다음 할 일이라 묻지 않는다. 그 밖에 고친 값이 있으면 사라진다고 먼저 묻는다. */
-      if (!attempt && !stale && dirty && (!await adminConfirm(RELOAD_SAVED_CONFIRM) || !session.current())) return;
       const result = await readPurchaseConfirmationPolicyAction();
       if (!session.current()) return;
       if ('policy' in result && result.policy) { show(result.policy); setMessage({ text: '저장된 정책을 다시 불러왔습니다.', error: false }); }
@@ -100,7 +121,7 @@ export function PurchaseConfirmationPolicyForm({ initial, actorId, sessionId }: 
     });
   }
 
-  return <form className="flex min-w-0 flex-col gap-4 text-sm" data-purchase-confirmation-policy="" onSubmit={e => { e.preventDefault(); save(); }}>
+  return <form className="flex min-w-0 flex-col gap-4 text-sm" data-purchase-confirmation-policy="" onSubmit={e => { e.preventDefault(); void save(); }}>
     <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={locked}>
       <GoodChoiceCards legend="자동 거래확정">
         <GoodChoiceCard name="confirmation-auto" value="off" checked={!draft.autoEnabled} onChange={() => change({ autoEnabled: false })}
@@ -123,9 +144,9 @@ export function PurchaseConfirmationPolicyForm({ initial, actorId, sessionId }: 
       {readback ? <GoodReadback>{readback}</GoodReadback> : null}
     </fieldset>
     <div className="flex flex-wrap items-center gap-2">
-      <Button type="submit" disabled={locked}>저장</Button>
+      <Button type="submit" disabled={locked}>{counting ? '거래확정될 주문 수 확인 중…' : '저장'}</Button>
       {attempt ? <Button type="button" variant="outline" disabled={busy} onClick={check}>{SAVE_CHECK_LABEL}</Button> : null}
-      <Button type="button" variant="outline" disabled={busy} onClick={reload}>{attempt ? '그만두고 다시 하기' : PURCHASE_CONFIRMATION_RELOAD_LABEL}</Button>
+      <Button type="button" variant="outline" disabled={busy} onClick={() => { void reload(); }}>{attempt ? '그만두고 다시 하기' : PURCHASE_CONFIRMATION_RELOAD_LABEL}</Button>
     </div>
     {message ? <p className={message.error ? 'text-destructive' : 'text-success'} role={message.error ? 'alert' : 'status'}>{message.text}</p> : null}
     {session.blocked ? <p className="text-destructive" role="alert">로그인 상태가 바뀌었습니다. 다시 로그인한 뒤 이 화면을 다시 열어주세요.</p> : null}

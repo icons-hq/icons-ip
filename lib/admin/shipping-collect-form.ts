@@ -100,18 +100,5 @@ export function shippingCollectConfirmRequest({ obligation, event, amount, lates
   };
 }
 
-/**
- * 서버가 돌려준 안내에 옛 버튼 이름이 있으면 지금 화면의 이름으로 바꿔 보인다. 서버 액션의 문구(app/admin/shipping-collect-event-actions.ts)가 아직
- * [이전 결과 확인 후 같은 요청 재시도]·[이전 결과 확인]·[이전 요청 무효 처리 후 다시 입력]을 말해도, 화면에는 그 이름의 버튼이 없기 때문이다.
- * 서버 문구가 새 이름으로 바뀌면 아무 일도 하지 않는다.
- */
-export function shippingCollectServerMessage(message: string): string {
-  /* 조사도 새 이름에 맞춘다(재시도를 → 확인을, 다시 입력을 → 다시 하기를). */
-  return message
-    .replace(/\[이전 결과 확인 후 같은 요청 재시도\](를|을)?/g, (_, particle) => `[저장됐는지 확인]${particle ? '을' : ''}`)
-    .replace(/\[이전 결과 확인\](를|을)?/g, (_, particle) => `[저장됐는지 확인]${particle ? '을' : ''}`)
-    .replace(/\[이전 요청 무효 처리 후 다시 입력\](을|를)?/g, (_, particle) => `[그만두고 다시 하기]${particle ? '를' : ''}`);
-}
-
 /** 지금 시각의 KST datetime-local 값(분 단위). 발생 시각 칸의 처음 값이다 — 대부분 확인한 자리에서 바로 기록한다. */
 export const shippingCollectNowLocal = (now: Date = new Date()) => new Date(now.getTime() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);

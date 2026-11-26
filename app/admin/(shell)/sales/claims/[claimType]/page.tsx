@@ -92,6 +92,8 @@ export default async function AdminSalesClaimsPage({
         {workspace ? (
           <ClaimDetailScreen
             actorId={auth.user.id}
+            /* 자동 회수 접수가 켜져 있으면 팝업 안의 반품·교환 승인도 상세 라우트와 같은 확인창을 띄운다. */
+            autoPickupOnApproval={workspace.autoPickupOnApproval}
             backHref={closeHref}
             cancellationForm={workspace.cancellationForm}
             carriers={workspace.carriers}

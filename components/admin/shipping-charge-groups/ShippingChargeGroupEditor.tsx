@@ -49,6 +49,7 @@ function regionalKey(value: ShippingChargeGroupValues['regional']) {
     p.rules.map(row => [row.id, row.postalFrom, row.postalTo, row.addressPrefix, row.regionLabel, row.disposition, row.amount])]);
 }
 const tsvOf = (rules: readonly ShippingRegionRuleInput[]) => rules.length ? shippingRegionRulesTsv(rules) : '';
+type ParsedRegionRules = ReturnType<typeof parseShippingRegionRulesTsv>;
 /** 버튼을 누른 순간의 시각. 저장 버튼의 핸들러에서만 부른다(그리는 중에는 창을 연 시각 `now`를 쓴다). */
 const pressedAt = () => Date.now();
 function koreaInput(value: string | null): string { return value ? new Date(Date.parse(value) + 9 * 3_600_000).toISOString().slice(0, 16) : ''; }
@@ -71,7 +72,8 @@ function RegionFields({ policy, onChange, tsv, onTsvChange, disabled, carriers, 
 }) {
   const fieldId = useId();
   const patch = (value: Partial<ShippingChargeGroupRegionPolicy>) => onChange({ ...policy, ...value });
-  const parsed = policy.noRulesConfirmed ? { rules: [] as ShippingRegionRuleInput[] } : parseShippingRegionRulesTsv(tsv, policy.rules);
+  /* 읽은 결과의 모양을 적어 둔다 — 적지 않으면 오류가 없는 갈래에서 `error`를 읽는 줄이 타입 검사 순서에 따라 오류가 된다. */
+  const parsed: ParsedRegionRules = policy.noRulesConfirmed ? { rules: [] } : parseShippingRegionRulesTsv(tsv, policy.rules);
   const rules = parsed.rules ?? [];
   const carrierLabel = (code: string | null | undefined) => carriers.find(carrier => carrier.code === code)?.label ?? (code || '없음');
   const carrier = carriers.find(item => item.code === policy.carrierCode);
@@ -157,7 +159,7 @@ export function ShippingChargeGroupEditor({ start, identity, scope, origins, car
   });
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   /* 지역표 글을 고치지 않았으면 저장돼 있던 줄을 그대로 보낸다(줄 번호가 새로 매겨지면 고치지 않은 지역표도 바뀐 것으로 저장된다). */
-  const parsed = regional.noRulesConfirmed ? { rules: [] as ShippingRegionRuleInput[] } : tsv === initial.tsv ? { rules: regional.rules } : parseShippingRegionRulesTsv(tsv, regional.rules);
+  const parsed: ParsedRegionRules = regional.noRulesConfirmed ? { rules: [] } : tsv === initial.tsv ? { rules: regional.rules } : parseShippingRegionRulesTsv(tsv, regional.rules);
   const currentRegional: ShippingChargeGroupValues['regional'] = values.regional.mode === 'inherit' ? { mode: 'inherit', policy: null }
     : { mode: 'override', policy: { ...regional, sourceEvidence: regional.sourceEvidence.trim(), rules: parsed.rules ?? regional.rules } };
   const current: ShippingChargeGroupValues = { ...values, name: values.name.trim(), regional: currentRegional };

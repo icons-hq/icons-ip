@@ -42,6 +42,7 @@ import {
   type OrderPartialCancellationPlan,
   type OrderPartialCancellationRecord,
 } from '@/lib/orders/partial-cancellation';
+import { BANK_REFUND_VIEW_ACCOUNT_LABEL } from '@/lib/admin/bank-transfer-refund';
 
 const FIELD = 'flex min-w-0 flex-col gap-1.5';
 const HINT = 'text-xs text-muted-foreground';
@@ -84,7 +85,7 @@ function HistoryEntry({ orderId, record, canManage, onChanged }: { orderId: stri
     try {
       const result = await viewOrderPartialCancellationRefundAccountAction(record.id);
       if (result.ok) setAccount(result.value); else setMessage(result.error);
-    } catch { setMessage('계좌 원문을 읽지 못했습니다.'); }
+    } catch { setMessage('계좌번호를 읽지 못했습니다. 잠시 뒤 다시 눌러주세요.'); }
     finally { setPending(false); }
   }
   async function transfer(event: React.FormEvent<HTMLFormElement>) {
@@ -147,8 +148,9 @@ function HistoryEntry({ orderId, record, canManage, onChanged }: { orderId: stri
     </details> : null}
     {record.state === 'awaiting_transfer' && staff && canManage ? <form className="flex flex-col gap-3 border-t pt-3" onSubmit={transfer}>
       <p>송금할 환불액 <strong className="tabular-nums">{krw(record.refundAmount)}</strong>{staff.refundAccount ? ` · ${staff.refundAccount.maskedAccount} (${staff.refundAccount.maskedHolder})` : ''}</p>
-      {account ? <p className="wrap-anywhere" role="status">{account.bankName} {account.accountNumber} · 예금주 {account.accountHolder}</p>
-        : <Button className="w-fit" disabled={pending} onClick={() => void reveal()} type="button" variant="outline">계좌 원문 보기 (열람 기록)</Button>}
+      {/* 무통장 환불 칸과 같은 버튼 이름이다. 누르면 본 기록(누가·언제)이 남는다는 것은 본 뒤에 말한다. */}
+      {account ? <p className="wrap-anywhere" role="status">{account.bankName} {account.accountNumber} · 예금주 {account.accountHolder} <span className={HINT}>· 계좌를 본 기록이 남았습니다.</span></p>
+        : <Button className="w-fit" disabled={pending} onClick={() => void reveal()} type="button" variant="outline">{BANK_REFUND_VIEW_ACCOUNT_LABEL}</Button>}
       <label className={FIELD}><span className="font-medium">송금 근거 (필수)</span>
         <input className="w-full" maxLength={300} onChange={event => setEvidence(event.target.value)} placeholder="예: 11/25 14:10 이체 완료 (이체 확인번호 12345)" required value={evidence} />
         <small className={HINT}>2자 이상. 이체 확인 번호·시각 등을 적고 계좌번호는 적지 마세요. 이 부분 취소 기록에 남습니다.</small>

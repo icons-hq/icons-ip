@@ -150,10 +150,10 @@ export function adminCancelRecheckRequest(order: OrderIdentity, buttonLabel: str
  */
 export function adminKorpayRecoveryRequest(attempt: { providerOrderId: string; amount: number; currency: string }): AdminConfirmRequest {
   return {
-    title: 'Korpay 원장에서 전액 취소를 확인하셨나요?',
+    title: '코페이 원장에서 전액 취소를 확인하셨나요?',
     message: [
-      `Korpay 주문 ${attempt.providerOrderId} · ${money(attempt.amount)} ${attempt.currency}`,
-      '이 결제가 Korpay 원장에서 전액 취소된 것을 직접 확인한 경우에만 반영합니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 바로 끝냅니다.',
+      `코페이 주문 ${attempt.providerOrderId} · ${money(attempt.amount)} ${attempt.currency}`,
+      '이 결제가 코페이 원장에서 전액 취소된 것을 직접 확인한 경우에만 반영합니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 바로 끝냅니다.',
     ].join('\n'),
     confirmLabel: '전액 취소 반영',
     cancelLabel: ADMIN_CONFIRM_BACK,

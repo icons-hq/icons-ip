@@ -26,10 +26,10 @@ export async function POST(request: Request) {
       || data.total !== rows.length || typeof data.asOf !== 'string' || !Number.isFinite(Date.parse(data.asOf))) throw new Error('subscription_export_unavailable');
     const generatedAt = new Date(data.asOf), stamp = kstFileStamp(generatedAt);
     const plain = await buildAdminListExportWorkbook({ screenLabel: '정기구매 관리', title: '정기구매', recordCount: rows.length, rows: subscriptionExportRows(rows),
-      columns: ['신청번호', '구매자 ID', '구매자', '상품', '신청 상태', '주기', '다음 결제일', '이후 온라인 금액', '별도 착불 배송비', '전체 회차', '결제완료 회차', '결제완료 누계', '신청일', '최근 변경'].map((header, i) => ({ header,
+      columns: ['신청 내부 번호', '구매자 내부 번호', '구매자', '상품', '신청 상태', '주기', '다음 결제일', '이후 온라인 금액', '별도 착불 배송비', '전체 회차', '결제완료 회차', '결제완료 누계', '신청일', '최근 변경'].map((header, i) => ({ header,
         kind: [7, 8, 11].includes(i) ? 'amount' as const : [9, 10].includes(i) ? 'count' as const : 'text' as const, width: [0, 1].includes(i) ? 40 : i === 3 ? 50 : 22 })),
       conditions: [['상태', filters.state ? SUBSCRIPTION_PLAN_LABELS[filters.state] : '전체'], ['검색어', filters.query || '전체']],
-      notes: ['신청 한 건이 한 행입니다. 온라인 결제금액과 수령 시 별도 착불 배송비를 분리했습니다.', '결제완료 누계는 취소된 주문을 제외하며 PG 정산 완료액과 다릅니다. 날짜는 한국 시간(KST)입니다.'],
+      notes: ['신청 한 건이 한 행입니다. 온라인 결제금액과 수령 시 별도 착불 배송비를 분리했습니다.', '결제완료 누계는 취소된 주문을 빼며 결제사 정산 완료액과 다릅니다. 날짜는 KST입니다.'],
       filters: { state: filters.state, query: filters.query } }, generatedAt);
     let encrypted; try { encrypted = encryptAdminWorkbook(plain, password); } finally { plain.fill(0); }
     const service = createServiceClient(), audit = await service.rpc('service_record_goods_subscription_export', { p_actor_id: auth.user.id,

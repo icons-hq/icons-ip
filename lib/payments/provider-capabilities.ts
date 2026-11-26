@@ -28,6 +28,15 @@ export const PAYMENT_PROVIDER_LABELS = {
   bank_transfer: '무통장 입금',
 } as const;
 
+/**
+ * 표·타임라인·상세의 '결제' 칸에 값으로 보이는 이름(토스 결제·나이스페이·코페이·무통장 입금). 위 이름표에서 만든다 —
+ * 문장은 짧은 이름 뒤에 '결제'를 붙여 같은 말이 된다("토스 결제 전액 …을 취소합니다"). '토스페이먼츠'는 상점관리자처럼 그 회사의 서비스 이름에만 쓴다.
+ */
+export const PAYMENT_PROVIDER_VALUE_LABELS = {
+  ...PAYMENT_PROVIDER_LABELS,
+  toss: `${PAYMENT_PROVIDER_LABELS.toss} 결제`,
+} as const;
+
 /** 운영 화면 문구에 쓰는 결제사 짧은 이름. 토스 문구("토스 전액 취소")는 그대로 유지한다. */
 export function automatedCancelProviderLabel(provider: AutomatedCancelProvider) {
   return PAYMENT_PROVIDER_LABELS[provider];
@@ -37,5 +46,12 @@ export function automatedCancelProviderLabel(provider: AutomatedCancelProvider) 
 export function paymentProviderLabel(provider: unknown): string | null {
   return typeof provider === 'string' && Object.prototype.hasOwnProperty.call(PAYMENT_PROVIDER_LABELS, provider)
     ? PAYMENT_PROVIDER_LABELS[provider as keyof typeof PAYMENT_PROVIDER_LABELS]
+    : null;
+}
+
+/** '결제' 칸에 값으로 보이는 이름. 이름표에 없는 값이나 결제가 없는 주문은 null이다(영문 코드를 그대로 보이지 않는다). */
+export function paymentProviderValueLabel(provider: unknown): string | null {
+  return typeof provider === 'string' && Object.prototype.hasOwnProperty.call(PAYMENT_PROVIDER_VALUE_LABELS, provider)
+    ? PAYMENT_PROVIDER_VALUE_LABELS[provider as keyof typeof PAYMENT_PROVIDER_VALUE_LABELS]
     : null;
 }

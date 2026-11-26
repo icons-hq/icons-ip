@@ -126,7 +126,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
         <span>주문 전체 {formatKrwExact(context.orderTotal)} · 최초 배송비 포함 전액 기준</span>
         <small className="text-xs text-muted-foreground">{context.digitalExchangeBlocked ? '디지털 파일 포함 · 재다운로드 및 문의·취소·환불 심사' : cancellation ? '발주확인·출고지시서 출력 전 주문' : context.deliveredAt ? `원주문 배송완료 ${formatOrderDateTime(context.deliveredAt)}` : context.orderStatus === 'shipping' ? '배송 중 접수 · 전체 실물 회수 후 환불/재배송' : '배송 상태 확인 필요'}</small>
       </div>
-      <p className="text-muted-foreground">{cancellation ? '고객과 확인한 주문 전체의 취소 요청을 접수합니다. 승인과 결제 취소·환급은 접수 후 별도로 진행합니다.' : '고객과 확인한 주문 전체의 요청을 접수합니다. 승인·수거완료·환급·재배송은 접수 후 별도로 진행합니다.'}</p>
+      <p className="text-muted-foreground">{cancellation ? '고객과 확인한 주문 전체의 취소 요청을 접수합니다. 승인과 결제 취소·환불은 접수한 뒤 따로 진행합니다.' : '고객과 확인한 주문 전체의 요청을 접수합니다. 승인·입고 확인·환불·재출고는 접수한 뒤 따로 진행합니다.'}</p>
       {receipt ? <div className="flex flex-wrap items-center gap-2 rounded-lg border p-4" role="status">
         <h3 className="basis-full text-base leading-snug font-medium">{ORDER_CLAIM_TYPE_LABELS[receipt.claimType]} 요청을 저장했습니다.</h3>
         <p className="basis-full">접수번호 #{receipt.reference} · 현재 단계 {adminClaimStageLabel(receipt.claimType, receipt.stage)}</p>

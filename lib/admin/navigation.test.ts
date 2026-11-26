@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CLAIM_FEE_LIST_LABEL, CLAIM_FEE_SETTINGS_LABEL } from './claim-fees';
 import {
   ADMIN_NAV_GROUPS,
   ADMIN_SCREENS,
@@ -151,9 +152,9 @@ describe('어드민 IA 정의', () => {
     expect(adminScreenForPath('/admin/catalog/groups/new')?.id).toBe('goods-groups-create');
   });
 
-  it('운영에서 꺼진 선물 수락 대기·정기구매 관리는 사이드바에서만 숨기고 주문관리 화면 판정은 그대로 둔다', () => {
+  it('운영에서 꺼진 선물 내역·정기구매 관리는 사이드바에서만 숨기고 주문관리 화면 판정은 그대로 둔다', () => {
     const sales = ADMIN_NAV_GROUPS.find((group) => group.id === 'sales');
-    expect(sales?.screens.filter((screen) => screen.navHidden).map((screen) => screen.label)).toEqual(['선물 수락 대기', '정기구매 관리']);
+    expect(sales?.screens.filter((screen) => screen.navHidden).map((screen) => screen.label)).toEqual(['선물 내역', '정기구매 관리']);
     const visibleSales = visibleAdminNavGroups('admin').find((group) => group.id === 'sales')?.screens.map((screen) => screen.id) ?? [];
     expect(visibleSales).not.toContain('gifts');
     expect(visibleSales).not.toContain('subscriptions');
@@ -285,8 +286,9 @@ describe('상세 화면 셸 제목(ADR-0029)', () => {
     expect(adminDetailTitleForPath('/admin/sales/claims/returns/abc')).toBe('반품 상세');
     expect(adminDetailTitleForPath('/admin/cs/inquiries/abc')).toBe('고객문의 상세');
     expect(adminDetailTitleForPath('/admin/customers/abc')).toBe('고객 상세');
-    expect(adminDetailTitleForPath('/admin/sales/claims/returns/fees')).toBeNull();
-    expect(adminDetailTitleForPath('/admin/sales/claims/returns/fee-policy')).toBeNull();
+    /* 배송비 청구 두 화면은 반품 관리 아래 경로지만 요청 상세가 아니다 — 제 화면 이름을 셸 제목으로 쓴다. */
+    expect(adminDetailTitleForPath('/admin/sales/claims/returns/fees')).toBe(CLAIM_FEE_LIST_LABEL);
+    expect(adminDetailTitleForPath('/admin/sales/claims/returns/fee-policy')).toBe(CLAIM_FEE_SETTINGS_LABEL);
     expect(adminDetailTitleForPath('/admin/sales/orders')).toBeNull();
     expect(adminDetailTitleForPath('/admin/sales/claims/cancels')).toBeNull();
   });

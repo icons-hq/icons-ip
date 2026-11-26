@@ -16,7 +16,7 @@ describe('매니저 초대 권한 선택', () => {
     const hintId = html.match(/data-operator-role-summary="" id="([^"]+)"/)?.[1];
     expect(hintId).toBeTruthy();
     expect(html).toContain(`aria-describedby="${hintId}"`);
-    expect(html).toContain('물류출고관리</strong> — 상품 공지사항 관리와 출고지시 내려받기·운송장 회신 등록·발송·배송완료');
+    expect(html).toContain('물류출고관리</strong> — 상품 공지사항 관리와 출고지시 내려받기·운송장 올리기·발송·배송완료');
     expect(html).toContain('수령인 정보만 봅니다');
     const deputy = renderToStaticMarkup(<InvitationFields disabled={false} draft={{ name: '부매니저', email: 'deputy@example.test', managerRole: 'deputy', duty: 'cs' }}
       index={2} onChange={() => {}} />);

@@ -91,7 +91,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       /* 거래확정과 PG 판매대금 지급(정산관리)은 별도 계약이다. */
       { id: 'settled', label: `${ADMIN_VOCABULARY.settled} 내역`, href: '/admin/sales/settled', status: 'ready' },
       /* 선물하기·정기구매는 운영에서 꺼져 있다. 기존 데이터를 다룰 수 있게 라우트·권한은 두고 메뉴에서만 숨긴다(그룹상품과 같은 방식). */
-      { id: 'gifts', label: '선물 수락 대기', href: '/admin/sales/gifts', status: 'ready', navHidden: true },
+      { id: 'gifts', label: '선물 내역', href: '/admin/sales/gifts', status: 'ready', navHidden: true },
       { id: 'subscriptions', label: '정기구매 관리', href: '/admin/sales/subscriptions', status: 'ready', navHidden: true },
     ],
   },
@@ -214,7 +214,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '정산관리',
     icon: 'card',
     screens: [
-      { id: 'pg-settlements', label: '정산 내역 (일별/건별)', href: '/admin/settlements', status: 'ready', adminOnly: true },
+      { id: 'pg-settlements', label: '정산 내역', href: '/admin/settlements', status: 'ready', adminOnly: true },
     ],
   },
   /* 여기부터 설정 구역 — 한 번 정해 두고 가끔 고치는 화면은 매일 쓰는 메뉴 아래에 둔다(2026-11-05 IA 재정의). 배송 템플릿도 배송관리로 모은다. */
@@ -308,6 +308,9 @@ const ADMIN_DETAIL_TITLES: readonly (readonly [RegExp, string])[] = [
   [/^\/admin\/sales\/orders\/(?!new$)[^/]+$/, '주문 상세'],
   [/^\/admin\/sales\/claims\/cancels\/[^/]+$/, '취소 상세'],
   [/^\/admin\/sales\/claims\/returns\/(?!fees$|fee-policy$)[^/]+$/, '반품 상세'],
+  /* 배송비 청구 두 화면은 반품 관리 아래 경로라 목록 이름('반품 관리')으로 판정된다. 화면 이름을 셸 제목으로 준다(lib/admin/claim-fees의 이름과 같다). */
+  [/^\/admin\/sales\/claims\/returns\/fees$/, '배송비 청구 내역'],
+  [/^\/admin\/sales\/claims\/returns\/fee-policy$/, '배송비 청구 설정'],
   [/^\/admin\/sales\/claims\/exchanges\/[^/]+$/, '교환 상세'],
   [/^\/admin\/sales\/subscriptions\/[^/]+$/, '정기구매 상세'],
   [/^\/admin\/cs\/inquiries\/[^/]+$/, '고객문의 상세'],

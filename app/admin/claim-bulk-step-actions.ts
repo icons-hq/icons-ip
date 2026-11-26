@@ -97,7 +97,7 @@ async function readContexts(supabase: Supabase, claimIds: readonly string[]): Pr
 }
 
 function wrongType(claimType: OrderClaimType) {
-  return `${ORDER_CLAIM_TYPE_LABELS[claimType]} 요청이 아닙니다. 해당 목록에서 처리해주세요.`;
+  return `${ORDER_CLAIM_TYPE_LABELS[claimType]} 요청이 아닙니다. 이 요청의 유형에 맞는 목록에서 처리해주세요.`;
 }
 
 function form(entries: Record<string, string>) {

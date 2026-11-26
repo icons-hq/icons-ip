@@ -332,16 +332,16 @@ describe('취소 일괄 승인 확인창 값(L-08)', () => {
 
   it('승인할 건만 세어 취소 금액 합계를 결제 방식별로 내고, 결제가 없는 주문은 건수만 센다', () => {
     expect(adminClaimBulkApproveTotals([
-      row(ID(1), 30000, '토스페이먼츠', true),
+      row(ID(1), 30000, '토스 결제', true),
       row(ID(2), 20000, '나이스페이', true),
-      row(ID(3), 5000, '토스페이먼츠', true),
+      row(ID(3), 5000, '토스 결제', true),
       row(ID(4), 7000, '무통장 입금', false),
       row(ID(5), null, '결제 없음', false),
-      row(ID(6), 9999, '토스페이먼츠', true, '이미 승인한 요청입니다.'),
+      row(ID(6), 9999, '토스 결제', true, '이미 승인한 요청입니다.'),
     ])).toEqual({
       count: 5, amount: 62000,
       byProvider: [
-        { label: '토스페이먼츠', count: 2, amount: 35000, providerCancel: true },
+        { label: '토스 결제', count: 2, amount: 35000, providerCancel: true },
         { label: '나이스페이', count: 1, amount: 20000, providerCancel: true },
         { label: '무통장 입금', count: 1, amount: 7000, providerCancel: false },
         { label: '결제 없음', count: 1, amount: 0, providerCancel: false },
@@ -531,12 +531,12 @@ describe('adminClaimBulkCollectPlan', () => {
 describe('adminClaimBulkRefundTotals', () => {
   it('제외 건과 금액 없는 건을 빼고 결제사별로 합친다', () => {
     expect(adminClaimBulkRefundTotals([
-      { claimId: ID(1), reference: 'C00001', providerLabel: '토스페이먼츠', amount: 1000, blocker: null },
-      { claimId: ID(2), reference: 'C00002', providerLabel: '토스페이먼츠', amount: 2500, blocker: null },
+      { claimId: ID(1), reference: 'C00001', providerLabel: '토스 결제', amount: 1000, blocker: null },
+      { claimId: ID(2), reference: 'C00002', providerLabel: '토스 결제', amount: 2500, blocker: null },
       { claimId: ID(3), reference: 'C00003', providerLabel: '나이스페이', amount: 700, blocker: null },
       { claimId: ID(4), reference: 'C00004', providerLabel: '무통장 입금', amount: 9000, blocker: '무통장' },
       { claimId: ID(5), reference: 'C00005', providerLabel: '결제 없음', amount: null, blocker: null },
-    ])).toEqual({ count: 3, amount: 4200, byProvider: [{ label: '토스페이먼츠', count: 2, amount: 3500 }, { label: '나이스페이', count: 1, amount: 700 }] });
+    ])).toEqual({ count: 3, amount: 4200, byProvider: [{ label: '토스 결제', count: 2, amount: 3500 }, { label: '나이스페이', count: 1, amount: 700 }] });
   });
 });
 

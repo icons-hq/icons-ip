@@ -18,6 +18,7 @@ import {recordPiiAccess} from '@/lib/admin/pii-access-log.server';
 import {unstable_rethrow} from 'next/navigation';
 import {carrierTrackingNumberIssue,findShippingCarrier,isTrackingNumber,normalizeTrackingNumber} from '@/lib/orders/shipment';
 import {getShippingCarrierRegistry} from '@/lib/orders/shipment.server';
+import {ADMIN_DISPATCH_ACCESS_DENIED} from '@/lib/admin/vocabulary';
 import {enqueueOrderShippedEmails} from '@/lib/email/order-shipment-jobs.server';
 import {DISPATCH_HANDOFF_METHODS,DISPATCH_METHODS,DISPATCH_REASON_MAX_LENGTH,DISPATCH_TARGET_LIMIT,dispatchDeliveryError,parseDispatchDeliveryOptions,parseDispatchDeliveryReceipt,
  type DispatchDeliveryOptions,type DispatchDeliveryReceipt,type DispatchHandoffInput,type DispatchMethod} from '@/lib/admin/dispatch-delivery';
@@ -25,8 +26,8 @@ const INSTANT=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:
 function selection(value:unknown):string[]|null {if(!Array.isArray(value)||!value.length||value.length>1000||!value.every(id=>typeof id==='string'&&isUuid(id)))return null;return [...new Set((value as string[]).map(id=>id.toLowerCase()))];}
 /** 출고지시·배송완료는 출고 전용 권한(sales.dispatch, 1014-084)으로 한다. sales.manage도 이 권한을 포함한다. */
 const SHIPMENT_PATH='/admin/sales/dispatch';
-/** 권한이 없을 때의 안내. 이 화면의 출고·발송·배송완료는 계정 주매니저나 물류출고관리가 한다. */
-const NO_PERMISSION='이 작업을 할 권한이 없습니다. 계정 주매니저나 물류출고관리 권한이 필요합니다. 판매자 정보 > 매니저 관리 담당자에게 권한을 요청해주세요.';
+/** 권한이 없을 때의 안내. 주문·발송 화면이 같은 문장을 쓴다(lib/admin/vocabulary — 출고 = sales.dispatch, 판매 관리가 포함한다). */
+const NO_PERMISSION=ADMIN_DISPATCH_ACCESS_DENIED;
 async function staff(){return requireAdminActionAccess(SHIPMENT_PATH,{capability:'sales.dispatch'});}
 /** 화면이 백그라운드로 부르는 읽기 전용 경고용. 세션이 끝나도 로그인으로 옮기지 않고 거절(null)만 돌려준다. */
 async function backgroundStaff(){return requireAdminActionAccess(SHIPMENT_PATH,{capability:'sales.dispatch',onUnauthenticated:'error'});}

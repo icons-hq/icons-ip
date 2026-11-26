@@ -396,7 +396,7 @@ describe('OrdersSection', () => {
       },
     })} />);
 
-    expect(html).toContain('Korpay 원장 확인 정보');
+    expect(html).toContain('코페이 원장 확인 정보');
     expect(html).toContain('O0123456789ABCDEF');
     expect(html).toContain('32,000');
     expect(html).toContain('KRW');
@@ -410,9 +410,9 @@ describe('OrdersSection', () => {
     expect(html).toMatch(/<input[^>]*name="operatorAttestation"[^>]*type="hidden"[^>]*value="provider_cancel_confirmed"|<input[^>]*type="hidden"[^>]*name="operatorAttestation"[^>]*value="provider_cancel_confirmed"/);
     expect(html).not.toMatch(/type="checkbox"[^>]*name="operatorAttestation"|name="operatorAttestation"[^>]*type="checkbox"/);
     expect(dataConfirms(html)).toContain(
-      'Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW\n이 결제가 Korpay 원장에서 전액 취소된 것을 직접 확인한 경우에만 반영합니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 바로 끝냅니다.',
+      '코페이 주문 O0123456789ABCDEF · ₩32,000 KRW\n이 결제가 코페이 원장에서 전액 취소된 것을 직접 확인한 경우에만 반영합니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 바로 끝냅니다.',
     );
-    expect(html).toContain('Korpay 전액 취소 반영');
+    expect(html).toContain('코페이 전액 취소 반영');
     expect(html).toContain('data-order-action="korpay-recovery-submit"');
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*data-order-action="korpay-recovery-submit"|<button[^>]*data-order-action="korpay-recovery-submit"[^>]*type="submit"/);
     expect(html).not.toContain('상태 다시 확인');
@@ -433,9 +433,9 @@ describe('OrdersSection', () => {
       },
     })} />);
 
-    expect(html).toContain('Korpay 원장 확인 정보');
+    expect(html).toContain('코페이 원장 확인 정보');
     expect(html).toContain('현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.');
-    expect(html).not.toContain('Korpay 전액 취소 반영');
+    expect(html).not.toContain('코페이 전액 취소 반영');
     expect(html).not.toContain('처리 상태 확인');
   });
 
@@ -457,7 +457,7 @@ describe('OrdersSection', () => {
       })} />);
 
       expect(html).toContain('처리 상태 확인');
-      expect(html).not.toContain('Korpay 전액 취소 반영');
+      expect(html).not.toContain('코페이 전액 취소 반영');
       expect(html).not.toContain('현재 결제 처리 또는 다른 운영 확인이 진행 중입니다.');
     },
   );
@@ -477,12 +477,12 @@ describe('OrdersSection', () => {
       },
     })} />);
 
-    expect(html).toContain('Korpay 만료·취소 처리');
+    expect(html).toContain('코페이 만료·취소 처리');
     expect(dataConfirms(html)).toContain(
-      'Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW 결제가 유효 시간을 넘겨 만료됐는지 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 바로 끝납니다.',
+      '코페이 주문 O0123456789ABCDEF · ₩32,000 KRW 결제가 유효 시간을 넘겨 만료됐는지 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 바로 끝납니다.',
     );
     expect(html).toContain(`name="requestId" value="${request.id}"`);
-    expect(html).not.toContain('Korpay 전액 취소 반영');
+    expect(html).not.toContain('코페이 전액 취소 반영');
     expect(html).not.toContain('처리 상태 확인');
   });
 
@@ -965,7 +965,7 @@ describe('OrdersSection', () => {
     expect(html).not.toContain('type="checkbox"');
     expect(html).not.toContain('원장에서 확인했습니다');
     expect(html).toContain('name="operatorAttestation"');
-    expect(dataConfirms(html).find(text => text.startsWith('Korpay 주문'))).toContain('원장에서 전액 취소된 것을 직접 확인한 경우에만 반영합니다');
+    expect(dataConfirms(html).find(text => text.startsWith('코페이 주문'))).toContain('원장에서 전액 취소된 것을 직접 확인한 경우에만 반영합니다');
   });
 });
 
@@ -1288,7 +1288,7 @@ describe('OrdersSection 가상계좌 입금 정보', () => {
   it('입금 대기 주문의 결제·환불에 가상계좌 정보를 보이고 결제 기록 없음 문구를 쓰지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'pending', payments: [], virtualAccount: account })} />);
     const section = html.slice(html.indexOf('id="admin-order-payment-title"'));
-    for (const text of ['결제수단', '가상계좌', '입금 대기', '우리은행 X1234567890', '₩32,000', '입금 기한 (KST)', '2026. 11. 25. 10:00', '구매안전서비스(에스크로)', '적용(구매자가 선택)', '주문 전체로만 취소·반품']) {
+    for (const text of ['결제수단', '무통장입금(가상계좌)', '입금 대기', '우리은행 X1234567890', '₩32,000', '입금 기한 (KST)', '2026. 11. 25. 10:00', '구매안전서비스(에스크로)', '적용(구매자가 선택)', '주문 전체로만 취소·반품']) {
       expect(section, text).toContain(text);
     }
     expect(section).toContain('data-order-virtual-account="awaiting"');

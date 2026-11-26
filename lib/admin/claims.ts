@@ -368,7 +368,6 @@ export function adminClaimOpenCount(counts: Record<OrderClaimStage, number>) {
  * 폼 정규화 — 콘솔 액션이 DB에 닿기 전에 입력을 좁힌다
  * ------------------------------------------------------------------------- */
 
-const TRACKING_NUMBER_PATTERN = /^[A-Z0-9]{8,30}$/;
 export const ADMIN_CLAIM_OPERATIONAL_FEE_KINDS = ['return_shipping', 'exchange_shipping', 'other'] as const;
 export type AdminClaimOperationalFeeKind = (typeof ADMIN_CLAIM_OPERATIONAL_FEE_KINDS)[number];
 
@@ -463,33 +462,6 @@ export function normalizeAdminClaimRefundForm(
       note: note.length > 0 ? note : null,
     },
   };
-}
-
-export function normalizeAdminClaimReshipmentForm(
-  formData: FormData,
-): AdminClaimFormResult<{ claimId: string; carrier: string; trackingNumber: string; items: { orderItemId: string; variantId: string }[] }> {
-  const claimId = readString(formData, 'claimId').toLowerCase();
-  const carrier = readString(formData, 'carrier');
-  const trackingNumber = readString(formData, 'trackingNumber').toUpperCase();
-
-  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
-  if (!carrier) return { ok: false, error: '택배사를 선택해주세요.' };
-  if (!TRACKING_NUMBER_PATTERN.test(trackingNumber)) {
-    return { ok: false, error: '운송장번호를 영문 대문자와 숫자 8~30자로 입력해주세요.' };
-  }
-
-  const items: { orderItemId: string; variantId: string }[] = [];
-  const seen = new Set<string>();
-  for (const [key, value] of formData.entries()) {
-    if (!key.startsWith('variant:')) continue;
-    const orderItemId = key.slice(8).toLowerCase();
-    const variantId = typeof value === 'string' ? value.toLowerCase() : '';
-    if (!isUuid(orderItemId) || !isUuid(variantId) || seen.has(orderItemId)) {
-      return { ok: false, error: '재출고할 품목과 옵션을 확인해주세요.' };
-    }
-    seen.add(orderItemId); items.push({ orderItemId, variantId });
-  }
-  return { ok: true, value: { claimId, carrier, trackingNumber, items } };
 }
 
 /*
@@ -591,7 +563,7 @@ export function normalizeAdminClaimOperationalFeeForm(
   const amount = Number(amountText);
   if (!Number.isSafeInteger(amount) || amount < 0 || amount > 1000000) return { ok: false, error: '운영 확인액은 0~1,000,000원 사이로, 소수점 없이 입력해주세요.' };
   if (!note || note.length > 500) return { ok: false, error: '비용 메모는 1~500자로 입력해주세요.' };
-  if (!evidence || evidence.length > 1000) return { ok: false, error: '운영 확인 근거는 1~1,000자로 입력해주세요.' };
+  if (!evidence || evidence.length > 1000) return { ok: false, error: '확인 근거는 1~1,000자로 입력해주세요.' };
   if ([note, evidence].some((value) => Array.from(value).some((character) => {
     const code = character.charCodeAt(0);
     return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;

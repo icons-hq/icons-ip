@@ -49,7 +49,7 @@ import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmat
 import { ShipmentPreorderPromisePanel } from '@/components/admin/ShipmentPreorderPromisePanel';
 import { ShipmentDeliveryPanel } from '@/components/admin/ShipmentDeliveryPanel';
 import { ShipmentStatusRevertPanel } from '@/components/admin/ShipmentStatusRevertPanel';
-import { shipmentRevertKind } from '@/lib/admin/shipment-revert';
+import { shipmentDispatchRevertBlock, shipmentRevertKind } from '@/lib/admin/shipment-revert';
 import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { DELIVERY_METHOD_LABELS } from '@/lib/shipment-delivery';
 import { SellerClaimIntakeButton } from './SellerClaimIntakeForm';
@@ -89,18 +89,20 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료',
   'admin.order.bank_transfer_canceled': '무통장 주문 취소', 'admin.order.bank_transfer_confirmed': '무통장 입금 확인',
   'admin.order.bank_transfer_extended': '무통장 입금 기한 연장',
-  'admin.order.claim_approved': '요청 승인', 'admin.order.claim_collected': '반송 상품 입고',
+  'admin.order.claim_approved': '요청 승인', 'admin.order.claim_collected': '반품·교환 상품 입고 확인',
   'admin.order.claim_held': '요청 보류', 'admin.order.claim_in_review': '요청 검토 시작',
   'admin.order.claim_refund_completed': '환불 완료', 'admin.order.claim_refund_filed': '환불 접수',
-  'admin.order.claim_rejected': '요청 거부', 'admin.order.claim_reshipped': '교환 상품 발송',
-  'admin.order.claim_resumed': '요청 처리 재개',
+  'admin.order.claim_rejected': '요청 거부', 'admin.order.claim_reshipped': '교환 재출고',
+  'admin.order.claim_resumed': '요청 보류 해제',
   'admin.order.claim_intake_created': '판매자 직접 접수',
   'order.claim_withdrawn': '고객 요청 철회',
   'order.claim_refund_account_confirmed': '고객 환불계좌 등록',
   'admin.order.claim_refund_account_entered': '운영자 환불계좌 대신 입력',
   'admin.order.bank_refund_confirm_cancellation': '무통장 취소 확정 · 재고 복원',
-  'admin.order.bank_refund_file_transfer': '계좌 송금 접수',
-  'admin.order.bank_refund_complete_transfer': '계좌 송금 완료',
+  /* 무통장 환불 칸의 버튼 이름·요청 상세 타임라인과 같은 말이다(환불 접수 기록 / 송금 완료 기록 / 계좌번호 전체 보기). */
+  'admin.order.bank_refund_file_transfer': '환불 접수 기록',
+  'admin.order.bank_refund_complete_transfer': '송금 완료 기록',
+  'admin.order.bank_refund_account_viewed': '계좌번호 전체 보기',
   'system.order.unpaid_cart_order_closed': '결제 대기 주문 자동 취소 (재주문·장바구니 복귀)',
   'system.order.cart_hold_detached': '장바구니 보류 해제 (결제 확인 필요 주문)',
   'system.order.fulfillment_hold_placed': '출고 보류 (결제 확인 필요)',
@@ -306,6 +308,7 @@ export function OrderDetailScreen({
   canViewCustomer = true,
   actorId,
   embedded = false,
+  now = new Date(),
 }: {
   backHref?: string;
   backLabel?: string;
@@ -320,11 +323,18 @@ export function OrderDetailScreen({
   actorId?: string;
   /** 목록 위 상세 팝업(S36-075) 안. 목록 돌아가기 버튼은 팝업 닫기와 겹치고 기록을 쌓으며 스크롤을 올리므로 숨긴다. */
   embedded?: boolean;
+  /** 배송 안내 메일을 보내는 중인지 가르는 기준 시각. 테스트 주입용. */
+  now?: Date;
 }) {
   const { order, items } = detail;
   const orderDiscounted = order.discountTotal > 0 || order.storeCreditTotal > 0 || (order.transaction?.totals.volumeDiscountTotal ?? 0) > 0;
   const digitalShipments = new Set(detail.shipments.filter(shipment => shipment.delivery?.method === 'digital').map(shipment => shipment.id));
   const shipmentById = new Map(detail.shipments.map(shipment => [shipment.id, shipment]));
+  /* 발송관리와 같은 [배송 방식 바꾸기] 창이 '수령인 · 상품' 칸에 보일 이 배송 건의 요약. 없으면 창이 '목록 밖 배송 건'이라고 적는다. */
+  const itemById = new Map(items.map(item => [item.id, item]));
+  const deliverySummary = (orderItemIds: readonly string[]) => ({ recipient: order.address.recipientName || null,
+    items: orderItemIds.flatMap(id => { const item = itemById.get(id); return item ? [`${item.name}${item.variantName ? ` · ${item.variantName}` : ''} × ${item.qty}`] : []; }) });
+  const emailJobByShipment = new Map(detail.emailJobs.map(job => [job.shipmentId, job]));
   const timeline = (canManage ? detail.timeline : detail.timeline.filter(entry => ['order', 'shipment'].includes(entry.source)))
     .filter(entry => !(entry.source === 'shipment' && entry.action === 'shipped' && entry.shipmentId && digitalShipments.has(entry.shipmentId)));
   const addressNotRequired = detail.shipments.length > 0 && detail.shipments.every(shipment => shipment.delivery && ['pickup', 'none', 'digital'].includes(shipment.delivery.method));
@@ -381,7 +391,7 @@ export function OrderDetailScreen({
       </AdminNotice>
     </div> : null}
     {/* 출고 보류(테스트 결제·결제사 취소·입금 오류 되돌림·에스크로 취소 요청)는 출고를 막는 상태라 머리 바로 아래에서 다음 행동과 함께 보인다. */}
-    <OrderFulfillmentHoldNotice canManage={canManage} holds={detail.fulfillmentHolds ?? []} orderId={order.id} />
+    <OrderFulfillmentHoldNotice canManage={canManage} holds={detail.fulfillmentHolds ?? []} orderId={order.id} orderNumber={order.orderNumber} />
     {/* 출고지시가 나간 배송 건의 창고 회신과 취소 뒤 출고 발견(ADR-0046). 해당 배송 건·발견이 없으면 그리지 않는다. */}
     <OrderWarehouseStopPanel key={`warehouse-stop:${order.id}`} orderId={order.id} />
     {/* 운송장이 빠졌다는 경고는 눌러야 할 일이라 머리 바로 아래에 둔다. 등록은 바로 위 주 버튼 하나로 간다 — 같은 일을 하는 버튼이 둘이면 다른 일인지 망설인다. */}
@@ -407,7 +417,7 @@ export function OrderDetailScreen({
       </Table></div> : <p className="text-muted-foreground">주문 상품 기록이 없습니다.</p>}
     </AdminSectionCard>
     {/* 기록은 조회 권한(sales.read)에도 보인다 — 처리 버튼은 DB가 알려주는 canManage로만 그린다. */}
-    <OrderPartialCancellationPanel key={order.id} orderId={order.id} />
+    <OrderPartialCancellationPanel key={order.id} orderId={order.id} orderNumber={order.orderNumber} />
     {/* 두 칸은 lg부터다 — 768에서는 사이드바 옆 본문이 좁아 값 칸이 글자 단위로 끊긴다. */}
     <div className="grid min-w-0 gap-6 lg:grid-cols-2">
       <AdminSectionCard title="주문 정보">
@@ -451,14 +461,16 @@ export function OrderDetailScreen({
     </AdminSectionCard> : null}
     <AdminSectionCard title="배송 건별 현황">
       <div className={shipmentItemsRedundant ? '[&_section>ul]:hidden' : undefined}><ShipmentDetails admin shipments={detail.shipments} items={items} transactionShipping={order.transaction?.shipping} /></div>
-      {actorId && (order.transaction?.totals.collectShippingTotal ?? 0) > 0 ? <ShippingCollectPanel key={`${actorId}:${order.id}`} orderId={order.id} expectedActorId={actorId} canManage={canManage} /> : null}
-      {canManage ? detail.shipments.map(shipment => <ShipmentDeliveryPanel orderId={order.id} shipmentId={shipment.id} shipmentNumber={shipment.shipmentNumber} originName={shipment.originName} key={shipment.id} />) : null}
+      {actorId && (order.transaction?.totals.collectShippingTotal ?? 0) > 0 ? <ShippingCollectPanel key={`${actorId}:${order.id}`} orderId={order.id} expectedActorId={actorId} canManage={canManage} orderStatus={order.status} /> : null}
+      {canManage ? detail.shipments.map(shipment => <ShipmentDeliveryPanel orderId={order.id} shipmentId={shipment.id} shipmentNumber={shipment.shipmentNumber} originName={shipment.originName} summary={deliverySummary(shipment.orderItemIds)} key={shipment.id} />) : null}
       {/* 배송 상태 정정(ADR-0045): 엉뚱한 배송 건의 발송·배송완료를 한 단계 되돌린다. 끝난 주문(거래확정·취소)은 DB가 막으므로 그리지 않는다. */}
       {canManage && !['done', 'canceled'].includes(order.status) ? <ShipmentStatusRevertPanel targets={detail.shipments.flatMap(shipment => {
         const kind = shipmentRevertKind(shipment.status, isParcelShipment(shipment));
         return kind ? [{ id: shipment.id, reference: commerceReferenceLabel(shipment.id, shipment.shipmentNumber), originName: shipment.originName, kind,
           expected: kind === 'delivery' ? shipment.deliveredAt : shipment.trackingNumber,
-          trackingLabel: shipment.trackingNumber ? `${shipment.carrierLabel ?? shipment.carrier ?? ''} ${shipment.trackingNumber}`.trim() : null }] : [];
+          trackingLabel: shipment.trackingNumber ? `${shipment.carrierLabel ?? shipment.carrier ?? ''} ${shipment.trackingNumber}`.trim() : null,
+          /* 배송 안내 메일을 보내는 중에는 DB가 발송 되돌리기를 받지 않는다 — 누르기 전에 잠그고 이유를 보인다. */
+          blockedReason: kind === 'dispatch' ? shipmentDispatchRevertBlock(emailJobByShipment.get(shipment.id), now) : null }] : [];
       })} /> : null}
       {canManage ? detail.shipments.filter(shipment => shipment.originalExpectedShipDate).map(shipment => <ShipmentPreorderPromisePanel orderId={order.id} shipmentId={shipment.id} key={shipment.id} />) : null}
       {canManage && detail.emailJobs.length ? <section className="flex flex-col gap-2 border-t pt-4" aria-label="배송 메일 처리 상태">

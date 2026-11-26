@@ -1,6 +1,6 @@
 import { normalizeClaimTypeAgreement, type ConvertibleClaimType } from '@/lib/orders/claim-type-conversion';
 import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimStage, type OrderClaimType } from '@/lib/orders/claims';
-import { automatedCancelProviderLabel, providerCancelsAutomatically } from '@/lib/payments/provider-capabilities';
+import { automatedCancelProviderLabel, paymentProviderValueLabel, providerCancelsAutomatically } from '@/lib/payments/provider-capabilities';
 import { isUuid } from '@/lib/uuid';
 import type { AdminConfirmRequest } from './confirm';
 import type { ClaimDefectiveItem } from './defective-stock';
@@ -626,16 +626,9 @@ export function adminClaimBulkRefundBlockerMessage(code: string) {
   return ADMIN_CLAIM_BULK_REFUND_BLOCKERS[code] ?? '환불을 확정할 수 없는 요청입니다. 상세에서 확인해주세요.';
 }
 
-const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
-  toss: '토스페이먼츠',
-  nicepay: '나이스페이',
-  bank_transfer: '무통장 입금',
-  korpay: '코페이',
-};
-
-/** 확인창·결과표의 결제 칸 이름. 모르는 값은 영문 코드를 그대로 보이지 않고 '그 밖의 결제'라 부른다. */
+/** 확인창·결과표·주문 상세 타임라인의 결제 칸 이름(결제사 이름표 한 곳에서 온다). 모르는 값은 영문 코드를 그대로 보이지 않고 '그 밖의 결제'라 부른다. */
 export function adminClaimBulkProviderLabel(provider: string | null) {
-  return provider ? PAYMENT_PROVIDER_LABELS[provider] ?? '그 밖의 결제' : '결제 없음';
+  return provider ? paymentProviderValueLabel(provider) ?? '그 밖의 결제' : '결제 없음';
 }
 
 /** 확인창의 환불 행. 금액은 서버가 읽은 값이다. */

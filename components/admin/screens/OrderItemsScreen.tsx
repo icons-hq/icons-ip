@@ -17,7 +17,7 @@ import { SALES_ORDERS_HELP } from '@/lib/admin/help/sales-orders';
 import { statusTone } from '@/lib/admin/status-tone';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { adminListExportHref } from '@/lib/admin/list-export';
-import { adminOrderItemsHref, orderItemBuyerLabel, selectedConfirmableOrderIds, type AdminOrderItemData, type AdminOrderItemRow } from '@/lib/admin/order-items';
+import { adminOrderItemsHref, orderItemBuyerLabel, selectedConfirmableOrderIds, type AdminOrderItemData } from '@/lib/admin/order-items';
 import { shipmentStatusLabel, type ShipmentStatus } from '@/lib/orders/shipments';
 import type { OrderItemAllocation } from '@/lib/admin/item-allocation';
 import { adminOrderDetailHrefFromBack, ADMIN_ORDER_SEARCH_FIELDS, ADMIN_ORDER_STATUSES, ADMIN_ORDER_STATUS_LABELS, ADMIN_PAYMENT_METHOD_OPTIONS } from '@/lib/admin/orders';
@@ -34,8 +34,6 @@ const fields = [...ADMIN_ORDER_SEARCH_FIELDS, { value: 'item', label: '상품주
 /* 정렬 이름은 주문별 조회와 같다(조회기준일 최신순·오래된순). 금액은 이 화면이 상품금액 기준이라 이름만 다르다. */
 const SORT_OPTIONS = SALES_SORT_OPTIONS.map(option => option.value === 'amount_high' ? { ...option, label: '상품금액 높은순' }
   : option.value === 'amount_low' ? { ...option, label: '상품금액 낮은순' } : option);
-/** 발주확인이 막히는 출고 보류 주문의 줄이 `fulfillmentHold`를 실어 오면 체크칸을 뺀다(주문별 조회와 같다). */
-type OrderItemRowWithHold = AdminOrderItemRow & { fulfillmentHold?: boolean };
 const statuses = [{ value: 'all', label: '전체 상태' }, ...ADMIN_ORDER_STATUSES.map(value => ({ value, label: ADMIN_ORDER_STATUS_LABELS[value] }))];
 /* 상품주문별 조회 — 템플릿 룩(ADR-0028). 열 구성·처리 동선은 그대로이고 셀 보조 줄은 유틸리티로 그린다. */
 const META_CLASS = 'flex flex-col gap-0.5 [&_small]:text-xs [&_small]:text-muted-foreground';
@@ -64,7 +62,8 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
   const [message, setMessage] = useState(''); const [error, setError] = useState('');
   const { filters } = data; const currentHref = adminOrderItemsHref(filters); const pageSize = filters.pageSize ?? 20;
   const eligible = new Set(data.rows.filter(row => canManage && row.status === 'paid' && (!row.claim || !isOpenOrderClaimStage(row.claim.stage))
-    && !(row as OrderItemRowWithHold).fulfillmentHold).map(row => row.id));
+    /* 출고 보류 주문은 DB가 발주확인을 거절한다 — 그 줄의 체크칸을 뺀다(주문별 조회와 같다). */
+    && !row.fulfillmentHold).map(row => row.id));
   const selection = selected.filter(id => eligible.has(id));
   const orderIds = selectedConfirmableOrderIds(data.rows, selection);
   /** 재고 부족 부분 취소가 있는 상품주문이 있을 때만 '취소 수량' 열을 둔다(수량·상품금액·배분 후 금액은 남은 몫). */

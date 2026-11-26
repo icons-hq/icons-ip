@@ -14,8 +14,8 @@ const UNKNOWN_LABEL = '확인 필요';
  */
 export function SellerClaimIntakeEvidence({ intake, carriers = [] }: { intake: SellerClaimReceipt; carriers?: ShippingCarrierRegistry }) {
   const address = intake.collectionAddress;
-  return <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/40 p-3 text-sm" aria-label="판매자 대리 접수 근거" data-seller-claim-evidence="">
-    <h4 className="font-medium">판매자 대리 접수 근거</h4>
+  return <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/40 p-3 text-sm" aria-label="판매자 직접 접수 근거" data-seller-claim-evidence="">
+    <h4 className="font-medium">판매자 직접 접수 근거</h4>
     <dl className="grid grid-cols-1 gap-x-3 gap-y-1.5 sm:grid-cols-[8rem_minmax(0,1fr)]">
       <dt className={TERM_CLASS}>접수 담당자</dt><dd className={VALUE_CLASS}>{intake.actorName || '이름 없음'}</dd>
       <dt className={TERM_CLASS}>확인 경로</dt><dd className={VALUE_CLASS}>{SELLER_CLAIM_SOURCES.find(source => source.value === intake.source)?.label ?? UNKNOWN_LABEL}{intake.inquiryId ? <> · <Link className="underline underline-offset-4" href={`/admin/cs/inquiries/${intake.inquiryId}`}>연결된 문의</Link></> : null}</dd>
@@ -31,6 +31,6 @@ export function SellerClaimIntakeEvidence({ intake, carriers = [] }: { intake: S
       {collection.carrier ? <p>수거 운송장: {shippingCarrierLabel(carriers, collection.carrier) ?? UNKNOWN_LABEL} {collection.trackingNumber}</p> : null}
       {collection.note ? <p className="break-words whitespace-pre-wrap">{collection.note}</p> : null}
     </div>)}
-    <p className="text-xs text-muted-foreground">{intake.claimType === 'cancel' ? '고객이 요청한 주문 전체 취소의 접수 근거입니다. 승인과 결제 취소·환급 결과는 아래 처리 단계에서 별도로 확인해주세요.' : '접수 근거와 수거 계획입니다. 아래 처리 단계와 출고지별 실제 입고 확인을 별도로 진행해주세요.'}</p>
+    <p className="text-xs text-muted-foreground">{intake.claimType === 'cancel' ? '고객이 요청한 주문 전체 취소의 접수 근거입니다. 승인과 결제 취소·환불 결과는 아래 처리 단계에서 따로 확인해주세요.' : '접수 근거와 수거 계획입니다. 아래 처리 단계와 출고지별 실제 입고 확인을 별도로 진행해주세요.'}</p>
   </section>;
 }

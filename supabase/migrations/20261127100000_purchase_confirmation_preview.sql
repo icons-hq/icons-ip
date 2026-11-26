@@ -50,22 +50,31 @@ begin
  return result;
 end $function$;
 
--- 2. 켜기 전 미리 읽기: 지금 p_auto_after_days일로 자동 거래확정을 켜면 다음 자동 처리에서 확정될 주문 수와 지급될 적립금 합계.
+-- 2. 켜기 전 미리 읽기: 지금 p_auto_after_days일로 자동 거래확정을 켜면 다음 자동 처리 한 번에서 확정될 주문 수와 지급될 적립금 합계,
+--    그리고 그 뒤로 넘어가는 주문 수.
 --
 --    아무것도 쓰지 않는다(STABLE — 이 함수 안에서는 insert/update/delete를 실행할 수 없다). 잠금도 잡지 않는다.
+--
+--    세는 범위는 실제 자동 처리의 다음 실행분이다. settle_delivered_orders는 한 번에 1,000건을 고객 → 기한 → 주문 순서로 집어 든다.
+--    자동 거래확정이 꺼져 있는 동안 배송완료 주문은 계속 쌓이므로, 쌓인 주문 전부에 후보 검사와 적립금 계산을 하면 조회가 주문 수만큼 느려져
+--    제한 시간(authenticated 8초)에 걸린다. 그래서
+--      - 값싼 조건(배송완료 상태 · 보류 아님 · 미확정 · 기한이 지금 이전)에 드는 주문을 한 번에 세고 같은 순서로 늘어놓은 뒤,
+--      - 앞에서부터 후보 검사를 하며 다음 실행이 집어 들 1,000건이 찰 때까지만 본다. 적립금도 그 주문들만 계산한다.
+--      - 보지 않고 남긴 주문 수(remainingDueCount)를 함께 돌려준다. 이 수는 값싼 조건만 본 것이라 후보 검사에서 빠질 주문
+--        (진행 중인 취소·반품·교환, 결제 기록 없음, 계정 제한)이 섞여 있을 수 있는 최대치다.
 --
 --    대상은 실제 자동 처리와 같은 조건으로 고른다.
 --      - 기한: 이미 받은 기한(order_purchase_confirmations.auto_due_at)이 있으면 그 값, 없으면 저장할 때 backfill이 채울
 --        배송완료일 + p_auto_after_days. 배송완료일이 없는 주문은 backfill이 기한을 주지 않으므로 대상이 아니다.
---      - settle_delivered_orders의 후보 조건 그대로: 배송완료 상태, 보류 아님, 미확정, 기한이 지금 이전,
---        private.purchase_confirmation_candidate(자동 처리가 후보를 고를 때 쓰는 바로 그 함수 — 모든 배송 건 도착, 결제 완료,
---        계정 제한 없음, 진행 중인 취소·반품·교환 없음), 그리고 자동 처리가 주문마다 다시 보는 '이용 정지되지 않은 계정'.
---      - 자동 처리는 한 번에 1,000건까지 확정한다(나머지는 다음 날). 건수는 전체를 세고 그 한도를 함께 돌려준다.
+--      - 후보: private.purchase_confirmation_candidate(자동 처리가 후보를 고를 때 쓰는 바로 그 함수 — 모든 배송 건 도착, 결제 완료,
+--        계정 제한 없음, 진행 중인 취소·반품·교환 없음).
+--      - 이용 정지 계정: 자동 처리는 1,000건을 집어 든 뒤 주문마다 계정을 다시 보고 이용 정지면 건너뛴다. 그 주문은 자리(1,000건 가운데 하나)는
+--        차지하지만 확정되지 않는다. 여기서도 자리는 세고 건수(orderCount)에서는 뺀다.
 --
 --    적립금은 거래확정 때의 지급 계산(store_credit_order_transition의 done 분기)을 같은 순서(고객 → 기한 → 주문)로 따라간다:
 --    주문 당시 적립 조건, 이미 지급한 주문 제외, 배송비·부분 취소 금액을 뺀 기준 금액, 주문당 최대, 보유 한도(만료된 적립금 제외,
 --    같은 고객의 앞선 주문에서 받을 적립금 반영), 갚을 적립금 상계. 두 계산이 어긋나지 않는지는
---    supabase/tests/purchase_confirmation_preview.sql이 실제 저장 + 자동 처리 결과와 맞대어 본다.
+--    supabase/tests/purchase_confirmation_preview.sql이 실제 저장 + 자동 처리 결과와 맞대어 본다(1,000건을 넘는 경우 포함).
 --
 --    수치는 조회 시점 값이다. 저장하기 전에 배송완료·취소·반품이 생기면 실제 결과는 달라진다.
 create function public.admin_preview_purchase_confirmation_auto(p_auto_after_days integer) returns jsonb
@@ -76,8 +85,15 @@ set search_path = ''
 as $$
 declare
   at_value timestamptz := statement_timestamp();
+  -- settle_delivered_orders가 한 번에 집어 드는 건수(그 함수의 limit과 같아야 한다 — 스모크가 고정한다).
+  run_limit constant integer := 1000;
   item record;
+  ordered record;
+  due_total bigint := 0;
+  examined bigint := 0;
+  slots integer := 0;
   current_user_id uuid;
+  user_active boolean := false;
   balance jsonb;
   available bigint := 0;
   reserved bigint := 0;
@@ -96,32 +112,45 @@ begin
     raise invalid_parameter_value using message = 'invalid_purchase_confirmation_preview_days';
   end if;
 
+  -- 값싼 조건만으로 고르고 자동 처리와 같은 순서로 늘어놓는다. 전체 건수는 같은 질의가 함께 센다.
+  -- 후보 검사(주문마다 함수 호출)는 여기 넣지 않는다 — 넣으면 쌓인 주문 전부에 실행된다.
   for item in
-    select o.id, o.user_id, o.total, o.shipping_fee, o.store_credit_policy_snapshot,
-      coalesce(pc.auto_due_at, o.delivered_at + make_interval(days => p_auto_after_days)) as due_at
-    from public.orders o
-    left join private.order_purchase_confirmations pc on pc.order_id = o.id
-    where o.status = 'delivered'
-      and not coalesce(pc.held, false)
-      and pc.confirmed_at is null
-      and coalesce(pc.auto_due_at, o.delivered_at + make_interval(days => p_auto_after_days)) <= at_value
-      and private.purchase_confirmation_candidate(o.id)
-      and exists(select 1 from public.profiles profile where profile.id = o.user_id and profile.suspended_at is null)
-    order by o.user_id, due_at, o.id
+    select due.id, due.user_id, count(*) over () as due_total
+    from (
+      select o.id, o.user_id,
+        coalesce(pc.auto_due_at, o.delivered_at + make_interval(days => p_auto_after_days)) as due_at
+      from public.orders o
+      left join private.order_purchase_confirmations pc on pc.order_id = o.id
+      where o.status = 'delivered'
+        and not coalesce(pc.held, false)
+        and pc.confirmed_at is null
+        and coalesce(pc.auto_due_at, o.delivered_at + make_interval(days => p_auto_after_days)) <= at_value
+    ) due
+    order by due.user_id, due.due_at, due.id
   loop
-    order_count := order_count + 1;
+    due_total := item.due_total;
+    exit when slots >= run_limit;
+    examined := examined + 1;
+    if not private.purchase_confirmation_candidate(item.id) then continue; end if;
+    slots := slots + 1;
     if current_user_id is distinct from item.user_id then
       current_user_id := item.user_id;
-      -- 거래확정 때는 만료된 적립금을 먼저 만료시키고 잔액을 본다. 여기서는 만료분을 빼고 읽기만 한다.
-      balance := private.store_credit_preview_balance(item.user_id);
-      available := (balance->>'available')::bigint;
-      reserved := (balance->>'reserved')::bigint;
-      debt := (balance->>'debt')::bigint;
+      user_active := exists(select 1 from public.profiles profile where profile.id = item.user_id and profile.suspended_at is null);
+      if user_active then
+        -- 거래확정 때는 만료된 적립금을 먼저 만료시키고 잔액을 본다. 여기서는 만료분을 빼고 읽기만 한다.
+        balance := private.store_credit_preview_balance(item.user_id);
+        available := (balance->>'available')::bigint;
+        reserved := (balance->>'reserved')::bigint;
+        debt := (balance->>'debt')::bigint;
+      end if;
     end if;
-    policy := item.store_credit_policy_snapshot;
+    if not user_active then continue; end if;
+    order_count := order_count + 1;
+    select o.total, o.shipping_fee, o.store_credit_policy_snapshot into ordered from public.orders o where o.id = item.id;
+    policy := ordered.store_credit_policy_snapshot;
     if policy is null then continue; end if;
     if exists(select 1 from private.store_credit_lots lot where lot.source_order_id = item.id and lot.source_kind = 'order_done') then continue; end if;
-    basis := greatest(0, item.total - item.shipping_fee - private.order_partial_canceled_goods_amount(item.id));
+    basis := greatest(0, ordered.total - ordered.shipping_fee - private.order_partial_canceled_goods_amount(item.id));
     if basis = 0 then continue; end if;
     earned := case when policy->>'earnKind' = 'rate_bps' then floor(basis::numeric * (policy->>'earnValue')::numeric / 10000)::bigint else (policy->>'earnValue')::bigint end;
     earned := least(earned, (policy->>'earnMaxPerOrder')::bigint);
@@ -139,7 +168,8 @@ begin
     'autoAfterDays', p_auto_after_days,
     'orderCount', order_count,
     'storeCreditTotal', credit_total,
-    'perRunLimit', 1000,
+    'perRunLimit', run_limit,
+    'remainingDueCount', due_total - examined,
     'asOf', at_value
   );
 end

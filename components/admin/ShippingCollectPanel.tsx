@@ -6,7 +6,7 @@ import { sealShippingCollectOperationAction, readShippingCollectEventOperationAc
 import { SHIPPING_COLLECT_STATE_LABEL, shippingCollectEventReceiptMatches, parseShippingCollectRecovery, shippingCollectRecoveryKey,
   type ShippingCollectOperationRecovery, type ShippingCollectEventContext, type ShippingCollectEventRequest, type ShippingCollectObligation } from '@/lib/admin/shipping-collect-events';
 import { shippingCollectAmountProblem, shippingCollectConfirmRequest, shippingCollectEventLabel, shippingCollectEventSummary, shippingCollectFixedAmount,
-  shippingCollectFixedAmountNote, shippingCollectKindOptions, shippingCollectNowLocal, shippingCollectServerMessage } from '@/lib/admin/shipping-collect-form';
+  shippingCollectFixedAmountNote, shippingCollectKindOptions, shippingCollectNowLocal } from '@/lib/admin/shipping-collect-form';
 import { adminConfirm } from '@/lib/admin/confirm';
 import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-tools';
 import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
@@ -92,7 +92,7 @@ function CollectEvidenceForm({ context, obligation, onSaved, onReload, scope, se
     try {
       const result = await saveShippingCollectEventAction(next);if (!alive.current || !scope.canApply(ticket)) return;
       if (result.ok) saved(result.value.obligation);
-      else { setMessage(shippingCollectServerMessage(result.error));setUncertain(Boolean(result.uncertain));if (!result.uncertain) { setRequest(null);clearRecovery(); } }
+      else { setMessage(result.error);setUncertain(Boolean(result.uncertain));if (!result.uncertain) { setRequest(null);clearRecovery(); } }
     } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true);setMessage('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.'); } }
     finally { requestBusy.current = false;if (alive.current && scope.canApply(ticket)) setPending(false); }
   }
@@ -101,14 +101,14 @@ function CollectEvidenceForm({ context, obligation, onSaved, onReload, scope, se
     try {
       const result = seal ? await sealShippingCollectOperationAction(recovery) : await readShippingCollectEventOperationAction(recovery);
       if (!alive.current || !scope.canApply(ticket)) return;
-      if (!result.ok) { setMessage(shippingCollectServerMessage(result.error));return; }
+      if (!result.ok) { setMessage(result.error);return; }
       if (result.value && (!request || shippingCollectEventReceiptMatches(result.value, request))) { saved(result.value.obligation);return; }
       if (result.value) { setMessage('저장된 기록이 지금 입력한 내용과 다릅니다. [최신 내역 불러오기]로 이력을 확인해주세요.');return; }
       if (seal) { setMustConfirm(true);clearRecovery();setRequest(null);setUncertain(false);setDraft(newDraft());setMessage('이전에 보낸 기록은 그만뒀습니다. 늦게 도착해도 저장되지 않습니다. 이력을 확인하고 올바른 내용을 새로 입력해주세요.');onReload();return; }
       if (!request) { setMessage('아직 저장되지 않았습니다. 입력했던 내용은 남아 있지 않으니 [그만두고 다시 하기]를 누른 뒤 이력을 확인하고 다시 입력해주세요.');return; }
       const retried = await saveShippingCollectEventAction(request);if (!alive.current || !scope.canApply(ticket)) return;
       if (retried.ok) saved(retried.value.obligation);
-      else { setMessage(shippingCollectServerMessage(retried.error));setUncertain(Boolean(retried.uncertain));if (!retried.uncertain) { setRequest(null);clearRecovery(); } }
+      else { setMessage(retried.error);setUncertain(Boolean(retried.uncertain));if (!retried.uncertain) { setRequest(null);clearRecovery(); } }
     } catch { if (alive.current && scope.canApply(ticket)) setMessage('확인하지 못했습니다. 잠시 뒤 [저장됐는지 확인]을 다시 눌러주세요.'); }
     finally { requestBusy.current = false;if (alive.current && scope.canApply(ticket)) setPending(false); }
   }

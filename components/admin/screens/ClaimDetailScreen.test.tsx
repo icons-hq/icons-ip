@@ -982,7 +982,7 @@ describe('상세 틀·요약 — 이름과 모르는 값', () => {
     expect(unknown).not.toContain('ghost_carrier');
   });
 
-  it('판매자 대리 접수 근거는 담당자 이름이 없어도 번호를 내지 않고, 수거 택배사는 이름으로 보인다', () => {
+  it('판매자 직접 접수 근거는 담당자 이름이 없어도 번호를 내지 않고, 수거 택배사는 이름으로 보인다', () => {
     const collection = { ...sellerClaimReceiptFixture.collections[0], method: 'customer_sent' as const, carrier: 'hanjin', trackingNumber: 'HJ00000001' };
     const intake = { ...sellerClaimReceiptFixture, actorName: null, collections: [collection] };
     const html = render({ sellerIntake: intake });

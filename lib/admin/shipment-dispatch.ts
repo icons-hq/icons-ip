@@ -83,7 +83,7 @@ export function shipmentMutationError(code:string):string{
  const warehouseErrors:Record<string,string>={
   warehouse_origin_required:'김포 회신을 등록할 출고지를 선택해주세요.',
   warehouse_origin_not_found:'선택한 출고지를 찾을 수 없습니다. 목록을 새로고침해주세요.',
-  warehouse_origin_inactive:'현재 사용 중인 출고지를 선택해주세요.',
+  warehouse_origin_inactive:"사용 안 함인 출고지라 올릴 수 없습니다. 배송정보 관리에서 '사용'으로 바꾼 뒤 다시 올려 주세요.",
   warehouse_template_required:'선택한 출고지의 양식을 김포 WMS로 설정한 뒤 다시 올려주세요.',
   warehouse_carrier_required:'출고지 설정에서 기본 택배사를 먼저 선택해주세요.',
   invalid_tracking_batch:'운송장은 한 번에 1~1,000줄까지 등록할 수 있습니다.',

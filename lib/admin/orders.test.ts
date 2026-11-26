@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   ADMIN_PAYMENT_METHOD_LABELS,
   ADMIN_PAYMENT_METHOD_OPTIONS,
+  adminOrderPaymentMethodLabel,
   GOODS_PAYMENT_ATTEMPT_STATES,
   GOODS_PAYMENT_ATTEMPT_STATE_LABELS,
   adminVirtualAccountEscrowLabel,
@@ -19,6 +20,7 @@ import {
   normalizeAdminStaffCancellationForm,
   normalizeAdminOrderTrackingForm, ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURE_LABELS, ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURES, ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS, adminTransferEscrowLabel, adminVirtualAccountRefundHint, adminVirtualAccountRefundStateLabel, parseAdminOrderTransferEscrow,
 } from './orders';
+import { PAYMENT_PROVIDER_LABELS, PAYMENT_PROVIDER_VALUE_LABELS, paymentProviderValueLabel } from '@/lib/payments/provider-capabilities';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -423,6 +425,12 @@ describe('결제수단 이름', () => {
     expect(ADMIN_PAYMENT_METHOD_OPTIONS.map(option => option.value)).toEqual(['', 'card', 'bank_transfer']);
     expect(ADMIN_PAYMENT_METHOD_OPTIONS[0].label).toBe('전체');
     expect(JSON.stringify(ADMIN_PAYMENT_METHOD_OPTIONS)).not.toContain('"카드"');
+    /* 이름은 결제사 이름표 한 곳(lib/payments/provider-capabilities)에서 온다 — 목록 엑셀도 같은 이름을 쓴다. */
+    expect(ADMIN_PAYMENT_METHOD_LABELS.card.startsWith(PAYMENT_PROVIDER_VALUE_LABELS.toss)).toBe(true);
+    expect(ADMIN_PAYMENT_METHOD_LABELS.bank_transfer.startsWith(PAYMENT_PROVIDER_LABELS.bank_transfer)).toBe(true);
+    expect([adminOrderPaymentMethodLabel('card'), adminOrderPaymentMethodLabel('bank_transfer'), adminOrderPaymentMethodLabel(null), adminOrderPaymentMethodLabel('point')])
+      .toEqual([ADMIN_PAYMENT_METHOD_LABELS.card, ADMIN_PAYMENT_METHOD_LABELS.bank_transfer, '', 'point']);
+    expect([paymentProviderValueLabel('toss'), paymentProviderValueLabel('korpay'), paymentProviderValueLabel('unknown_pg'), paymentProviderValueLabel(null)]).toEqual(['토스 결제', '코페이', null, null]);
   });
 });
 

@@ -85,7 +85,7 @@ describe('origin settings workspace', () => {
   });
   it('preserves an explicitly empty draft origin and offers all three fee modes', () => {
     const html = renderToStaticMarkup(<GoodsFulfillmentFields origins={[origin]} value={{originId:null,shippingFeeType:'individual',individualFee:3700}} />);
-    expect(html).toContain('<option value="" selected="">설정 전');
+    expect(html).toContain('<option value="" selected="">고르지 않음');
     expect(html).toContain('value="3700"');
     expect(html).toContain('value="policy"');
     expect(html).toContain('value="free"');

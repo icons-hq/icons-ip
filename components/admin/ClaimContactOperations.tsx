@@ -11,7 +11,7 @@ import { claimContactError, normalizeClaimContactChangeRequest, normalizeClaimCo
 import type { AdminClaimReshipItem } from '@/lib/admin/claims.server';
 import { adminClaimReshipSelectableOptions } from '@/lib/admin/claim-reshipments';
 import { adminConfirm, type AdminConfirmRequest } from '@/lib/admin/confirm';
-import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
+import { SAVE_CHECK_LABEL, SAVE_STOP_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { adminPickerLocalLoader } from '@/lib/admin/picker';
 import type { OrderClaimType } from '@/lib/orders/claims';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
@@ -46,7 +46,7 @@ const HINT = 'text-xs text-muted-foreground';
 const HEADING = 'text-sm leading-snug font-medium text-foreground';
 
 /** 결과를 모를 때의 두 버튼(낱말 표). 같은 내용 다시 보내기는 처음 보낸 내용이 화면에 남아 있을 때만 보인다. */
-const SEAL_LABEL = '그만두고 다시 하기';
+const SEAL_LABEL = SAVE_STOP_LABEL;
 const RETRY_LABEL = '같은 내용으로 다시 저장';
 const EXPIRED = '주소 확인 시간이 지났습니다. 최신 주소를 다시 확인해주세요.';
 const LOAD_FAILED = '현재 주소를 불러오지 못했습니다. 버튼을 다시 눌러주세요.';

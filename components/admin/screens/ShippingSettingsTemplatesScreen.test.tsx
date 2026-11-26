@@ -9,7 +9,7 @@ import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import { shippingFixtures, shippingIdentity, shippingIds } from '@/test/fixtures/shipping-settings';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/app/admin/shipping-settings-template-actions', () => ({ saveShippingSettingsTemplateAction: vi.fn(), readShippingSettingsTemplateAction: vi.fn(),
-  findShippingSettingsGoodsAction: vi.fn(), findShippingSettingsOutdatedGoodsAction: vi.fn(), previewShippingSettingsTemplateAction: vi.fn(), applyShippingSettingsTemplateAction: vi.fn(), readShippingSettingsOperationAction: vi.fn(), sealShippingSettingsOperationAction: vi.fn() }));
+  findShippingSettingsOutdatedGoodsAction: vi.fn(), previewShippingSettingsTemplateAction: vi.fn(), applyShippingSettingsTemplateAction: vi.fn(), readShippingSettingsOperationAction: vi.fn(), sealShippingSettingsOperationAction: vi.fn() }));
 vi.mock('@/app/admin/goods-option-import-actions', () => ({ searchGoodsOptionImportAction: vi.fn() }));
 vi.mock('@/app/admin/shipping-charge-group-actions', () => ({ getShippingChargeGroupAction: vi.fn(), listShippingChargeGroupsAction: vi.fn() }));
 
@@ -51,7 +51,7 @@ it('편집 창은 고른 것에 필요한 입력만 열고, 체크하지 않은 
   const html = form({ template: legacy, origins: [origin(), origin({ id: shippingIds.other, name: '안 쓰는 출고지', active: false })] });
   expect(html).toContain('이 템플릿이 함께 바꾸는 것'); expect(html).toContain('체크하지 않은 것은 상품에 있는 설정을 그대로 둡니다.');
   for (const name of ['delivery', 'chargeGroup', 'fulfillment']) expect(tag(html, `data-shipping-extra-toggle="${name}"`)).not.toContain('checked');
-  for (const closed of ['첫 번째 한도 초과 추가금', '묶음그룹에서 빼기', '상품 제공 방식', '고객 안내 (선택)']) expect(html).not.toContain(closed);
+  for (const closed of ['첫 구간을 넘으면 더하는 금액', '그보다 많으면 더하는 금액', '묶음그룹에서 빼기', '상품 제공 방식', '고객 안내 (선택)']) expect(html).not.toContain(closed);
   /* 배송비 유형은 선택 카드, 금액 칸은 '개별 배송비'일 때만 보인다(값은 폼에 남는다). */
   expect(html).toContain('data-good-choice="cards"'); expect(tag(html, 'value="free"')).toContain('checked');
   expect(html).toMatch(/<div class="sm:col-span-2" hidden="">.*name="individualFee"[^>]*value="3500"/);
@@ -78,7 +78,7 @@ it('수량별·착불 설정을 체크한 템플릿은 3구간·선불/착불 �
   const { template, policy } = shippingFixtures();
   const html = form({ template: { ...template, settings: { ...template.settings, delivery: { mode: 'replace', policy } } } });
   expect(tag(html, 'data-shipping-extra-toggle="delivery"')).toContain('checked');
-  for (const label of ['2구간 배송비', '3구간 배송비', '두 번째 수량 한도', '두 번째 한도 초과 추가금', '구매자 선택 · 선결제 또는 착불']) expect(html).toContain(label);
+  for (const label of ['2구간 배송비', '3구간 배송비', '둘째 구간 (개까지)', '둘째 구간을 넘으면 더하는 금액 (원)', '구매자 선택 · 선결제 또는 착불']) expect(html).toContain(label);
   expect(html).toContain('value="4"'); expect(html).toContain('상품에 있던 수량별·착불 설정을 끄고'); expect(html).not.toContain('복수구매 할인 상태');
   expect(html).not.toContain('상품에 수량별 배송비가 켜져 있으면');
   /* 수량별 배송비를 '사용'으로 함께 바꾸면 되읽기도 그 금액을 먼저 말한다(배송비 유형의 금액이 아니다). */
