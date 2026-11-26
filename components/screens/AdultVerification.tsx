@@ -254,10 +254,12 @@ export function AdultVerification({
             {busy ? '본인확인 창을 여는 중…' : verified ? '다시 인증하기' : '휴대폰 본인확인으로 인증하기'}
           </button>
         ) : (
-          <p className="wc-adult-actions__closed">성인 인증은 준비 중이에요. 열리면 이 화면에서 인증할 수 있어요.</p>
+          <p className="wc-adult-actions__closed">현재 국내 휴대폰 인증을 이용할 수 없어요.</p>
         )}
+        <Link className="wc-btn" href={OVERSEAS_REVIEW_PATH + '?next=' + encodeURIComponent(next)}>
+          해외 신분증으로 신청 · Overseas ID
+        </Link>
       </div>
-      <Link className="wc-btn" href={OVERSEAS_REVIEW_PATH + '?next=' + encodeURIComponent(next)}>해외 신분증으로 신청 · Overseas ID verification</Link>
       <div className="wc-coin-guide wc-adult-guide">
         <p>국내 휴대폰 성인 인증 안내</p>
         <ul>
@@ -268,7 +270,7 @@ export function AdultVerification({
           </li>
           <li>인증은 1년 동안 유지되고, 기간이 지나면 다시 인증해야 해요.</li>
           <li>한 사람의 명의는 한 계정에서만 인증 상태로 유지돼요. 다른 계정에서 같은 명의로 인증하면 이전 계정의 인증은 해제돼요.</li>
-          <li>이름·생년월일·휴대폰번호 같은 본인확인 정보는 저장하지 않아요. 인증 여부와 유효기간, 중복 확인용 암호화 값만 보관해요.</li>
+          <li>국내 휴대폰 인증으로 받은 이름·생년월일·휴대폰번호는 저장하지 않아요. 인증 여부와 유효기간, 중복 확인용 암호화 값만 보관해요.</li>
         </ul>
       </div>
     </MypageShell>

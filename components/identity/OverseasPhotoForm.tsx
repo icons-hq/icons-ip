@@ -1,165 +1,149 @@
 'use client';
-import { useRef, useState, type PointerEvent } from 'react';
-import { OVERSEAS_METHOD, OVERSEAS_UPLOAD_LIMIT } from '@/lib/identity/overseas-adult';
 
-export function OverseasPhotoForm({
-  id,
-  challenge,
-  onSubmitted,
-}: {
-  id: string;
-  challenge: string;
-  onSubmitted: () => void;
-}) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const start = useRef<{ x: number; y: number } | null>(null);
+import { FileImage, FileUp, LockKeyhole, X } from 'lucide-react';
+import Link from 'next/link';
+import { useEffect, useRef, useState } from 'react';
+import { OVERSEAS_METHOD, OVERSEAS_UPLOAD_LIMIT } from '@/lib/identity/overseas-adult';
+import type { DocumentCopy } from './overseas-document-copy';
+
+const supported = ['image/jpeg', 'image/png', 'image/webp'];
+type Issue = 'missingFile' | 'invalidFile' | 'numberNeeded' | 'tooLarge' | 'invalidForm' | 'limit' | 'failed';
+type SelectedPhoto = { blob: Blob; filename: string; preview: string };
+
+export function OverseasPhotoForm({ copy: t, onRefresh }: { copy: DocumentCopy; onRefresh: () => void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const consentBox = useRef<HTMLInputElement>(null);
   const generation = useRef(0);
-  const [ready, setReady] = useState(false);
-  const [consent, setConsent] = useState(false);
+  const attempt = useRef<{ key: string; numbers: boolean } | null>(null);
+  const sending = useRef(false);
+  const [photo, setPhoto] = useState<SelectedPhoto | null>(null);
+  const [numberConsent, setNumberConsent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [dragging, setDragging] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [notice, setNotice] = useState('');
-  async function select(file?: File) {
-    const current = ++generation.current;
-    setReady(false);
-    setConsent(false);
-    setNotice('');
-    const element = canvas.current;
-    if (!element) return;
-    element.width = 1;
-    try {
-      if (!file || file.size > 16_000_000 || !['image/jpeg', 'image/png', 'image/webp'].includes(file.type))
-        throw new Error();
-      const bitmap = await createImageBitmap(file);
-      try {
-        if (current !== generation.current) return;
-        if (Math.min(bitmap.width, bitmap.height) < 320) throw new Error();
-        const factor = Math.min(1, 2200 / Math.max(bitmap.width, bitmap.height));
-        element.width = Math.round(bitmap.width * factor);
-        element.height = Math.round(bitmap.height * factor);
-        const context = element.getContext('2d');
-        if (!context) throw new Error();
-        context.fillStyle = '#fff';
-        context.fillRect(0, 0, element.width, element.height);
-        context.drawImage(bitmap, 0, 0, element.width, element.height);
-        setReady(true);
-      } finally {
-        bitmap.close();
-      }
-    } catch {
-      setNotice('가로·세로 320px 이상, 16MB 이하의 JPG·PNG·WebP를 선택해 주세요. / Choose a supported image.');
+  const [sent, setSent] = useState(false);
+  const [issue, setIssue] = useState<Issue | null>(null);
+  useEffect(() => () => { if (photo) URL.revokeObjectURL(photo.preview); }, [photo]);
+  useEffect(() => () => { generation.current++; }, []);
+
+  function clearPhoto() {
+    generation.current++;
+    setPhoto(null);
+    setIssue(null);
+    setNumberConsent(false);
+    setLoading(false);
+    attempt.current = null;
+  }
+  async function choose(files: FileList | null) {
+    if (sending.current || !files?.length) return;
+    const file = files[0];
+    clearPhoto();
+    if (files.length !== 1 || file.size > 16_000_000 || !supported.includes(file.type)) {
+      setIssue('invalidFile');
+      return;
     }
-  }
-  function point(event: PointerEvent<HTMLCanvasElement>) {
-    const el = event.currentTarget,
-      box = el.getBoundingClientRect();
-    return {
-      x: ((event.clientX - box.left) * el.width) / box.width,
-      y: ((event.clientY - box.top) * el.height) / box.height,
-    };
-  }
-  function cover(event: PointerEvent<HTMLCanvasElement>) {
-    const first = start.current;
-    start.current = null;
-    const context = event.currentTarget.getContext('2d');
-    if (!first || !context) return;
-    const last = point(event);
-    context.fillStyle = '#000';
-    context.fillRect(first.x, first.y, last.x - first.x, last.y - first.y);
-    setConsent(false);
-  }
-  async function send() {
-    if (!canvas.current || !ready || !consent || busy) return;
-    setBusy(true);
-    setNotice('');
+    const current = generation.current;
+    const source = URL.createObjectURL(file);
+    setLoading(true);
     try {
-      const element = canvas.current;
-      const photo = await new Promise<Blob | null>((resolve) => element.toBlob(resolve, 'image/jpeg', 0.86));
-      if (!photo || photo.size > OVERSEAS_UPLOAD_LIMIT) throw new Error();
-      const result = await fetch('/api/identity/overseas/' + id + '/upload', {
-        method: 'POST',
-        cache: 'no-store',
-        headers: { 'X-Photo-Consent': OVERSEAS_METHOD },
-        body: photo,
-      });
-      if (!result.ok) throw new Error();
-      element.width = 1;
-      setReady(false);
-      setConsent(false);
-      onSubmitted();
+      const img = new Image();
+      img.src = source;
+      await img.decode();
+      if (current !== generation.current) return;
+      if (Math.min(img.naturalWidth, img.naturalHeight) < 320) throw new Error();
+      const scale = Math.min(1, 2200 / Math.max(img.naturalWidth, img.naturalHeight));
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.round(img.naturalWidth * scale);
+      canvas.height = Math.round(img.naturalHeight * scale);
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error();
+      ctx.fillStyle = '#fff';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const blob = await new Promise<Blob | null>(resolve => canvas.toBlob(resolve, 'image/jpeg', 0.85));
+      canvas.width = canvas.height = 1;
+      if (current !== generation.current) return;
+      if (!blob || blob.size > OVERSEAS_UPLOAD_LIMIT) { setIssue('tooLarge'); return; }
+      setPhoto({ blob, filename: file.name, preview: URL.createObjectURL(blob) });
     } catch {
-      setNotice(
-        '접수 여부를 확인하려면 새로고침해 주세요. / Refresh to check whether your photo was received.',
-      );
+      if (current === generation.current) setIssue('invalidFile');
     } finally {
-      setBusy(false);
+      URL.revokeObjectURL(source);
+      if (current === generation.current) setLoading(false);
     }
   }
+
+  async function send(numbers: boolean) {
+    if (sending.current || loading) return;
+    if (!photo) { setIssue('missingFile'); input.current?.focus(); return; }
+    if (numbers && !numberConsent) { setIssue('numberNeeded'); consentBox.current?.focus(); return; }
+    sending.current = true;
+    setBusy(true);
+    setIssue(null);
+    let accepted = false;
+    try {
+      if (!attempt.current || attempt.current.numbers !== numbers) attempt.current = { key: crypto.randomUUID(), numbers };
+      const response = await fetch('/api/identity/overseas/upload', {
+        method: 'POST', cache: 'no-store', body: photo.blob,
+        headers: { 'X-Photo-Consent': OVERSEAS_METHOD, 'X-Submission-Id': attempt.current.key,
+          'X-Document-Number-Consent': numbers ? 'allow' : 'not-present' },
+      });
+      if (!response.ok) {
+        setIssue(response.status === 429 ? 'limit' : response.status === 422 ? 'invalidForm' : 'failed');
+        if (response.status === 409 || response.status === 403) onRefresh();
+        return;
+      }
+      accepted = true;
+      setSent(true);
+      clearPhoto();
+      onRefresh();
+    } catch { setIssue('failed'); }
+    finally { if (!accepted) { sending.current = false; setBusy(false); } }
+  }
+  if (sent) return (
+    <div className="wc-overseas__status" role="status">
+      <h2>{t.received}</h2><p>{t.pending}</p>
+      <button className="wc-btn" type="button" onClick={onRefresh}>{t.reload}</button>
+    </div>
+  );
   return (
-    <section className="grid max-w-2xl gap-4">
-      <p>
-        종이에 신청 코드 <strong className="select-all">{challenge}</strong>를 적어 주세요. 본인 얼굴, 코드,
-        가린 신분증이 한 사진에 보여야 해요.
-      </p>
-      <p lang="en">
-        Take one photo with your face, this handwritten code and your unexpired ID. Show only the issuing
-        authority, ID photo, date of birth and expiry if present. Cover your name, ID number, machine-readable
-        lines, address, signature and barcodes on the document before taking the photo.
-      </p>
-      <p>
-        신분증은 발급처·얼굴·생년월일·유효기간(있는 경우)만 보이게 해 주세요.
-        이름·문서번호·기계판독영역·주소·서명·바코드는 촬영 전에 가려 주세요.
-      </p>
-      <label>
-        사진 선택 / Choose photo{' '}
-        <input
-          type="file"
-          accept="image/jpeg,image/png,image/webp"
-          disabled={busy}
-          onChange={(event) => {
-            void select(event.target.files?.[0]);
-            event.target.value = '';
-          }}
-        />
-      </label>
-      <p hidden={!ready}>
-        추가로 가릴 부분을 드래그해 주세요. 다시 선택하면 처음부터 편집할 수 있어요. / Drag across any remaining
-        details to black them out, or select a new photo.
-      </p>
-      <canvas
-        ref={canvas}
-        hidden={!ready}
-        aria-label="제출할 사진 미리보기 / Redacted photo preview"
-        className="max-h-[65vh] max-w-full touch-none object-contain"
-        style={{ width: 'auto', height: 'auto' }}
-        onPointerDown={(event) => {
-          if (!busy) {
-            start.current = point(event);
-            event.currentTarget.setPointerCapture(event.pointerId);
-          }
-        }}
-        onPointerUp={cover}
-        onPointerCancel={() => {
-          start.current = null;
-        }}
-      />
-      <label>
-        <input
-          type="checkbox"
-          disabled={!ready || busy}
-          checked={consent}
-          onChange={(e) => setConsent(e.target.checked)}
-        />{' '}
-        불필요한 정보를 가렸으며, 모든 19금 상품에 대한 성인 인증을 위해 사진과 신청 기록을 수집·이용하는 데 동의해요. (선택) / I have redacted my ID and agree to the optional collection and use of this photo and request record for age verification for all age-restricted products.
-      </label>
-      {notice && <p role="alert">{notice}</p>}
-      <button
-        type="button"
-        className="wc-btn primary"
-        disabled={!ready || !consent || busy}
-        onClick={() => void send()}
-      >
-        {busy ? '제출 중 / Sending…' : '가린 사진 제출 / Submit redacted photo'}
+    <form className="wc-overseas__form" data-private onSubmit={event => { event.preventDefault(); void send(true); }}>
+      <fieldset disabled={busy}>
+        <legend>{t.attachment}</legend>
+        <label className={photo ? 'wc-overseas__replace' : 'wc-overseas__drop'} data-dragging={dragging}
+          onDragOver={event => { event.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={event => { event.preventDefault(); setDragging(false); void choose(event.dataTransfer.files); }}>
+          <input className="wc-sr-only" type="file" ref={input} accept={supported.join(',')} aria-label={photo ? t.change : t.choose}
+            onChange={event => { void choose(event.currentTarget.files); event.currentTarget.value = ''; }} />
+          {photo ? <><FileImage size={15} aria-hidden="true" />{t.change}</> : <>
+            <FileUp size={27} strokeWidth={1.5} aria-hidden="true" />
+            <strong>{loading ? t.loading : <><span className="wc-overseas__drop-desktop">{t.drop}</span><span className="wc-overseas__drop-mobile">{t.mobileDrop}</span></>}</strong>
+            <span>{t.formats}</span><span className="wc-overseas__file-button">{t.choose}</span>
+          </>}
+        </label>
+        {photo && <div className="wc-overseas__preview">
+          <div className="wc-overseas__file-line"><strong>{photo.filename}</strong>
+            <button type="button" aria-label={t.remove} onClick={() => { clearPhoto(); input.current?.focus(); }}><X size={17} aria-hidden="true" /></button>
+          </div>
+          {/* eslint-disable-next-line @next/next/no-img-element -- The private preview exists only in this browser. */}
+          <img src={photo.preview} alt={t.preview} />
+        </div>}
+      </fieldset>
+      <div className="wc-overseas__consent">
+        <p>{t.consent}</p>
+        <label><input ref={consentBox} type="checkbox" checked={numberConsent} disabled={busy}
+          onChange={e => { setNumberConsent(e.target.checked); setIssue(null); }} /><span>{t.numberConsent}</span></label>
+        <details>
+          <summary>{t.details}</summary>
+          <p>{t.retention} <Link href="/legal/privacy" target="_blank" rel="noopener noreferrer">{t.privacy}</Link></p>
+          <button type="button" className="wc-overseas__text-button" onClick={() => void send(false)} disabled={busy || loading}>{t.numberless}</button>
+        </details>
+      </div>
+      {issue && <p className="wc-overseas__error" role="alert">{t[issue]} {issue === 'failed' && <button type="button" onClick={onRefresh}>{t.reload}</button>}</p>}
+      <button className="wc-btn primary wc-overseas__submit" type="submit" value="photo" disabled={busy || loading}>
+        <LockKeyhole size={16} aria-hidden="true" />{busy ? t.sending : t.submit}
       </button>
-    </section>
+    </form>
   );
 }

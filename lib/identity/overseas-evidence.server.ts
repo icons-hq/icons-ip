@@ -2,7 +2,7 @@ import 'server-only';
 import { createCipheriv, createDecipheriv, createHash, hkdfSync, randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 import { createServiceClient } from '@/lib/supabase/service';
-import { OVERSEAS_UPLOAD_LIMIT } from './overseas-adult';
+import { documentIdentity, OVERSEAS_UPLOAD_LIMIT, type DocumentIdentity } from './overseas-adult';
 
 const BUCKET = 'overseas-adult-evidence';
 export const evidenceHeaders = {
@@ -23,16 +23,15 @@ export async function readPhoto(request: Request) {
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    size += value.length;
-    if (size > OVERSEAS_UPLOAD_LIMIT) {
-      await reader.cancel();
-      throw new Error('invalid_photo');
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.length;
+      if (size > OVERSEAS_UPLOAD_LIMIT) { await reader.cancel(); throw new Error('invalid_photo'); }
+      chunks.push(value);
     }
-    chunks.push(value);
-  }
+  } finally { reader.releaseLock(); }
   const decoder = sharp(Buffer.concat(chunks), { limitInputPixels: 16_000_000, failOn: 'warning' });
   const meta = await decoder.metadata();
   if (
@@ -42,12 +41,27 @@ export async function readPhoto(request: Request) {
   )
     throw new Error('invalid_photo');
   // 재인코딩할 때 원본 이름·메타데이터·추가 프레임을 넘기지 않는다.
-  return decoder
+  const photo = await decoder
     .rotate()
     .resize({ width: 2200, height: 2200, fit: 'inside', withoutEnlargement: true })
     .flatten({ background: '#fff' })
     .jpeg({ quality: 85 })
     .toBuffer();
+  if (photo.length + 60 > OVERSEAS_UPLOAD_LIMIT) {
+    photo.fill(0);
+    throw new Error('document_too_large');
+  }
+  return photo;
+}
+
+// 구버전 신청은 제출 당시의 암호화 형식으로 한 번만 열람한다.
+export function unpackDocumentEvidence(data: Buffer): { identity: DocumentIdentity; photo: Buffer } {
+  const length = data.readUInt32BE(0);
+  if (!length || length > 1024 || 4 + length >= data.length) throw new Error('invalid_document');
+  const fields = JSON.parse(data.toString('utf8', 4, 4 + length));
+  const identity = documentIdentity(fields?.name, fields?.gender);
+  if (!identity) throw new Error('invalid_document');
+  return { identity, photo: data.subarray(4 + length) };
 }
 export function encryptPhoto(id: string, photo: Buffer) {
   const share = randomBytes(32);
