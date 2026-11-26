@@ -81,8 +81,8 @@ export const MEMBERS_ROLES_TOPIC: AdminGuideTopic = {
     {
       id: 'overseas-adult',
       heading: '해외 신분증 성인 인증',
-      paragraphs: ['인증 앱을 등록한 전담자가 가린 신분증과 손글씨 코드를 한 번 열어 확인합니다. 사진을 파기하면 해당 계정에 지정 상품 구매 권한이 생깁니다. 담당자와 자체 제한 상품 지정은 매니저 관리 권한이 있는 운영자가 합니다.'],
-      screens: [{ href: '/admin/settings/overseas-adult', note: '지정 심사자·2단계 인증 필요' }],
+      paragraphs: ['관리자 계정으로 심사 대기 목록을 열어 가린 신분증과 손글씨 코드를 한 번 확인합니다. 승인 후 사진 파기가 끝나면 해당 회원이 지정 상품을 구매할 수 있습니다. 같은 화면에서 회사 자체 제한 상품을 지정합니다.'],
+      screens: [{ href: '/admin/settings/overseas-adult', note: '회원 관리 권한이 있는 관리자' }],
     },
     {
       id: 'customer-grades',

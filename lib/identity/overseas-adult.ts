@@ -18,12 +18,8 @@ export interface OverseasQueueItem {
   id: string;
   submittedAt: string;
 }
-export interface OverseasAssignment {
+export interface OverseasReviewGood {
   id: string;
   name: string;
   enabled: boolean;
-}
-export interface OverseasManagement {
-  goods: OverseasAssignment[];
-  operators: OverseasAssignment[];
 }
