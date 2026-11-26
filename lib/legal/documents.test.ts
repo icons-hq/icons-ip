@@ -619,3 +619,13 @@ describe('오픈 전 최초 판(2026-11-25)이 담는 내용', () => {
     expect(paragraphs[1]).toBe('개인정보 보호책임자는 대표이사 정승준이며, 보호책임자의 연락처는 위 문의 창구와 같습니다.');
   });
 });
+
+it('해외 신분증 심사 방침은 한국 시간 시행 전 사전 공지를 보이고 시행일부터 이전 본문을 보존한다',()=>{
+  const before=getLegalDocument('privacy',undefined,new Date('2026-12-03T14:59:59Z'))!;
+  const after=getLegalDocument('privacy',undefined,new Date('2026-12-03T15:00:00Z'))!;
+  expect(before.pendingRevision?.effectiveDate).toBe('2026-12-04');
+  expect(after.effectiveDate).toBe('2026-12-04');
+  expect(after.previousVersion?.articles).toEqual(before.articles);
+  expect(JSON.stringify(after.articles)).toContain('가린 해외 신분증');
+  expect(after.pendingRevision).toBeUndefined();
+});

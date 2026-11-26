@@ -5,6 +5,10 @@
   ],
   "crons": [
     {
+      "path": "/api/cron/overseas-adult-review",
+      "schedule": "* * * * *"
+    },
+    {
       "path": "/api/cron/admin-artwork",
       "schedule": "17 3 * * *"
     },

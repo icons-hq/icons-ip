@@ -1,3 +1,4 @@
+import { canReadAdultRows } from '@/lib/adult-goods';
 import { parseGoodsSalePeriod } from './goods-sale-period';
 import { loadPublicGoodsAttributeRows } from '@/lib/goods-attributes.server';
 import 'server-only';
@@ -742,7 +743,7 @@ function toMaskedAdultGood(row: GoodRow): Good {
 
 /** 노출 모드에 맞춰 행을 굿즈로 바꾼다. 성인 상품은 full일 때만 실제 정보를 싣는다. */
 function toCatalogGood(row: GoodRow, adultGoods: AdultGoodsAccess, imageUrlForPath: (path: string) => string): Good {
-  return row.sale_restriction === 'adult' && adultGoods !== 'full' ? toMaskedAdultGood(row) : toGood(row, imageUrlForPath);
+  return row.sale_restriction === 'adult' && !canReadAdultRows(adultGoods) ? toMaskedAdultGood(row) : toGood(row, imageUrlForPath);
 }
 
 const nullableInteger = (value: unknown): value is number | null => value === null || (typeof value === 'number' && Number.isSafeInteger(value));
@@ -929,7 +930,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .select('id,ip_id,title,mode,status,starts_at,ends_at,location,accent,bg,image_path')
       .is('archived_at', null)
       .order('id'),
-    adultGoods === 'masked' ? loadMaskedAdultGoodRows(supabase) : Promise.resolve([] as GoodRow[]),
+    adultGoods === 'masked' || adultGoods === 'scoped' ? loadMaskedAdultGoodRows(supabase) : Promise.resolve([] as GoodRow[]),
   ]);
 
   if (verticalsResult.error) {
@@ -962,9 +963,10 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
    * IP 없는 이벤트(플랫폼·합동)는 그대로 남는다.
    */
   const belongsToPublicIp = (ipId: string | null) => ipId === null || ipsById.has(ipId);
-  const goods = [...((goodsResult.data ?? []) as GoodRow[]), ...maskedAdultRows]
-    .filter((row) => belongsToPublicIp(row.ip_id))
-    .map((row) => toCatalogGood(row, adultGoods, imageUrlForPath))
+  const readable = ((goodsResult.data ?? []) as GoodRow[]).filter(row => belongsToPublicIp(row.ip_id));
+  const readableIds = new Set(readable.map(row => row.id));
+  const goods = [...readable.map(row => toCatalogGood(row, adultGoods, imageUrlForPath)),
+    ...maskedAdultRows.filter(row => !readableIds.has(row.id) && belongsToPublicIp(row.ip_id)).map(toMaskedAdultGood)]
     .sort(compareGoodsDisplayOrder);
   /* 가림 카드는 외형·거래 혜택·별점을 묻지 않는다. 혜택 조회는 요청한 상품이 하나라도 빠지면
      전체를 버리는 계약이고, DB는 인증 전 세션에 성인 상품 혜택을 주지 않는다. */
@@ -1092,7 +1094,7 @@ export async function getCatalogGoodDetail(
   const source = getCatalogSource();
   /* 상세는 성인 상품을 full일 때만 싣는다. 인증 전 방문자는 null을 받고, 화면은
      isPublishedAdultGood로 인증 안내를 그린다 — 가림 카드를 상세로 펼치지 않는다. */
-  const adultGoods: AdultGoodsAccess = options.adultGoods === 'full' ? 'full' : 'hidden';
+  const adultGoods: AdultGoodsAccess = canReadAdultRows(options.adultGoods) ? 'full' : 'hidden';
   if (source !== 'supabase') {
     const catalog = mockSnapshot(), good = catalog.goods.find(item => item.id === goodId);
     if (!good) return null;
