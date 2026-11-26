@@ -227,7 +227,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
   pending: boolean; selected: AdminGoodRecord | null; state: AdminCatalogActionState;
   canSearchErp?: boolean;
-  /** 연결 IP 상세(공개 상태 확인) 링크. IP 화면은 platform.manage라 ERP 품명 제안(catalog.manage)과 따로 게이트한다. */
+  /** 연결 IP 상세(게시 상태 확인) 링크. IP 화면은 platform.manage라 ERP 품명 제안(catalog.manage)과 따로 게이트한다. */
   canOpenIp?: boolean;
   /** 등록 화면 나머지 설정의 매입단가 입력 권한(platform.manage+admin, 예전 이름 그대로). 예약판매는 권한 구분 없이 저장하면 적용된다. 서버·DB가 다시 검사한다. */
   canActivatePreorders?: boolean;

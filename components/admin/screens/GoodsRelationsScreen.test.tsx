@@ -30,7 +30,7 @@ function screen(adultGoodsHidden = false) {
 describe('연관상품 목록', () => {
   it("'고객 화면' 칸이 줄마다 보이는지와 안 보이는 까닭을 말한다(R8)", () => {
     const { grid, customer } = screen();
-    expect(grid.columns.map(column => column.label)).toEqual(['노출 제목', '유형', '대표 상품', '전시상태', '고객 화면', '담은 상품', '전시 기간', '수정일']);
+    expect(grid.columns.map(column => column.label)).toEqual(['노출 제목', '유형', '대표 상품', '게시 상태', '고객 화면', '담은 상품', '전시 기간', '수정일']);
     expect(customer).toEqual(['보임상품 2개 상세', '안 보임전시중지', '보임상품 3개 상세 · 1개는 성인 인증 고객에게만', '안 보임대표 상품이 초안']);
   });
 

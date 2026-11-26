@@ -29,7 +29,7 @@ describe('goods list navigation', () => {
     // '전체' 검색은 지금처럼 이 값도 찾는다.
     expect(GOODS_LIST_SEARCH_HINTS.all.title).toContain('상품 URL');
   });
-  it('기간 조건의 날짜 이름은 전시상태 값과 같은 말이다(공개일)', () => {
+  it('기간 조건의 날짜 이름은 게시 상태 값과 같은 말이다(공개일)', () => {
     expect(GOODS_LIST_DATE_FIELDS.map(item => [item.value, item.label])).toEqual([['created', '상품등록일'], ['updated', '상품수정일'], ['published', '공개일']]);
   });
   it('검색어 칸 안내는 검색 대상마다 따로 있고, 전체 안내는 ERP 품명·바코드까지 말한다(TKT-074)', () => {

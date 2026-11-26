@@ -406,7 +406,7 @@ describe('goods list screen', () => {
     expect(widths.reduce((sum, width) => sum + width, 40)).toBe(minWidth);
     expect(minWidth).toBeLessThanOrEqual(1100);
     const headers = [...html.matchAll(/<th[^>]*scope="col"[^>]*>([^<]+)<\/th>/g)].map(match => match[1]);
-    expect(headers).toEqual(['상품번호', '상품명 · 상품 자동코드', '수정', '판매가', '전시상태 · 판매 준비', '재고수량', 'IP · 카테고리', '상품등록일', '상품수정일']);
+    expect(headers).toEqual(['상품번호', '상품명 · 상품 자동코드', '수정', '판매가', '게시 상태 · 판매 준비', '재고수량', 'IP · 카테고리', '상품등록일', '상품수정일']);
     expect(html).toContain('아직 등록한 상품이 없습니다');
   });
   describe('첫 화면에 상품이 더 보이게 위쪽을 줄인다', () => {
@@ -587,7 +587,7 @@ describe('goods list screen', () => {
     const tree = (values: Record<string, string>) => walk(GoodsListFiltersForm({ data: { filters: normalizeGoodsListFilters(values), goods: [], ips: [], total: 0 } }) as Node);
     const control = (nodes: Node[], name: string) => nodes.find(node => node.props.name === name && 'defaultValue' in node.props);
     const before = tree({}), after = tree({ stock: 'low', salePeriod: 'scheduled', status: 'draft', q: '키링', field: 'name' });
-    /* 건수 칸이 바꾸는 세 조건: 판매상태(stock)·판매기간(salePeriod)·전시상태(status 라디오 묶음). */
+    /* 건수 칸이 바꾸는 세 조건: 판매상태(stock)·판매기간(salePeriod)·게시 상태(status 라디오 묶음). */
     expect([keyOf(control(before, 'stock')), keyOf(control(after, 'stock'))]).toEqual(['stock:all', 'stock:low']);
     expect(control(after, 'stock')?.props.defaultValue).toBe('low');
     expect([keyOf(control(before, 'salePeriod')), keyOf(control(after, 'salePeriod'))]).toEqual(['salePeriod:all', 'salePeriod:scheduled']);
@@ -616,7 +616,7 @@ describe('goods list screen', () => {
     expect(fields(legacy)).toEqual(['all', 'name', 'number', 'id', 'code', 'erp', 'barcode']);
     expect(legacy).toMatch(/<input(?=[^>]*name="field")(?=[^>]*value="id")(?=[^>]*checked="")[^>]*\/>상품 URL<\/label>/);
   });
-  it('기간 조건의 날짜 이름은 전시상태 값과 같은 말(공개일)이다', () => {
+  it('기간 조건의 날짜 이름은 게시 상태 값과 같은 말(공개일)이다', () => {
     const html = renderToStaticMarkup(<GoodsListFiltersForm data={{ filters: normalizeGoodsListFilters({ dateField: 'published' }), goods: [], ips: [], total: 0 }} />);
     expect(html).toContain('<option value="published" selected="">공개일</option>');
     expect(html).not.toContain('전시시작일');
@@ -646,7 +646,7 @@ describe('goods list screen', () => {
     for (const name of ['q', 'stock', 'salePeriod', 'readiness', 'categoryId', 'ipId']) expect(html.slice(0, marker)).toContain(`name="${name}"`);
     for (const name of ['status', 'dateField', 'from', 'to']) expect(html.slice(marker)).toContain(`name="${name}"`);
     expect(render({ from: '2026-10-01' })).toMatch(/<details[^>]*data-goods-search="advanced"[^>]*open=""/);
-    // 전시상태는 위 건수 칸이 현재 값을 보여 준다.
+    // 게시 상태는 위 건수 칸이 현재 값을 보여 준다.
     expect(render({ status: 'draft' })).not.toMatch(/<details[^>]*data-goods-search="advanced"[^>]*open=""/);
   });
   it('빈 상품 목록에서도 지역 배송 정책 만료를 알린다', () => {

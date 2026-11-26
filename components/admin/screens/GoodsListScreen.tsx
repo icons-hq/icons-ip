@@ -160,12 +160,12 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
            상품 URL(영문 내부 값)은 운영자가 쓸 일이 없어 기본으로 숨긴다 — 조회항목 설정에서 켤 수 있고, 이미 저장한 설정은 그대로다
            (저장한 뒤 생긴 기본 숨김 열만 숨긴다, `normalizeGridPreferences`). 고객 화면은 상품명 옆 아이콘으로 연다.
            그 아이콘만큼 상품명 칸을 넓혔고, 상품 URL을 켜 둔 계정도 체크박스 칸까지 1100px 안이다. 상세 재고는 재고수량 칸 안에 접어 둔다. 상품명은 숨길 수 없다.
-           판매가 칸은 금액(1,234,567원까지)과 수정 연필이 값 버튼 안에 들어오는 폭이다(admin-visual-qa 글자 잘림). 그만큼 전시상태 칸을
+           판매가 칸은 금액(1,234,567원까지)과 수정 연필이 값 버튼 안에 들어오는 폭이다(admin-visual-qa 글자 잘림). 그만큼 게시 상태 칸을
            줄이고 날짜 칸은 실측 최소 폭(93px)으로 둬 1440 화면에서 표가 가로로 넘치지 않는다(T22g·QA2 수정 A2 통합). */
         columns={[
         { key: 'productNo', label: '상품번호', width: '64px' },
         { key: 'name', label: '상품명 · 상품 자동코드', width: '202px', required: true }, { key: 'edit', label: '수정', width: '56px' }, { key: 'price', label: '판매가', align: 'end', width: '112px' },
-        { key: 'readiness', label: '전시상태 · 판매 준비', width: '176px' }, { key: 'qty', label: '재고수량', align: 'end', width: '84px' },
+        { key: 'readiness', label: '게시 상태 · 판매 준비', width: '176px' }, { key: 'qty', label: '재고수량', align: 'end', width: '84px' },
         { key: 'ip', label: 'IP · 카테고리', width: '92px' }, { key: 'createdAt', label: '상품등록일', width: '93px' }, { key: 'updatedAt', label: '상품수정일', width: '93px' },
         { key: 'goodId', label: '상품 URL', width: '88px', defaultVisible: false },
       ]} rows={goods.map(good => {
@@ -196,7 +196,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         /* 사유 링크는 상품 수정의 그 칸으로 간다 — 편집기 판매 준비 카드의 같은 사유와 같은 자리다(판매중지는 접힌 '추가 설정', 대표 이미지는 '상품이미지'). */
         const reasonLink = (reason: AdminGoodsReadiness['reasons'][number]) => <Link className={REASON_LINK} key={reason.code} href={goodEditorHref(filters, good.id, reason)}><TriangleAlert aria-hidden="true" className="size-3.5 shrink-0" />{reason.label} →</Link>;
         /* 상세 재고는 값 수정 덮개가 있는 칸에 함께 있어 덮개 위에 세운다. 수량 셋의 차이를 이름이 말한다 — 지금 팔 수 있는 수량(예약판매 수량 포함,
-           판매기간 밖이면 0), 사용 중인 옵션에 남은 재고, 사용 중지한 옵션에 남은 재고까지 합친 수. 판매상태는 옆 칸(전시상태 · 판매 준비)이 말하므로 여기 다시 적지 않는다. */
+           판매기간 밖이면 0), 사용 중인 옵션에 남은 재고, 사용 중지한 옵션에 남은 재고까지 합친 수. 판매상태는 옆 칸(게시 상태 · 판매 준비)이 말하므로 여기 다시 적지 않는다. */
         const stockDetails = (extra?: ReactNode) => <details className="relative z-[1] text-xs font-normal" data-goods-list="stock-details"><summary className="inline-flex min-h-6 cursor-pointer items-center justify-end whitespace-nowrap text-muted-foreground underline-offset-4 hover:text-foreground hover:underline">상세 재고</summary><dl className="mt-2 grid min-w-[9rem] gap-1 text-left text-sm whitespace-normal text-foreground">
           <dt className="text-xs text-muted-foreground">지금 팔 수 있는 수량</dt><dd className="mb-1.5 tabular-nums">{qtyLabel}</dd>
           <dt className="text-xs text-muted-foreground">사용 중인 옵션의 재고</dt><dd className="mb-1.5 tabular-nums">{good.activeStockQty.toLocaleString('ko-KR')}개</dd>
@@ -211,7 +211,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           <span className="tabular-nums" data-goods-list="product-no" key="productNo">{good.productNo ?? '—'}</span>,
           /* 상품명은 한 줄로 줄이고 전체 이름은 말풍선에 둔다 — 줄 높이가 고르게 유지되어 첫 화면에 상품이 더 보인다.
              R15: 이름 옆 아이콘이 고객에게 보이는 상품은 고객 화면(상품 자동코드 주소)을 새 탭으로, 공개 전·보관·판매 제한 상품은 편집기의
-             공개 화면 미리보기를 연다. 왜 미리보기인지는 같은 줄의 전시상태 칸(초안·보관·준비 사유)이 말하므로 아이콘 옆에 글을 두지 않는다. */
+             공개 화면 미리보기를 연다. 왜 미리보기인지는 같은 줄의 게시 상태 칸(초안·보관·준비 사유)이 말하므로 아이콘 옆에 글을 두지 않는다. */
           <span className="flex items-center gap-2.5" key="identity">
             {good.imageUrl ? <Image className="size-11 shrink-0 rounded-md border object-cover" src={good.imageUrl} alt="" width={44} height={44} unoptimized /> : <span className="grid size-11 shrink-0 place-content-center rounded-md bg-muted text-center text-[11px] leading-tight font-normal text-muted-foreground" aria-label="대표 이미지 없음">이미지<br />없음</span>}
             <span className="flex w-0 min-w-0 flex-1 flex-col gap-0.5">

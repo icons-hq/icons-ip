@@ -40,7 +40,7 @@ export const GOODS_LIST_SEARCH_HINTS: Record<(typeof GOODS_LIST_SEARCH_FIELDS)[n
   erp: { placeholder: 'ERP 코드·품명 일부', title: '옵션에 연결한 ERP 코드나 ERP 품명에 입력한 글자가 들어간 상품을 찾습니다.' },
   barcode: { placeholder: '바코드 일부(앞자리 0 포함)', title: '옵션에 등록한 바코드에 입력한 글자가 들어간 상품을 찾습니다. 앞자리 0도 그대로 입력합니다.' },
 };
-/* 'published'는 전시상태가 공개로 바뀐 날이다 — 값 이름(초안·공개·보관)과 같은 말로 부른다. */
+/* 'published'는 게시 상태가 공개로 바뀐 날이다 — 값 이름(초안·공개·보관)과 같은 말로 부른다. */
 export const GOODS_LIST_DATE_FIELDS = [
   { value: 'created', label: '상품등록일' }, { value: 'updated', label: '상품수정일' }, { value: 'published', label: '공개일' },
 ] as const;

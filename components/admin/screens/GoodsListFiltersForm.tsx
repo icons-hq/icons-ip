@@ -31,7 +31,7 @@ function SearchRow({ label, children, className = '' }: { label: ReactNode; chil
 
 export function GoodsListFiltersForm({ data }: { data: AdminGoodsListData }) {
   const { filters, ips, categories = [], origins = [] } = data;
-  /* 접힌 조건이 걸려 있으면 펼쳐 둔다 — 안 보이는 조건이 목록을 거르면 안 된다. 전시상태는 위 건수 칸이 현재 값을 보여 주므로 뺀다. */
+  /* 접힌 조건이 걸려 있으면 펼쳐 둔다 — 안 보이는 조건이 목록을 거르면 안 된다. 게시 상태는 위 건수 칸이 현재 값을 보여 주므로 뺀다. */
   const hasDetails = Boolean(filters.originId || filters.from || filters.to || [filters.payment, filters.saleType, filters.image, filters.restriction].some(value => value && value !== 'all'));
   return <form action={GOODS_LIST_PATH} method="get" className="flex min-w-0 flex-col rounded-xl border bg-card px-4 text-card-foreground" aria-label="상품 검색 조건" data-goods-search="form">
     <input type="hidden" name="sort" value={filters.sort ?? 'created_desc'} />
@@ -57,7 +57,7 @@ export function GoodsListFiltersForm({ data }: { data: AdminGoodsListData }) {
     <details className="group/advanced" data-goods-search="advanced" open={hasDetails}>
       <summary className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} my-2 w-fit cursor-pointer list-none lg:absolute lg:right-[7.75rem] lg:bottom-full lg:my-0 lg:mb-2.5 [&::-webkit-details-marker]:hidden`} data-slot="button">상세검색 <ChevronDown aria-hidden="true" className="transition-transform group-open/advanced:rotate-180" /></summary>
       <div className="border-t">
-      <SearchRow label="전시상태"><fieldset key={`status:${filters.status}`} className="flex flex-wrap gap-x-5 gap-y-1 sm:pt-1"><legend className="sr-only">전시상태</legend>
+      <SearchRow label="게시 상태"><fieldset key={`status:${filters.status}`} className="flex flex-wrap gap-x-5 gap-y-1 sm:pt-1"><legend className="sr-only">게시 상태</legend>
         {[{ value: 'active', label: '보관 제외' }, { value: 'all', label: '전체' }, { value: 'draft', label: '초안' }, { value: 'published', label: '공개' }, { value: 'archived', label: '보관' }].map(item => <label className={CHOICE} key={item.value}><input type="radio" name="status" value={item.value} defaultChecked={filters.status === item.value} />{item.label}</label>)}
       </fieldset></SearchRow>
       <SearchRow label={<label htmlFor="goods-list-date-field">기간</label>}><div className="flex flex-wrap items-center gap-2">

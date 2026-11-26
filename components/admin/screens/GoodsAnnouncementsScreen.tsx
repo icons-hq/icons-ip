@@ -29,7 +29,7 @@ export function GoodsAnnouncementsScreen({ data }: { data: GoodsAnnouncementList
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-announcements">
     <AdminPageHeader title="상품공지사항 관리" description="공지를 저장해도 고객에게 알림은 가지 않습니다." actions={<Link className={buttonVariants()} data-slot="button" href={`${href}&create=1`}><Plus aria-hidden="true" />상품공지사항 등록</Link>} />
     <ConsoleFilterPanel action={GOODS_ANNOUNCEMENTS_PATH} hiddenFields={{ pageSize: String(filters.pageSize) }} dateRange={{ label: '공지등록일', from: filters.from, to: filters.to }}
-      statusFilter={{ label: '전시상태', name: 'state', value: filters.state, options: [{ value: 'all', label: '전체' }, ...GOODS_ANNOUNCEMENT_STATES] }}
+      statusFilter={{ label: '게시 상태', name: 'state', value: filters.state, options: [{ value: 'all', label: '전체' }, ...GOODS_ANNOUNCEMENT_STATES] }}
       search={{ label: '검색어', name: 'q', value: filters.query, fieldName: 'field', fieldValue: filters.field, fields: [{ value: 'title', label: '공지 제목' }, { value: 'reference', label: '공지번호' }] }} resetHref={GOODS_ANNOUNCEMENTS_PATH}>
       <ConsoleFilterField htmlFor="announcement-filter-category" label="공지 분류"><AdminSelect id="announcement-filter-category" name="category" defaultValue={filters.category} wrapperClassName="w-40"><option value="all">전체</option>{GOODS_ANNOUNCEMENT_CATEGORIES.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</AdminSelect></ConsoleFilterField>
     </ConsoleFilterPanel>
@@ -37,7 +37,7 @@ export function GoodsAnnouncementsScreen({ data }: { data: GoodsAnnouncementList
       {/* 1440 화면에서 수정일까지 들어오도록 열을 나눴다(합계 1084px). 공지 제목은 한 줄로 줄여 중요·상세 하단 표시가 있어도 줄 높이가 같다.
           보이는 자리는 열을 늘리지 않고 상세 하단 공지에만 제목 앞 표시로 둔다(상세 상단이 기본). 기간이 KST라는 것은 열 이름이 말한다. */}
       <ConsoleGrid caption="상품공지사항 목록" className="[&_table]:min-w-[1084px]" preferencesKey="goods-announcements" columns={[
-        { key: 'title', label: '공지 제목', width: '220px' }, { key: 'reference', label: '공지번호', width: '72px' }, { key: 'category', label: '분류', width: '76px' }, { key: 'state', label: '전시상태', width: '96px' },
+        { key: 'title', label: '공지 제목', width: '220px' }, { key: 'reference', label: '공지번호', width: '72px' }, { key: 'category', label: '분류', width: '76px' }, { key: 'state', label: '게시 상태', width: '96px' },
         { key: 'device', label: '보이는 기기', width: '92px' }, { key: 'goods', label: '적용 상품', width: '76px' }, { key: 'period', label: '전시 기간 (KST)', width: '244px' }, { key: 'created', label: '등록일', width: '104px' }, { key: 'updated', label: '수정일', width: '104px' },
       ]} rows={rows.map(row => ({ id: row.id, href: `${href}&edit=${row.id}`, cells: [
         <span className="inline-flex max-w-[12.25rem] items-center gap-1.5 align-middle" key="title" title={row.title}>{row.important ? <AdminStatusBadge className="shrink-0" tone="danger">중요</AdminStatusBadge> : null}{row.placement === 'bottom' ? <AdminStatusBadge className="shrink-0" title="상품 상세의 상세설명 바로 아래에 보이는 공지입니다.">상세 하단</AdminStatusBadge> : null}<span className="min-w-0 truncate">{row.title}</span></span>, row.reference,

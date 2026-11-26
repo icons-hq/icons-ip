@@ -56,7 +56,7 @@ const RELATION_GOOD_STATUS: Record<GoodsRelationGoodVisibility, { status: 'publi
   draft: { status: 'draft', label: '초안' }, ip_draft: { status: 'draft', label: 'IP 초안' },
   archived: { status: 'archived', label: '보관' }, ip_archived: { status: 'archived', label: 'IP 보관' },
 };
-/** 담은 상품 한 줄의 전시상태(초안·공개·보관)와 판매 제한 표시. 고르는 창과 저장 뒤 화면이 같은 값을 쓴다. */
+/** 담은 상품 한 줄의 게시 상태(초안·공개·보관)와 판매 제한 표시. 고르는 창과 저장 뒤 화면이 같은 값을 쓴다. */
 export function relationGoodStatus(good: Pick<GoodsRelationGood, 'visibility'>, adultGoodsHidden = false) {
   return { ...RELATION_GOOD_STATUS[good.visibility], note: good.visibility !== 'restricted' ? null : adultGoodsHidden ? RELATION_ADULT_HIDDEN : RELATION_ADULT_ONLY };
 }
@@ -158,7 +158,7 @@ function kstInputText(value: string, currentYear: number): string {
   const [year, month, day] = value.slice(0, 10).split('-').map(Number);
   return `${year === currentYear ? '' : `${year}년 `}${month}월 ${day}일 ${value.slice(11, 16)}`;
 }
-/** 저장 전 입력의 전시상태. 판정 순서는 DB(goods_relation_document)와 같다. `now`는 화면을 연 시각이다. */
+/** 저장 전 입력의 게시 상태. 판정 순서는 DB(goods_relation_document)와 같다. `now`는 화면을 연 시각이다. */
 export function relationDraftState(draft: Pick<GoodsRelationDraft, 'enabled' | 'startsAt' | 'endsAt'>, now: number): GoodsRelationState {
   if (!draft.enabled) return 'stopped';
   const start = kstInputTime(draft.startsAt), end = kstInputTime(draft.endsAt);

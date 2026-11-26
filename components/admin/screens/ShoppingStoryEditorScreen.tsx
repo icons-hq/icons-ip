@@ -72,7 +72,7 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
     });
   }
   return <section className="flex min-w-0 flex-col gap-4 [&_:is(input,select,textarea,button,summary,a)]:scroll-mb-24">
-    {/* 셸 제목은 메뉴 이름(쇼핑스토리)이라 목록과 같다 — 머리가 수정·등록 화면임을 말하고, 어느 글인지와 전시 상태를 옆에 둔다. */}
+    {/* 셸 제목은 메뉴 이름(쇼핑스토리)이라 목록과 같다 — 머리가 수정·등록 화면임을 말하고, 어느 글인지와 게시 상태를 옆에 둔다. */}
     <header className="flex flex-wrap items-center gap-2" data-admin-kit="page-header">
       <AdminPageHeading title={initial ? '쇼핑스토리 수정' : '쇼핑스토리 등록'} />
       {initial?.title ? <span className="min-w-0 truncate text-sm text-muted-foreground" title={initial.title}>{initial.title}</span> : null}
@@ -102,7 +102,7 @@ export function ShoppingStoryEditorScreen({ accountId, draftId, initial }: { acc
     <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-wrap items-center justify-end gap-2 border-t bg-background px-4 py-2 sm:gap-2.5 md:-mx-6 md:-mb-6 md:px-6 md:py-3 print:hidden [&>button]:flex-1 sm:[&>button]:flex-none" data-admin-savebar="">
       {/* 저장 결과는 누른 [저장] 바로 위 막대에 보인다 — 폼 맨 아래 안내는 스크롤해야 보였다(QA1 MD). */}
       {error ? <p className="w-full text-sm text-destructive" data-story-save-message="error" role="alert">{error}</p> : notice ? <p className="w-full text-sm text-success" data-story-save-message="saved" role="status">{notice}</p> : null}<Button type="button" onClick={() => setPreview('desktop')} variant="outline">PC 미리보기</Button><Button type="button" onClick={() => setPreview('mobile')} variant="outline">모바일 미리보기</Button><Button type="button" disabled={pending || !!latest} onClick={save}>{pending ? '저장 중…' : retry ? '같은 요청으로 저장 결과 확인' : '저장'}</Button></div>
-    {preview !== 'off' ? <CustomerServiceDialog title={`${preview === 'mobile' ? '모바일' : 'PC'} 스토리 미리보기`} onClose={() => setPreview('off')} wide><div className="flex flex-col gap-3"><p className={HELP}>현재 입력 기준입니다. 상품의 판매가·공개 상태는 불러온 시점 기준이며 공개 요청마다 다시 확인합니다.</p>{hiddenNotice ? <AdminNotice tone="warning"><span data-display-hidden-goods="">{hiddenNotice} 미리보기에도 보이지 않습니다.</span></AdminNotice> : null}<div className="mx-auto w-full max-w-[848px] rounded-lg border bg-background p-4 data-[device=mobile]:w-[375px] data-[device=mobile]:max-w-full" data-device={preview} data-story-preview=""><ShoppingStoryContent title={values.title} bodyHtml={values.bodyHtml} imagePaths={content.imagePaths} sections={previewSections} /></div></div></CustomerServiceDialog> : null}
+    {preview !== 'off' ? <CustomerServiceDialog title={`${preview === 'mobile' ? '모바일' : 'PC'} 스토리 미리보기`} onClose={() => setPreview('off')} wide><div className="flex flex-col gap-3"><p className={HELP}>현재 입력 기준입니다. 상품의 판매가·게시 상태는 불러온 시점 기준이며 공개 요청마다 다시 확인합니다.</p>{hiddenNotice ? <AdminNotice tone="warning"><span data-display-hidden-goods="">{hiddenNotice} 미리보기에도 보이지 않습니다.</span></AdminNotice> : null}<div className="mx-auto w-full max-w-[848px] rounded-lg border bg-background p-4 data-[device=mobile]:w-[375px] data-[device=mobile]:max-w-full" data-device={preview} data-story-preview=""><ShoppingStoryContent title={values.title} bodyHtml={values.bodyHtml} imagePaths={content.imagePaths} sections={previewSections} /></div></div></CustomerServiceDialog> : null}
     {searchSection ? <ShoppingStoryGoodsPicker existingIds={values.sections.flatMap(section => section.goodIds)} sectionCount={values.sections.find(section => section.id === searchSection)?.goodIds.length ?? 0} onAdd={addGoods} onClose={() => setSearchSection(null)} /> : null}
   </section>;
 }

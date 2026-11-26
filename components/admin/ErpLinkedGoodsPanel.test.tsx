@@ -244,7 +244,7 @@ describe('연결 상품 반영 패널', () => {
     });
   });
 
-  it('공개하지 않은 상품의 줄에는 전시상태 초안을 붙인다', async () => {
+  it('공개하지 않은 상품의 줄에는 게시 상태 초안을 붙인다', async () => {
     hooks.preview.mockResolvedValueOnce(preview([row(A, 'price', { published: false })]));
     button(render(), '전체 품목과 비교').props.onClick?.();
     await settle();
