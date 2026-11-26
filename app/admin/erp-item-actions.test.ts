@@ -12,11 +12,11 @@ vi.mock('next/navigation', () => ({
 
 import {
   commitErpLinkedGoodsAction,
+  countErpItemClearsAction,
   deleteErpItemsAction,
   importErpItemsAction,
   previewErpLinkedGoodsAction,
   readErpItemFileAction,
-  searchErpItemsAction,
   setErpCategoryMappingAction,
   setErpCategoryMappingsAction,
 } from './erp-item-actions';
@@ -40,40 +40,6 @@ beforeEach(() => {
   vi.resetAllMocks();
   mocks.auth.mockResolvedValue(staff);
   mocks.client.mockResolvedValue({ rpc: mocks.rpc });
-});
-
-describe('ERP 품목 제안 검색', () => {
-  it('운영자가 아니면 DB에 닿지 않고, 세션이 끝나도 상품 편집 화면을 로그인으로 옮기지 않는다', async () => {
-    for (const auth of [member, signedOut]) {
-      mocks.auth.mockResolvedValue(auth);
-      expect(await searchErpItemsAction('키링')).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
-    }
-    expect(mocks.client).not.toHaveBeenCalled();
-  });
-
-  it('2자 미만이면 검색하지 않고 빈 결과를 준다', async () => {
-    expect(await searchErpItemsAction(' 키 ')).toEqual({ ok: true, items: [] });
-    expect(await searchErpItemsAction(42)).toEqual({ ok: true, items: [] });
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it('정리한 검색어와 제안 상한으로 RPC를 부르고, 형식이 다른 행은 버린다', async () => {
-    mocks.rpc.mockResolvedValue({ data: [
-      { code: '000123', name: '아크릴 키링', category: '문구 > 키링', sale_price: 12000, barcode: '0088', mapped_category_id: CATEGORY_ID },
-      { code: '', name: '깨진 행' },
-    ], error: null });
-    expect(await searchErpItemsAction('  아크릴\n키링 ')).toEqual({ ok: true, items: [
-      { code: '000123', name: '아크릴 키링', category: '문구 > 키링', salePrice: 12000, barcode: '0088', mappedCategoryId: CATEGORY_ID },
-    ] });
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_erp_items', { p_query: '아크릴 키링', p_limit: 8 });
-  });
-
-  it('검색 오류와 연결 예외는 조용한 실패 결과로 돌려준다', async () => {
-    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'private' } });
-    expect(await searchErpItemsAction('키링')).toEqual({ ok: false, error: 'ERP 품목을 불러오지 못했습니다.' });
-    mocks.rpc.mockRejectedValueOnce(new Error('network details'));
-    expect(await searchErpItemsAction('키링')).toEqual({ ok: false, error: 'ERP 품목을 불러오지 못했습니다.' });
-  });
 });
 
 describe('ERP 품목 파일 읽기', () => {
@@ -156,6 +122,99 @@ describe('ERP 품목 반입', () => {
     expect(await importErpItemsAction(rows)).toMatchObject({ ok: false, error: expect.stringContaining('올린 결과를 확인하지 못했습니다') });
     mocks.rpc.mockRejectedValueOnce(new Error('socket'));
     expect(await importErpItemsAction(rows)).toMatchObject({ ok: false, error: expect.stringContaining('다시 올리면 이미 올라간 품목은 그대로 두고 나머지를 이어서 올립니다') });
+  });
+});
+
+/* R-04·화면 규칙 7: 열을 골랐는데 칸이 빈 줄이 이미 올려 둔 값을 지우는지 올리기 전에 센다(읽기만 한다). */
+describe('품목 올리기 전 지워지는 값 확인', () => {
+  const filter = vi.fn();
+  const select = vi.fn(() => ({ filter }));
+  const from = vi.fn(() => ({ select }));
+  const item = (code: string, extra: Record<string, unknown> = {}) => ({ code, name: `품목 ${code}`, category: '문구', sale_price: 1000, barcode: '8801', ...extra });
+
+  beforeEach(() => {
+    filter.mockReset();
+    select.mockClear();
+    from.mockClear();
+    mocks.client.mockResolvedValue({ rpc: mocks.rpc, from });
+  });
+
+  it('미로그인·일반 회원·잘못된 묶음은 DB에 닿지 않는다', async () => {
+    mocks.auth.mockResolvedValue(signedOut);
+    await expect(countErpItemClearsAction([{ code: 'A', name: 'B', barcode: null }])).rejects.toThrow(loginRedirect);
+    mocks.auth.mockResolvedValue(member);
+    expect(await countErpItemClearsAction([{ code: 'A', name: 'B', barcode: null }])).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
+    mocks.auth.mockResolvedValue(logistics);
+    expect(await countErpItemClearsAction([{ code: 'A', name: 'B', barcode: null }])).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
+    mocks.auth.mockResolvedValue(staff);
+    for (const value of [null, [], Array.from({ length: 501 }, () => ({ code: 'A', name: 'B', barcode: null }))]) {
+      expect(await countErpItemClearsAction(value)).toEqual({ ok: false, error: '올려 둔 값과 비교하지 못했습니다.' });
+    }
+    expect(from).not.toHaveBeenCalled();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('칸이 빈 줄의 ERP 코드만 글자 그대로 읽어, 올려 둔 값이 있는 항목만 센다', async () => {
+    filter.mockResolvedValue({ data: [
+      item('000123'),
+      item('K-2', { category: null, barcode: null }),
+      item('남는 품목'),
+    ], error: null });
+    const result = await countErpItemClearsAction([
+      { row: 2, code: ' 000123 ', name: '키링', category: null, salePrice: 12000, barcode: null },
+      { row: 3, code: 'K-2', name: '거치대', category: null, salePrice: null, barcode: null },
+      { row: 4, code: 'FULL', name: '다 채운 줄', category: '문구', salePrice: 1000, barcode: '8802' },
+      { row: 5, code: 'NOCOL', name: '열을 고르지 않은 줄' },
+      { row: 6, code: '', name: '올리지 못할 줄', barcode: null },
+    ]);
+    expect(from).toHaveBeenCalledWith('erp_items');
+    expect(select).toHaveBeenCalledWith('code,name,category,sale_price,barcode');
+    expect(filter).toHaveBeenCalledExactlyOnceWith('code', 'in', '("000123","K-2")');
+    /* 000123: ERP 분류·바코드가 지워진다. K-2: 올려 둔 ERP 분류·바코드가 이미 없어 ERP 판매가만 지워진다. */
+    expect(result).toEqual({ ok: true, clears: {
+      items: 2,
+      fields: { category: 1, salePrice: 1, barcode: 1 },
+      samples: [{ code: '000123', name: '품목 000123' }, { code: 'K-2', name: '품목 K-2' }],
+    } });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.revalidate).not.toHaveBeenCalled();
+  });
+
+  it('새 품목뿐이거나 칸이 빈 줄이 없으면 지워지는 값이 없다', async () => {
+    filter.mockResolvedValue({ data: [], error: null });
+    const none = { ok: true, clears: { items: 0, fields: { category: 0, salePrice: 0, barcode: 0 }, samples: [] } };
+    expect(await countErpItemClearsAction([{ code: 'NEW', name: '새 품목', barcode: null }])).toEqual(none);
+    expect(filter).toHaveBeenCalledOnce();
+    expect(await countErpItemClearsAction([{ code: 'A', name: 'B', barcode: '8801' }])).toEqual(none);
+    expect(filter).toHaveBeenCalledOnce();
+  });
+
+  it('같은 ERP 코드는 마지막 줄을 따르고, 쉼표·괄호·따옴표가 든 코드도 그대로 찾는다', async () => {
+    filter.mockResolvedValue({ data: [item('A,(1)"\\')], error: null });
+    const result = await countErpItemClearsAction([
+      { code: 'DUP', name: '앞줄은 비었지만', barcode: null },
+      { code: 'DUP', name: '마지막 줄은 채웠다', barcode: '8809' },
+      { code: 'A,(1)"\\', name: '기호가 든 코드', barcode: null },
+    ]);
+    expect(filter).toHaveBeenCalledExactlyOnceWith('code', 'in', '("A,(1)\\"\\\\")');
+    expect(result).toMatchObject({ ok: true, clears: { items: 1, fields: { category: 0, salePrice: 0, barcode: 1 } } });
+  });
+
+  it('코드가 많으면 나눠 읽어 합치고, 보기는 앞 3개만 싣는다', async () => {
+    filter.mockImplementation(async (_column: string, _operator: string, list: string) => ({
+      data: [...list.matchAll(/"([^"]+)"/g)].map(([, code]) => item(code)), error: null,
+    }));
+    const result = await countErpItemClearsAction(Array.from({ length: 120 }, (_, index) => ({ code: `C${index}`, name: '품목', barcode: null })));
+    expect(filter).toHaveBeenCalledTimes(3);
+    expect(result).toMatchObject({ ok: true, clears: { items: 120, fields: { category: 0, salePrice: 0, barcode: 120 } } });
+    expect(result.ok && result.clears.samples.map((sample) => sample.code)).toEqual(['C0', 'C1', 'C2']);
+  });
+
+  it('읽지 못하면 비교 실패로 알린다(화면은 올리기를 막지 않고 묻는다)', async () => {
+    filter.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'permission denied' } });
+    expect(await countErpItemClearsAction([{ code: 'A', name: 'B', barcode: null }])).toEqual({ ok: false, error: '올려 둔 값과 비교하지 못했습니다.' });
+    filter.mockRejectedValueOnce(new Error('socket'));
+    expect(await countErpItemClearsAction([{ code: 'A', name: 'B', barcode: null }])).toEqual({ ok: false, error: '올려 둔 값과 비교하지 못했습니다.' });
   });
 });
 
@@ -243,7 +302,7 @@ describe('ERP 분류 일괄 연결', () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'boom' } });
     expect(await setErpCategoryMappingsAction(entries)).toEqual({ ok: false, error: 'ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.' });
     mocks.rpc.mockResolvedValueOnce({ data: { changed: 'x' }, error: null });
-    expect(await setErpCategoryMappingsAction(entries)).toEqual({ ok: false, error: '저장 결과를 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.' });
+    expect(await setErpCategoryMappingsAction(entries)).toEqual({ ok: false, error: '저장됐는지 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.' });
     expect(mocks.revalidate).toHaveBeenCalledOnce();
     mocks.rpc.mockRejectedValueOnce(new Error('network'));
     expect(await setErpCategoryMappingsAction(entries)).toEqual({ ok: false, error: 'ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.' });
@@ -286,10 +345,8 @@ describe('ERP 품목 삭제', () => {
 });
 
 describe('MD 반입 권한(1027T-016)', () => {
-  it('부매니저는 제안 검색·반입·분류 연결을 하고, 품목 삭제는 DB에 닿기 전에 막힌다', async () => {
+  it('부매니저는 반입·분류 연결을 하고, 품목 삭제는 DB에 닿기 전에 막힌다', async () => {
     mocks.auth.mockResolvedValue(deputy);
-    mocks.rpc.mockResolvedValueOnce({ data: [], error: null });
-    expect(await searchErpItemsAction('키링')).toEqual({ ok: true, items: [] });
     mocks.rpc.mockResolvedValueOnce({ data: { inserted: 1, updated: 0, unchanged: 0, rejected: [] }, error: null });
     expect(await importErpItemsAction([{ row: 2, code: '000123', name: '아크릴 키링' }])).toMatchObject({ ok: true, inserted: 1 });
     mocks.rpc.mockResolvedValueOnce({ data: { changed: true }, error: null });
@@ -301,7 +358,6 @@ describe('MD 반입 권한(1027T-016)', () => {
 
   it('상품 관리 권한이 없는 물류출고관리는 읽기·반입·비교를 못 한다', async () => {
     mocks.auth.mockResolvedValue(logistics);
-    expect(await searchErpItemsAction('키링')).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
     expect(await importErpItemsAction([{ row: 2, code: '000123', name: '아크릴 키링' }])).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
     expect(await previewErpLinkedGoodsAction(null)).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
     expect(mocks.client).not.toHaveBeenCalled();

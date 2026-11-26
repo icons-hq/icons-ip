@@ -84,7 +84,7 @@ const REASONS: Record<string, string> = {
   category_depth_exceeded: '카테고리는 최대 4단계까지만 만들 수 있습니다.',
   invalid_category_name: '카테고리 이름은 120자까지 입력할 수 있습니다.',
   category_has_goods: '상품이 연결된 카테고리 아래에는 하위 카테고리를 만들 수 없습니다. 상품의 카테고리를 먼저 옮기세요.',
-  category_path_ambiguous: '같은 위치에 같은 이름의 카테고리가 둘 이상 있어 어디에 넣을지 정할 수 없습니다. 카테고리 트리를 먼저 정리하세요.',
+  category_path_ambiguous: '같은 위치에 같은 이름의 카테고리가 둘 이상 있어 어디에 넣을지 정할 수 없습니다. 카테고리 목록에서 이름이 겹치는 카테고리를 먼저 정리해 주세요.',
 };
 
 export function categoryBulkReason(line: CategoryBulkLine): string {

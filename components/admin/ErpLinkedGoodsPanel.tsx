@@ -18,10 +18,13 @@ import {
   ERP_LINKED_GOODS_PREVIEW_LIMIT,
   ERP_LINKED_GOODS_SKIP_LABELS,
   ERP_LINKED_GOODS_SKIP_SHORT_LABELS,
+  erpLinkedGoodsCompanionNote,
   erpLinkedGoodsConfirmation,
   erpLinkedGoodsCounts,
   erpLinkedGoodsFailureLabel,
+  erpLinkedGoodsPriceCompanions,
   formatErpLinkedGoodsValue,
+  toggleErpLinkedGoodsRow,
   type ErpLinkedGoodsFailure,
   type ErpLinkedGoodsPreview,
   type ErpLinkedGoodsRow,
@@ -34,7 +37,7 @@ import { adminConfirm } from '@/lib/admin/confirm';
 const PREVIEW_REQUEST_FAILED = '연결 상품과 비교하지 못했습니다. 다시 비교해주세요.';
 const COMMIT_REQUEST_FAILED = '반영 결과를 받지 못했습니다. 같은 미리보기에서 다시 반영해도 이미 반영된 줄은 다시 바꾸지 않습니다.';
 const TABLE_REGION = 'relative max-h-[520px] min-w-0 overflow-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50 print:max-h-none print:overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted';
-const HINT = 'text-sm text-muted-foreground';
+const NO_NOTES: ReadonlyMap<string, string> = new Map();
 
 type Loaded = { preview: ErpLinkedGoodsPreview; pasted: boolean };
 /** 마지막으로 비교한 범위. null은 전체 품목, 배열은 방금 반입한 ERP 코드. */
@@ -44,7 +47,7 @@ type Status = { tone: 'success' | 'warning' | 'danger'; text: string };
 const count = (value: number) => value.toLocaleString('ko-KR');
 const editorHref = (goodId: string) => `${GOODS_LIST_PATH}?${new URLSearchParams({ goodId })}`;
 
-function RowState({ row }: { row: ErpLinkedGoodsRow }) {
+function RowState({ row, note }: { row: ErpLinkedGoodsRow; note?: string }) {
   if (row.status === 'skip' && row.reason) {
     return <div className="flex min-w-0 flex-col items-start gap-1">
       <AdminStatusBadge tone={statusTone('erpLinkedGoods', 'skip')}>건너뜀 · {ERP_LINKED_GOODS_SKIP_SHORT_LABELS[row.reason]}</AdminStatusBadge>
@@ -57,12 +60,18 @@ function RowState({ row }: { row: ErpLinkedGoodsRow }) {
       <span className="text-xs whitespace-normal text-warning">{ERP_LINKED_GOODS_BARCODE_WARNING}</span>
     </div>;
   }
-  return <AdminStatusBadge tone={statusTone('erpLinkedGoods', 'apply')}>{row.current === null ? '빈 칸 채움' : '반영'}</AdminStatusBadge>;
+  const badge = <AdminStatusBadge tone={statusTone('erpLinkedGoods', 'apply')}>{row.current === null ? '빈 칸 채움' : '반영'}</AdminStatusBadge>;
+  /* 다른 줄을 누를 때 따라 바뀐 줄에는 그 이유를 이 자리에 보인다(누른 뒤에 거절당하지 않게 고를 때 맞춘다). */
+  return note ? <div className="flex min-w-0 flex-col items-start gap-1">
+    {badge}
+    <span className="text-xs whitespace-normal text-warning" role="status">{note}</span>
+  </div> : badge;
 }
 
 /**
  * 연결 상품 반영(1027T-X04): 같은 ERP 코드를 넣은 상품 옵션의 판매가·바코드가 반입한 ERP 값과 다르면 미리보기로 보이고,
  * 운영자가 고른 행만 확정해 반영한다. 미리보기는 DB가 15분 동안 고정하고, 확정은 그 사이 값이 바뀌었으면 아무것도 바꾸지 않는다.
+ * 같은 상품의 판매가 줄 가운데 따로 반영하면 DB가 거절하는 짝은 고를 때 함께 고르고 함께 뺀다(erpLinkedGoodsPriceCompanions).
  * 반입을 마치면 반입 패널이 방금 반입한 품목으로 비교를 시작한다(ErpItemsWorkspace).
  */
 export function ErpLinkedGoodsPanel() {
@@ -73,11 +82,14 @@ export function ErpLinkedGoodsPanel() {
   const [status, setStatus] = useState<Status | null>(null);
   const [failures, setFailures] = useState<ErpLinkedGoodsFailure[]>([]);
   const [scope, setScope] = useState<Scope | null>(null);
+  /* 운영자가 누르지 않았는데 따라 바뀐 줄과 그 이유. 다음에 고르거나 다시 비교하면 지운다. */
+  const [notes, setNotes] = useState<ReadonlyMap<string, string>>(NO_NOTES);
   const [pending, startTransition] = useTransition();
 
   const compare = useCallback((codes: readonly string[] | null) => {
     setStatus(null);
     setFailures([]);
+    setNotes(NO_NOTES);
     setScope({ codes });
     startTransition(async () => {
       let result: ErpLinkedGoodsPreviewResult;
@@ -103,16 +115,17 @@ export function ErpLinkedGoodsPanel() {
   const allChosen = applicable.length > 0 && chosen.length === applicable.length;
   const someChosen = chosen.length > 0 && !allChosen;
 
-  const toggle = (key: string, checked: boolean) => setSelected((current) => {
-    const next = new Set(current);
-    if (checked) next.add(key);
-    else next.delete(key);
-    return next;
-  });
+  const companions = erpLinkedGoodsPriceCompanions(rows);
+  const toggle = (row: ErpLinkedGoodsRow, checked: boolean) => {
+    const result = toggleErpLinkedGoodsRow(selected, companions, row.key, checked);
+    setSelected(result.selected);
+    setNotes(new Map(result.moved.map((key) => [key, erpLinkedGoodsCompanionNote(row, checked)])));
+  };
 
   const commit = async () => {
     if (!loaded || pending || !chosen.length) return;
-    if (!await adminConfirm(erpLinkedGoodsConfirmation(chosen))) return;
+    /* 확인 버튼은 누른 버튼과 같은 이름이다([선택한 N건 반영]). */
+    if (!await adminConfirm({ title: '연결 상품에 반영', message: erpLinkedGoodsConfirmation(chosen), confirmLabel: `선택한 ${count(chosen.length)}건 반영` })) return;
     const request = { operationId: loaded.preview.operationId, keys: chosen.map((row) => row.key) };
     setStatus(null);
     startTransition(async () => {
@@ -134,17 +147,12 @@ export function ErpLinkedGoodsPanel() {
     const compared = loaded.pasted
       ? `방금 올린 품목 ${count(preview.scopeCount ?? 0)}개와 비교했습니다.`
       : '올려 둔 ERP 품목 전체와 비교했습니다.';
-    if (!preview.linked) return `${compared} 같은 ERP 코드를 넣은 상품 옵션이 없습니다. 상품 옵션의 ERP 품명에서 ERP 품목을 고르면 연결됩니다.`;
+    if (!preview.linked) return `${compared} 같은 ERP 코드를 넣은 상품 옵션이 없습니다. 상품 옵션에서 [ERP 품목 고르기]로 품목을 고르면 연결됩니다.`;
     if (!preview.total) return `${compared} 연결 옵션 ${count(preview.linked)}개의 판매가·바코드가 올린 ERP 값과 모두 같습니다.`;
     return `${compared} 연결 옵션 ${count(preview.linked)}개 중 값이 다른 줄 ${count(preview.total)}건 · 반영할 수 있는 판매가 ${count(counts.price)}건·바코드 ${count(counts.barcode)}건 · 건너뜀 ${count(counts.skipped)}건.`;
   })() : null;
 
   return <div className="flex min-w-0 flex-col gap-3" data-erp-items="linked-goods">
-    <p className={HINT}>
-      옵션에 같은 ERP 코드를 넣은 상품을 연결 상품이라고 합니다. 연결 상품의 판매가·바코드가 올린 ERP 값과 다르면 미리보기로 보여 주고, 체크한 줄만 상품에 반영합니다.
-      판매가는 그 옵션의 할인 전 판매 금액으로 맞춥니다(기본 옵션이면 상품 판매가, 다른 옵션이면 옵션가). 할인 중인 상품(기간 할인 진행·예정, 상품 할인가 설정)은 건너뜁니다.
-      ERP에 바코드가 없으면 상품 바코드를 지우지 않습니다. 품목 올리기를 마치면 방금 올린 품목과 자동으로 비교합니다.
-    </p>
     <div className="flex flex-wrap items-center gap-2 print:hidden">
       <Button variant="outline" type="button" disabled={pending} onClick={() => compare(null)}>{pending && !loaded ? '비교 중' : '전체 품목과 비교'}</Button>
       {/* 반영한 뒤에도 같은 범위로 다시 볼 수 있게 한다(방금 반입한 품목이면 그 품목만). */}
@@ -182,7 +190,7 @@ export function ErpLinkedGoodsPanel() {
             <TableHead className="w-10 p-0" scope="col"><label className="flex h-10 cursor-pointer items-center justify-center">
               <input aria-label="반영할 수 있는 줄 전체 선택" type="checkbox" checked={allChosen} disabled={!applicable.length || pending}
                 ref={(element) => { if (element) element.indeterminate = someChosen; }}
-                onChange={(event) => setSelected(event.target.checked ? new Set(applicable.map((row) => row.key)) : new Set())} />
+                onChange={(event) => { setSelected(event.target.checked ? new Set(applicable.map((row) => row.key)) : new Set()); setNotes(NO_NOTES); }} />
             </label></TableHead>
             <TableHead scope="col">상품 · 옵션</TableHead>
             <TableHead scope="col">ERP 코드</TableHead>
@@ -195,18 +203,18 @@ export function ErpLinkedGoodsPanel() {
             <TableCell className="p-0 align-top">
               {row.status === 'apply' ? <label className="flex cursor-pointer justify-center pt-3 pb-2">
                 <input aria-label={`${row.goodName} ${row.optionName} ${ERP_LINKED_GOODS_FIELD_LABELS[row.field]} 반영`} type="checkbox" checked={selected.has(row.key)} disabled={pending}
-                  onChange={(event) => toggle(row.key, event.target.checked)} />
+                  onChange={(event) => toggle(row, event.target.checked)} />
               </label> : null}
             </TableCell>
             <TableHead scope="row" className="h-auto py-2 align-top font-normal whitespace-normal text-foreground">
               <Link className="underline underline-offset-4" href={editorHref(row.goodId)} target="_blank" rel="noreferrer">{row.goodName}</Link>
-              <span className="block text-xs text-muted-foreground">{row.isDefault && row.optionName !== '기본 옵션' ? `${row.optionName} · 기본 옵션` : row.optionName}{row.published ? '' : ' · 비공개'}</span>
+              <span className="block text-xs text-muted-foreground">{row.isDefault && row.optionName !== '기본 옵션' ? `${row.optionName} · 기본 옵션` : row.optionName}{row.published ? '' : ' · 초안'}</span>
             </TableHead>
             <TableCell className="align-top"><span className="font-mono text-xs tabular-nums">{row.erpCode}</span></TableCell>
             <TableCell className="align-top">{ERP_LINKED_GOODS_FIELD_LABELS[row.field]}</TableCell>
             <TableCell className={`text-right align-top ${row.field === 'barcode' ? 'font-mono text-xs' : ''} tabular-nums`}>{formatErpLinkedGoodsValue(row.field, row.current)}</TableCell>
             <TableCell className={`text-right align-top font-medium ${row.field === 'barcode' ? 'font-mono text-xs' : ''} tabular-nums`}>{formatErpLinkedGoodsValue(row.field, row.next)}</TableCell>
-            <TableCell className="max-w-72 align-top whitespace-normal"><RowState row={row} /></TableCell>
+            <TableCell className="max-w-72 align-top whitespace-normal"><RowState row={row} note={notes.get(row.key)} /></TableCell>
           </TableRow>)}</TableBody>
         </table>
       </div>

@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { Children, isValidElement, type ComponentProps, type ReactElement, type ReactNode } from 'react';
 import { GoodScreen } from '@/components/admin/screens/GoodScreen';
 import { CategoryTemplatesAvailableProvider } from '@/components/admin/CategoryTemplatesAvailability';
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), list: vi.fn(), editor: vi.fn(), common: vi.fn(), session: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), list: vi.fn(), editor: vi.fn(), common: vi.fn(), session: vi.fn(), runtime: 'transaction' as 'legacy' | 'transaction' | 'unavailable' }));
+vi.mock('@/lib/checkout-transaction.server', () => ({ loadGoodsTransactionRuntimeMode: async () => mocks.runtime }));
 vi.mock('@/lib/admin/goods-group-common.server', () => ({ loadGoodsGroupCommon: mocks.common }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ auth: { getSession: mocks.session } }) }));
 vi.mock('@/components/admin/GoodsGroupCommonEditor', () => ({ GoodsGroupCommonEditor: () => null }));
@@ -95,6 +96,19 @@ describe('goods directory routes', () => {
     const screen = editorScreen(result.props.children);
     expect(screen.props.canSearchErp).toBe(canSearchErp);
     expect(screen.props.canOpenIp).toBe(canOpenIp);
+  });
+  /* 브라우저 확인 F4: 쇼핑몰의 주문 설정이 꺼져 있으면 DB가 택배 외 수령 방식·주문 후 제작 저장을 거절한다. 화면이 고르기 전에 막도록 그 값을 읽어 넘긴다.
+     읽지 못했을 때는 막지 않는다(저장 오류 문구가 할 일을 말한다). */
+  it.each([
+    { runtime: 'legacy' as const, off: true }, { runtime: 'transaction' as const, off: false }, { runtime: 'unavailable' as const, off: false },
+  ])('쇼핑몰 주문 설정($runtime)을 읽어 수령 방식·주문 후 제작을 미리 막을지 넘긴다', async ({ runtime, off }) => {
+    mocks.runtime = runtime;
+    try {
+      const saved = await Page({ searchParams: Promise.resolve({ goodId: 'g999' }) });
+      expect(editorScreen(saved.props.children).props.transactionRuntimeOff).toBe(off);
+      const create = await Page({ searchParams: Promise.resolve({ create: '1' }) });
+      expect(editorScreen(create.props.children).props.transactionRuntimeOff).toBe(off);
+    } finally { mocks.runtime = 'transaction'; }
   });
   /* 운영 책임자 피드백(2026-11-10): 비어 있는 '카테고리 템플릿' 버튼이 무엇인지 알 수 없었다. 등록된 게 있을 때만 대표 카테고리 옆에 보인다. */
   it.each([true, false])('자주 쓰는 카테고리 유무(%s)를 대표 카테고리 칸까지 전한다', async (hasCategoryTemplates) => {

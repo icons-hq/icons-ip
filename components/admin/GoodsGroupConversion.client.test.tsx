@@ -1,8 +1,10 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
-import { setAdminConfirmHandler } from '@/lib/admin/confirm';
+import { setAdminConfirmHandler, type AdminConfirmRequest } from '@/lib/admin/confirm';
 let leaveConfirm: ReturnType<typeof stubAdminConfirm>;
+/** 적어 둔 값이 사라지는 동작(옵션명 줄이기·상품 제외·체크 풀기·상품 바꾸기)의 확인창. 이동 확인(leaveConfirm)과 따로 센다. */
+let discardConfirm: ReturnType<typeof vi.fn<(request: AdminConfirmRequest) => boolean>>;
 let lastLink: { click: ReturnType<typeof vi.fn> } | null = null;
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: new Map<number, { deps: unknown[]; cleanup?: () => void }>(), jobs: [] as (() => void)[], pending: false }));
 const mocks = vi.hoisted(() => ({ preview: vi.fn(), confirm: vi.fn(), read: vi.fn(), save: vi.fn(), archive: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
@@ -18,10 +20,11 @@ vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthS
 import { GoodsGroupConversion } from './GoodsGroupConversion';
 import { GoodsGroupEditor, groupValueProblems } from './GoodsGroupEditor';
 import { GoodsGroupsScreen } from './screens/GoodsGroupsScreen';
-import { GroupCompleted, GroupOperationStatus, GroupTable } from './GoodsGroupOperation';
+import { GoodsGroupProductPicker, GroupCompleted, GroupOperationStatus, GroupTable } from './GoodsGroupOperation';
 import { AdminField, AdminFormGrid, AdminSectionCard, AdminStatusBadge } from './console/AdminKit';
 import { Button } from './kit/ui/button';
 import { Input } from './kit/ui/input';
+import { TableCell, TableHead } from './kit/ui/table';
 import { goodsGroupRecoveryKey, type GoodsGroupRecovery } from '@/lib/admin/goods-groups';
 import { groupTestGroup as group, groupTestId as id, groupTestIdentity as identity, groupTestPreview as preview, groupTestReceipt as receipt, groupTestSource as source } from '@/lib/admin/goods-groups.test-fixtures';
 
@@ -77,6 +80,8 @@ function saved() { return JSON.parse([...storage.values()][0]) as GoodsGroupReco
 async function ready() { submit(); await flush(); check('비교 내용과 미공개'); render(); }
 beforeEach(async () => {
   leaveConfirm = stubAdminConfirm(true); lastLink = null;
+  discardConfirm = vi.fn<(request: AdminConfirmRequest) => boolean>(() => true);
+  setAdminConfirmHandler(async request => request.title === '화면 이동' ? leaveConfirm(request.message) : discardConfirm(request));
   mode = 'convert'; hooks.values = []; hooks.effects.clear(); hooks.jobs = []; hooks.pending = false; storage.clear(); vi.clearAllMocks();
   storageApi.getItem.mockImplementation(key => storage.get(key) ?? null); storageApi.setItem.mockImplementation((key, value) => { storage.set(key, value); });
   vi.stubGlobal('window', Object.assign(new EventTarget(), { localStorage: storageApi, location: new URL('https://admin.test/admin/catalog/groups?id=test') }));
@@ -171,7 +176,7 @@ describe('그룹 구성 화면', () => {
     expect(navigate().defaultPrevented).toBe(false); expect(leaveConfirm).not.toHaveBeenCalled();
   });
   it('미저장 그룹에서도 새 탭·다운로드·수정키·중간 클릭·같은 문서 앵커를 허용한다', async () => {
-    mode = 'editor'; remount(); await flush(); click('TEST 그룹 파랑 제외'); render();
+    mode = 'editor'; remount(); await flush(); click('TEST 그룹 파랑 제외'); await flush();
     for (const options of [{ target: '_blank' }, { download: true }, { metaKey: true }, { ctrlKey: true }, { shiftKey: true }, { altKey: true }, { button: 1 }]) expect(navigate('/admin', options).defaultPrevented).toBe(false);
     expect(navigate(`${window.location.href}#details`).defaultPrevented).toBe(false); expect(leaveConfirm).not.toHaveBeenCalled();
   });
@@ -199,7 +204,7 @@ describe('그룹 구성 화면', () => {
     expect(render().find(node => isButton(node) && text(node) === '변경사항 확인')?.props.type).toBe('submit');
   });
   it('제외만으로 상품을 합치지 않으며 승인된 구성 metadata와 입력을 분리한다', async () => {
-    mode = 'editor'; remount(); await flush(); click('TEST 그룹 파랑 제외'); submit(); await flush(); check('변경 내용과 미공개'); render();
+    mode = 'editor'; remount(); await flush(); click('TEST 그룹 파랑 제외'); await flush(); submit(); await flush(); check('변경 내용과 미공개'); render();
     mocks.save.mockResolvedValue({ error: '응답 유실', uncertain: true }); click('이 구성으로 저장'); await flush();
     expect(mocks.save).toHaveBeenCalledOnce(); const metadata = saved(); expect(metadata).toMatchObject({ command: 'update', groupId: group.id, expectedRevision: 1 });
     expect(metadata).not.toHaveProperty('members'); expect(mocks.save.mock.calls[0][1].members).toEqual([{ goodId: 'group-source', values: ['빨강'] }]);
@@ -211,5 +216,133 @@ describe('그룹 구성 화면', () => {
     mocks.read.mockResolvedValue({ value: { ...receipt, operationId: metadata.operationId, group: { ...group, revision: 2, archivedAt: '2026-10-14T09:00:00Z', members: [] } } });
     click('진행 내역 확인'); await flush();
     expect(render().some(node => text(node.props.children as ReactNode) === '공통정보 편집')).toBe(false);
+  });
+});
+
+/* G-06: 적어 둔 값이 사라지는 동작은 사라지는 것을 보여 주고 묻는다. 사라지는 것이 없으면 묻지 않는다. */
+const byId = (id: string) => render().find(node => node.props.id === id)!;
+const typeInto = (node: Element, value: string) => (node.props.onChange as (event: unknown) => void)({ target: { value } });
+const valueInput = (label: string) => render().find(node => isInput(node) && node.props['aria-label'] === label)!;
+const box = (label: string) => render().find(node => node.type === 'input' && node.props['aria-label'] === label)!;
+const picked = (label: string) => box(label).props.checked as boolean;
+describe('그룹 전환: 적어 둔 값이 사라질 때 확인', () => {
+  it('원상품에서 채워진 값 그대로인 옵션은 체크를 풀어도 묻지 않고, 다시 체크하면 같은 값으로 돌아온다', async () => {
+    (box('파랑 변환 선택').props.onChange as () => void)(); await flush();
+    expect(discardConfirm).not.toHaveBeenCalled(); expect(picked('파랑 변환 선택')).toBe(false);
+    (box('파랑 변환 선택').props.onChange as () => void)(); await flush();
+    expect(picked('파랑 변환 선택')).toBe(true); expect(valueInput('파랑 색상 값').props.value).toBe('파랑');
+  });
+  it('옵션값을 고쳐 적었으면 개수를 보여 주고 묻는다. 취소하면 그대로, 확인하면 뺀다', async () => {
+    typeInto(valueInput('빨강 색상 값'), '진한 빨강'); await flush();
+    discardConfirm.mockReturnValue(false);
+    (box('빨강 변환 선택').props.onChange as () => void)(); await flush();
+    expect(discardConfirm).toHaveBeenCalledOnce();
+    expect(discardConfirm.mock.calls[0][0]).toMatchObject({ title: '전환할 옵션에서 뺄까요?', message: '‘빨강’ 옵션에 고쳐 적은 옵션값 1개가 사라집니다.', confirmLabel: '빼기' });
+    expect(picked('빨강 변환 선택')).toBe(true); expect(valueInput('빨강 색상 값').props.value).toBe('진한 빨강');
+    discardConfirm.mockReturnValue(true);
+    (box('빨강 변환 선택').props.onChange as () => void)(); await flush();
+    expect(picked('빨강 변환 선택')).toBe(false);
+  });
+  it('확인을 기다리는 동안 고친 다른 입력은 확인한 뒤에도 남는다', async () => {
+    typeInto(valueInput('빨강 색상 값'), '진한 빨강'); await flush(); let answer!: (value: boolean) => void;
+    discardConfirm.mockImplementation(() => new Promise<boolean>(done => { answer = done; }) as unknown as boolean);
+    (box('빨강 변환 선택').props.onChange as () => void)(); await flush();
+    typeInto(byId('conversion-group-name'), '그 사이 고친 이름'); await flush();
+    answer(true); await flush();
+    expect(byId('conversion-group-name').props.value).toBe('그 사이 고친 이름'); expect(picked('빨강 변환 선택')).toBe(false);
+  });
+  it('옵션명 개수를 늘리거나 빈 옵션명을 줄일 때는 묻지 않고, 적은 옵션명·옵션값이 있으면 묻는다', async () => {
+    typeInto(byId('conversion-axis-count'), '2'); await flush();
+    expect(render().some(node => node.props.id === 'conversion-axis-1')).toBe(true); expect(discardConfirm).not.toHaveBeenCalled();
+    typeInto(byId('conversion-axis-count'), '1'); await flush();
+    expect(render().some(node => node.props.id === 'conversion-axis-1')).toBe(false); expect(discardConfirm).not.toHaveBeenCalled();
+    typeInto(byId('conversion-axis-count'), '2'); await flush();
+    typeInto(byId('conversion-axis-1'), '크기'); typeInto(valueInput('빨강 크기 값'), 'L'); await flush();
+    discardConfirm.mockReturnValue(false); typeInto(byId('conversion-axis-count'), '1'); await flush();
+    expect(discardConfirm).toHaveBeenCalledOnce();
+    expect(discardConfirm.mock.calls[0][0]).toMatchObject({ title: '옵션명을 1개로 줄일까요?', message: '‘크기’ 옵션명과 적어 둔 옵션값 1개가 사라집니다.', confirmLabel: '줄이기' });
+    expect(render().some(node => node.props.id === 'conversion-axis-1')).toBe(true); expect(valueInput('빨강 크기 값').props.value).toBe('L');
+    discardConfirm.mockReturnValue(true); typeInto(byId('conversion-axis-count'), '1'); await flush();
+    expect(render().some(node => node.props.id === 'conversion-axis-1')).toBe(false);
+  });
+  it('다른 상품을 고를 때 기본값에서 고친 것이 없으면 묻지 않고 새 상품 값으로 채운다', async () => {
+    click('다른 상품 선택'); const other = { ...source, goodId: 'other-source', name: '다른 그룹' };
+    (render().find(node => node.type === GoodsGroupProductPicker)!.props.onSelect as (value: unknown) => void)(other); await flush();
+    expect(discardConfirm).not.toHaveBeenCalled(); expect(byId('conversion-group-name').props.value).toBe('다른 그룹');
+    expect(render().some(node => node.type === GoodsGroupProductPicker)).toBe(false);
+  });
+  it('고쳐 적은 값이 있으면 상품을 바꾸기 전에 묻고, 취소하면 입력과 선택창을 그대로 둔다', async () => {
+    typeInto(byId('conversion-group-name'), '고쳐 쓴 이름'); click('다른 상품 선택');
+    const other = { ...source, goodId: 'other-source', name: '다른 그룹' }, select = () => render().find(node => node.type === GoodsGroupProductPicker)!.props.onSelect as (value: unknown) => void;
+    discardConfirm.mockReturnValue(false); select()(other); await flush();
+    expect(discardConfirm).toHaveBeenCalledOnce();
+    expect(discardConfirm.mock.calls[0][0]).toMatchObject({ title: '다른 상품으로 바꿀까요?', confirmLabel: '상품 바꾸기',
+      message: '지금 고쳐 적은 그룹상품명·옵션명·옵션값이 사라지고, 고른 상품의 값으로 다시 채워집니다.' });
+    expect(byId('conversion-group-name').props.value).toBe('고쳐 쓴 이름'); expect(render().some(node => node.type === GoodsGroupProductPicker)).toBe(true);
+    discardConfirm.mockReturnValue(true); select()(other); await flush();
+    expect(byId('conversion-group-name').props.value).toBe('다른 그룹'); expect(render().some(node => node.type === GoodsGroupProductPicker)).toBe(false);
+  });
+});
+
+/* G-07: 확인 표와 원상품 카드는 상품 이름으로 보이고, 영문 내부 값(상품 URL)을 내보이지 않는다. */
+describe('그룹 전환: 내부 값을 보이지 않는다', () => {
+  it('전환할 원상품 카드는 상품 이름과 상품 자동코드만 보인다', () => {
+    const texts = nodes(render()).map(node => text(node));
+    expect(texts).toContain('상품 자동코드 TEST-SOURCE');
+    expect(texts.some(value => value.includes(source.goodId))).toBe(false);
+  });
+  it('변환 전 최종 비교 표는 상품번호 유지·새 발급으로 말하고 상품 URL을 보이지 않는다', async () => {
+    await ready();
+    const tree = render(), heads = tree.filter(node => node.type === TableHead).map(node => text(node));
+    expect(heads).toEqual(expect.arrayContaining(['기존 옵션', '변환 후 상품명', '상품번호', '기본 판매가', '재고수량']));
+    const cells = tree.filter(node => node.type === TableCell).map(node => text(node));
+    expect(cells).toEqual(expect.arrayContaining(['기존 상품번호 유지', '새 상품번호 발급']));
+    expect(cells.concat(heads).some(value => value.includes(preview.plan.sourceGoodId) || value.includes('상품 URL'))).toBe(false);
+  });
+});
+
+describe('그룹 구성: 적어 둔 값이 사라질 때 확인', () => {
+  const editor = async () => { mode = 'editor'; remount(); await flush(); };
+  it('옵션값이 적힌 상품을 제외하면 상품 이름과 개수를 보여 주고 묻는다. 취소하면 그대로 둔다', async () => {
+    await editor(); discardConfirm.mockReturnValue(false);
+    click('TEST 그룹 파랑 제외'); await flush();
+    expect(discardConfirm).toHaveBeenCalledOnce();
+    expect(discardConfirm.mock.calls[0][0]).toMatchObject({ title: '이 상품을 그룹에서 제외할까요?', message: '‘TEST 그룹 파랑’ 상품에 적어 둔 옵션값 1개가 사라집니다.', confirmLabel: '제외' });
+    expect(render().some(node => isButton(node) && text(node) === 'TEST 그룹 파랑 제외')).toBe(true);
+    discardConfirm.mockReturnValue(true); click('TEST 그룹 파랑 제외'); await flush();
+    expect(render().some(node => isButton(node) && text(node) === 'TEST 그룹 파랑 제외')).toBe(false);
+  });
+  it('옵션값을 비운 상품은 묻지 않고 제외한다', async () => {
+    await editor(); typeInto(valueInput('TEST 그룹 파랑 색상 값'), ''); await flush();
+    click('TEST 그룹 파랑 제외'); await flush();
+    expect(discardConfirm).not.toHaveBeenCalled(); expect(render().some(node => isButton(node) && text(node) === 'TEST 그룹 파랑 제외')).toBe(false);
+  });
+  it('확인을 기다리는 동안 고친 다른 입력은 확인한 뒤에도 남는다', async () => {
+    await editor(); let answer!: (value: boolean) => void;
+    discardConfirm.mockImplementation(() => new Promise<boolean>(done => { answer = done; }) as unknown as boolean);
+    click('TEST 그룹 파랑 제외'); await flush();
+    typeInto(byId('group-name'), '그 사이 고친 이름'); await flush();
+    answer(true); await flush();
+    expect(byId('group-name').props.value).toBe('그 사이 고친 이름');
+    expect(render().some(node => isButton(node) && text(node) === 'TEST 그룹 파랑 제외')).toBe(false);
+  });
+  it('옵션명 개수를 줄이면 줄어드는 옵션명과 옵션값을 보여 주고 묻는다', async () => {
+    await editor(); typeInto(byId('group-axis-count'), '2'); await flush();
+    expect(discardConfirm).not.toHaveBeenCalled();
+    typeInto(byId('group-axis-1'), '크기'); typeInto(valueInput('TEST 그룹 빨강 크기 값'), 'S'); typeInto(valueInput('TEST 그룹 파랑 크기 값'), 'M'); await flush();
+    discardConfirm.mockReturnValue(false); typeInto(byId('group-axis-count'), '1'); await flush();
+    expect(discardConfirm.mock.calls[0][0]).toMatchObject({ title: '옵션명을 1개로 줄일까요?', message: '‘크기’ 옵션명과 적어 둔 옵션값 2개가 사라집니다.' });
+    expect(render().some(node => node.props.id === 'group-axis-1')).toBe(true);
+    discardConfirm.mockReturnValue(true); typeInto(byId('group-axis-count'), '1'); await flush();
+    expect(render().some(node => node.props.id === 'group-axis-1')).toBe(false);
+  });
+  it('저장 전 확인 표는 지금 상품명 → 저장할 상품명으로 보이고 상품 URL을 보이지 않는다', async () => {
+    await editor(); submit(); await flush();
+    const tree = render(), heads = tree.filter(node => node.type === TableHead).map(node => text(node));
+    expect(heads).toEqual(expect.arrayContaining(['지금 상품명', '저장할 상품명']));
+    const cells = tree.filter(node => node.type === TableCell).map(node => text(node));
+    expect(cells).toEqual(expect.arrayContaining(['TEST 그룹 빨강', 'TEST 그룹 파랑', 'TEST 그룹 빨강', 'TEST 그룹 파랑']));
+    expect(heads).not.toContain('상품 URL');
+    for (const goodId of group.members.map(member => member.goodId)) expect(tree.some(node => text(node).includes(goodId))).toBe(false);
   });
 });

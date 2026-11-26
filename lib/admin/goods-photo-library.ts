@@ -57,9 +57,13 @@ export function parseGoodsPhotoPage(value: unknown): GoodsPhotoPage | null {
     || !Array.isArray(row.references) || row.references.some(ref => !ref || typeof ref.id !== 'string' || typeof ref.name !== 'string' || typeof ref.kind !== 'string'))) return null;
   return page;
 }
+/**
+ * 사진 저장 오류. 새로 올릴 때·이름을 바꿀 때·보관하거나 복원할 때 모두 같은 문구를 쓰므로 어느 쪽에서 읽어도 맞는 말로 적는다.
+ * 저장 전 화면은 옛 내용이라 이름을 그대로 다시 저장해도 또 막힌다 — 목록을 다시 불러온 뒤 하라고 알린다.
+ */
 export function goodsPhotoError(message: string | undefined): string {
-  if (message === 'goods_photo_changed') return '다른 사람(다른 작업)이 이 사진을 먼저 바꿨습니다. 입력은 그대로 있습니다. 목록을 다시 조회한 뒤 다시 저장해주세요.';
-  if (message === 'goods_photo_in_use') return '사용 중인 사진은 보관할 수 없습니다. 연결된 상품이나 전시 설정에서 먼저 사진을 변경해주세요.';
+  if (message === 'goods_photo_changed') return '다른 사람이 이 사진을 먼저 바꿨습니다. [검색]을 눌러 목록을 다시 불러온 뒤 다시 해 주세요.';
+  if (message === 'goods_photo_in_use') return '사용 중인 사진은 보관할 수 없습니다. 이 사진을 쓰는 상품·전시에서 먼저 다른 사진으로 바꿔 주세요.';
   if (message === 'unverified_artwork') return '확인이 끝나지 않은 사진이라 등록할 수 없습니다. 사진을 다시 올려주세요.';
-  return '사진을 저장하지 못했습니다. 입력을 유지합니다. 목록에서 저장 여부를 먼저 확인해주세요.';
+  return '사진을 저장하지 못했습니다. 목록에 반영됐는지 먼저 보고, 안 됐으면 다시 해 주세요.';
 }

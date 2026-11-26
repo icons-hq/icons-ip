@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useId, useRef, useState, useTransition } from 'react';
 import { readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
+import { GOODS_BULK_RECOVER_LABEL, GOODS_BULK_SEAL_LABEL } from '@/lib/admin/goods-bulk';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { discountStopApplied, discountStopAwaitingResult, discountStopLossSummary, parseInlineSalePrice, type DiscountStopPricePhase } from '@/lib/admin/goods-list-inline';
 import { adminConfirm } from '@/lib/admin/confirm';
@@ -25,6 +26,8 @@ import { changePriceAfterStop, recoverDiscountStopPrice, reviewDiscountStop, sto
 const won = (value: number) => `${value.toLocaleString('ko-KR')}원`;
 const NOTE = 'text-sm text-muted-foreground';
 const UNEXPECTED = '처리 중 문제가 생겼습니다. 창을 닫고 새로고침한 뒤 상품의 할인과 판매가를 확인해주세요.';
+/** 결과를 모를 때 다음에 누를 것. 버튼 이름을 화면에 적힌 그대로 쓴다. */
+const NEXT_STEP = `[${GOODS_BULK_RECOVER_LABEL}]이나 [${GOODS_BULK_SEAL_LABEL}]를 눌러주세요.`;
 
 /**
  * 창을 열 때 판매가 칸이 넘기는 상품 값. `basePrice`는 운영자가 목록에서 본 할인 전 기본 판매가(첫 기대값)다.
@@ -33,7 +36,7 @@ const UNEXPECTED = '처리 중 문제가 생겼습니다. 창을 닫고 새로�
 export interface DiscountStopTarget { goodId: string; goodName: string; goodCode: string | null; basePrice: number; hasOptions: boolean; instant?: boolean }
 
 /**
- * 창의 상태와 동작. 창이 닫혀 있으면 `phase`가 null이다. `committing`은 확정·결과 조회가 서버에 가 있는 동안이다 —
+ * 창의 상태와 동작. 창이 닫혀 있으면 `phase`가 null이다. `committing`은 확정·저장 확인이 서버에 가 있는 동안이다 —
  * 그때만 입력을 잠근다(멈출 할인을 읽는 동안과 그 결과가 그려질 때는 잠그지 않아 입력 칸 포커스가 유지된다).
  */
 export function useDiscountStopPrice({ identity, onDone }: { identity?: GoodsGroupIdentity; onDone?: (target: DiscountStopTarget, price: number, stoppedHere: boolean) => void } = {}) {
@@ -78,7 +81,7 @@ export function useDiscountStopPrice({ identity, onDone }: { identity?: GoodsGro
       const review = phase.review;
       const done = { price: next, stoppedHere: true };
       setSubmitted(done);
-      /* 확정 응답을 받기 전에 실패하면 할인이 멈췄는지 알 수 없다 — 결과 조회로 끝낸다. */
+      /* 확정 응답을 받기 전에 실패하면 할인이 멈췄는지 알 수 없다 — '저장됐는지 확인'으로 끝낸다. */
       run(async () => apply(goal, await stopDiscountThenChangePrice(identity, goal.goodId, review, seenBasePrice, next, setPhase), done),
         () => setPhase({ step: 'stop-uncertain', review, operationId: review.operationId, message: UNEXPECTED }), true);
     } else {
@@ -123,7 +126,7 @@ export function useDiscountStopPrice({ identity, onDone }: { identity?: GoodsGro
         confirmLabel: stopping ? '할인 중지 후 변경' : '판매가 변경',
       }).then(ok => { busy.current = false; if (ok) execute(goal, phase, next); });
     },
-    /** 결과를 모르는 단계의 처리 결과 조회(`seal`이면 미처리 요청 종료). */
+    /** 결과를 모르는 단계의 '저장됐는지 확인'(`seal`이면 '그만두고 다시 하기'). */
     recover(seal: boolean) {
       if (!identity || !target || !phase || busy.current || (phase.step !== 'stop-uncertain' && phase.step !== 'price-uncertain')) return;
       const uncertain = phase, goal = target, done = submitted;
@@ -145,7 +148,7 @@ export function GoodsDiscountStopPriceDialog({ flow }: {
   const awaiting = discountStopAwaitingResult(phase);
   /* 확정이 서버에 가 있는 동안과 결과를 모르는 동안만 잠근다. 멈출 할인을 읽는 동안에도 새 판매가는 미리 입력할 수 있다. */
   const locked = committing || awaiting;
-  /* 확정이 끝나 다시 입력할 수 있게 되면(판매가 실패·결과 조회 뒤) 입력 칸으로 포커스를 돌려준다 — 잠그는 동안 포커스가 문서로 빠진다. */
+  /* 확정이 끝나 다시 입력할 수 있게 되면(판매가 실패·저장 확인 뒤) 입력 칸으로 포커스를 돌려준다 — 잠그는 동안 포커스가 문서로 빠진다. */
   useEffect(() => {
     if (committing) { wasCommitting.current = true; return; }
     if (!wasCommitting.current) return;
@@ -168,8 +171,8 @@ export function GoodsDiscountStopPriceDialog({ flow }: {
       {phase.step === 'review-failed' ? <AdminNotice role="alert" tone="danger" title="할인과 판매가는 바뀌지 않았습니다.">
         <p>{phase.message}</p>
       </AdminNotice> : null}
-      {phase.step === 'stop-uncertain' ? <AdminNotice role="alert" tone="warning" title="할인 중지 결과를 확인하지 못했습니다.">
-        <p>{phase.message}</p><p className="mt-1">판매가 변경은 시작하지 않았습니다. 처리 결과를 조회하거나 미처리 요청을 종료해주세요.</p>
+      {phase.step === 'stop-uncertain' ? <AdminNotice role="alert" tone="warning" title="할인이 멈췄는지 확인하지 못했습니다.">
+        <p>{phase.message}</p><p className="mt-1">판매가는 아직 바꾸지 않았습니다. {NEXT_STEP}</p>
       </AdminNotice> : null}
       {phase.step === 'price' && phase.stoppedHere && phase.error ? <AdminNotice role="alert" tone="warning" title="할인은 멈췄습니다. 판매가는 바뀌지 않았습니다.">
         <p>{phase.error}</p>{stoppedLine}<p className="mt-1">멈춘 할인은 그대로 두고, 이 창에서 판매가만 다시 시도할 수 있습니다.</p>
@@ -180,8 +183,8 @@ export function GoodsDiscountStopPriceDialog({ flow }: {
       {phase.step === 'price' && !phase.stoppedHere ? <AdminNotice role={phase.error ? 'alert' : undefined} tone={phase.error ? 'warning' : 'info'} title="멈출 할인이 이미 없습니다. 판매가만 바꿉니다.">
         <p>진행 중이거나 예정된 기간 할인이 그사이 끝났거나 다른 곳에서 멈췄습니다.</p>{phase.error ? <p className="mt-1">{phase.error}</p> : null}
       </AdminNotice> : null}
-      {phase.step === 'price-uncertain' ? <AdminNotice role="alert" tone="warning" title={phase.stoppedHere ? '할인은 멈췄습니다. 판매가 변경 결과를 확인하지 못했습니다.' : '판매가 변경 결과를 확인하지 못했습니다.'}>
-        <p>{phase.message}</p>{stoppedLine}<p className="mt-1">판매가가 이미 바뀌었을 수 있습니다. 처리 결과를 조회하거나 미처리 요청을 종료해주세요.</p>
+      {phase.step === 'price-uncertain' ? <AdminNotice role="alert" tone="warning" title={phase.stoppedHere ? '할인은 멈췄습니다. 판매가가 바뀌었는지 확인하지 못했습니다.' : '판매가가 바뀌었는지 확인하지 못했습니다.'}>
+        <p>{phase.message}</p>{stoppedLine}<p className="mt-1">판매가가 이미 바뀌었을 수 있습니다. {NEXT_STEP}</p>
       </AdminNotice> : null}
       <fieldset className="m-0 grid min-w-0 gap-1.5 border-0 p-0" disabled={locked}><legend className="sr-only">판매가</legend>
         <p className="text-sm">현재 판매가 <strong className="font-semibold tabular-nums">{won(flow.seenBasePrice)}</strong>
@@ -192,11 +195,11 @@ export function GoodsDiscountStopPriceDialog({ flow }: {
           aria-invalid={flow.inputError ? true : undefined} aria-describedby={flow.inputError ? errorId : undefined} />
         {flow.inputError ? <small id={errorId} role="alert" className="text-xs text-destructive">{flow.inputError}</small> : null}
       </fieldset>
-      {phase.step === 'ready' || phase.step === 'loading' ? <p className={NOTE}>멈출 할인을 확인한 뒤 15분 안에 진행해주세요. 그사이 할인이나 옵션 가격이 바뀌면 아무것도 바꾸지 않고 다시 확인을 요청합니다.</p> : null}
+      {phase.step === 'ready' || phase.step === 'loading' ? <p className={NOTE}>15분 안에 진행해주세요.</p> : null}
       <div className="flex flex-wrap justify-end gap-2">
         {awaiting ? <>
-          <Button type="button" variant="outline" disabled={pending} onClick={() => flow.recover(true)}>미처리 요청 종료</Button>
-          <Button type="button" disabled={pending} onClick={() => flow.recover(false)}>처리 결과 조회</Button>
+          <Button type="button" variant="outline" disabled={pending} onClick={() => flow.recover(true)}>{GOODS_BULK_SEAL_LABEL}</Button>
+          <Button type="button" disabled={pending} onClick={() => flow.recover(false)}>{GOODS_BULK_RECOVER_LABEL}</Button>
         </> : <>
           <Button type="button" variant="outline" disabled={pending} onClick={flow.close}>{phase.step === 'ready' || phase.step === 'loading' ? '취소' : '닫기'}</Button>
           {phase.step === 'review-failed' && phase.retry ? <Button type="button" disabled={pending} onClick={flow.reload}>다시 확인</Button> : null}

@@ -11,7 +11,7 @@ import { GOODS_OPTION_REMOVAL_NOTE, type GoodsOptionRow } from '@/lib/admin/good
  * 화면 부품을 함수로 불러 React 요소 트리를 걷는다(DOM 없음, useState만 흉내 낸다).
  */
 const hooks = vi.hoisted(() => ({ states: [] as unknown[], index: 0 }));
-vi.mock('@/app/admin/erp-item-actions', () => ({ searchErpItemsAction: vi.fn() }));
+vi.mock('@/app/admin/erp-item-picker-actions', () => ({ searchErpItemPickerAction: vi.fn() }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return { ...actual, useState: (initial: unknown) => {

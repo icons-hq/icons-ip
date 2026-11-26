@@ -34,10 +34,20 @@
 | 쓰임 | 부품 | 위치 |
 |---|---|---|
 | 대상 선택창 | `AdminPickerDialog`, `AdminPickerPanel` | `components/admin/console/AdminPickerDialog.tsx` |
+| 사진처럼 모양으로 고르는 선택창 | `AdminPickerPanel`의 `layout="grid"`(같은 검색·20개씩·[선택]을 격자로) | 같은 파일. 쓰는 곳 `GoodsPhotoPicker`(`components/admin/screens/GoodsPhotoLibraryScreen.tsx`) |
+| 여러 개를 이어서 고르기 | `AdminPickerPanel`의 `multiple`·`selectedKeys`·`onDeselect`(닫기 버튼이 [완료]). 고른 줄에 들어간 자리를 보이려면 `selectedLabel`, 일부 줄만 뺄 수 없게 하려면 `deselectBlocked`. 주 동작이 `footer`에 따로 있으면 `closeLabel="닫기"`로 닫는 버튼을 보조 모양으로 둔다 | 같은 파일. 쓰는 곳 `GoodsPhotoPicker`·`CategoryTemplatesScreen` |
+| 줄마다 같은 검색을 되풀이하지 않기 | `AdminPickerPanel`의 `initialQuery`(창을 열 때의 검색어). 조건(`filterOptions`)은 바꾸면 [검색] 없이 바로 다시 조회한다 | 같은 파일. 쓰는 곳 `ErpItemPickButton`(고른 뒤 아래의 빈 옵션으로 이어서 고른다) |
 | 상품 선택창 | `AdminGoodsPicker` | `components/admin/AdminGoodsPicker.tsx` |
 | 이미 가진 목록을 선택창으로 | `adminPickerLocalLoader` | `lib/admin/picker.ts` |
+| 폼 안에서 하나를 골라 넣는 칸(고른 이름 상자 + [○○ 고르기] + 숨은 제출 칸) | `AdminPickedBox`, `useAdminPickedValue` | `components/admin/AdminPickedValue.tsx`. 쓰는 곳 `GoodIpField` |
+| 템플릿 선택창(고르기 전에 적어 둔 값이 있으면 묻는다) | `GoodsSizeTemplatePicker`, `GoodsAfterSalesTemplatePicker`, `GoodsEventTemplatePicker` | `components/admin/` |
+| 원산지·ERP 품목·카테고리 코드 선택창 | `CountryNamePicker`, `ErpItemPickButton`, `CategoryCodeFinder` | `components/admin/` |
+| 저장 결과를 모를 때·닫을 때의 말(버튼·문장·확인창) | `SAVE_CHECK_LABEL`, `SAVE_UNKNOWN_MESSAGE`, `TEMPLATE_CLOSE_DIRTY_CONFIRM` | `lib/admin/goods-template-save.ts` |
+| 등록 팝업(적은 내용이 있으면 닫기 전에 묻기) | `AdminCreateDialogButton`의 `confirmDiscard` | `components/admin/console/AdminCreateDialogButton.tsx` |
 | "?" 도움말 | `AdminHelpTip`, `AdminLabelWithHelp` | `components/admin/console/AdminHelpTip.tsx` |
 | 도움말 문구 | `lib/admin/help/<화면>.ts` + `index.ts` | `lib/admin/help/` |
+
+이름은 같은 말로 쓴다: 선택창을 여는 버튼과 창 제목은 `○○ 고르기`, 줄 버튼은 `선택`, 저장 결과를 모를 때는 `저장됐는지 확인`, 보관을 되돌리는 버튼은 `복원`. 화면에 보이는 낱말의 정본은 `lib/admin/vocabulary.ts`(판매상태 값은 `ADMIN_STOCK_LABELS`)다.
 
 ## 검사
 
@@ -49,3 +59,9 @@
 ## 적용 순서
 
 상품등록(첫 PR) → 상품 관리 나머지 → 판매·배송 → CS → 전시·마케팅 → 설정. 화면을 하나 정리할 때 위 8개를 모두 본다.
+
+## 전환 현황
+
+- **상품등록(2026-11-25, #750)**: 상품 등록·수정 화면.
+- **상품 관리 나머지(2026-11-25)**: 상품 목록·일괄 변경·바로 수정, 엑셀 등록·내려받기, 카테고리 관리, 자주 쓰는 카테고리, 임시저장 창, 상품속성 관리, ERP 품목, 재고 대조·상품 동영상, 사이즈·A/S·이벤트 템플릿, 상품정보제공고시 템플릿, 사진 보관함, 연관상품, 상품공지사항, 원산지 고르기, 옵션의 ERP 품목 고르기. 저장하려면 채워야 하던 근거 칸은 카테고리 관리와 상품의 수령 방식·주문 후 제작에서 없앴다. 그룹상품(메뉴에서 숨김)은 내부 값 가리기와 확인창만 했다.
+- **남은 화면**: `LEGACY_PICKERS`(`lib/admin/screen-rules-contract.test.ts`)에 28개. 판매·배송(배송정보·묶음그룹·배송 안내 템플릿), CS(답변 템플릿·문의 상담), 전시·마케팅(카테고리 전시·쿠폰·쇼핑스토리·리뷰이벤트), 설정(운영자) 화면이다. 상품 수정 화면의 일부 패널(목록 색상칩·예약 일정·정기배송·배송비 규칙)의 저장 결과 확인 버튼(`같은 요청으로 결과 확인`), 선택창 버튼의 옛 이름(`카테고리 선택`·`추가구성상품 찾기`·`템플릿에서 가져오기`), 근거 칸(쿠폰·리뷰·클레임·운영 스위치·배송정보)은 아직 남아 있다. 엑셀 등록의 사방넷 상품 양식에서 연결 IP·브랜드별 IP를 고르는 칸은 아직 전체 드롭다운이다(규칙 1 대상). 상품 목록의 건수 칸 '품절(재고 0)'과 조회 조건·엑셀 내려받기 요약의 '품절'은 같은 조건인데 이름이 다르다.

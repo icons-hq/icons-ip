@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { goodEditorValues, createGoodEditorDraft, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS } from './good-editor';
+import { goodEditorValues, createGoodEditorDraft, buildGoodEditorPreview, goodShippingNoticeSummaryName, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS } from './good-editor';
 import { createAdminLocalAutosave, withLocalRecoveryValues } from './local-autosave';
 /* 배송 안내 템플릿의 선택 칸 '도서산간 안내'(T19)를 미리보기 배송 정책에도 싣는다 — 공개 상세(GoodAdditionalInfo)와 같은 자리. */
 it('고른 배송 안내 템플릿의 도서산간 안내를 미리보기 배송 정책에 싣고, 비어 있으면 싣지 않는다', () => {
@@ -14,6 +14,16 @@ it('고른 배송 안내 템플릿의 도서산간 안내를 미리보기 배송
   expect(build()?.shippingNotice).toBe('배송 안내');
 });
 /* S36-040: 미리보기의 교환·반품지는 공개 상세처럼 고른 반품지, 비우면 출고지 반품 주소다. 기타 인증(SHEET-014)도 저장된 공개 사본을 싣는다. */
+/* 브라우저 확인 S17: 목록에 없는 예전 안내가 적용 중일 때 칸에는 그 이름이 나오는데 접힌 줄 요약은 '선택한 안내'였다. */
+it('접힌 줄 요약의 배송 안내 이름은 칸에 보이는 이름과 같다 — 목록에 없는 예전 안내는 저장돼 있는 이름을 쓴다', () => {
+  const options = [{ code: 'ship', version: 2, name: '배송 안내 2판' }], saved = { code: 'ship', version: 1, name: '배송 안내 1판' };
+  expect(goodShippingNoticeSummaryName('', options, saved)).toBe('기본 안내');
+  expect(goodShippingNoticeSummaryName('ship@2', options, saved)).toBe('배송 안내 2판');
+  expect(goodShippingNoticeSummaryName('ship@1', options, saved)).toBe('배송 안내 1판');
+  expect(goodShippingNoticeSummaryName('ship@1', options, null)).toBe('지금 적용 중인 안내');
+  expect(goodShippingNoticeSummaryName('ship@1', options, { ...saved, name: '' })).toBe('지금 적용 중인 안내');
+});
+
 it('미리보기 교환·반품지는 고른 반품지를 먼저 쓰고 기타 인증을 공개 상세처럼 싣는다', () => {
   const origin = { id: 'origin-gimpo', name: '김포', defaultCarrier: null, baseFee: 3000, freeThreshold: 50000, returnAddress: '김포 반품지', active: true };
   const seoul = { id: '11111111-1111-4111-8111-111111111111', name: '서울 반품지', address: '서울특별시 합성구 반품로 1' };

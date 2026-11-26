@@ -285,7 +285,7 @@ describe('사방넷 상품 양식 흐름', () => {
     expect(await prepareGoodsImport({ name: '사방넷.csv', size: 10 })).toMatchObject({ ok: false });
   });
 
-  it('열 확인은 운영자만, 업로드 중인 본인 작업에서 열 이름·예시·IP 목록을 돌려준다', async () => {
+  it('열 읽어 오기는 운영자만, 업로드 중인 본인 작업에서 열 이름·예시·IP 목록을 돌려준다', async () => {
     mocks.batch.mockResolvedValue(uploading);
     const result = await inspectSabangnetGoodsImport('batch');
     expect(result).toMatchObject({ ok: true, inspection: {
@@ -319,8 +319,8 @@ describe('사방넷 상품 양식 흐름', () => {
     expect(plan[0].warnings).toContain(SABANGNET_KC_WARNING);
     expect(plan[0].images).toEqual([{ field: 'image_path', kind: 'url', source: 'https://img.example.com/mug.jpg' }]);
     expect(plan[1].errors).toEqual([expect.stringContaining('이미 등록된 상품 자동코드')]);
-    // 실패 행 파일로 ICONS 양식에 다시 올리면 기존 상품을 덮어쓰므로 그 행은 파일에 넣지 않는다.
-    expect(plan[1].errors[0]).toContain('실패 행 파일에 넣지 않습니다');
+    // 실패한 줄 파일로 ICONS 양식에 다시 올리면 기존 상품을 덮어쓰므로 그 행은 파일에 넣지 않는다.
+    expect(plan[1].errors[0]).toContain('실패한 줄 파일에 넣지 않습니다');
     expect(plan[1].errors[0]).toContain('상품 목록에서 내보낸 엑셀');
     expect(plan[1].source).toEqual([]);
     expect(plan[0].source).toHaveLength(1);

@@ -3,7 +3,11 @@ import { GOODS_GROUPS_PATH, parseGoodsGroupPage, type GoodsGroupPage } from './g
 import { isUuid } from '@/lib/uuid';
 import { transactionInteger, transactionRecord, transactionInstant } from '@/lib/goods-transaction-values';
 
-export const GROUP_SEARCH_FIELDS = [{ value: 'all', label: '전체' }, { value: 'goodId', label: '상품 URL' }, { value: 'groupId', label: '그룹상품번호' }, { value: 'code', label: '상품 자동코드' }, { value: 'name', label: '그룹상품명' }, { value: 'maker', label: '제조사명' }] as const;
+/*
+ * 검색 대상. 그룹 번호(UUID)와 상품 URL(영문 내부 값)은 운영자가 쓸 일이 없어(docs/admin-screen-rules.md 규칙 8) 고르는 항목에서 뺐다.
+ * 예전 주소의 field=groupId·goodId는 '전체'로 읽고, '전체' 검색은 두 값도 함께 찾는다(DB 함수 admin_search_goods_group_console).
+ */
+export const GROUP_SEARCH_FIELDS = [{ value: 'all', label: '전체' }, { value: 'code', label: '상품 자동코드' }, { value: 'name', label: '그룹상품명' }, { value: 'maker', label: '제조사명' }] as const;
 export const GROUP_STATUSES = [{ value: 'all', label: '전체' }, { value: 'published', label: '공개 상품 포함' }, { value: 'draft', label: '전체 미공개' }, { value: 'archived', label: '연결 해제' }] as const;
 export const GROUP_SORTS = [{ value: 'created_desc', label: '그룹상품등록일순' }, { value: 'updated_desc', label: '그룹상품수정일순' }, { value: 'name_asc', label: '그룹상품명순' }] as const;
 export interface GoodsGroupFilters {

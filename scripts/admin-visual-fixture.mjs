@@ -190,7 +190,7 @@ const server = await createServer({
       { find: /^@\/app\/admin\/(qna|review|inquiry|customer|inquiry-reply-template)-actions$/, replacement: `${fixtureRoot}/cs-actions.ts` },
       { find: /^@\/app\/shipments\/receipt-actions$/, replacement: `${fixtureRoot}/cs-actions.ts` },
       { find: /^@\/app\/admin\/(goods-kc|goods-notice-preset)-actions$/, replacement: `${fixtureRoot}/kc-actions.ts` },
-      { find: /^@\/app\/admin\/erp-item-actions$/, replacement: `${fixtureRoot}/erp-item-actions.ts` },
+      { find: /^@\/app\/admin\/(erp-item|erp-item-picker)-actions$/, replacement: `${fixtureRoot}/erp-item-actions.ts` },
       { find: /^@\/app\/shop\/actions$/, replacement: `${fixtureRoot}/editor-actions.ts` },
       { find: /^@\/app\/shop\/experience-actions$/, replacement: `${fixtureRoot}/experience-actions.ts` },
       { find: /^@\/components\/shell\/CartProvider$/, replacement: `${fixtureRoot}/cart.ts` },

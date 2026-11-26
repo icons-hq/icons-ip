@@ -66,6 +66,14 @@ export function openOptionStockRows(options: readonly GoodsListOptionStock[], ne
 export function optionStockNeedsRead(rows: readonly OptionStockRow[]): boolean {
   return rows.some(row => row.seen === null && !row.missing);
 }
+/**
+ * 저장하지 않고 닫으면 사라지는 줄 수(화면 규칙 7 — 닫기 전에 무엇이 사라지는지 말한다).
+ * 새 수량이 지금 수량과 다르거나 사유를 적은 줄을 센다. 저장된 줄은 새 수량이 지금 수량으로 돌아가 있어 세지 않고, 사라진 옵션도 세지 않는다.
+ */
+export function optionStockUnsavedCount(rows: readonly OptionStockRow[]): number {
+  return rows.filter(row => !row.missing && (row.reason.trim() !== ''
+    || (row.seen === null ? row.input.trim() !== '' : parseInlineStockQty(row.input) !== row.seen))).length;
+}
 /** 새로 읽은 사용 옵션 수량을 현재 수량이 빈 줄에만 채운다. 이미 보고 있는 줄의 기대값은 바꾸지 않는다. */
 export function applyOptionStockRead(rows: readonly OptionStockRow[], options: readonly GoodsListOptionStock[]): OptionStockRow[] {
   return rows.map(row => {
@@ -127,8 +135,8 @@ export function optionStockSummary(outcomes: readonly OptionStockOutcome[]): str
   const saved = outcomes.filter(outcome => outcome.state === 'saved').length;
   const rejected = outcomes.filter(outcome => outcome.state === 'rejected').length;
   const uncertain = outcomes.filter(outcome => outcome.state === 'uncertain').length;
-  return [saved ? `${saved}개 옵션의 재고수량을 저장했습니다.` : '', rejected ? `${rejected}개 옵션은 저장하지 않았습니다. 현재 수량을 다시 확인하고 저장해주세요.` : '',
-    uncertain ? `${uncertain}개 옵션은 저장 결과를 확인하지 못했습니다. 같은 수량으로 다시 저장하면 한 번만 반영됩니다.` : ''].filter(Boolean).join(' ');
+  return [saved ? `${saved}개 옵션의 재고수량을 저장했습니다.` : '', rejected ? `${rejected}개 옵션은 저장하지 않았습니다. 지금 수량을 다시 확인하고 저장해주세요.` : '',
+    uncertain ? `${uncertain}개 옵션은 저장됐는지 확인하지 못했습니다. 같은 수량으로 다시 저장하면 한 번만 반영됩니다.` : ''].filter(Boolean).join(' ');
 }
 
 // ── 할인 중지 후 판매가 변경 ───────────────────────────────────────────────────────────────
@@ -143,7 +151,7 @@ export interface DiscountStopReview { operationId: string; discounts: GoodsBulkA
  * - loading: 멈출 할인을 읽는 중
  * - ready: 멈출 할인을 보여 주고 확인을 기다림
  * - review-failed: 아무것도 바뀌지 않았다. `retry`면 멈출 할인을 다시 읽을 수 있고, 아니면 창을 닫고 새로고침한다.
- * - stop-uncertain: 할인 중지 결과를 모른다(처리 결과 조회·미처리 요청 종료)
+ * - stop-uncertain: 할인 중지 결과를 모른다(저장됐는지 확인·그만두고 다시 하기)
  * - price: 할인이 멈춘 상태(이 창에서 멈췄거나 이미 없었음)에서 판매가 변경을 기다리거나 실패했다. `error`가 실패 사유다.
  * - price-uncertain: 할인은 멈췄고 판매가 변경 결과를 모른다
  */
@@ -159,7 +167,7 @@ export type DiscountStopPricePhase =
 export function discountStopApplied(phase: DiscountStopPricePhase | null): boolean {
   return phase?.step === 'price' || phase?.step === 'price-uncertain';
 }
-/** 결과를 모르는 동안은 창을 닫지 않는다(처리 결과 조회·미처리 요청 종료로 끝낸다). */
+/** 결과를 모르는 동안은 창을 닫지 않는다(저장됐는지 확인·그만두고 다시 하기로 끝낸다). */
 export function discountStopAwaitingResult(phase: DiscountStopPricePhase | null): boolean {
   return phase?.step === 'stop-uncertain' || phase?.step === 'price-uncertain';
 }

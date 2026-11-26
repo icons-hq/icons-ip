@@ -12,6 +12,7 @@ import {
   parseStockReconcileApplyOutcome,
   parseStockReconcileDocument,
   stockAsOfError,
+  stockManualColumnCount,
   stockReconcileDisplayItem,
   stockReconcileErrorMessage,
   stockReconcileRowPayload,
@@ -77,14 +78,32 @@ describe('재고 파일 대조 — 표 읽기', () => {
     expect(plan.skippedRowCount).toBe(1);
     expect(plan.blocking).toBeNull();
     expect(plan.warnings.join('\n')).toContain('ERP 코드(품번) 열에 숫자 형식 셀이 있습니다');
+    expect(plan.warnings).toContain('코드와 수량이 모두 빈 1줄은 대조하지 않습니다.');
+    /* 머리글이 없으면 열마다 가져올 항목을 고르게 한다. */
+    expect(buildStockReconcilePlan([['000123', '12']]).warnings).toContain('머리글 줄을 찾지 못했습니다. 열마다 가져올 항목을 골라주세요.');
+  });
+
+  it('손으로 바꾼 열 연결의 수를 센다(자동으로 정한 연결과 같으면 0이라 묻지 않는다)', () => {
+    const table = [['품번', '품명', '재고수량'], ['000123', '키링', '12']];
+    const automatic = buildStockReconcilePlan(table);
+    expect(stockManualColumnCount(table, automatic)).toBe(0);
+    const changed = buildStockReconcilePlan(table, { mapping: assignStockColumnTarget(automatic.columns.map((column) => column.target), 1, 'barcode') });
+    expect(stockManualColumnCount(table, changed)).toBe(1);
+    /* 손으로 바꿨다가 자동 연결로 되돌리면 잃을 것이 없다. */
+    const restored = buildStockReconcilePlan(table, { mapping: automatic.columns.map((column) => column.target) });
+    expect(stockManualColumnCount(table, restored)).toBe(0);
+    /* 머리글 없음으로 고른 표의 자동 연결은 모든 열이 '가져오지 않음'이다. */
+    expect(stockManualColumnCount(table, buildStockReconcilePlan(table, { headerIndex: -1 }))).toBe(0);
+    expect(stockManualColumnCount(table, buildStockReconcilePlan(table, { headerIndex: -1, mapping: ['erpCode', 'ignore', 'quantity'] }))).toBe(2);
   });
 
   it('수량 열이나 코드 열이 없으면 막고, 행 수 상한을 지킨다', () => {
     expect(buildStockReconcilePlan([['품번', '품명'], ['A', 'B']]).blocking).toContain('재고 수량 열');
     expect(buildStockReconcilePlan([['품명', '재고수량'], ['A', '1']]).blocking).toContain('한 열 이상');
     const many = [['옵션 자동코드', '재고수량'], ...Array.from({ length: STOCK_RECONCILE_ROW_LIMIT + 1 }, (_, index) => [`C${index}`, '1'])];
-    expect(buildStockReconcilePlan(many).blocking).toContain('2,000행');
-    expect(buildStockReconcilePlan([['옵션 자동코드', '재고수량']]).blocking).toBe('대조할 행이 없습니다.');
+    expect(buildStockReconcilePlan(many).blocking).toContain('2,000줄');
+    expect(buildStockReconcilePlan([['옵션 자동코드', '재고수량']]).blocking).toBe('대조할 줄이 없습니다. 머리글 아래에 재고가 적힌 줄을 넣어주세요.');
+    expect(buildStockReconcilePlan([['옵션 자동코드', '재고수량'], ['', '5']]).blocking).toBe('대조할 수 있는 줄이 없습니다. 아래에서 줄마다 적힌 사유를 확인해주세요.');
   });
 
   it('서버는 브라우저 행을 다시 검사하고 RPC 형식으로 바꾼다', () => {

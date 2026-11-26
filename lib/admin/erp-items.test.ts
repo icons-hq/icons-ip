@@ -2,13 +2,19 @@ import { describe, expect, it } from 'vitest';
 import type { AdminCategoryNode } from './category';
 import {
   ERP_ITEMS_PATH,
+  addErpItemClears,
   conflictingCategoryErpMapping,
   createErpCategoryIndex,
+  emptyErpItemClears,
   erpCategoryMappingBatchMessage,
   erpCategoryMappingErrorLabel,
+  erpItemBlankFields,
+  erpItemBlanksUncheckedConfirmation,
+  erpItemClearsConfirmation,
   erpItemRejectReasonLabel,
   erpItemsHref,
   formatErpSalePrice,
+  mergeErpItemClears,
   normalizeErpItemFilters,
   parseErpCategoryMappingBatch,
   parseErpCategoryMappingRow,
@@ -176,5 +182,44 @@ describe('ERP 분류 일괄 연결 계약', () => {
     expect(erpCategoryMappingBatchMessage({ changed: 1234, unchanged: 0, rejected: [] }, false)).toBe('ERP 분류 1,234건의 연결을 저장했습니다.');
     expect(erpCategoryMappingBatchMessage({ changed: 2, unchanged: 1, rejected: [{}] }, true)).toBe('ERP 분류 2건의 연결을 해제했습니다. 1건은 이미 같은 연결입니다. 1건은 저장하지 못했습니다. 표에서 사유를 확인해주세요.');
     expect(erpCategoryMappingBatchMessage({ changed: 0, unchanged: 0, rejected: [] }, false)).toBe('바뀐 연결이 없습니다.');
+  });
+});
+
+/* R-04·화면 규칙 7: 품목 올리기는 열을 골랐는데 칸이 비어 있으면 그 품목의 올려 둔 값을 지운다. 올리기 전에 지워지는 값을 세어 묻는다. */
+describe('품목 올리기에서 지워지는 값', () => {
+  const existing = { code: '000123', name: '아크릴 키링', category: '문구 > 키링', salePrice: 12000, barcode: '8801' };
+
+  it('열을 골랐는데 칸이 빈 항목만 빈 항목이다(열을 고르지 않은 항목은 그대로 둔다)', () => {
+    expect(erpItemBlankFields({ category: null, salePrice: 12000, barcode: null })).toEqual(['category', 'barcode']);
+    expect(erpItemBlankFields({ salePrice: null })).toEqual(['salePrice']);
+    expect(erpItemBlankFields({})).toEqual([]);
+    expect(erpItemBlankFields({ category: '문구', salePrice: 0, barcode: '8801' })).toEqual([]);
+  });
+
+  it('올려 둔 값이 있는 항목만 지워지는 값으로 세고, 품목은 한 번만 센다', () => {
+    const both = addErpItemClears(emptyErpItemClears(), existing, ['category', 'barcode']);
+    expect(both).toEqual({ items: 1, fields: { category: 1, salePrice: 0, barcode: 1 }, samples: [{ code: '000123', name: '아크릴 키링' }] });
+    /* 이미 빈 값은 지워질 것이 없다. 0원은 값이다. */
+    expect(addErpItemClears(emptyErpItemClears(), { ...existing, barcode: null }, ['barcode'])).toEqual(emptyErpItemClears());
+    expect(addErpItemClears(emptyErpItemClears(), { ...existing, salePrice: 0 }, ['salePrice']).fields.salePrice).toBe(1);
+    expect(addErpItemClears(emptyErpItemClears(), existing, [])).toEqual(emptyErpItemClears());
+  });
+
+  it('묶음 결과를 합치고 보기는 앞 3개만 둔다', () => {
+    const one = (code: string) => addErpItemClears(emptyErpItemClears(), { ...existing, code }, ['barcode']);
+    const merged = [one('A'), one('B'), one('C'), one('D')].reduce(mergeErpItemClears, emptyErpItemClears());
+    expect(merged.items).toBe(4);
+    expect(merged.fields).toEqual({ category: 0, salePrice: 0, barcode: 4 });
+    expect(merged.samples.map((sample) => sample.code)).toEqual(['A', 'B', 'C']);
+  });
+
+  it('확인창은 지워지는 수·항목·품목과 지우지 않는 방법을 말한다', () => {
+    const clears = { items: 5, fields: { category: 0, salePrice: 2, barcode: 4 }, samples: [{ code: 'A', name: '키링' }, { code: 'B', name: '노트' }, { code: 'C', name: '펜' }] };
+    expect(erpItemClearsConfirmation(clears)).toBe('이미 올려 둔 품목 5건의 값이 지워집니다(ERP 판매가 2건 · 바코드 4건). 표에서 그 칸이 비어 있습니다.'
+      + '\nA 키링, B 노트, C 펜 외 2건'
+      + '\n지우지 않으려면 취소한 뒤 그 열을 ‘가져오지 않음’으로 바꾸거나 칸을 채워주세요. 그대로 올릴까요?');
+    expect(erpItemClearsConfirmation({ ...clears, items: 3 })).toContain('\nA 키링, B 노트, C 펜\n');
+    expect(erpItemBlanksUncheckedConfirmation(1200)).toContain('칸이 비어 있는 품목이 1,200건 있습니다. 이미 올려 둔 값이 있으면 그 값이 지워집니다.');
+    expect(erpItemBlanksUncheckedConfirmation(1)).toContain('그대로 올릴까요?');
   });
 });

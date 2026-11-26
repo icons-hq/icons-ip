@@ -50,14 +50,14 @@ describe('상품 편집기 본문 문구', () => {
 
   it('판매상태를 고르면 고객 화면과 구매에서 달라지는 점을 한 줄로 말한다', () => {
     const effect = (stock: string) => text(between(render({ ...good, stock: stock as AdminGoodRecord['stock'] }), 'data-good-stock-effect=""', '</p>'));
-    expect(effect('ok')).toContain('정상으로 판매합니다. 재고수량이 0이 되면 자동으로 품절로 보입니다.');
+    expect(effect('ok')).toContain('그대로 팝니다. 재고수량이 0이 되면 자동으로 품절로 보입니다.');
     expect(effect('low')).toContain('그대로 살 수 있고, 장바구니에 남은 재고 수가 보입니다. 재고가 줄어도 이 상태로 자동으로 바뀌지는 않아 직접 골라야 합니다.');
-    expect(effect('soldout')).toContain('재고가 있어도 고객 화면에 품절로 보이고 살 수 없습니다. 다시 팔려면 정상 판매로 바꿉니다.');
+    expect(effect('soldout')).toContain('재고가 있어도 고객 화면에 품절로 보이고 살 수 없습니다. 다시 팔려면 판매중으로 바꿉니다.');
     /* 선택지 이름은 가이드·엑셀과 같다. */
     const html = render(good);
-    expect(html).toContain('<option value="ok">정상 판매</option>');
+    expect(html).toContain('<option value="ok">판매중</option>');
     expect(html).toContain('<option value="low" selected="">소량 재고</option>');
-    expect(html).toContain('<option value="soldout">판매 중지</option>');
+    expect(html).toContain('<option value="soldout">판매중지</option>');
   });
 
   it('영문 상품명은 예시와 보이는 곳을, 검색 키워드는 한 줄만 말하고 따로 문단을 두지 않는다', () => {

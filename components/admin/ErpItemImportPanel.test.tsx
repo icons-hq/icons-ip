@@ -1,6 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { setAdminConfirmHandler } from '@/lib/admin/confirm';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
 import type { ErpImportIssue } from '@/lib/admin/erp-item-import';
 
 const hooks = vi.hoisted(() => ({
@@ -12,11 +14,12 @@ const hooks = vi.hoisted(() => ({
   refresh: vi.fn(),
   importRows: vi.fn(),
   readFile: vi.fn(),
+  clears: vi.fn(),
   workspace: null as null | { comparePasted: ReturnType<typeof vi.fn>; showUnlinkedCategories: ReturnType<typeof vi.fn> },
 }));
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: hooks.refresh }) }));
-vi.mock('@/app/admin/erp-item-actions', () => ({ importErpItemsAction: hooks.importRows, readErpItemFileAction: hooks.readFile }));
+vi.mock('@/app/admin/erp-item-actions', () => ({ importErpItemsAction: hooks.importRows, readErpItemFileAction: hooks.readFile, countErpItemClearsAction: hooks.clears }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
@@ -83,6 +86,8 @@ async function settle() {
   await Promise.all(hooks.pending.splice(0));
 }
 
+const NO_CLEARS = { items: 0, fields: { category: 0, salePrice: 0, barcode: 0 }, samples: [] };
+
 const PASTED = [
   '품번\t품명\t카테고리\t판매가\t바코드',
   '000123\t아크릴 키링\t문구 > 키링\t12,000\t0088012345678',
@@ -97,7 +102,10 @@ beforeEach(() => {
   hooks.refresh.mockReset();
   hooks.importRows.mockReset().mockImplementation(async (rows: unknown[]) => ({ ok: true, inserted: rows.length, updated: 0, unchanged: 0, rejected: [] }));
   hooks.readFile.mockReset();
+  /* 기본: 올려 둔 값이 지워지는 품목이 없다(새 품목이거나 이미 빈 값). */
+  hooks.clears.mockReset().mockResolvedValue({ ok: true, clears: NO_CLEARS });
   hooks.workspace = null;
+  setAdminConfirmHandler(null);
 });
 
 describe('ERP 품목 반입 패널', () => {
@@ -120,7 +128,8 @@ describe('ERP 품목 반입 패널', () => {
     expect(hooks.importRows.mock.calls[1][0]).toHaveLength(101);
     tree = render();
     expect(text(tree)).toContain('추가 601');
-    expect(text(tree)).toContain('거부 1');
+    expect(text(tree)).toContain('올리지 못함 1');
+    expect(text(tree)).toContain('올리지 못한 줄은 아래 사유를 보고 고친 뒤 다시 올려주세요.');
     expect(hooks.refresh).toHaveBeenCalledOnce();
   });
 
@@ -134,7 +143,7 @@ describe('ERP 품목 반입 패널', () => {
     expect(hooks.importRows.mock.calls[0][0].map((row: { code: string }) => row.code)).toEqual(['A1', 'A3']);
     const tree = render();
     expect(text(tree)).toContain('추가 1');
-    expect(text(tree)).toContain('거부 2');
+    expect(text(tree)).toContain('올리지 못함 2');
     expect(find(tree, (element) => element.props.caption === '올리지 못한 줄')[0].props.issues).toEqual([
       { row: 3, code: 'A2', reason: 'missing_name' },
       { row: 4, code: 'A3', reason: 'invalid_name' },
@@ -154,7 +163,8 @@ describe('ERP 품목 반입 패널', () => {
     expect(hooks.workspace.comparePasted).toHaveBeenCalledOnce();
     expect(hooks.workspace.comparePasted).toHaveBeenCalledWith(['A1', 'A2', 'A4']);
     const tree = render(props);
-    expect(find(tree, (element) => (element.props as { title?: unknown }).title === '미연결 분류 2건')).toHaveLength(1);
+    /* 연결 표의 '연결 필요'와 같은 말로 알린다. */
+    expect(find(tree, (element) => (element.props as { title?: unknown }).title === '연결이 필요한 ERP 분류 2건')).toHaveLength(1);
     expect(text(tree)).toContain('문구 > 키링 · 문구 > 스티커');
     expect(text(tree)).toContain('방금 올린 품목과 연결 상품의 판매가·바코드를 비교했습니다.');
     button(tree, '연결하기').props.onClick?.();
@@ -168,8 +178,105 @@ describe('ERP 품목 반입 패널', () => {
     await settle();
     const tree = render({ unlinkedErpCategories: ['다른 분류'] });
     expect(text(tree)).toContain('추가 1');
-    expect(find(tree, (element) => String((element.props as { title?: unknown }).title ?? '').includes('미연결 분류'))).toHaveLength(0);
+    expect(find(tree, (element) => String((element.props as { title?: unknown }).title ?? '').includes('연결이 필요한'))).toHaveLength(0);
+    /* 올리지 못한 줄이 없으면 그 안내도 없다. */
+    expect(text(tree)).not.toContain('올리지 못한 줄은');
     expect(text(tree)).not.toContain('연결 상품의 판매가·바코드를 비교했습니다');
+  });
+
+  /* R-04·화면 규칙 7: 열을 골랐는데 칸이 비어 있으면 그 품목의 올려 둔 값이 지워진다. 실제로 지워지는 값이 있을 때만 올리기 전에 수와 품목을 보이고 묻는다. */
+  describe('올려 둔 값이 지워지는 품목', () => {
+    const paste = (value: string) => {
+      find(render(), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value } });
+      button(render(), '붙여넣은 표 확인').props.onClick?.();
+    };
+    const WITH_BLANKS = '품번\t품명\t카테고리\t판매가\t바코드\nA1\t키링\t문구\t1,000\t8801\nA2\t스티커\t\t2,000\t\nA3\t노트\t문구\t\t8803';
+    const CLEARS = { items: 2, fields: { category: 1, salePrice: 1, barcode: 1 }, samples: [{ code: 'A2', name: '스티커' }, { code: 'A3', name: '노트' }] };
+
+    it('칸이 빈 줄이 없으면 비교하지 않고 바로 올린다', async () => {
+      paste('품번\t품명\t카테고리\nA1\t키링\t문구\nA2\t스티커\t문구');
+      button(render(), '2건 올리기').props.onClick?.();
+      await settle();
+      expect(hooks.clears).not.toHaveBeenCalled();
+      expect(hooks.importRows).toHaveBeenCalledOnce();
+    });
+
+    it('열을 고르지 않은 항목은 지워지지 않으므로 비교하지 않는다', async () => {
+      paste('품번\t품명\nA1\t키링\nA2\t스티커');
+      expect(text(render())).toContain('기존 값 유지');
+      button(render(), '2건 올리기').props.onClick?.();
+      await settle();
+      expect(hooks.clears).not.toHaveBeenCalled();
+      expect(hooks.importRows).toHaveBeenCalledOnce();
+    });
+
+    it('칸이 빈 줄만 보내 비교하고, 지워지는 값이 없으면 묻지 않고 올린다', async () => {
+      const confirm = stubAdminConfirm(true);
+      paste(WITH_BLANKS);
+      button(render(), '3건 올리기').props.onClick?.();
+      await settle();
+      expect(hooks.clears).toHaveBeenCalledOnce();
+      expect(hooks.clears.mock.calls[0][0]).toEqual([
+        { row: 3, code: 'A2', name: '스티커', category: null, salePrice: 2000, barcode: null },
+        { row: 4, code: 'A3', name: '노트', category: '문구', salePrice: null, barcode: '8803' },
+      ]);
+      expect(confirm).not.toHaveBeenCalled();
+      expect(hooks.importRows).toHaveBeenCalledOnce();
+    });
+
+    it('지워지는 값이 있으면 수와 품목을 보이고, 취소하면 올리지 않고 미리보기를 그대로 둔다', async () => {
+      const confirm = stubAdminConfirm(false);
+      hooks.clears.mockResolvedValue({ ok: true, clears: CLEARS });
+      paste(WITH_BLANKS);
+      button(render(), '3건 올리기').props.onClick?.();
+      await settle();
+      expect(confirm).toHaveBeenCalledWith('이미 올려 둔 품목 2건의 값이 지워집니다(ERP 분류 1건 · ERP 판매가 1건 · 바코드 1건). 표에서 그 칸이 비어 있습니다.'
+        + '\nA2 스티커, A3 노트'
+        + '\n지우지 않으려면 취소한 뒤 그 열을 ‘가져오지 않음’으로 바꾸거나 칸을 채워주세요. 그대로 올릴까요?');
+      expect(hooks.importRows).not.toHaveBeenCalled();
+      const tree = render();
+      expect(button(tree, '3건 올리기').props.disabled).toBe(false);
+      expect(text(tree)).not.toContain('올리는 중');
+      expect(text(tree)).not.toContain('비교하는 중');
+    });
+
+    it('확인하면 올린다', async () => {
+      stubAdminConfirm(true);
+      hooks.clears.mockResolvedValue({ ok: true, clears: CLEARS });
+      paste(WITH_BLANKS);
+      button(render(), '3건 올리기').props.onClick?.();
+      await settle();
+      expect(hooks.importRows).toHaveBeenCalledOnce();
+      expect(text(render())).toContain('추가 3');
+    });
+
+    it('올려 둔 값과 비교하지 못해도 올리기를 막지 않고, 지워질 수 있다는 것만 알리고 묻는다', async () => {
+      const confirm = stubAdminConfirm(true);
+      hooks.clears.mockRejectedValueOnce(new Error('network')).mockResolvedValueOnce({ ok: false, error: '올려 둔 값과 비교하지 못했습니다.' });
+      paste(WITH_BLANKS);
+      button(render(), '3건 올리기').props.onClick?.();
+      await settle();
+      expect(confirm.mock.calls[0][0]).toContain('칸이 비어 있는 품목이 2건 있습니다. 이미 올려 둔 값이 있으면 그 값이 지워집니다.');
+      expect(hooks.importRows).toHaveBeenCalledOnce();
+      button(render(), '3건 올리기').props.onClick?.();
+      await settle();
+      expect(confirm).toHaveBeenCalledTimes(2);
+      expect(hooks.importRows).toHaveBeenCalledTimes(2);
+    });
+
+    it('칸이 빈 줄이 500줄을 넘으면 나눠 비교해 합친다', async () => {
+      const confirm = stubAdminConfirm(false);
+      hooks.clears
+        .mockResolvedValueOnce({ ok: true, clears: { items: 2, fields: { category: 0, salePrice: 0, barcode: 2 }, samples: [{ code: 'C0000', name: '품목 0' }, { code: 'C0001', name: '품목 1' }] } })
+        .mockResolvedValueOnce({ ok: true, clears: { items: 3, fields: { category: 0, salePrice: 0, barcode: 3 }, samples: [{ code: 'C0500', name: '품목 500' }, { code: 'C0501', name: '품목 501' }] } });
+      paste(PASTED);
+      button(render(), '601건 올리기').props.onClick?.();
+      await settle();
+      expect(hooks.clears.mock.calls.map(([rows]) => (rows as unknown[]).length)).toEqual([500, 100]);
+      expect(confirm.mock.calls[0][0]).toContain('이미 올려 둔 품목 5건의 값이 지워집니다(바코드 5건).');
+      expect(confirm.mock.calls[0][0]).toContain('C0000 품목 0, C0001 품목 1, C0500 품목 500 외 2건');
+      expect(hooks.importRows).not.toHaveBeenCalled();
+    });
   });
 
   it('붙여넣기의 닫히지 않은 큰따옴표는 뒤 행을 삼키지 않고 미리보기 경고로 알린다', () => {
@@ -177,7 +284,7 @@ describe('ERP 품목 반입 패널', () => {
     button(render(), '붙여넣은 표 확인').props.onClick?.();
     const tree = render();
     expect(text(tree)).toContain('올릴 수 있는 품목 3건');
-    expect(text(tree)).toContain('닫는 큰따옴표가 없는 셀 1개(2행)는 따옴표를 포함해 적힌 그대로 읽었습니다.');
+    expect(text(tree)).toContain('닫는 큰따옴표가 없는 셀 1개(2번째 줄)는 따옴표를 포함해 적힌 그대로 읽었습니다.');
   });
 
   it('열을 직접 바꾸면 그 열 기준으로 다시 미리보기하고, 필수 열이 없으면 반입을 막는다', () => {

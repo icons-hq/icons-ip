@@ -58,7 +58,7 @@ export function GoodsAttributeEditor({ categoryId, goodId, initialSubmission, in
         }
         setRaw(entries); setRemoveIds(previous?.removeIds ?? []); initialized.current = true; setLoaded(true);
       } else setSchemaRevision(result.data.schema?.revision ?? 0);
-    }).catch(() => { if(alive){setLoading(false);setLoadError('상품속성을 불러오지 못했습니다. 다시 조회해주세요.');} });
+    }).catch(() => { if(alive){setLoading(false);setLoadError('상품속성을 불러오지 못했습니다. [최신 항목 보기]를 눌러 다시 불러와 주세요.');} });
     return () => { alive=false; };
   }, [categoryId, goodId]);
   const ready = loaded && !loadError && (categoryId ? schema?.categoryId === categoryId : schema === null);
@@ -94,7 +94,7 @@ export function GoodsAttributeEditor({ categoryId, goodId, initialSubmission, in
   const unmatched = raw.filter(entry=>!removeIds.includes(entry.field.id) && !compatible(entry,schema?.fields.find(field=>field.id===entry.field.id)));
   async function refresh() {
     const result=await readGoodsAttributesAction(categoryId||null,goodId);
-    if (!result.data) {setLoadError(result.error ?? '조회하지 못했습니다.');return;}
+    if (!result.data) {setLoadError(result.error ?? '상품속성을 불러오지 못했습니다. 잠시 뒤 [최신 항목 보기]를 다시 눌러 주세요.');return;}
     setLatest(result.data); setLoadError('');
   }
   const hasFields = Boolean(schema?.fields.length);
@@ -107,11 +107,11 @@ export function GoodsAttributeEditor({ categoryId, goodId, initialSubmission, in
     {hasFields ? <p className="text-sm font-medium text-foreground">대표 카테고리의 상품속성</p> : null}
     {categoryId && (loading || !ready && !loadError) ? <p className="text-sm text-muted-foreground" role="status">상품속성을 불러오는 중입니다.</p> : null}
     {loadError ? <p className="text-sm text-destructive" role="alert">{loadError}</p> : null}{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
-    {conflict ? <Button type="button" variant="outline" size="sm" className="self-start" onClick={refresh}><RefreshCw aria-hidden="true" />최신 속성 정의·저장값 조회</Button> : null}
-    {latest ? <div className="flex min-w-0 flex-col gap-2 rounded-lg border bg-muted/40 p-4 text-sm"><h3 className="font-medium">최신 속성에 저장된 값</h3>{latest.document.entries.map(entry=><p className="text-muted-foreground wrap-anywhere" key={entry.field.id}>{entry.field.name}: {goodsAttributeValueLabel(entry.field,entry.value)}</p>)}
+    {conflict ? <Button type="button" variant="outline" size="sm" className="self-start" onClick={refresh}><RefreshCw aria-hidden="true" />최신 항목 보기</Button> : null}
+    {latest ? <div className="flex min-w-0 flex-col gap-2 rounded-lg border bg-muted/40 p-4 text-sm"><h3 className="font-medium">지금 저장돼 있는 값</h3>{latest.document.entries.map(entry=><p className="text-muted-foreground wrap-anywhere" key={entry.field.id}>{entry.field.name}: {goodsAttributeValueLabel(entry.field,entry.value)}</p>)}
       <div className="flex flex-wrap gap-2 pt-1">
-      <Button type="button" variant="outline" size="sm" onClick={()=>{setSchema(latest.schema);setSchemaRevision(latest.schema?.revision??0);setDocument(latest.document);setExpectedRevision(latest.document.revision);setLatest(null);initialized.current=true;setLoaded(true);setLoading(false);}}>내 입력 유지하고 최신 버전으로 저장 준비</Button>
-      <Button type="button" variant="outline" size="sm" onClick={()=>{setSchema(latest.schema);setSchemaRevision(latest.schema?.revision??0);setDocument(latest.document);setExpectedRevision(latest.document.revision);setRaw(rawDocument(latest.document));setRemoveIds([]);setLatest(null);initialized.current=true;setLoaded(true);setLoading(false);}}>최신 저장값으로 입력 교체</Button>
+      <Button type="button" variant="outline" size="sm" onClick={()=>{setSchema(latest.schema);setSchemaRevision(latest.schema?.revision??0);setDocument(latest.document);setExpectedRevision(latest.document.revision);setLatest(null);initialized.current=true;setLoaded(true);setLoading(false);}}>내 입력 유지</Button>
+      <Button type="button" variant="outline" size="sm" onClick={()=>{setSchema(latest.schema);setSchemaRevision(latest.schema?.revision??0);setDocument(latest.document);setExpectedRevision(latest.document.revision);setRaw(rawDocument(latest.document));setRemoveIds([]);setLatest(null);initialized.current=true;setLoaded(true);setLoading(false);}}>최신 값으로 바꾸기</Button>
       </div>
     </div> : null}
     {ready ? <div className="grid min-w-0 gap-x-6 gap-y-5 empty:hidden sm:grid-cols-2">{schema?.fields.map(field=>{

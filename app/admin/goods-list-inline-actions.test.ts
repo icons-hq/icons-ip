@@ -48,7 +48,7 @@ describe('옵션별 재고 묶음 저장 (1014-106 — 옵션마다 기존 재�
     const result = await adjustGoodsOptionStocksAction('good-a', 'ip-a', requests);
     expect(result).toEqual({ ok: true, outcomes: [
       { variantId: blue, state: 'saved', stockQty: 8 },
-      { variantId: red, state: 'rejected', message: '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.' },
+      { variantId: red, state: 'rejected', message: '그사이 재고수량이 바뀌었습니다. 지금 수량을 확인한 뒤 다시 저장해주세요.' },
       { variantId: green, state: 'saved', stockQty: 0 },
     ], options: [{ variantId: blue, name: '블루', code: 'B', stockQty: 8 }, { variantId: red, name: '레드', code: 'R', stockQty: 2 }, { variantId: green, name: '그린', code: 'G', stockQty: 0 }] });
     // 옵션마다 기존 재고 조정 RPC를 차례로(옵션별 트랜잭션·기대값·요청번호·사유 그대로) 부른다.
@@ -96,7 +96,7 @@ describe('옵션별 재고 묶음 저장 (1014-106 — 옵션마다 기존 재�
     mocks.auth.mockResolvedValue({ isConfigured: true, user: null, role: null, isStaff: false });
     await expect(adjustGoodsOptionStocksAction('good-a', 'ip-a', requests)).rejects.toMatchObject({ digest: expect.stringContaining(`/login?next=${encodeURIComponent('/admin')}`) });
     mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, role: 'user', isStaff: false });
-    expect(await adjustGoodsOptionStocksAction('good-a', 'ip-a', requests)).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
+    expect(await adjustGoodsOptionStocksAction('good-a', 'ip-a', requests)).toEqual({ ok: false, error: '재고수량을 바꿀 권한이 없습니다. 최고 관리자에게 매니저 관리에서 상품 관리 권한을 요청해주세요.' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
@@ -122,7 +122,7 @@ describe('옵션별 재고 창의 현재 수량 다시 읽기 (1014-106)', () =>
     mocks.auth.mockResolvedValue({ isConfigured: true, user: null, role: null, isStaff: false });
     await expect(readGoodsOptionStocksAction('good-a')).rejects.toMatchObject({ digest: expect.stringContaining(`/login?next=${encodeURIComponent('/admin/catalog/goods')}`) });
     mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, role: 'user', isStaff: false });
-    expect(await readGoodsOptionStocksAction('good-a')).toEqual({ ok: false, error: '상품을 조회할 권한이 필요합니다.' });
+    expect(await readGoodsOptionStocksAction('good-a')).toEqual({ ok: false, error: '상품을 볼 권한이 없습니다. 최고 관리자에게 매니저 관리에서 권한을 요청해주세요.' });
     expect(mocks.from).not.toHaveBeenCalled();
   });
 });

@@ -10,6 +10,7 @@ import { adminConfirm } from './confirm';
  *
  * 브라우저 뒤로 가기는 막지 못한다. App Router가 주소를 바꾼 뒤에야 알 수 있어서다. 대신 비제어 입력 폼의 값을
  * sessionStorage에 보관했다가 돌아오면 되살린다(`saveAdminFormRecovery`·`restoreAdminFormRecovery`).
+ * 값을 state로 드는 화면은 같은 규칙의 `useAdminStateRecovery`(components/admin)로 보관한다.
  * 비밀번호·계좌·카드·인증 코드 같은 민감 입력은 보관하지 않고, 탭을 닫으면 보관한 값도 사라진다.
  *
  * 확인창은 어드민 공용 AlertDialog(`adminConfirm`)다. 클릭을 먼저 멈춘 뒤 확인하면 같은 링크를 다시 눌러 이동을 잇는다.

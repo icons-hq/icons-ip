@@ -32,10 +32,10 @@ describe('상품 목록 바로 수정 (A9)', () => {
     expect(mocks.commit).not.toHaveBeenCalled();
     expect(mocks.read).toHaveBeenCalledWith(mocks.preview.mock.calls[0][0], identity, true);
   });
-  it('응답이 불확실하면 재실행 대신 같은 요청의 결과 조회를 남긴다', async () => {
-    mocks.commit.mockResolvedValueOnce({ error: '처리 결과가 불명확합니다.', uncertain: true });
+  it("응답이 불확실하면 재실행 대신 같은 요청의 '저장됐는지 확인'을 남긴다", async () => {
+    mocks.commit.mockResolvedValueOnce({ error: '저장됐는지 확인하지 못했습니다.', uncertain: true });
     const result = await runSingleGoodBulk(identity, 'good-a', 'stop', {}, () => null);
-    expect(result).toEqual({ ok: false, message: '처리 결과가 불명확합니다.', operationId: mocks.preview.mock.calls[0][0] });
+    expect(result).toEqual({ ok: false, message: '저장됐는지 확인하지 못했습니다.', operationId: mocks.preview.mock.calls[0][0] });
   });
   it('확정 거절은 운영자 문구로 옮긴다', async () => {
     mocks.commit.mockImplementationOnce(async (operationId: string) => ({ value: { state: 'rejected', operationId, goodsCount: 0, groupsCount: 0, error: 'goods_compare_at_price_invalid' } }));
@@ -77,12 +77,14 @@ describe('상품 목록 바로 수정 (A9)', () => {
     const price = <GoodsInlinePrice goodId="good-a" goodName="상품 A" goodCode="A" basePrice={10000} identity={identity} hasOptions={false} display="9,000원" valueText="9,000원" discountEndsAt="2026-11-20T00:00:00Z" />;
     const html = renderToStaticMarkup(<GoodsInlineDialogHost identity={identity}>{price}</GoodsInlineDialogHost>);
     expect(html).toMatch(/data-inline-edit="cell"><button[^>]*aria-label="판매가 9,000원 할인 중지 후 변경"/);
-    expect(noteClasses(html, '할인 진행·예정')).toEqual(expect.arrayContaining(NOTE_CLASSES));
+    expect(noteClasses(html, '기간 할인 있음')).toEqual(expect.arrayContaining(NOTE_CLASSES));
     expect(html).not.toContain('<dialog');
     expect(html).not.toContain('바로 수정');
     // 창을 여는 곳이 없으면 값과 이유만 보인다(누를 수 없는 버튼을 두지 않는다).
     const alone = renderToStaticMarkup(price);
-    expect(alone).not.toContain('<button'); expect(alone).toContain('할인 진행·예정');
+    expect(alone).not.toContain('<button'); expect(alone).toContain('기간 할인 있음');
+    // 기간 없는 즉시할인은 상품 수정 화면과 같은 이름 '즉시할인'으로 부른다(B-03).
+    expect(renderToStaticMarkup(<GoodsInlinePrice goodId="good-a" basePrice={10000} identity={identity} hasOptions={false} display="9,000원" instantDiscount />)).toContain('즉시할인 중');
   });
   it('옵션이 여러 개인 상품의 재고 칸은 칸 전체가 옵션별 재고 창을 열고, 보조 글자는 한 줄로 칸 오른쪽에 맞추며 칸의 굵기를 물려받지 않는다(1014-106·107)', () => {
     const options = [{ variantId: 'b9000000-0000-4000-8000-000000000021', name: '블루', code: 'OPT-B', stockQty: 5 }, { variantId: 'b9000000-0000-4000-8000-000000000022', name: '레드', code: 'OPT-R', stockQty: 4 }];
@@ -101,7 +103,7 @@ describe('상품 목록 바로 수정 (A9)', () => {
       { variantId: 'v-red', requestId: 'b9000000-0000-4000-8000-0000000000c2', expectedStockQty: 4, nextStockQty: 9, reason: '입고 반영' },
       { variantId: 'v-green', requestId: 'b9000000-0000-4000-8000-0000000000c3', expectedStockQty: 3, nextStockQty: 0, reason: '실사' },
     ];
-    const reply = { ok: true, outcomes: [{ variantId: 'v-blue', state: 'saved', stockQty: 8 }, { variantId: 'v-red', state: 'rejected', message: '실재고가 변경되었습니다.' }, { variantId: 'v-green', state: 'saved', stockQty: 0 }],
+    const reply = { ok: true, outcomes: [{ variantId: 'v-blue', state: 'saved', stockQty: 8 }, { variantId: 'v-red', state: 'rejected', message: '그사이 재고수량이 바뀌었습니다.' }, { variantId: 'v-green', state: 'saved', stockQty: 0 }],
       options: [{ variantId: 'v-red', name: '레드', code: 'R', stockQty: 2 }] };
     mocks.adjustBatch.mockResolvedValueOnce(reply);
     expect(await saveGoodsOptionStocks({ goodId: 'good-a', ipId: 'ip-a' }, requests)).toEqual(reply);
@@ -112,9 +114,10 @@ describe('상품 목록 바로 수정 (A9)', () => {
     mocks.adjustBatch.mockRejectedValueOnce(new Error('network'));
     expect(await saveGoodsOptionStocks({ goodId: 'good-a', ipId: 'ip-a' }, requests)).toEqual({ ok: true, outcomes: requests.map(request => ({ variantId: request.variantId, state: 'uncertain', message: expect.stringContaining('한 번만 반영') })) });
   });
-  it("결과가 불명확한 저장 뒤의 '처리 결과 조회' 버튼은 덮개 위에 남아 수정 폼을 열지 않는다", () => {
-    const markup = renderToStaticMarkup(<InlineEditor fillCell label="판매가" display="10,000원" onSubmit={() => undefined} pending={false} error="처리 결과가 불명확합니다." recovery onRecover={() => undefined} editing={false} setEditing={() => undefined}><span /></InlineEditor>);
-    const recover = /<button[^>]*class="([^"]*)"[^>]*>처리 결과 조회<\/button>/.exec(markup)?.[1]?.split(/\s+/) ?? [];
+  it("결과가 불명확한 저장 뒤의 '저장됐는지 확인' 버튼은 덮개 위에 남아 수정 폼을 열지 않는다", () => {
+    const markup = renderToStaticMarkup(<InlineEditor fillCell label="판매가" display="10,000원" onSubmit={() => undefined} pending={false} error="저장됐는지 확인하지 못했습니다." recovery onRecover={() => undefined} editing={false} setEditing={() => undefined}><span /></InlineEditor>);
+    const recover = /<button[^>]*class="([^"]*)"[^>]*>저장됐는지 확인<\/button>/.exec(markup)?.[1]?.split(/\s+/) ?? [];
+    expect(markup).not.toContain('처리 결과 조회');
     expect(recover).toEqual(expect.arrayContaining(['relative', 'z-1']));
     expect(markup).toContain('role="alert"');
   });

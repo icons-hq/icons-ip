@@ -8,7 +8,8 @@ import {
   readStockReconcileFileAction,
   type StockReconcileFileResult,
 } from '@/app/admin/stock-reconcile-actions';
-import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminField, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminLabelWithHelp } from '@/components/admin/console/AdminHelpTip';
 import { DefectiveStockReference } from '@/components/admin/DefectiveStockReference';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { Button } from '@/components/admin/kit/ui/button';
@@ -16,6 +17,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { ERP_ITEM_FILE_BYTES_LIMIT, normalizeErpText } from '@/lib/admin/erp-item-import';
+import { STOCK_RECONCILE_HELP } from '@/lib/admin/help/stock-reconcile';
 import { statusTone } from '@/lib/admin/status-tone';
 import {
   STOCK_CLIENT_ISSUE_LABELS,
@@ -27,7 +29,6 @@ import {
   STOCK_RECONCILE_ISSUE_LABELS,
   STOCK_RECONCILE_PATH,
   STOCK_RECONCILE_REASON_LIMIT,
-  STOCK_RECONCILE_ROW_LIMIT,
   STOCK_RECONCILE_ROW_STATE_LABELS,
   assignStockColumnTarget,
   boundStockTable,
@@ -37,6 +38,7 @@ import {
   kstDateTimeLocalValue,
   parseStockDelimitedTable,
   stockAsOfError,
+  stockManualColumnCount,
   stockReconcileDisplayItem,
   stockReconcileRowPayload,
   stockReconcileRowState,
@@ -62,6 +64,8 @@ const CAPTION = 'px-2 py-2 text-left text-sm text-muted-foreground';
 const CODE = 'font-mono text-xs tabular-nums';
 const HINT = 'text-sm text-muted-foreground';
 const NUM = 'text-right tabular-nums';
+/* 대조 결과 표의 긴 머리글('기준 시각 뒤 출고' 등)은 낱말 사이에서 두 줄로 접는다 — 숫자 열이 머리글 길이만큼 넓어지지 않는다. */
+const WRAP_HEAD = 'whitespace-normal break-keep';
 const count = (value: number) => value.toLocaleString('ko-KR');
 const signed = (value: number) => (value > 0 ? `+${count(value)}` : count(value));
 
@@ -124,23 +128,27 @@ export function StockReconcileResult({ snapshot, showSame, onToggleSame }: { sna
       그 뒤에 받은 재고 파일로 다시 대조하거나, 반영한 뒤 재고 조정으로 다시 더해주세요.
     </AdminNotice> : null}
     {visible.length ? <div className={TABLE_REGION} role="region" aria-label="옵션별 대조 결과" tabIndex={0}>
-      <table className={`${TABLE} min-w-[1180px]`} data-slot="table">
+      {/* 열 11개가 1440 화면의 카드 안쪽(1082px)에 다 들어와야 마지막 '상태' 열(줄임 −60 등)이 보인다(QA G7 — 최소 폭 1180px라 98px가 잘렸다).
+          긴 머리글과 '찾은 코드'가 낱말 사이에서 접히게 해 열 폭을 줄였다: 머리글이 두 줄일 때 열 폭의 합이 910px쯤(직접 변경 배지가 붙으면 1010px쯤)이다.
+          최소 폭 960px는 더 좁은 화면에서 상품 이름 칸이 한 글자씩 꺾이지 않게 남긴 값이고, 그때만 가로로 민다. */}
+      <table className={`${TABLE} min-w-[960px]`} data-slot="table">
         <caption className={CAPTION}>
-          {applied ? '반영 결과(출고·회수·출고 대기·재고수량은 반영할 때 다시 잰 값)' : '반영 전 미리보기'} · 맞춘 뒤 재고수량 = 파일 수량 − 기준 시각 뒤 출고 + 기준 시각 뒤 회수 − 출고 대기 − 회수 뒤 미반영
+          {applied ? '반영 결과(출고·회수·출고 대기·재고수량은 반영할 때 다시 잰 값)' : '반영 전 미리보기'}
           {onToggleSame ? <> · <button className="underline underline-offset-4" type="button" onClick={onToggleSame}>{showSame ? '바뀌는 옵션만 보기' : `같은 옵션 ${count(items.length - changed.length)}개도 보기`}</button></> : null}
         </caption>
         <TableHeader><TableRow>
-          <TableHead scope="col">상품 · 옵션</TableHead><TableHead scope="col">옵션 자동코드</TableHead><TableHead scope="col">찾은 코드</TableHead>
-          <TableHead scope="col" className="text-right">파일 수량</TableHead>
-          <TableHead scope="col" className="text-right">기준 시각 뒤 출고</TableHead><TableHead scope="col" className="text-right">기준 시각 뒤 회수</TableHead>
-          <TableHead scope="col" className="text-right">출고 대기</TableHead><TableHead scope="col" className="text-right">회수 뒤 미반영</TableHead>
-          <TableHead scope="col" className="text-right">{applied ? '반영 전' : '지금'} 재고수량</TableHead>
-          <TableHead scope="col" className="text-right">{applied ? '반영 뒤' : '맞춘 뒤'} 재고수량</TableHead><TableHead scope="col">상태</TableHead>
+          <TableHead scope="col">상품 · 옵션</TableHead><TableHead scope="col" className={WRAP_HEAD}>옵션 자동코드</TableHead><TableHead scope="col">찾은 코드</TableHead>
+          <TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>파일 수량</TableHead>
+          <TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>기준 시각 뒤 출고</TableHead><TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>기준 시각 뒤 회수</TableHead>
+          <TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>출고 대기</TableHead><TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>회수 뒤 미반영</TableHead>
+          <TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>{applied ? '반영 전' : '지금'} 재고수량</TableHead>
+          <TableHead scope="col" className={`text-right ${WRAP_HEAD}`}>{applied ? '반영 뒤 재고수량'
+            : <AdminLabelWithHelp help={STOCK_RECONCILE_HELP.targetQty} label="맞춘 뒤 재고수량">맞춘 뒤 재고수량</AdminLabelWithHelp>}</TableHead><TableHead scope="col">상태</TableHead>
         </TableRow></TableHeader>
         <TableBody>{visible.map((item) => <TableRow key={item.variantId}>
           <TableCell className="max-w-72 whitespace-normal">{itemName(item)}{item.preorder ? <span className="ml-1 text-xs text-muted-foreground">(예약판매)</span> : null}</TableCell>
           <TableCell className={CODE}>{item.optionCode}</TableCell>
-          <TableCell className="whitespace-nowrap text-muted-foreground">{STOCK_MATCH_KIND_LABELS[item.matchKind]} · {count(item.sourceRow)}행</TableCell>
+          <TableCell className="whitespace-normal break-keep text-muted-foreground">{STOCK_MATCH_KIND_LABELS[item.matchKind]} · {count(item.sourceRow)}번째 줄</TableCell>
           <TableCell className={NUM}>{count(item.fileQty)}</TableCell>
           <TableCell className={NUM}>{count(item.shippedSinceQty)}</TableCell>
           <TableCell className={NUM}>{count(item.returnedSinceQty)}</TableCell>
@@ -152,10 +160,10 @@ export function StockReconcileResult({ snapshot, showSame, onToggleSame }: { sna
         </TableRow>)}</TableBody>
       </table>
     </div> : <p className={HINT}>{items.length ? '재고수량이 바뀌는 옵션이 없습니다. 사이트 재고가 파일과 맞습니다.' : '찾은 옵션이 없습니다.'}</p>}
-    {snapshot.issues.length ? <div className={TABLE_REGION} role="region" aria-label="반영하지 않는 행" tabIndex={0}>
+    {snapshot.issues.length ? <div className={TABLE_REGION} role="region" aria-label="반영하지 않는 줄" tabIndex={0}>
       <table className={TABLE} data-slot="table">
-        <caption className={CAPTION}>반영하지 않는 행{snapshot.issues.length > ISSUE_LIST_LIMIT ? ` · 앞 ${count(ISSUE_LIST_LIMIT)}건만 표시` : ''}</caption>
-        <TableHeader><TableRow><TableHead scope="col">행</TableHead><TableHead scope="col">코드</TableHead><TableHead scope="col" className="text-right">파일 수량</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
+        <caption className={CAPTION}>반영하지 않는 줄{snapshot.issues.length > ISSUE_LIST_LIMIT ? ` · 앞 ${count(ISSUE_LIST_LIMIT)}건만 표시` : ''}</caption>
+        <TableHeader><TableRow><TableHead scope="col">줄</TableHead><TableHead scope="col">코드</TableHead><TableHead scope="col" className="text-right">파일 수량</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
         <TableBody>{snapshot.issues.slice(0, ISSUE_LIST_LIMIT).map((issue) => <TableRow key={issue.row}>
           <TableCell className="tabular-nums">{count(issue.row)}</TableCell>
           <TableCell className={CODE}>{issue.key || '-'}</TableCell>
@@ -213,7 +221,7 @@ export function StockReconcileConflictNotice({ conflicts, onRepreview, onRestart
 }
 
 /**
- * 재고 파일 대조: 붙여넣기·파일 → 열 짝짓기 → 미리보기(서버가 매칭·계산·기록) → 사유와 함께 반영.
+ * 재고 파일 대조: 붙여넣기·파일 → 열 연결 → 미리보기(서버가 매칭·계산·기록) → 사유와 함께 반영.
  * 반영은 미리보기에서 바뀌는 옵션 전부를 한 번에 한다. DB가 잠금 뒤 다시 잰 맞춘 뒤 재고수량이 미리보기와 다르거나(미리보기 뒤 주문·출고 등)
  * 재고수량을 직접 바꾼 옵션이 있으면 아무것도 바꾸지 않고, 바뀐 옵션을 보여 다시 미리보기로 잇는다(QA1 S-T07-01).
  */
@@ -234,7 +242,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
   const [reason, setReason] = useState(initialSnapshot ? defaultStockReconcileReason(initialSnapshot.sourceLabel) : '');
   const [showSame, setShowSame] = useState(false);
   const [conflicts, setConflicts] = useState<StockReconcileConflict[]>([]);
-  /* 지금 미리보기를 만든 화면의 파일·열 짝짓기. 반영이 거절됐을 때 같은 파일로만 다시 미리보기한다(기록에서 연 미리보기·다른 파일은 다시 올린다). */
+  /* 지금 미리보기를 만든 화면의 파일·열 연결. 반영이 거절됐을 때 같은 파일로만 다시 미리보기한다(기록에서 연 미리보기·다른 파일은 다시 올린다). */
   const [previewedPlan, setPreviewedPlan] = useState<StockReconcilePlan | null>(null);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
@@ -260,7 +268,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
   };
   const clearFile = () => { if (fileInput.current) fileInput.current.value = ''; };
   const readPasted = () => {
-    if (!normalizeErpText(pasted, true)) { setError('창고·ERP 재고 표를 머리글 행까지 복사해 붙여넣어 주세요.'); return; }
+    if (!normalizeErpText(pasted, true)) { setError('창고·ERP 재고 표를 머리글 줄까지 복사해 붙여넣어 주세요.'); return; }
     if (pasted.length > PASTE_CHAR_LIMIT) { setError('붙여넣은 내용이 너무 깁니다. 코드·수량 열만 남겨 붙여넣어 주세요.'); return; }
     const parsed = parseStockDelimitedTable(pasted);
     begin({ label: '붙여넣은 표', table: boundStockTable(parsed.rows), numericColumns: [], warnings: parsed.warnings });
@@ -284,6 +292,13 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
     setSnapshot(null); setReason(''); setPreviewedPlan(null); clearFile();
     router.replace(STOCK_RECONCILE_PATH, { scroll: false });
   };
+  /* 손으로 바꾼 열 연결이 있을 때만 묻는다. 자동으로 정한 연결은 같은 파일을 다시 읽으면 그대로 돌아온다. */
+  const restart = async () => {
+    const manual = source && plan ? stockManualColumnCount(source.table, plan) : 0;
+    /* 확인창의 제목·버튼은 누르면 일어나는 일을 말한다('확인'·'확인'으로 두지 않는다). */
+    if (manual > 0 && !await adminConfirm({ title: '처음부터 다시 하기', message: `직접 바꾼 열 연결 ${count(manual)}개가 사라집니다. 처음부터 다시 할까요?`, confirmLabel: '처음부터 다시' })) return;
+    reset();
+  };
 
   /**
    * 미리보기. 반영이 거절된 뒤의 다시 미리보기(again)는 거절된 미리보기와 같은 출고지·기준 시각과 화면의 같은 파일로 지금 값을 다시 재고,
@@ -301,7 +316,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
       try {
         result = await previewStockReconcileAction({ originId: origin, asOf: iso!, sourceLabel: source.label,
           rows: plan.rows.map(stockReconcileRowPayload) });
-      } catch { result = { ok: false, error: '미리보기 요청이 끊겼습니다. 다시 미리보기 해주세요.' }; }
+      } catch { result = { ok: false, error: '미리보기를 만드는 중 연결이 끊겼습니다. 다시 미리보기 해주세요.' }; }
       if (!result.ok) { setError(result.error); return; }
       setSnapshot(result.snapshot); setShowSame(false); setPreviewedPlan(plan);
       if (again) setMessage('지금 재고수량·출고 대기로 다시 미리보기했습니다. 바뀐 값을 확인한 뒤 반영해주세요.');
@@ -311,6 +326,7 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
   };
 
   const changedCount = snapshot ? snapshot.items.filter((item) => item.targetQty !== item.stockQty).length : 0;
+  const applyLabel = changedCount ? `옵션 ${count(changedCount)}개 재고 반영` : '대조 기록만 남기기';
   /* 서버가 그린 시각 기준이다. 화면을 오래 열어 둔 사이 만료되면 DB가 거절하고 같은 안내를 보인다. */
   const expired = snapshot ? Date.parse(now) - Date.parse(snapshot.createdAt) > 24 * 60 * 60 * 1000 : false;
   const apply = async () => {
@@ -321,12 +337,12 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
     const confirmText = changedCount
       ? `옵션 ${count(changedCount)}개의 재고수량을 파일에 맞춰 바꿉니다${shortages ? `(부족 ${count(shortages)}개는 0으로)` : ''}. 반영할까요?`
       : '바뀌는 옵션이 없습니다. 이 파일로 대조했다는 기록만 남길까요?';
-    if (!await adminConfirm(confirmText)) return;
+    if (!await adminConfirm({ title: changedCount ? '재고수량 반영' : '대조 기록 남기기', message: confirmText, confirmLabel: applyLabel })) return;
     setError(''); setMessage(''); setConflicts([]);
     startWorking(async () => {
       let result: Awaited<ReturnType<typeof applyStockReconcileAction>>;
       try { result = await applyStockReconcileAction({ snapshotId: snapshot.id, expectedChanges: changedCount, reason: trimmed }); }
-      catch { result = { ok: false, error: '반영 요청이 끊겼습니다. 같은 사유로 다시 누르면 처음 결과를 확인합니다.' }; }
+      catch { result = { ok: false, error: `반영됐는지 확인하지 못했습니다. 같은 사유로 [${applyLabel}] 버튼을 다시 누르면 두 번 반영되지 않고, 이미 반영됐다면 그 결과를 보여 줍니다.` }; }
       if (!result.ok) { setError(result.error); return; }
       if (result.outcome.status === 'conflict') { setConflicts(result.outcome.conflicts); return; }
       const applied = result.outcome.snapshot;
@@ -343,36 +359,31 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
     <div className="grid gap-x-6 gap-y-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,18rem),1fr))] print:hidden">
       <div className="flex min-w-0 flex-col gap-2">
         <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-origin">어느 창고(출고지) 파일인가요</label>
-        <AdminSelect id="stock-reconcile-origin" value={originId} disabled={busy} wrapperClassName="w-full" aria-describedby="stock-reconcile-origin-hint"
+        <AdminSelect id="stock-reconcile-origin" value={originId} disabled={busy} wrapperClassName="w-full"
           onChange={(event) => setOriginId(event.target.value)}>
           <option value="">출고지 구분 없이 대조</option>
-          {origins.map((origin) => <option key={origin.id} value={origin.id}>{origin.name}{origin.active ? '' : ' (비활성)'}</option>)}
+          {origins.map((origin) => <option key={origin.id} value={origin.id}>{origin.name}{origin.active ? '' : ' (사용 안 함)'}</option>)}
         </AdminSelect>
-        <p className={HINT} id="stock-reconcile-origin-hint">고르면 다른 출고지 상품의 행은 반영하지 않습니다. 창고 한 곳의 재고 파일이면 그 출고지를 고르세요.</p>
       </div>
-      <div className="flex min-w-0 flex-col gap-2">
-        <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-as-of">파일의 재고 기준 시각 (KST)</label>
-        <Input id="stock-reconcile-as-of" type="datetime-local" step={60} value={asOf} disabled={busy} className="w-60" aria-describedby="stock-reconcile-as-of-hint"
+      <AdminField label="파일의 재고 기준 시각 (KST)" inputId="stock-reconcile-as-of" help={STOCK_RECONCILE_HELP.fileAsOf}>
+        <Input id="stock-reconcile-as-of" type="datetime-local" step={60} value={asOf} disabled={busy} className="w-60"
           onChange={(event) => setAsOf(event.target.value)} />
-        <p className={HINT} id="stock-reconcile-as-of-hint">ERP·창고에서 재고를 내려받은 시각입니다(7일 안). 그 뒤에 출고한 주문은 파일에 아직 들어 있고, 그 뒤에 회수한 반품·교환은 아직 없다고 보고 계산합니다.</p>
-      </div>
+      </AdminField>
     </div>
     <div className="grid gap-x-6 gap-y-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))] print:hidden">
       <div className="flex min-w-0 flex-col gap-2">
         <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-paste">붙여넣기</label>
         <Textarea className="min-h-32 font-mono text-[13px] field-sizing-fixed" id="stock-reconcile-paste" rows={5} value={pasted} disabled={busy}
-          aria-describedby="stock-reconcile-paste-hint" placeholder={'품번\t품명\t바코드\t재고수량\n000123\t아크릴 키링\t8801234567890\t42'}
+          placeholder={'품번\t품명\t바코드\t재고수량\n000123\t아크릴 키링\t8801234567890\t42'}
           onChange={(event) => setPasted(event.target.value)} />
-        <p className={HINT} id="stock-reconcile-paste-hint">옵션 자동코드·ERP 코드(품번)·바코드·상품 자동코드 중 하나와 재고 수량 열이 있어야 합니다. 머리글 행까지 복사하면 열을 자동으로 짝짓습니다.</p>
         <div><Button variant={source ? 'outline' : 'default'} type="button" disabled={busy} onClick={readPasted}>붙여넣은 표 확인</Button></div>
       </div>
       <div className="flex min-w-0 flex-col gap-2">
         {/* 섹션 카드가 stock-reconcile-file id를 쓰므로 파일 입력은 다른 id로 라벨에 잇는다(QA1 S-T07-01 접근성). */}
         <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-file-input">또는 파일 선택</label>
-        <Input ref={fileInput} id="stock-reconcile-file-input" type="file" disabled={busy} aria-describedby="stock-reconcile-file-hint"
+        <Input ref={fileInput} id="stock-reconcile-file-input" type="file" disabled={busy}
           accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
           onChange={(event) => { const file = event.target.files?.[0]; if (file) readFile(file); }} />
-        <p className={HINT} id="stock-reconcile-file-hint">XLSX·CSV {FILE_KB}KB 이하, 한 번에 {count(STOCK_RECONCILE_ROW_LIMIT)}행까지. XLS는 XLSX로 다시 저장해 올려주세요.</p>
         {reading ? <p className={HINT} role="status">파일을 읽는 중입니다.</p> : null}
       </div>
     </div>
@@ -386,21 +397,21 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
     {source && plan ? <div className="flex min-w-0 flex-col gap-4 border-t pt-4" data-stock-reconcile="plan">
       <header className="flex flex-col gap-1">
         <h3 className="text-base leading-snug font-medium wrap-anywhere">파일 확인 · {source.label}</h3>
-        <p className={`${HINT} tabular-nums`}>비어 있지 않은 {count(plan.dataRowCount)}행 · 대조할 행 {count(plan.rows.length)} · 대조하지 않는 행 {count(plan.issues.length)}</p>
+        <p className={`${HINT} tabular-nums`}>비어 있지 않은 {count(plan.dataRowCount)}줄 · 대조할 줄 {count(plan.rows.length)} · 대조하지 않는 줄 {count(plan.issues.length)}</p>
       </header>
       <div className="flex max-w-[35rem] min-w-0 flex-col gap-2">
-        <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-header-row">머리글 행</label>
+        <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-header-row">머리글 줄</label>
         <AdminSelect id="stock-reconcile-header-row" value={plan.headerIndex} disabled={busy} wrapperClassName="w-full"
           onChange={(event) => { setHeaderIndex(Number(event.target.value)); setMapping(undefined); }}>
-          <option value={-1}>머리글 없음 · 첫 행부터 재고</option>
+          <option value={-1}>머리글 없음 · 첫 줄부터 재고</option>
           {headerOptions.map((row, index) => <option key={index} value={index}>
-            {index + 1}행 · {row.map((cell) => normalizeErpText(cell, true)).filter(Boolean).slice(0, 4).join(' / ').slice(0, 60) || '빈 행'}
+            {index + 1}번째 줄 · {row.map((cell) => normalizeErpText(cell, true)).filter(Boolean).slice(0, 4).join(' / ').slice(0, 60) || '빈 줄'}
           </option>)}
         </AdminSelect>
       </div>
-      <div className={TABLE_REGION} role="region" aria-label="열 짝짓기" tabIndex={0}>
+      <div className={TABLE_REGION} role="region" aria-label="열 연결" tabIndex={0}>
         <table className={TABLE} data-slot="table">
-          <caption className={CAPTION}>열마다 가져올 항목을 고릅니다. 코드 열은 여러 개 골라도 됩니다(먼저 맞는 코드로 옵션을 찾습니다).</caption>
+          <caption className={CAPTION}>코드 열은 여러 개 골라도 됩니다. 먼저 맞는 코드로 옵션을 찾습니다.</caption>
           <TableHeader><TableRow><TableHead scope="col">파일의 열</TableHead><TableHead scope="col">첫 값</TableHead><TableHead scope="col">가져올 항목</TableHead></TableRow></TableHeader>
           <TableBody>{plan.columns.map((column) => <TableRow key={column.index}>
             <TableHead scope="row" className="font-medium whitespace-normal">{column.label}</TableHead>
@@ -417,10 +428,10 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
       {[...source.warnings, ...plan.warnings].length ? <AdminNotice tone="warning"><ul className="flex list-disc flex-col gap-1.5 pl-4">
         {[...source.warnings, ...plan.warnings].map((warning) => <li key={warning}>{warning}</li>)}
       </ul></AdminNotice> : null}
-      {plan.issues.length ? <div className={TABLE_REGION} role="region" aria-label="대조하지 않는 행" tabIndex={0}>
+      {plan.issues.length ? <div className={TABLE_REGION} role="region" aria-label="대조하지 않는 줄" tabIndex={0}>
         <table className={TABLE} data-slot="table">
-          <caption className={CAPTION}>대조하지 않는 행(파일에서 고쳐 다시 올려주세요){plan.issues.length > ISSUE_LIST_LIMIT ? ` · 앞 ${count(ISSUE_LIST_LIMIT)}건만 표시` : ''}</caption>
-          <TableHeader><TableRow><TableHead scope="col">행</TableHead><TableHead scope="col">코드</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
+          <caption className={CAPTION}>대조하지 않는 줄(파일에서 고쳐 다시 올려주세요){plan.issues.length > ISSUE_LIST_LIMIT ? ` · 앞 ${count(ISSUE_LIST_LIMIT)}건만 표시` : ''}</caption>
+          <TableHeader><TableRow><TableHead scope="col">줄</TableHead><TableHead scope="col">코드</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
           <TableBody>{plan.issues.slice(0, ISSUE_LIST_LIMIT).map((issue) => <TableRow key={issue.row}>
             <TableCell className="tabular-nums">{count(issue.row)}</TableCell>
             <TableCell className={CODE}>{issue.key || '-'}</TableCell>
@@ -430,8 +441,8 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
       </div> : null}
       {plan.blocking ? <p className="text-sm text-destructive" role="alert">{plan.blocking}</p> : null}
       <div className="flex flex-wrap items-center gap-2 print:hidden">
-        <Button type="button" variant={snapshot ? 'outline' : 'default'} disabled={busy || Boolean(plan.blocking)} onClick={() => preview()}>{count(plan.rows.length)}행 미리보기</Button>
-        <Button variant="ghost" type="button" disabled={busy} onClick={reset}>처음부터 다시</Button>
+        <Button type="button" variant={snapshot ? 'outline' : 'default'} disabled={busy || Boolean(plan.blocking)} onClick={() => preview()}>{count(plan.rows.length)}줄 미리보기</Button>
+        <Button variant="ghost" type="button" disabled={busy} onClick={() => void restart()}>처음부터 다시</Button>
       </div>
     </div> : null}
 
@@ -443,19 +454,19 @@ export function StockReconcilePanel({ origins, initialSnapshot, now }: {
       </header>
       <StockReconcileResult snapshot={snapshot} showSame={showSame} onToggleSame={() => setShowSame((value) => !value)} />
       <DefectiveStockReference items={snapshot.items.map((item) => ({ variantId: item.variantId, label: itemName(item) }))} />
-      {conflicts.length ? <StockReconcileConflictNotice conflicts={conflicts} busy={busy} onRestart={reset}
+      {conflicts.length ? <StockReconcileConflictNotice conflicts={conflicts} busy={busy} onRestart={() => void restart()}
         onRepreview={source && plan && !plan.blocking && plan === previewedPlan ? () => preview(true) : undefined} /> : null}
       {!snapshot.appliedAt ? expired ? <AdminNotice tone="warning">24시간이 지난 미리보기는 반영할 수 없습니다. 파일을 다시 올려 미리보기 해주세요.</AdminNotice>
         : <div className="flex flex-col gap-3 print:hidden">
           <div className="flex max-w-[35rem] min-w-0 flex-col gap-2">
-            <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-reason">반영 사유</label>
-            <Input id="stock-reconcile-reason" value={reason} maxLength={STOCK_RECONCILE_REASON_LIMIT} disabled={busy} aria-describedby="stock-reconcile-reason-hint"
-              onChange={(event) => setReason(event.target.value)} />
-            <p className={HINT} id="stock-reconcile-reason-hint">옵션마다 감사 기록에 남습니다. 예: 서원 11/12 09시 재고 대조.</p>
+            {/* 비우면 아래 주 버튼이 잠긴다 — 왜 잠겼는지 칸 이름이 말하고, 무엇을 적는지는 예시 글이 보인다. */}
+            <label className="text-sm leading-snug font-medium" htmlFor="stock-reconcile-reason">반영 사유 (필수)</label>
+            <Input id="stock-reconcile-reason" value={reason} maxLength={STOCK_RECONCILE_REASON_LIMIT} disabled={busy} required
+              placeholder="예: 서원 11/12 09시 재고 대조" onChange={(event) => setReason(event.target.value)} />
           </div>
           <div className="flex flex-wrap items-center gap-2">
             {/* 거절된 미리보기는 값이 낡았다. 다시 미리보기한 뒤에 반영한다. */}
-            <Button type="button" disabled={busy || !reason.trim() || conflicts.length > 0} onClick={apply}>{changedCount ? `옵션 ${count(changedCount)}개 재고 반영` : '대조 기록만 남기기'}</Button>
+            <Button type="button" disabled={busy || !reason.trim() || conflicts.length > 0} onClick={apply}>{applyLabel}</Button>
             {!source ? <Button variant="ghost" type="button" disabled={busy} onClick={reset}>새 파일 대조</Button> : null}
           </div>
         </div> : !source ? <div><Button variant="outline" type="button" disabled={busy} onClick={reset}>새 파일 대조</Button></div> : null}

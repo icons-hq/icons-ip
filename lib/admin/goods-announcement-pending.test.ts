@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createCsEditorDraftStore } from './cs-editor-drafts';
-import { createGoodsAnnouncementPendingSave, goodsAnnouncementPendingDisplayValue, goodsAnnouncementPendingForm, GOODS_ANNOUNCEMENT_PENDING_LABELS, parseGoodsAnnouncementPendingSave, retainGoodsAnnouncementPendingSave } from './goods-announcement-pending';
+import { createGoodsAnnouncementPendingSave, goodsAnnouncementPendingDisplayValue, goodsAnnouncementPendingForm, goodsAnnouncementPendingRows, GOODS_ANNOUNCEMENT_PENDING_LABELS, parseGoodsAnnouncementPendingSave, retainGoodsAnnouncementPendingSave } from './goods-announcement-pending';
 
 const ACCOUNT = '00000000-0000-4000-8000-000000062210';
 const ID = '00000000-0000-4000-8000-000000062211';
@@ -33,17 +33,40 @@ describe('상품공지 고정 저장 요청', () => {
     expect(outgoing.get('operationId')).toBe(OPERATION); expect(outgoing.has('$ACTION_ID_framework')).toBe(false);
     outgoing.set('body', '외부 변경'); expect(goodsAnnouncementPendingForm(pending).get('body')).toBe('  첫 줄\r\n다음 줄  ');
   });
-  /* 1027T-005: 노출 위치는 보관·복구되고, 위치 칸 이전에 보관된 요청(칸 없음)도 그대로 복구된다. */
-  it('노출 위치를 보관하고 위치 칸이 없던 요청도 복구한다', () => {
+  /* 1027T-005: 보이는 자리는 보관·복구되고, 위치 칸 이전에 보관된 요청(칸 없음)도 그대로 복구된다. */
+  it('보이는 자리를 보관하고 위치 칸이 없던 요청도 복구한다', () => {
     const input = form(); input.set('placement', 'bottom');
     const pending = createGoodsAnnouncementPendingSave(input, ACCOUNT, ID, OPERATION)!;
     expect(goodsAnnouncementPendingForm(pending).get('placement')).toBe('bottom');
-    expect(GOODS_ANNOUNCEMENT_PENDING_LABELS.placement).toBe('노출 위치');
+    expect(GOODS_ANNOUNCEMENT_PENDING_LABELS.placement).toBe('보이는 자리');
     expect(goodsAnnouncementPendingDisplayValue('placement', 'bottom')).toBe('상세 하단');
     const legacy = createGoodsAnnouncementPendingSave(form(), ACCOUNT, ID, OPERATION)!;
     expect(parseGoodsAnnouncementPendingSave(legacy)).toEqual(legacy);
     expect(goodsAnnouncementPendingForm(legacy).has('placement')).toBe(false);
     expect(parseGoodsAnnouncementPendingSave({ ...pending, entries: pending.entries.map(entry => entry[0] === 'placement' ? ['placement', 'outside'] : entry) })).toBeNull();
+  });
+  /* '앞서 저장하려던 내용'은 편집 화면의 칸 이름으로 보이고, 내부 값(상품 URL 목록·영문 값)을 늘어놓지 않는다(화면 규칙 8). */
+  it('보관한 내용을 화면의 칸 이름과 말로 되읽는다', () => {
+    expect(GOODS_ANNOUNCEMENT_PENDING_LABELS).toMatchObject({ device: '보이는 기기', goodIds: '고른 상품', startsAt: '전시 시작 (KST)', popupEndsAt: '홈 팝업 종료 (KST)' });
+    expect(Object.values(GOODS_ANNOUNCEMENT_PENDING_LABELS).join(' ')).not.toMatch(/노출|일시|URL|표시/);
+    expect(goodsAnnouncementPendingDisplayValue('goodIds', '["good-a","good-b"]')).toBe('2개');
+    expect(goodsAnnouncementPendingDisplayValue('goodIds', '[]')).toBe('고른 상품 없음');
+    expect(goodsAnnouncementPendingDisplayValue('startsAt', '2026-10-14T09:00')).toBe('2026-10-14 09:00');
+    expect(goodsAnnouncementPendingDisplayValue('endsAt', '')).toBe('(비어 있음)');
+    expect(goodsAnnouncementPendingDisplayValue('popupIntent', 'set')).toBe('이 공지를 홈 팝업으로 띄움');
+    expect(goodsAnnouncementPendingDisplayValue('important', 'true')).toBe('중요 공지로 보임');
+    expect(goodsAnnouncementPendingDisplayValue('useImportantPeriod', 'true')).toBe('기간 동안만');
+    expect(goodsAnnouncementPendingDisplayValue('device', 'pc')).toBe('PC');
+  });
+  it('보일 줄에서 내부 값과, 고르지 않은 쪽에 딸린 값을 뺀다', () => {
+    const pending = createGoodsAnnouncementPendingSave(form(), ACCOUNT, ID, OPERATION)!;
+    const rows = goodsAnnouncementPendingRows(pending.entries);
+    expect(rows.map(row => row.field)).toEqual(['title', 'body', 'format', 'category', 'device', 'enabled', 'important', 'allGoods', 'goodIds', 'usePeriod', 'startsAt', 'endsAt', 'popupIntent']);
+    expect(rows.find(row => row.field === 'goodIds')).toEqual({ field: 'goodIds', label: '고른 상품', value: '2개' });
+    expect(rows.find(row => row.field === 'body')?.value).toBe('  첫 줄\r\n다음 줄  ');
+    const all = form(); all.set('allGoods', 'true'); all.set('important', 'true');
+    const allRows = goodsAnnouncementPendingRows(createGoodsAnnouncementPendingSave(all, ACCOUNT, ID, OPERATION)!.entries).map(row => row.field);
+    expect(allRows).not.toContain('goodIds'); expect(allRows).toContain('useImportantPeriod');
   });
   it('허용하지 않은 필드·중복·파일·다른 계정/대상·과도한 본문을 보관하지 않는다', () => {
     const pending = createGoodsAnnouncementPendingSave(form(), ACCOUNT, ID, OPERATION)!;

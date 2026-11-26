@@ -6,28 +6,31 @@ import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { parseGoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { parseGoodsProductionPolicy, parseOrderProduction, productionError } from '@/lib/order-production';
+import { GOODS_PRODUCTION_SAVE_UNCERTAIN, goodsProductionError } from '@/lib/admin/goods-production-messages';
 import { transactionExactKeys, transactionGoodId, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
 import { isUuid } from '@/lib/uuid';
 const goodsPath = '/admin/catalog/goods';
 const uncertain = (code?: string) => !/^(?:PT409|22[0-9A-Z]{3}|23[0-9A-Z]{3}|42501|P0002)$/.test(code ?? '');
 export async function readGoodsProductionAction(goodId: unknown) {
- if (!transactionGoodId(goodId) || !await requireAdminActionAccess(goodsPath, { capability: 'catalog.manage' })) return { error: productionError('42501') };
+ if (!transactionGoodId(goodId) || !await requireAdminActionAccess(goodsPath, { capability: 'catalog.manage' })) return { error: goodsProductionError('42501') };
  try { const { data, error } = await (await createClient()).rpc('admin_get_goods_production', { p_good: goodId }); const policy = error ? null : parseGoodsProductionPolicy(data);
-  return policy && policy.goodId === goodId ? { policy } : { error: productionError(error?.code, error?.message) };
- } catch (error) { unstable_rethrow(error); return { error: productionError() }; }
+  return policy && policy.goodId === goodId ? { policy } : { error: goodsProductionError(error?.code, error?.message) };
+ } catch (error) { unstable_rethrow(error); return { error: goodsProductionError() }; }
 }
+/** 상품의 주문 후 제작 설정 저장. 설정 근거·확인 체크는 받지 않는다(2026-11-25 결정 — 저장 = 적용, 누가 언제 바꿨는지는 감사 기록). */
 export async function saveGoodsProductionAction(goodId: unknown, values: unknown, revision: unknown, operation: unknown, rawIdentity: unknown) {
  const identity = parseGoodsGroupIdentity(rawIdentity);
+ /* 저장된 설정 문서에는 예전에 적은 근거가 그대로 있어 모양 검사에만 빈 값을 채운다. 저장 값으로는 보내지 않는다(DB가 저장돼 있던 근거를 그대로 둔다). */
  if (!transactionGoodId(goodId) || !identity || !isUuid(operation) || !transactionInteger(revision, 0) || !transactionRecord(values)
-  || !transactionExactKeys(values, ['enabled', 'leadDays', 'dayBasis', 'closedDates', 'publicNote', 'evidence', 'confirmed']) || values.confirmed !== true
-  || typeof values.evidence !== 'string' || values.evidence.trim().length < 2 || !parseGoodsProductionPolicy({ ...Object.fromEntries(Object.entries(values).filter(([key]) => key !== 'confirmed')), goodId, revision, updatedAt: new Date().toISOString() })) return { error: productionError('22023'), uncertain: false };
- const auth = await requireAdminActionAccess(goodsPath, { capability: 'catalog.manage' }); if (!auth || auth.user.id !== identity.actorId) return { error: productionError('42501'), uncertain: false };
+  || !transactionExactKeys(values, ['enabled', 'leadDays', 'dayBasis', 'closedDates', 'publicNote'])
+  || !parseGoodsProductionPolicy({ ...values, evidence: '', goodId, revision, updatedAt: new Date().toISOString() })) return { error: goodsProductionError('22023'), uncertain: false };
+ const auth = await requireAdminActionAccess(goodsPath, { capability: 'catalog.manage' }); if (!auth || auth.user.id !== identity.actorId) return { error: goodsProductionError('42501'), uncertain: false };
  try { const client = await createClient(), result = await client.rpc('admin_save_goods_production', { p_good: goodId, p_values: values, p_revision: revision, p_operation: operation, p_actor: identity.actorId, p_session: identity.sessionId });
-  if (result.error || !parseGoodsProductionPolicy(result.data)) return { error: productionError(result.error?.code, result.error?.message), uncertain: uncertain(result.error?.code) };
+  if (result.error || !parseGoodsProductionPolicy(result.data)) { const unsure = uncertain(result.error?.code); return { error: unsure ? GOODS_PRODUCTION_SAVE_UNCERTAIN : goodsProductionError(result.error?.code, result.error?.message), uncertain: unsure }; }
   const current = await client.rpc('admin_get_goods_production', { p_good: goodId }), policy = current.error ? null : parseGoodsProductionPolicy(current.data);
-  if (!policy || policy.goodId !== goodId) return { error: productionError(), uncertain: true };
+  if (!policy || policy.goodId !== goodId) return { error: GOODS_PRODUCTION_SAVE_UNCERTAIN, uncertain: true };
   revalidatePath(goodsPath); revalidateGoodDetailSurfaces(); revalidatePath('/cart'); return { policy };
- } catch (error) { unstable_rethrow(error); return { error: productionError(), uncertain: true }; }
+ } catch (error) { unstable_rethrow(error); return { error: GOODS_PRODUCTION_SAVE_UNCERTAIN, uncertain: true }; }
 }
 export async function readOrderProductionAction(orderId: unknown) {
  if (!isUuid(orderId) || !await requireAdminActionAccess(`/admin/sales/orders/${orderId}`, { capability: 'sales.read' })) return { error: productionError('42501') };

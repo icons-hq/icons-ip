@@ -2,13 +2,13 @@ import { isUuid } from '@/lib/uuid';
 import { parseGoodsAfterSalesValues, type GoodsAfterSalesValues } from '@/lib/goods-after-sales';
 import { goodsAfterSalesError } from '@/lib/admin/goods-after-sales-messages';
 import { parseGoodsBenefitValues, type GoodsBenefitValues } from '@/lib/goods-benefits';
-import { goodsBenefitsError } from '@/lib/admin/goods-benefits-messages';
+import { goodsBenefitsError, goodsBenefitsProblem } from '@/lib/admin/goods-benefits-messages';
 import { emptyGoodsSizeChartValues, parseGoodsSizeChartValues, type GoodsSizeChartValues } from '@/lib/goods-size-chart';
 import { goodsSizeChartError } from '@/lib/admin/goods-size-chart-messages';
 import { parseGoodsColorChips, type GoodsColorChip } from '@/lib/store-presentation';
 import { type DigitalFile, type FulfillmentMethod, type FulfillmentMode } from '@/lib/goods-fulfillment';
-import { fulfillmentError } from '@/lib/admin/goods-fulfillment-messages';
-import { productionError } from '@/lib/order-production';
+import { FULFILLMENT_AMOUNT_INVALID, FULFILLMENT_METHOD_REQUIRED, fulfillmentError } from '@/lib/admin/goods-fulfillment-messages';
+import { goodsProductionError } from '@/lib/admin/goods-production-messages';
 import { RANDOM_OPTION_PROBLEMS, type GoodsOptionSaleMode } from '@/lib/goods-option-sale-mode';
 import { goodsOptionSaleModeErrorMessage } from '@/lib/admin/goods-option-sale-mode-messages';
 import { parseGoodsPricePeriodInput, type GoodsPricePeriodInput } from './goods-price-periods';
@@ -35,9 +35,9 @@ export const GOOD_WORKSPACE_SHIPPING_METHODS = ['parcel', 'quick', 'pickup', 'di
 export interface GoodWorkspaceFulfillmentDraft {
   mode: FulfillmentMode;
   methods: { method: typeof GOOD_WORKSPACE_SHIPPING_METHODS[number]; enabled: boolean; amount: string; basis: 'per_order' | 'per_item'; installation: string }[];
-  files: DigitalFile[]; publicNote: string; evidence: string; confirmed: boolean;
+  files: DigitalFile[]; publicNote: string;
 }
-export interface GoodWorkspaceProductionDraft { enabled: boolean; leadDays: string; dayBasis: 'calendar' | 'business'; closedDates: string; publicNote: string; evidence: string; confirmed: boolean }
+export interface GoodWorkspaceProductionDraft { enabled: boolean; leadDays: string; dayBasis: 'calendar' | 'business'; closedDates: string; publicNote: string }
 /** 고른 묶음그룹과 고를 때 본 버전. `display`는 화면 요약 표시용(ShippingChargeGroupField의 그룹 값)이다. */
 export interface GoodWorkspaceShippingChargeGroupDraft { id: string; revision: number; originId: string; display?: unknown }
 
@@ -69,10 +69,10 @@ export function emptyGoodWorkspaceTerms(): GoodsTermsDraft {
 /** 새 상품의 수령 방식 기본값: 택배만(기존 배송비 정책). */
 export function emptyGoodWorkspaceFulfillment(): GoodWorkspaceFulfillmentDraft {
   return { mode: 'shipping', methods: GOOD_WORKSPACE_SHIPPING_METHODS.map((method) => ({ method, enabled: method === 'parcel', amount: '0', basis: 'per_order', installation: '0' })),
-    files: [], publicNote: '', evidence: '', confirmed: false };
+    files: [], publicNote: '' };
 }
 export function emptyGoodWorkspaceProduction(): GoodWorkspaceProductionDraft {
-  return { enabled: false, leadDays: '', dayBasis: 'calendar', closedDates: '', publicNote: '', evidence: '', confirmed: false };
+  return { enabled: false, leadDays: '', dayBasis: 'calendar', closedDates: '', publicNote: '' };
 }
 export function goodWorkspaceExtraDefault<K extends GoodWorkspaceExtraKey>(key: K): GoodWorkspaceExtraDraft[K] {
   const defaults: { [P in GoodWorkspaceExtraKey]: () => GoodWorkspaceExtraDraft[P] } = {
@@ -115,9 +115,10 @@ type VariantRef = { id: string } | { attributes: Record<string, string> };
 function variantRef(row: GoodsOptionRow): VariantRef {
   return row.id && isUuid(row.id) ? { id: row.id.toLowerCase() } : { attributes: { ...row.attributes } };
 }
+/* 수령 방식·주문 후 제작은 설정 근거·확인 체크 없이 필요한 값만 보낸다(2026-11-25 결정 — 저장 = 적용, 누가 언제 바꿨는지는 감사 기록). */
 type FulfillmentValues = { mode: FulfillmentMode; methods: { method: FulfillmentMethod; feeAmount: number | null; feeBasis: 'per_order' | 'per_item'; installationFee: number }[];
-  assetIds: string[]; publicNote: string; evidence: string; confirmed: true };
-type ProductionValues = { enabled: boolean; leadDays: number | null; dayBasis: 'calendar' | 'business'; closedDates: string[]; publicNote: string; evidence: string; confirmed: true };
+  assetIds: string[]; publicNote: string };
+type ProductionValues = { enabled: boolean; leadDays: number | null; dayBasis: 'calendar' | 'business'; closedDates: string[]; publicNote: string };
 
 /** admin_save_good_workspace sections의 나머지 설정 부분(서버가 다시 검증한다). */
 export interface GoodWorkspaceExtraSubmission {
@@ -145,31 +146,31 @@ const fail = (key: GoodWorkspaceExtraKey, error: string): GoodWorkspaceExtraResu
 
 function fulfillmentValues(draft: GoodWorkspaceFulfillmentDraft): FulfillmentValues | string {
   const selected = draft.methods.filter((method) => method.enabled);
-  if (draft.mode === 'shipping' && (!selected.length || selected.some((method) => !/^\d+$/.test(method.amount) || !/^\d+$/.test(method.installation)))) {
-    return '받을 방식과 0 이상의 원 단위 비용을 입력해주세요.';
-  }
+  /* 저장된 상품의 수령 방식 패널(GoodsFulfillmentPanel)과 같은 말이다. */
+  if (draft.mode === 'shipping' && !selected.length) return FULFILLMENT_METHOD_REQUIRED;
+  if (draft.mode === 'shipping' && selected.some((method) => !/^\d+$/.test(method.amount) || !/^\d+$/.test(method.installation))) return FULFILLMENT_AMOUNT_INVALID;
   if (draft.mode === 'digital' && !draft.files.length) return '디지털 파일 제공은 확인을 마친 파일을 하나 이상 올려주세요.';
-  if (Array.from(draft.evidence.trim()).length < 2) return '수령 방식 설정 근거를 2자 이상 입력해주세요.';
-  if (!draft.confirmed) return '수령 방식·금액·파일 제공 조건을 확인했다고 체크해주세요.';
   const methods = draft.mode === 'shipping'
     ? selected.map((method) => ({ method: method.method, feeAmount: method.method === 'parcel' ? null : method.method === 'pickup' ? 0 : Number(method.amount),
       feeBasis: method.method === 'parcel' ? 'per_order' as const : method.basis, installationFee: method.method === 'pickup' ? 0 : Number(method.installation) }))
     : [{ method: draft.mode === 'digital' ? 'digital' as const : 'none' as const, feeAmount: 0, feeBasis: 'per_order' as const, installationFee: 0 }];
-  return { mode: draft.mode, methods, assetIds: draft.mode === 'digital' ? draft.files.map((file) => file.id) : [], publicNote: draft.publicNote,
-    evidence: draft.evidence, confirmed: true };
+  return { mode: draft.mode, methods, assetIds: draft.mode === 'digital' ? draft.files.map((file) => file.id) : [], publicNote: draft.publicNote };
 }
 function productionValues(draft: GoodWorkspaceProductionDraft): ProductionValues | string {
   if (draft.leadDays && !/^[1-9][0-9]*$/.test(draft.leadDays)) return '발송 예정 기간은 1~365일의 정수로 입력해주세요.';
   if (draft.enabled && !draft.leadDays) return '주문제작을 쓰려면 결제 확인 후 발송 예정 기간을 입력해주세요.';
-  if (Array.from(draft.evidence.trim()).length < 2) return '주문제작 설정 근거를 2자 이상 입력해주세요.';
-  if (!draft.confirmed) return '발송 예정 기간·계산 기준·취소 검토 절차를 확인했다고 체크해주세요.';
   return { enabled: draft.enabled, leadDays: draft.leadDays ? Number(draft.leadDays) : null, dayBasis: draft.dayBasis,
     closedDates: draft.dayBasis === 'calendar' ? [] : draft.closedDates.split(/[\s,]+/).map((date) => date.trim()).filter(Boolean),
-    publicNote: draft.publicNote, evidence: draft.evidence, confirmed: true };
+    publicNote: draft.publicNote };
 }
-function sameFulfillment(left: GoodWorkspaceFulfillmentDraft, right: GoodWorkspaceFulfillmentDraft) {
-  const shape = (draft: GoodWorkspaceFulfillmentDraft) => JSON.stringify([draft.mode, draft.methods, draft.files.map((file) => file.id), draft.publicNote]);
-  return shape(left) === shape(right);
+/**
+ * 수령 방식이 새 상품 기본값(택배만 · 설치비 0원 · 고객 안내 없음)과 같은가. 같으면 상품과 함께 저장할 것이 없다.
+ * 화면 입력이 아니라 '저장될 값'으로 견준다 — 켰다 끈 방식에 남은 금액은 저장 대상이 아니므로, 택배만 다시 남기면 기본값으로 본다
+ * (그래야 택배 외 방식을 받지 않는 쇼핑몰 설정에서 '택배만 남기고 저장'이 실제로 된다).
+ */
+export function isDefaultGoodWorkspaceFulfillment(draft: GoodWorkspaceFulfillmentDraft): boolean {
+  const values = fulfillmentValues(draft);
+  return typeof values !== 'string' && JSON.stringify(values) === JSON.stringify(fulfillmentValues(emptyGoodWorkspaceFulfillment()));
 }
 
 /**
@@ -217,7 +218,7 @@ export function prepareGoodWorkspaceExtraSections(extras: Partial<GoodWorkspaceE
   const benefits = extras.benefits;
   if (benefits && (benefits.eventText.trim() || benefits.giftText.trim() || benefits.giftImagePaths.some(Boolean))) {
     const parsed = parseGoodsBenefitValues({ ...benefits, giftImagePaths: benefits.giftImagePaths.filter(Boolean) });
-    if (!parsed) return fail('benefits', '사은품 사진에는 설명이 필요합니다. 설명 100자·이벤트 40자와 서로 다른 사진 3장까지 확인해주세요.');
+    if (!parsed) return fail('benefits', goodsBenefitsProblem(benefits) ?? '사은품 안내를 저장할 수 없습니다. 적은 내용을 확인한 뒤 다시 저장해 주세요.');
     value.benefits = parsed;
   }
   const afterSales = extras.afterSales;
@@ -256,13 +257,13 @@ export function prepareGoodWorkspaceExtraSections(extras: Partial<GoodWorkspaceE
     if (!parsed) return fail('subscriptionPolicy', goodsSubscriptionPolicyError());
     value.subscriptionPolicy = parsed;
   }
-  if (extras.fulfillment && !sameFulfillment(extras.fulfillment, emptyGoodWorkspaceFulfillment())) {
+  if (extras.fulfillment && !isDefaultGoodWorkspaceFulfillment(extras.fulfillment)) {
     const values = fulfillmentValues(extras.fulfillment);
     if (typeof values === 'string') return fail('fulfillment', values);
     value.fulfillment = values;
   }
   const production = extras.production;
-  /* 사용을 끈 주문제작은 새 상품에 아무 설정도 만들지 않는다. 켰다 끄며 남은 기간·안내·확인 체크는 저장 대상이 아니다. */
+  /* 사용을 끈 주문제작은 새 상품에 아무 설정도 만들지 않는다. 켰다 끄며 남은 기간·안내는 저장 대상이 아니다. */
   if (production && production.enabled) {
     const values = productionValues(production);
     if (typeof values === 'string') return fail('production', values);
@@ -376,17 +377,17 @@ export function parseGoodWorkspaceExtraSections(raw: Record<string, unknown>, { 
   }
   if (raw.fulfillment !== undefined) {
     const values = raw.fulfillment;
-    if (!record(values) || !exactKeys(values, ['mode', 'methods', 'assetIds', 'publicNote', 'evidence', 'confirmed']) || values.confirmed !== true
+    if (!record(values) || !exactKeys(values, ['mode', 'methods', 'assetIds', 'publicNote'])
       || !['shipping', 'no_delivery', 'digital'].includes(String(values.mode)) || !Array.isArray(values.methods) || values.methods.length < 1 || values.methods.length > 5
       || !Array.isArray(values.assetIds) || values.assetIds.length > 10 || values.assetIds.some((id) => !isUuid(id))
-      || typeof values.publicNote !== 'string' || typeof values.evidence !== 'string') return invalid('fulfillment');
+      || typeof values.publicNote !== 'string') return invalid('fulfillment');
     value.fulfillment = values as unknown as FulfillmentValues;
   }
   if (raw.production !== undefined) {
     const values = raw.production;
-    if (!record(values) || !exactKeys(values, ['enabled', 'leadDays', 'dayBasis', 'closedDates', 'publicNote', 'evidence', 'confirmed']) || values.confirmed !== true
+    if (!record(values) || !exactKeys(values, ['enabled', 'leadDays', 'dayBasis', 'closedDates', 'publicNote'])
       || typeof values.enabled !== 'boolean' || !['calendar', 'business'].includes(String(values.dayBasis)) || !Array.isArray(values.closedDates)
-      || typeof values.publicNote !== 'string' || typeof values.evidence !== 'string') return invalid('production');
+      || typeof values.publicNote !== 'string') return invalid('production');
     value.production = values as unknown as ProductionValues;
   }
   return { ok: true, value };
@@ -440,7 +441,7 @@ export function goodWorkspaceExtraSectionFailure(message: string, code?: string)
     shippingChargeGroup: () => shippingChargeGroupError(inner),
     subscriptionPolicy: () => goodsSubscriptionPolicyError(inner),
     fulfillment: () => fulfillmentError(code, inner.replace(/^ERROR:\s*/, '')),
-    production: () => productionError(code, inner.replace(/^ERROR:\s*/, '')),
+    production: () => goodsProductionError(code, inner.replace(/^ERROR:\s*/, '')),
   };
   return { [SECTION_FIELD[key]]: `${reason[key]()} 상품은 저장되지 않았고 입력은 유지됩니다.` };
 }

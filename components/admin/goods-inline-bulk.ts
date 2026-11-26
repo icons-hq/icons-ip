@@ -1,32 +1,35 @@
 import { commitGoodsBulkAction, previewGoodsBulkAction, readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
-import { goodsBulkError, parseGoodsBulkRequest, type GoodsBulkActiveDiscounts, type GoodsBulkCommand, type GoodsBulkGood, type GoodsBulkInstantDiscount } from '@/lib/admin/goods-bulk';
+import { GOODS_BULK_RECOVER_LABEL, GOODS_BULK_UNCERTAIN, GOODS_BULK_UNRESOLVED, goodsBulkError, goodsBulkSkipMessage, parseGoodsBulkRequest,
+  type GoodsBulkActiveDiscounts, type GoodsBulkCommand, type GoodsBulkGood, type GoodsBulkInstantDiscount } from '@/lib/admin/goods-bulk';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { discountStopStaleBaseMessage, priceAfterStopStaleMessage, type DiscountStopPricePhase, type DiscountStopReview } from '@/lib/admin/goods-list-inline';
 
 /*
  * 상품 목록 바로 수정이 상품 1개짜리 일괄 변경(미리보기 → 확정)을 부르는 경로. 새 쓰기 경로를 만들지 않는다.
  * 미리보기의 현재 값이 목록(또는 창)에서 본 값과 다르면 확정하지 않고 요청을 종료한다(다른 사람의 수정 덮어쓰기 방지).
+ * 미리보기가 그 상품을 건너뛴다고 하면(20261126150000 — 미리보기와 저장이 같은 판정을 쓴다) 저장하지 않고 이유를 알린다.
  * 미리보기와 확정 사이의 변경은 기존 지문 비교가, 감사는 기존 일괄 변경 기록이 맡는다.
  */
 
 type BulkOutcome = { ok: true } | { ok: false; message: string; operationId?: string };
-const UNCERTAIN = '처리됐는지 확인하지 못했습니다. 다시 실행하지 말고 \'처리 결과 조회\'를 눌러 결과를 확인해주세요.';
+const UNCERTAIN = GOODS_BULK_UNCERTAIN;
 
 export async function runSingleGoodBulk(identity: GoodsGroupIdentity, goodId: string, command: GoodsBulkCommand,
   values: Record<string, string | number | null>, staleMessage: (row: GoodsBulkGood) => string | null): Promise<BulkOutcome> {
   const request = parseGoodsBulkRequest({ kind: 'goods', ids: [goodId], command, values });
-  if (!request) return { ok: false, message: '바꿀 값의 형식이 맞지 않습니다. 판매가는 0원 이상의 정수로 입력해주세요.' };
+  if (!request) return { ok: false, message: '바꿀 값의 형식이 맞지 않습니다. 판매가는 1원 이상의 숫자로 입력해주세요.' };
   const operationId = crypto.randomUUID();
   const preview = await previewGoodsBulkAction(operationId, request, identity);
   if ('error' in preview) return { ok: false, message: preview.error };
   const row = preview.value.goods.find(item => item.id === goodId);
-  const stale = row ? staleMessage(row) : '현재 상품 정보를 확인하지 못했습니다.';
-  if (stale) {
+  /* 본 값이 다르면 그 안내가 먼저다. 값이 같은데 건너뛴다면 그 이유(할인 진행 중·보관 등)를 알린다. */
+  const blocked = row ? staleMessage(row) ?? (row.skip ? goodsBulkSkipMessage(row.skip) : null) : '지금 상품 정보를 확인하지 못했습니다. 새로고침한 뒤 다시 해주세요.';
+  if (blocked) {
     // Close the reviewed request so it can never be committed later.
     await readGoodsBulkAction(operationId, identity, true).catch(() => null);
-    return { ok: false, message: stale };
+    return { ok: false, message: blocked };
   }
-  // A commit whose reply never arrived may have been applied: keep the request id for '처리 결과 조회' instead of retrying.
+  // A commit whose reply never arrived may have been applied: keep the request id for '저장됐는지 확인' instead of retrying.
   const receipt = await commitGoodsBulkAction(operationId, identity).catch(() => ({ error: UNCERTAIN, uncertain: true }));
   if ('error' in receipt) return { ok: false, message: receipt.error, ...(receipt.uncertain ? { operationId } : {}) };
   if (receipt.value.state === 'completed') return { ok: true };
@@ -36,7 +39,7 @@ export async function runSingleGoodBulk(identity: GoodsGroupIdentity, goodId: st
 /*
  * 할인 중지 후 판매가 변경(1027T-025, 묶음 15 '할인 멈추고 판매가 변경'). 기존 '기간 할인 중지' → '판매가 변경'을 차례로 부른다.
  * 판매가 변경이 실패해도 멈춘 할인은 되돌리지 않는다 — 결과에 할인이 이미 멈췄다고 밝히고 같은 창에서 판매가만 다시 시도한다.
- * 한 단계의 결과를 모르면(응답 끊김) 다음 단계로 가지 않고 그 요청의 결과 조회·미처리 종료로 끝낸다.
+ * 한 단계의 결과를 모르면(응답 끊김) 다음 단계로 가지 않고 그 요청의 '저장됐는지 확인'·'그만두고 다시 하기'로 끝낸다.
  */
 
 /** 다음 단계와, 판매가 변경의 기대값이 바뀌었으면 그 값. `done`이면 판매가까지 바뀌었다. */
@@ -61,7 +64,7 @@ export async function reviewDiscountStop(identity: GoodsGroupIdentity, goodId: s
   const base = row ? row.instantDiscount?.regularPrice ?? row.price : null;
   if (!row || base !== seenBasePrice) {
     await readGoodsBulkAction(operationId, identity, true).catch(() => null);
-    return { step: 'review-failed', message: row ? discountStopStaleBaseMessage(base!) : '현재 상품 정보를 확인하지 못했습니다. 창을 닫고 새로고침해주세요.', retry: false };
+    return { step: 'review-failed', message: row ? discountStopStaleBaseMessage(base!) : '지금 상품 정보를 확인하지 못했습니다. 창을 닫고 새로고침해주세요.', retry: false };
   }
   return { step: 'ready', review: { operationId, discounts: row.discounts ?? null, ...(row.instantDiscount ? { instant: row.instantDiscount } : {}) } };
 }
@@ -104,22 +107,22 @@ export async function changePriceAfterStop(identity: GoodsGroupIdentity, goodId:
   }
 }
 
-/** 결과를 모르는 단계의 처리 결과 조회(`seal`이면 미처리 요청 종료). 판매가 변경을 새로 시작하지는 않는다. */
+/** 결과를 모르는 단계의 '저장됐는지 확인'(`seal`이면 '그만두고 다시 하기'). 판매가 변경을 새로 시작하지는 않는다. */
 export async function recoverDiscountStopPrice(identity: GoodsGroupIdentity, phase: Extract<DiscountStopPricePhase, { step: 'stop-uncertain' | 'price-uncertain' }>,
   seal: boolean): Promise<DiscountStopPriceStep> {
   const result = await readGoodsBulkAction(phase.operationId, identity, seal).catch(() => null);
-  if (!result || 'error' in result) return { phase: { ...phase, message: result?.error ?? '처리 결과를 불러오지 못했습니다. 다시 조회해주세요.' } };
+  if (!result || 'error' in result) return { phase: { ...phase, message: result?.error ?? `저장됐는지 확인하지 못했습니다. [${GOODS_BULK_RECOVER_LABEL}]을 다시 눌러주세요.` } };
   const { state, error } = result.value;
-  if (state === 'unresolved') return { phase: { ...phase, message: '아직 완료 기록이 없습니다. 잠시 후 다시 조회해주세요.' } };
+  if (state === 'unresolved') return { phase: { ...phase, message: GOODS_BULK_UNRESOLVED } };
   if (phase.step === 'stop-uncertain') {
     if (state === 'completed') return { phase: { step: 'price', stoppedHere: true, stopped: phase.review.discounts, ...(phase.review.instant ? { stoppedInstant: phase.review.instant } : {}), error: '' } };
     return { phase: { step: 'review-failed', retry: true,
-      message: state === 'sealed' ? '미처리 요청을 종료했습니다. 할인과 판매가는 바뀌지 않았습니다. 멈출 할인을 다시 확인해주세요.' : goodsBulkError(error) } };
+      message: state === 'sealed' ? '저장하지 않고 그만뒀습니다. 할인과 판매가는 그대로입니다. 멈출 할인을 다시 확인해주세요.' : goodsBulkError(error) } };
   }
   const keptInstant = phase.stoppedInstant ? { stoppedInstant: phase.stoppedInstant } : {};
   if (state === 'completed') return { phase: { step: 'price', stoppedHere: phase.stoppedHere, stopped: phase.stopped, ...keptInstant, error: '' }, done: true };
   return { phase: { step: 'price', stoppedHere: phase.stoppedHere, stopped: phase.stopped, ...keptInstant,
-    error: state === 'sealed' ? '미처리 요청을 종료했습니다. 판매가는 바뀌지 않았습니다.' : goodsBulkError(error) } };
+    error: state === 'sealed' ? '저장하지 않고 그만뒀습니다. 판매가는 그대로입니다.' : goodsBulkError(error) } };
 }
 
 /** 창이 끝난 뒤 목록에 남길 결과 문구(창은 그 상품이 목록에서 빠져도 결과를 잃지 않게 화면 수준에서 연다). */

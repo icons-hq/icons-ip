@@ -44,18 +44,17 @@ export function StockReconcileScreen({ origins, history, snapshot, digest, canMa
   digest: StockSafetyDigestSettings | null; canManageDigest: boolean; now: string;
 }) {
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="stock-reconcile">
-    <AdminPageHeader title="재고 대조" description="ERP·창고 재고 파일(엑스스퀘어 몫 수량)을 올려 사이트 재고수량과의 차이를 미리 보고, 확인한 뒤 한 번에 반영합니다. ERP·창고와 자동으로 연동되지는 않습니다." />
-    <AdminSectionCard id="stock-reconcile-file" title="재고 파일 대조"
-      summary="파일 수량에서 아직 출고하지 않은 주문을 빼서 맞춥니다. 주문을 받으면 사이트 재고수량은 바로 줄지만 창고 실물은 출고할 때 줄기 때문입니다.">
+    <AdminPageHeader title="재고 대조" description="ERP·창고 재고 파일을 직접 올려 사이트 재고수량과 맞춥니다. 파일의 수량은 엑스스퀘어 판매용으로 떼어 둔 수량이어야 합니다." />
+    <AdminSectionCard id="stock-reconcile-file" title="재고 파일 대조">
       <StockReconcilePanel origins={origins} initialSnapshot={snapshot} now={now} />
     </AdminSectionCard>
-    <AdminSectionCard id="stock-reconcile-history" title="최근 대조 기록" summary="미리보기만 한 파일도 남습니다. 출고지시 전 경고는 옵션마다 가장 최근 파일을 기준으로 합니다.">
+    <AdminSectionCard id="stock-reconcile-history" title="최근 대조 기록" summary="출고지시 전 경고는 미리보기만 한 파일까지 포함해, 옵션마다 재고 기준 시각이 가장 늦은 파일로 계산합니다.">
       <HistoryTable history={history} />
     </AdminSectionCard>
-    <AdminSectionCard id="stock-safety-digest" title="안전재고 요약 메일" summary="하루 한 번 안전재고 기준 이하 옵션을 운영자와 출고지 담당자에게 메일로 보냅니다.">
+    <AdminSectionCard id="stock-safety-digest" title="안전재고 요약 메일" summary="안전재고 기준 이하인 옵션을 하루 한 번 메일로 보냅니다. 기준은 상품 수정의 옵션 상세에서 옵션마다 넣고, 비워 두면 대상이 아닙니다.">
       {canManageDigest && digest ? <StockSafetyDigestPanel initial={digest} />
         : canManageDigest ? <AdminNotice tone="danger" role="alert">요약 메일 설정을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</AdminNotice>
-          : <AdminNotice tone="neutral">요약 메일 설정은 계정 주매니저 이상만 볼 수 있습니다. 재고 정보를 창고 담당자에게 보내는 설정이기 때문입니다.</AdminNotice>}
+          : <AdminNotice tone="neutral">요약 메일 설정은 계정 주매니저 이상만 볼 수 있습니다.</AdminNotice>}
     </AdminSectionCard>
   </div>;
 }

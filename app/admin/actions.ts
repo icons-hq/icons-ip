@@ -615,7 +615,7 @@ export async function adjustAdminStockAction(
     if (archivedError) return archivedError;
     if (error.message.includes('stock_changed')) {
       revalidateStock(ipPath);
-      return rpcFailure('실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.');
+      return rpcFailure('재고수량이 그사이 바뀌었습니다. 최신 수량을 확인한 뒤 다시 조정해주세요.');
     }
     if (error.message.includes('adjustment_conflict')) {
       revalidateStock(ipPath);
@@ -628,12 +628,12 @@ export async function adjustAdminStockAction(
     if (error.message.includes('good_not_found')) {
       return rpcFailure(adminGoodsCopy('굿즈를 찾을 수 없습니다.'));
     }
-    return rpcFailure('실재고를 조정하지 못했습니다. 다시 시도해주세요.');
+    return rpcFailure('재고수량을 조정하지 못했습니다. 다시 시도해주세요.');
   }
 
   notifyRestockSubscribers(value.goodId);
   revalidateStock(ipPath);
-  return { message: '실재고를 조정했습니다.', ...(typeof data === 'number' ? {
+  return { message: '재고수량을 조정했습니다.', ...(typeof data === 'number' ? {
     stockAdjustment: { variantId: value.variantId, stockQty: data, adjustmentId: crypto.randomUUID() },
   } : {}) };
 }

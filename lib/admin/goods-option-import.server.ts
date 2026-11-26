@@ -13,14 +13,17 @@ const LOOKUP_ERROR = '상품과 옵션을 불러오지 못했습니다. 현재 �
 
 /**
  * Reuse the catalog's filtering/paging RPC; project away inventory and unrelated operational data.
- * `optionSourcesOnly`(옵션 불러오기 선택창)면 같은 검색에 "사용 중인 선택형 옵션이 있는 상품만" 조건을 건 전용 조회를 쓴다 —
+ * `optionSourcesOnly`(옵션 불러오기 선택창)면 같은 검색에 "사용 중인 선택형 옵션이 있는 상품만" 조건을,
+ * `noticeSourcesOnly`(고시 '다른 상품에서 복사' 선택창)면 "고시를 한 칸이라도 적어 둔 상품만" 조건을 건 전용 조회를 쓴다 —
  * 조회에서 걸러야 총 개수와 페이지가 맞는다(화면 규칙 2). 그 밖의 호출(상품 선택창·복사등록)은 지금까지와 같은 조회다.
  */
 export async function searchGoodsOptionImportSources(filters: GoodsOptionImportFilters): Promise<GoodsOptionImportPage> {
   const client = await createClient();
   const offset = (filters.page - 1) * GOODS_OPTION_IMPORT_PAGE_SIZE;
-  const { data, error } = filters.optionSourcesOnly
-    ? await client.rpc('admin_search_goods_option_sources', {
+  /* 두 전용 조회는 인자가 같다: 검색어·검색 대상·카테고리·뺄 상품·페이지. */
+  const sourceSearch = filters.optionSourcesOnly ? 'admin_search_goods_option_sources' : filters.noticeSourcesOnly ? 'admin_search_goods_notice_sources' : null;
+  const { data, error } = sourceSearch
+    ? await client.rpc(sourceSearch, {
       p_query: filters.query, p_field: filters.field, p_category_id: filters.categoryId || null, p_exclude_good_id: filters.excludeGoodId ?? null,
       p_limit: GOODS_OPTION_IMPORT_PAGE_SIZE, p_offset: offset,
     })
@@ -42,7 +45,7 @@ export function goodsPickerLastPage(total: number): number {
 }
 
 /**
- * 상품 선택창 조회 함수(`admin_search_goods_console`·`admin_search_goods_option_sources`·`admin_search_goods_additional_candidates`)의
+ * 상품 선택창 조회 함수(`admin_search_goods_console`·`admin_search_goods_option_sources`·`admin_search_goods_notice_sources`·`admin_search_goods_additional_candidates`)의
  * 응답 `{ total, rows }`을 선택창 한 페이지로 바꾼다. 재고·준비 상태 같은 운영 값은 싣지 않는다. 모양이 다르면 null.
  */
 export function goodsPickerPageFromSearch(data: unknown, page: number): GoodsOptionImportPage | null {
@@ -61,7 +64,7 @@ async function readTargetVersion(targetId: string | null): Promise<string> {
   const client = await createClient();
   const { data, error } = await client.from('goods').select(TARGET_SELECT).eq('id', targetId).maybeSingle();
   if (error || !record(data) || data.id !== targetId || !Array.isArray(data.goods_variants)) throw new Error(LOOKUP_ERROR);
-  if (data.published_at !== null || data.archived_at !== null) throw new GoodsOptionImportError('지금 편집 중인 상품이 공개 중이거나 보관되어 다른 상품의 옵션을 불러올 수 없습니다. 비공개로 전환한 뒤 상품 화면을 다시 열어주세요.');
+  if (data.published_at !== null || data.archived_at !== null) throw new GoodsOptionImportError('지금 편집 중인 상품이 공개 중이거나 보관되어 다른 상품의 옵션을 불러올 수 없습니다. 초안으로 전환한 뒤 상품 화면을 다시 열어주세요.');
   // ERP identities live in a private table, so the same existing read RPC used by the editor supplies this part of the baseline.
   const identities = await client.rpc('admin_list_goods_variant_external_identities', { target_good_id: targetId });
   if (identities.error || !Array.isArray(identities.data) || identities.data.some(row => !record(row) || row.good_id !== targetId || typeof row.variant_id !== 'string')) throw new Error(LOOKUP_ERROR);

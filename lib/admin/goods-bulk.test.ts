@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { goodsBulkError, goodsBulkPriceConfirmation, goodsBulkShippingHref, goodsBulkSkipLabel, parseGoodsBulkPreview, parseGoodsBulkReceipt, parseGoodsBulkRequest, parseGoodsBulkShippingIds, type GoodsBulkPreview, type GoodsBulkRequest } from './goods-bulk';
+import { GOODS_BULK_LABELS, GOODS_BULK_SKIP_LABELS, GOODS_BULK_UNCERTAIN, goodsBulkError, goodsBulkFormValues, goodsBulkModeUnit, goodsBulkPriceConfirmation, goodsBulkShippingHref, goodsBulkSkipLabel, goodsBulkSkipMessage,
+  parseGoodsBulkPreview, parseGoodsBulkReceipt, parseGoodsBulkRequest, parseGoodsBulkShippingIds, type GoodsBulkFormFields, type GoodsBulkPreview, type GoodsBulkRequest } from './goods-bulk';
 const id = 'b9000000-0000-4000-8000-000000000001';
 const request: GoodsBulkRequest = { kind: 'goods', ids: ['good-a'], command: 'price', values: { mode: 'increase', value: 100 } };
 const preview: GoodsBulkPreview = { state: 'ready', operationId: id, request, groups: [], expiresAt: '2026-10-16T14:00:00.123456Z',
@@ -35,7 +36,7 @@ describe('상품 일괄 변경 계약', () => {
     for (const change of [{ goodsCount: 0 }, { state: 'rejected' }, { state: 'unresolved' }, { error: 'internal' }, { operationId: 'bad' }]) expect(parseGoodsBulkReceipt({ ...receipt, ...change }, id)).toBeNull();
     expect(parseGoodsBulkReceipt({ ...receipt, state: 'rejected', goodsCount: 0, error: 'goods_bulk_changed' }, id)).not.toBeNull();
   });
-  it('IP 전체 즉시할인은 IP 하나와 할인 명령만 받는다', () => {
+  it('IP 전체 기간 할인은 IP 하나와 할인 명령만 받는다', () => {
     const values = { mode: 'rate', value: 10, startsAt: '2026-10-28T00:00:00Z', endsAt: '2026-10-30T00:00:00Z' };
     expect(parseGoodsBulkRequest({ kind: 'ip', ids: ['maple-story'], command: 'discount', values })).not.toBeNull();
     expect(parseGoodsBulkRequest({ kind: 'ip', ids: ['maple-story'], command: 'discount_stop', values: {} })).not.toBeNull();
@@ -48,7 +49,6 @@ describe('상품 일괄 변경 계약', () => {
     expect(parseGoodsBulkPreview({ ...preview, request: ipRequest, goods }, id, ipRequest)).not.toBeNull();
     expect(parseGoodsBulkPreview({ ...preview, request: ipRequest, goods: goods.map(row => ({ ...row, skip: 'price_period_overlap' })) }, id, ipRequest)).toBeNull();
     expect(parseGoodsBulkPreview({ ...preview, request: ipRequest, goods: [{ ...goods[0], skip: 'Bad reason' }, goods[1]] }, id, ipRequest)).toBeNull();
-    expect(parseGoodsBulkPreview({ ...preview, goods: [{ ...preview.goods[0], skip: 'price_period_overlap' }] }, id, request)).toBeNull();
     const goodsRequest: GoodsBulkRequest = { ...request, ids: Array.from({ length: 150 }, (_, index) => `good-${index}`) };
     expect(parseGoodsBulkPreview({ ...preview, request: goodsRequest, goods }, id, goodsRequest)).toBeNull();
   });
@@ -77,10 +77,73 @@ describe('상품 일괄 변경 계약', () => {
     expect(parseGoodsBulkPreview({ ...preview, request: plainStop, goods: [row] }, id, plainStop)).toBeNull();
     expect(goodsBulkSkipLabel('instant_discount_active')).toContain('기간 없는 즉시할인');
   });
-  it('진행 중인 즉시할인 때문에 판매가를 못 바꾸면 할인 중지를 안내한다', () => {
-    expect(goodsBulkError('active_price_period_requires_reset')).toContain('즉시할인을 먼저 중지');
+  it('진행 중인 기간 할인 때문에 판매가를 못 바꾸면 할인 중지를 안내한다', () => {
+    expect(goodsBulkError('active_price_period_requires_reset')).toContain('기간 할인을 먼저 중지');
     expect(goodsBulkError('active_price_period_requires_reset')).not.toContain('굿즈');
-    expect(goodsBulkError('goods_bulk_no_active_discount')).toContain('즉시할인이 없습니다');
+    expect(goodsBulkError('goods_bulk_no_active_discount')).toContain('멈출 기간 할인이 없습니다');
+  });
+  /* D4(20261126150000): 공개·초안·판매상태·보관·복원·판매가·판매기간도 상품마다 건너뛴다. 미리보기와 저장이 같은 판정을 쓴다. */
+  it('모든 명령의 비교가 상품별 건너뛰기를 받고, 할인이 아니면 모두 건너뛰어도 이유를 보여 주려고 받는다', () => {
+    const publish: GoodsBulkRequest = { kind: 'goods', ids: ['good-a', 'good-b'], command: 'publish', values: {} };
+    const rows = [{ ...preview.goods[0], id: 'good-a', skip: null }, { ...preview.goods[0], id: 'good-b', skip: 'goods_category_required' }];
+    expect(parseGoodsBulkPreview({ ...preview, request: publish, goods: rows }, id, publish)?.goods.map(row => row.skip)).toEqual([null, 'goods_category_required']);
+    expect(parseGoodsBulkPreview({ ...preview, request: publish, goods: rows.map(row => ({ ...row, skip: 'good_archived' })) }, id, publish)).not.toBeNull();
+    expect(parseGoodsBulkPreview({ ...preview, goods: [{ ...preview.goods[0], skip: 'active_price_period_requires_reset' }] }, id, request)).not.toBeNull();
+    expect(parseGoodsBulkPreview({ ...preview, request: publish, goods: [rows[0], { ...rows[1], skip: 'Bad reason' }] }, id, publish)).toBeNull();
+  });
+  it('비교 줄의 판매상태 값과 지금 판매기간을 받고, 모양이 틀리면 거절한다', () => {
+    const stop: GoodsBulkRequest = { kind: 'goods', ids: ['good-a'], command: 'stop', values: {} };
+    const row = { ...preview.goods[0], skip: null, discounts: null, stock: 'low', saleStartsAt: '2026-12-01T01:00:00+00:00', saleEndsAt: '2026-12-07T14:59:00+00:00' };
+    expect(parseGoodsBulkPreview({ ...preview, request: stop, goods: [row] }, id, stop)?.goods[0]).toMatchObject({ stock: 'low', saleStartsAt: '2026-12-01T01:00:00+00:00' });
+    expect(parseGoodsBulkPreview({ ...preview, request: stop, goods: [{ ...row, saleStartsAt: null, saleEndsAt: null }] }, id, stop)).not.toBeNull();
+    for (const bad of [{ stock: 'paused' }, { stock: null }, { saleStartsAt: '2026-12-01' }, { saleEndsAt: 12 }, { extra: true }])
+      expect(parseGoodsBulkPreview({ ...preview, request: stop, goods: [{ ...row, ...bad }] }, id, stop), JSON.stringify(bad)).toBeNull();
+  });
+  it('건너뛴 이유를 표 한 칸의 짧은 말로 옮기고, 모르는 이유도 다음에 볼 곳을 말한다', () => {
+    for (const reason of ['good_archived', 'goods_category_required', 'goods_kc_review_required', 'goods_publish_incomplete', 'good_has_stock',
+      'goods_bulk_already_published', 'goods_bulk_already_draft', 'goods_bulk_not_stopped', 'goods_bulk_already_stopped', 'goods_bulk_already_archived',
+      'goods_bulk_not_archived', 'active_price_period_requires_reset', 'goods_compare_at_price_invalid', 'goods_sale_period_preorder_conflict', 'goods_bulk_busy'])
+      expect(GOODS_BULK_SKIP_LABELS[reason], reason).toBeTruthy();
+    expect(goodsBulkSkipLabel('goods_bulk_not_stopped')).toBe('판매중지가 아님');
+    expect(goodsBulkSkipLabel('goods_bulk_price_invalid')).toBe('할인가가 1원 미만이거나 판매가 이상');
+    expect(goodsBulkSkipLabel('goods_bulk_price_invalid', 'price')).toBe('새 판매가가 1원보다 작거나 너무 큼');
+    expect(goodsBulkSkipLabel('random_option_count')).toContain('랜덤 판매');
+    expect(goodsBulkSkipLabel('some_new_reason')).toBe('지금은 바꿀 수 없음(상품 수정에서 확인)');
+    /* 상품 1개짜리 변경(목록 바로 수정)은 같은 이유를 문장으로 받는다. */
+    expect(goodsBulkSkipMessage('good_archived')).toBe('보관된 상품은 바꿀 수 없습니다. 먼저 복원해주세요.');
+    expect(goodsBulkSkipMessage('random_option_count')).toBe('판매 중인 옵션이 2개 이상이어야 랜덤 판매를 쓸 수 있습니다.');
+  });
+  it('버튼·카드 이름은 화면 낱말 표를 따른다', () => {
+    expect(GOODS_BULK_LABELS).toMatchObject({ publish: '공개로', unpublish: '초안으로', start: '판매중으로', stop: '판매중지로', archive: '보관', restore: '복원', discount: '기간 할인 걸기', discount_stop: '기간 할인 중지' });
+    expect(GOODS_BULK_UNCERTAIN).toBe('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');
+    for (const stale of ['판매 재개', '판매 운영', '전시 중지', '즉시할인 등록']) expect(Object.values(GOODS_BULK_LABELS)).not.toContain(stale);
+  });
+  it('오류 문장은 무엇이 문제인지와 다음에 할 일을 함께 말한다', () => {
+    expect(goodsBulkError('operator_capability_required')).toBe('상품을 바꿀 권한이 없습니다. 최고 관리자에게 매니저 관리에서 상품 관리 권한을 요청해주세요.');
+    expect(goodsBulkError('goods_category_required')).toBe('대표 카테고리가 없어 공개할 수 없습니다. 상품 수정에서 대표 카테고리를 골라주세요.');
+    /* QA G4: 고시가 빈 공개 상품은 판매중지·판매중·판매가·판매기간 변경이 막힌다(상품 저장이 받지 않는다). 하려던 일이 공개가 아니므로
+       "공개할 수 없습니다"가 아니라 왜 바꿀 수 없는지와 풀 방법을 말한다. 표의 짧은 말도 같다. */
+    expect(goodsBulkError('goods_notice_required')).toBe('공개 중인 상품인데 상품정보제공고시가 비어 있어 바꿀 수 없습니다. 상품 수정에서 고시를 채운 뒤 다시 해주세요.');
+    expect(goodsBulkSkipMessage('goods_notice_required')).not.toContain('공개할 수 없습니다');
+    expect(goodsBulkSkipLabel('goods_notice_required', 'stop')).toBe('공개 중인데 상품정보제공고시가 비어 있음(먼저 채우기)');
+    /* 바꿀 수 있는 상품이 없을 때: 명령을 모르면 어느 명령에나 맞는 말로, 기간 할인 걸기·중지는 그 명령에서 건너뛰는 이유를 모두 적는다(DB의 건너뛰기 이유와 같다). */
+    expect(goodsBulkError('goods_bulk_all_skipped')).toBe('바꿀 수 있는 상품이 없습니다. 상품의 지금 상태를 확인한 뒤 다시 해주세요.');
+    expect(goodsBulkError('goods_bulk_all_skipped', 'archive')).toBe(goodsBulkError('goods_bulk_all_skipped'));
+    expect(goodsBulkError('goods_bulk_all_skipped')).not.toContain('할인');
+    const discount = goodsBulkError('goods_bulk_all_skipped', 'discount');
+    for (const reason of ['기간이 겹치는 할인', '기간 없는 즉시할인', '사용 중인 옵션이 없는', '할인가가 1원 미만', '보관된 상품']) expect(discount, reason).toContain(reason);
+    for (const code of ['price_period_overlap', 'instant_discount_active', 'price_period_variant_inactive', 'goods_bulk_price_invalid']) expect(GOODS_BULK_SKIP_LABELS[code], code).toBeTruthy();
+    expect(goodsBulkError('goods_bulk_all_skipped', 'discount_stop')).toContain('멈출 기간 할인이 없습니다.');
+    /* 다른 코드는 명령을 줘도 같은 문장이다(목록 바로 수정이 문장으로 견준다). */
+    expect(goodsBulkError('goods_bulk_no_active_discount', 'discount_stop')).toBe(goodsBulkError('goods_bulk_no_active_discount'));
+    for (const code of ['goods_bulk_changed', 'goods_kc_review_required', 'good_archived', 'goods_compare_at_price_invalid', 'unknown_code']) expect(goodsBulkError(code), code).not.toContain('해당');
+  });
+  it('할인이 아닌 명령의 완료 영수증도 건너뛴 상품과 이유를 싣는다', () => {
+    const receipt = { state: 'completed', operationId: id, goodsCount: 1, groupsCount: 0, error: null, skipped: [{ id: 'good-b', name: '상품 B', code: 'GOOD-B', reason: 'goods_category_required' }] };
+    expect(parseGoodsBulkReceipt(receipt, id)?.skipped).toEqual(receipt.skipped);
+    expect(parseGoodsBulkReceipt({ ...receipt, skipped: [] }, id)).not.toBeNull();
+    expect(parseGoodsBulkReceipt({ ...receipt, state: 'rejected', goodsCount: 0, error: 'goods_bulk_all_skipped' }, id)).toBeNull();
+    expect(parseGoodsBulkReceipt({ state: 'rejected', operationId: id, goodsCount: 0, groupsCount: 0, error: 'goods_bulk_all_skipped' }, id)).not.toBeNull();
   });
   it('완료 영수증의 건너뛴 상품 목록을 검사한다', () => {
     const receipt = { state: 'completed', operationId: id, goodsCount: 120, groupsCount: 0, error: null, skipped: [{ id: 'good-a', name: '상품 A', code: null, reason: 'price_period_overlap' }] };
@@ -108,5 +171,37 @@ describe('일괄 판매가 변경 오입력 확인', () => {
     expect(typo?.message).not.toContain('상품 B');
     expect(typo?.message).toContain('맞으면 3개 상품에 판매가 변경을 적용합니다.');
     expect(goodsBulkPriceConfirmation({ request: { ...request, command: 'discount' }, goods: [{ ...row, price: 29000, nextPrice: 2900 }] })).toBeNull();
+  });
+});
+
+/* B-02·B-09·B-10: 창의 입력을 요청 값으로 옮긴다. 틀린 칸은 어느 칸이 왜 안 되는지 말하고, 판매기간의 두 선택은 함께 읽지 않는다. */
+describe('일괄 변경 창의 입력', () => {
+  const fields: GoodsBulkFormFields = { mode: 'set', value: '', periodMode: 'range', startsAt: '', endsAt: '' };
+  it('금액·비율을 숫자로 옮기고, 방식에 맞는 단위와 범위로 안내한다', () => {
+    expect(goodsBulkFormValues('price', { ...fields, value: '12,000' })).toEqual({ values: { mode: 'set', value: 12000 } });
+    expect(goodsBulkFormValues('price', { ...fields, value: '' })).toEqual({ error: '금액은 1 이상의 숫자로 입력해주세요.' });
+    expect(goodsBulkFormValues('price', { ...fields, mode: 'percent_decrease', value: '0' })).toEqual({ error: '비율은 1 이상의 숫자로 입력해주세요.' });
+    expect(goodsBulkFormValues('price', { ...fields, mode: 'percent_decrease', value: '100' })).toEqual({ error: '내리는 비율은 99% 이하로 입력해주세요.' });
+    expect(goodsBulkFormValues('price', { ...fields, mode: 'percent_increase', value: '1001' })).toEqual({ error: '올리는 비율은 1,000% 이하로 입력해주세요.' });
+    expect(goodsBulkFormValues('price', { ...fields, value: '2147483648' })).toEqual({ error: '금액이 너무 큽니다. 2,147,483,647원 이하로 입력해주세요.' });
+    expect(goodsBulkModeUnit('set')).toBe('원'); expect(goodsBulkModeUnit('amount')).toBe('원');
+    expect(goodsBulkModeUnit('rate')).toBe('%'); expect(goodsBulkModeUnit('percent_increase')).toBe('%');
+  });
+  it('기간 할인은 금액과 기간(KST 입력)을 함께 옮긴다', () => {
+    const discount = { ...fields, mode: 'rate', value: '10', startsAt: '2026-12-01T10:00', endsAt: '2026-12-07T23:59' };
+    expect(goodsBulkFormValues('discount', discount)).toEqual({ values: { mode: 'rate', value: 10, startsAt: '2026-12-01T01:00:00.000Z', endsAt: '2026-12-07T14:59:00.000Z' } });
+    expect(goodsBulkFormValues('discount', { ...discount, value: '100' })).toEqual({ error: '할인 비율은 99% 이하로 입력해주세요.' });
+    expect(goodsBulkFormValues('discount', { ...discount, endsAt: '' })).toEqual({ error: '시작 (KST)과 종료 (KST)를 모두 입력해주세요. 종료는 시작보다 늦어야 합니다.' });
+    expect(goodsBulkFormValues('discount', { ...discount, endsAt: '2026-11-30T00:00' })).toHaveProperty('error');
+  });
+  it("판매기간은 '기간 정하기'면 날짜가 있어야 하고, '기간 없이 계속 판매'면 적어 둔 날짜를 읽지 않는다", () => {
+    const dated = { ...fields, startsAt: '2026-12-01T10:00', endsAt: '2026-12-07T23:59' };
+    expect(goodsBulkFormValues('period', dated)).toEqual({ values: { startsAt: '2026-12-01T01:00:00.000Z', endsAt: '2026-12-07T14:59:00.000Z' } });
+    expect(goodsBulkFormValues('period', fields)).toHaveProperty('error');
+    expect(goodsBulkFormValues('period', { ...dated, periodMode: 'none' })).toEqual({ values: { startsAt: null, endsAt: null } });
+    /* 옮긴 값은 요청 검사를 그대로 지난다. */
+    for (const input of [goodsBulkFormValues('period', dated), goodsBulkFormValues('period', { ...dated, periodMode: 'none' })])
+      expect('values' in input && parseGoodsBulkRequest({ kind: 'goods', ids: ['good-a'], command: 'period', values: input.values })).toBeTruthy();
+    expect(goodsBulkFormValues('publish', fields)).toEqual({ values: {} });
   });
 });

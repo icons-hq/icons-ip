@@ -25,7 +25,7 @@ vi.mock('@/app/admin/shipping-charge-group-actions', () => ({ getShippingChargeG
 
 import { GOOD_PICKERS_B_HELP } from '@/lib/admin/help/good-pickers-b';
 import type { AdminAdditionalGood } from '@/lib/admin/goods-additional';
-import { emptyGoodWorkspaceTerms, type GoodWorkspaceExtraDraft } from '@/lib/admin/good-workspace-extra-sections';
+import { emptyGoodWorkspaceTerms, goodWorkspaceExtraDefault, type GoodWorkspaceExtraDraft } from '@/lib/admin/good-workspace-extra-sections';
 import { Label } from '@/components/admin/kit/ui/label';
 import { AdminHelpTip, AdminLabelWithHelp } from './console/AdminHelpTip';
 import { GoodChoiceCard, GoodChoiceCards } from './GoodEditorParts';
@@ -33,6 +33,7 @@ import { GOODS_ADDITIONAL_INTRO, GoodsAdditionalLinks } from './GoodsAdditionalL
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
 import { GoodsListingColorFields } from './GoodsListingColorsPanel';
 import { GoodsSubscriptionPolicyFields } from './GoodsSubscriptionPolicyPanel';
+import { GoodsProductionFields } from './GoodsProductionPanel';
 import { GoodsDeliveryPricingFields, GoodsDeliveryRuleFields, GoodsVolumeDiscountFields } from './GoodsTransactionTermsPanel';
 import { ShippingChargeGroupField } from './ShippingChargeGroupField';
 import {
@@ -226,16 +227,46 @@ describe('나머지 섹션의 안내 글', () => {
     const fulfillment = (draft.type as (props: unknown) => ReactNode)(draft.props);
     const fulfillmentLegend = nodes(fulfillment).find(node => node.type === 'legend')!;
     expect([fulfillmentLegend.props.className, text(fulfillmentLegend.props.children as ReactNode)]).toEqual(['sr-only', '상품 제공 방식']);
-    expect(intro(fulfillment)).toEqual(['택배만 쓰면 바꿀 것이 없습니다. 다른 수령 방식을 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.']);
-    expect(intro(production)).toEqual(['쓰지 않으면 바꿀 것이 없습니다. 쓰려면 아래 ‘설정 근거’와 확인 체크도 채워야 합니다.']);
+    /* 설정 근거·확인 체크가 없어 채우라는 안내도 없다(2026-11-25 결정). 주문 후 제작은 체크 하나가 스스로 말해 도입 문장을 두지 않는다. */
+    expect(intro(fulfillment)).toEqual(['택배만 쓰면 바꿀 것이 없습니다.']);
+    expect(intro(production)).toEqual([]);
   });
-  it('사이즈 안내: 저장된 상품의 패널과 같은 이름(고객 화면 표시·표시 안 함·템플릿에서 가져오기)을 쓴다', () => {
+  /* 브라우저 확인 F4: 쇼핑몰 설정이 택배 외 수령 방식을 받지 않으면 이 영역의 저장이 거절돼 상품 전체가 등록되지 않았다. 고르기 전에 막는다(화면 규칙 5). */
+  it('수령 방식: 쇼핑몰 설정이 택배만 받으면 처음 상태에서 고르지 못하게 막고 이유를 보인다. 다른 방식이 들어 있으면 되돌릴 수 있게 열어 둔다', () => {
+    const fulfillment = (runtimeOff?: boolean) => {
+      const session = GoodWorkspaceFulfillmentSection({ accountId: 'actor', runtimeOff }) as Element;
+      const draft = (session.props.children as (identity: unknown, scope: unknown) => Element)({}, {});
+      return (draft.type as (props: unknown) => ReactNode)(draft.props);
+    };
+    const reason = (tree: ReactNode) => nodes(tree).filter(node => node.props['data-good-fulfillment-runtime-off'] !== undefined).map(node => text(node.props.children as ReactNode));
+    const fieldset = (tree: ReactNode) => nodes(tree).find(node => node.type === 'fieldset')!;
+    const open = fulfillment();
+    expect(reason(open)).toEqual([]); expect(fieldset(open).props.disabled).toBe(false);
+    const blocked = fulfillment(true);
+    expect(reason(blocked)).toEqual(['지금 쇼핑몰 설정에서는 택배만 쓸 수 있습니다. 퀵·방문수령·직접배송·화물배송, 설치비, 직접 전달, 디지털 파일은 고를 수 없습니다. 써야 하면 개발 담당자에게 요청해 주세요.']);
+    expect(fieldset(blocked).props.disabled).toBe(true);
+    expect(intro(blocked)).toEqual([]);
+    const empty = goodWorkspaceExtraDefault('fulfillment');
+    workspace.sections = { extras: { fulfillment: { ...empty, methods: empty.methods.map(method => method.method === 'quick' ? { ...method, enabled: true, amount: '8000' } : method) } } };
+    const restored = fulfillment(true);
+    expect(reason(restored)).toEqual(['지금 쇼핑몰 설정에서는 택배만 쓸 수 있습니다. 택배만 켜고 설치비 0원, 고객 안내는 비워 두어야 상품이 등록됩니다. 다른 방식을 써야 하면 개발 담당자에게 요청해 주세요.']);
+    expect(fieldset(restored).props.disabled).toBe(false);
+    /* 퀵을 끄면(금액은 남아도) 다시 처음 상태로 본다. */
+    workspace.sections = { extras: { fulfillment: { ...empty, methods: empty.methods.map(method => method.method === 'quick' ? { ...method, amount: '8000' } : method) } } };
+    expect(fieldset(fulfillment(true)).props.disabled).toBe(true);
+  });
+  it('주문 후 제작: 쇼핑몰 설정이 받는지를 입력 부품에 넘긴다(켜기 전에 막는 것은 입력 부품이 한다)', () => {
+    const fields = (tree: ReactNode) => nodes(tree).find(node => node.type === GoodsProductionFields)!;
+    expect(fields(GoodWorkspaceProductionSection({ runtimeOff: true })).props.runtimeOff).toBe(true);
+    expect(fields(GoodWorkspaceProductionSection({})).props.runtimeOff).toBeUndefined();
+  });
+  it('사이즈 안내: 저장된 상품의 패널과 같은 이름(고객 화면 표시·표시 안 함·사이즈 템플릿 고르기)을 쓴다', () => {
     const tree = GoodWorkspaceSizeChartSection({});
     expect(intro(tree)).toEqual(['상품의 치수를 표로 보여 줍니다. 표의 사이즈 이름은 구매 옵션과 따로 적습니다.']);
     const all = nodes(tree);
     expect(all.filter(node => node.type === Label).map(node => text(node.props.children as ReactNode))).toEqual(['고객 화면 표시']);
     expect(all.filter(node => node.type === 'option').map(node => text(node.props.children as ReactNode))).toEqual(['표시 안 함 · 표는 그대로 보관', '표시']);
-    expect(all.some(node => node.type === 'button' && text(node.props.children as ReactNode) === '사이즈 템플릿에서 가져오기')).toBe(true);
+    expect(all.some(node => node.type === 'button' && text(node.props.children as ReactNode) === '사이즈 템플릿 고르기')).toBe(true);
     const shown = text(tree); expect(shown).not.toContain('공개 표시'); expect(shown).not.toContain('설정안함');
   });
   it('기간 할인: 입력이 없을 때 따로 말하지 않고 안내는 한 줄이다', () => {

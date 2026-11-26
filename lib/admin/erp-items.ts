@@ -7,7 +7,22 @@ import type { AdminCategoryErpMapping, AdminCategoryNode } from './category';
  * 입력할 때 품번·바코드·고객 카테고리·판매가를 제안한다. ERP와 실시간 연동은
  * 하지 않는다. 반입된 값은 제안일 뿐이며 MD가 상품 화면에서 바꿀 수 있다.
  */
+/**
+ * 이 ERP 품목(ERP 코드 또는 바코드)을 이미 쓰고 있는 옵션. ERP 코드와 바코드는 쇼핑몰의 옵션 전체에서 하나뿐이어야 저장된다
+ * (DB의 goods_variant_external_identity 유일 규칙 — 다른 상품·사용 중지한 옵션 포함).
+ */
+export interface ErpItemUsage {
+  /** 쓰고 있는 옵션의 내부 번호. 지금 편집 중인 표에 있는 옵션인지 가릴 때만 쓴다(화면에 보이지 않는다). */
+  variantId: string;
+  goodName: string;
+  optionName: string;
+  /** 무엇이 겹치는가. 바코드만 겹치면 옵션의 바코드 칸이 비어 있을 때만 문제가 된다(바코드는 빈 칸에만 들어간다). */
+  via: 'erpCode' | 'barcode';
+}
+
 export type ErpItemMatch = {
+  /** 옵션의 [ERP 품목 고르기] 선택창만 싣는다: 이 품목을 이미 쓰는 옵션. 없거나 확인하지 못했으면 null·없음. */
+  usedBy?: ErpItemUsage | null;
   /** ERP 품번 */
   code: string;
   /** ERP 품명 */
@@ -32,10 +47,7 @@ export const ERP_ITEM_LIMITS = {
   salePrice: 2_147_483_647,
 } as const;
 
-/** 상품 옵션 ERP 품명 입력이 검색을 시작하는 글자 수. */
-export const ERP_ITEM_SEARCH_MIN_LENGTH = 2;
 export const ERP_ITEM_SEARCH_QUERY_MAX = 100;
-export const ERP_ITEM_SUGGESTION_LIMIT = 8;
 export const ERP_ITEMS_PAGE_SIZE = 50;
 
 export type ErpItemRejectReason =
@@ -56,7 +68,7 @@ export const ERP_ITEM_REJECT_REASON_LABELS: Record<ErpItemRejectReason, string> 
   missing_name: 'ERP 품명이 비어 있습니다.',
   invalid_name: `ERP 품명은 ${ERP_ITEM_LIMITS.name}자 이하로 입력해주세요.`,
   invalid_category: `ERP 분류는 ${ERP_ITEM_LIMITS.category}자 이하로 입력해주세요.`,
-  invalid_sale_price: '판매가는 0 이상의 원 단위 숫자로 입력해주세요.',
+  invalid_sale_price: 'ERP 판매가는 0 이상의 원 단위 숫자로 입력해주세요.',
   invalid_barcode: `바코드는 ${ERP_ITEM_LIMITS.barcode}자 이하로, 줄바꿈·탭 없이 입력해주세요.`,
   duplicate_code: '같은 ERP 코드가 아래에 다시 있어 마지막 줄의 값으로 올렸습니다.',
 };
@@ -67,6 +79,84 @@ export function isErpItemRejectReason(value: unknown): value is ErpItemRejectRea
 
 export function erpItemRejectReasonLabel(reason: string): string {
   return isErpItemRejectReason(reason) ? ERP_ITEM_REJECT_REASON_LABELS[reason] : '올리지 못한 줄입니다. ERP 코드·품명·판매가·바코드 칸에 빠지거나 잘못 들어간 값이 없는지 확인한 뒤 다시 올려주세요.';
+}
+
+/** 품목 올리기에서 열을 골랐는데 칸이 비어 있을 수 있는 항목. 이미 올려 둔 값이 있으면 올릴 때 그 값이 지워진다. */
+export type ErpItemBlankField = 'category' | 'salePrice' | 'barcode';
+export const ERP_ITEM_BLANK_FIELDS: readonly ErpItemBlankField[] = ['category', 'salePrice', 'barcode'];
+const ERP_ITEM_BLANK_FIELD_LABELS: Record<ErpItemBlankField, string> = { category: 'ERP 분류', salePrice: 'ERP 판매가', barcode: '바코드' };
+
+/** 올릴 줄에서 칸이 비어 있는 항목. 열을 고르지 않은 항목은 키가 없어 세지 않는다(전에 올린 값을 그대로 둔다). */
+export function erpItemBlankFields(row: Partial<Record<ErpItemBlankField, string | number | null>>): ErpItemBlankField[] {
+  return ERP_ITEM_BLANK_FIELDS.filter((field) => Object.hasOwn(row, field) && row[field] === null);
+}
+
+/** 올리면 이미 올려 둔 값이 지워지는 품목(품목 올리기 전 확인). */
+export interface ErpItemClears {
+  /** 값이 하나라도 지워지는 품목 수 */
+  items: number;
+  /** 항목별로 값이 지워지는 품목 수 */
+  fields: Record<ErpItemBlankField, number>;
+  /** 확인창에 보일 품목(앞 {@link ERP_ITEM_CLEAR_SAMPLE_LIMIT}개) */
+  samples: { code: string; name: string }[];
+}
+
+export const ERP_ITEM_CLEAR_SAMPLE_LIMIT = 3;
+
+export function emptyErpItemClears(): ErpItemClears {
+  return { items: 0, fields: { category: 0, salePrice: 0, barcode: 0 }, samples: [] };
+}
+
+/**
+ * 올려 둔 품목 하나와 올릴 줄의 빈 항목을 견줘, 지워지는 값을 `clears`에 더한다.
+ * DB(admin_import_erp_items)는 열을 고른 항목만 새 값으로 바꾸므로, 칸이 비어 있고 올려 둔 값이 있을 때만 지워진다.
+ */
+export function addErpItemClears(
+  clears: ErpItemClears,
+  existing: { code: string; name: string } & Record<ErpItemBlankField, string | number | null>,
+  blanks: readonly ErpItemBlankField[],
+): ErpItemClears {
+  const cleared = blanks.filter((field) => existing[field] !== null && existing[field] !== '');
+  if (!cleared.length) return clears;
+  const fields = { ...clears.fields };
+  for (const field of cleared) fields[field] += 1;
+  return {
+    items: clears.items + 1,
+    fields,
+    samples: clears.samples.length < ERP_ITEM_CLEAR_SAMPLE_LIMIT ? [...clears.samples, { code: existing.code, name: existing.name }] : clears.samples,
+  };
+}
+
+/** 묶음마다 센 결과를 합친다. */
+export function mergeErpItemClears(left: ErpItemClears, right: ErpItemClears): ErpItemClears {
+  return {
+    items: left.items + right.items,
+    fields: {
+      category: left.fields.category + right.fields.category,
+      salePrice: left.fields.salePrice + right.fields.salePrice,
+      barcode: left.fields.barcode + right.fields.barcode,
+    },
+    samples: [...left.samples, ...right.samples].slice(0, ERP_ITEM_CLEAR_SAMPLE_LIMIT),
+  };
+}
+
+const clearCount = (value: number) => value.toLocaleString('ko-KR');
+
+/** 올리기 전 확인창: 지워지는 값의 수와 품목, 지우지 않는 방법을 말한다(화면 규칙 7). */
+export function erpItemClearsConfirmation(clears: ErpItemClears): string {
+  const fields = ERP_ITEM_BLANK_FIELDS.filter((field) => clears.fields[field])
+    .map((field) => `${ERP_ITEM_BLANK_FIELD_LABELS[field]} ${clearCount(clears.fields[field])}건`).join(' · ');
+  const names = clears.samples.map((item) => `${item.code} ${item.name}`).join(', ');
+  const more = clears.items - clears.samples.length;
+  return `이미 올려 둔 품목 ${clearCount(clears.items)}건의 값이 지워집니다(${fields}). 표에서 그 칸이 비어 있습니다.`
+    + (names ? `\n${names}${more > 0 ? ` 외 ${clearCount(more)}건` : ''}` : '')
+    + '\n지우지 않으려면 취소한 뒤 그 열을 ‘가져오지 않음’으로 바꾸거나 칸을 채워주세요. 그대로 올릴까요?';
+}
+
+/** 올려 둔 값과 비교하지 못했을 때의 확인창. 칸이 빈 품목 수만 안다. */
+export function erpItemBlanksUncheckedConfirmation(blankRows: number): string {
+  return `칸이 비어 있는 품목이 ${clearCount(blankRows)}건 있습니다. 이미 올려 둔 값이 있으면 그 값이 지워집니다. 지금은 올려 둔 값과 비교하지 못해 몇 건이 지워지는지 알 수 없습니다.`
+    + '\n지우지 않으려면 취소한 뒤 그 열을 ‘가져오지 않음’으로 바꾸거나 칸을 채워주세요. 그대로 올릴까요?';
 }
 
 function textOrNull(value: unknown): string | null | undefined {
@@ -81,7 +171,7 @@ function priceOrNull(value: unknown): number | null | undefined {
     : undefined;
 }
 
-/** `admin_search_erp_items` 행 → 계약 타입. 형식이 다르면 null(제안에서 조용히 뺀다). */
+/** ERP 품목 한 줄(`admin_list_erp_items`의 items 항목) → 계약 타입. 형식이 다르면 null. */
 export function parseErpItemMatch(value: unknown): ErpItemMatch | null {
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const row = value as Record<string, unknown>;

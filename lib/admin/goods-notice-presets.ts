@@ -21,7 +21,7 @@ export const GOODS_NOTICE_PRESET_NAME_MAX = 80;
 export const GOODS_NOTICE_PRESET_FIELD_MAX = 1000;
 export const GOODS_NOTICE_PRESET_PAGE_SIZE = 20;
 
-/** A saved template always contains all seven values; applying it copies this object. */
+/** 저장된 템플릿. `notice`에는 7칸 키가 모두 있지만 비워 둔 칸은 빈 글('')이다(적어도 한 칸은 채워져 있다). 적용할 때 빈 칸은 상품 값을 건드리지 않는다. */
 export interface GoodsNoticePreset {
   id: string;
   name: string;

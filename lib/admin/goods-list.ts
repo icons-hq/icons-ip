@@ -1,7 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import type { Stock } from '@/lib/data';
 import { customerServiceDate } from './customer-service-list';
-import { GOODS_READINESS_REASONS, goodsReadinessAnchor, type AdminGoodsReadiness, type GoodsReadinessFilter, type GoodsReadinessTarget } from './goods-readiness';
+import { GOODS_READINESS_REASONS, goodReadinessReasonAnchor, goodsReadinessAnchor, type AdminGoodsReadiness, type GoodsReadinessFilter, type GoodsReadinessTarget } from './goods-readiness';
 import type { GoodsListOptionStock } from './goods-list-inline';
 import { parseGoodsVariantSupply, preorderUnavailableLabel } from '@/lib/goods-preorders';
 import { goodsSalePeriodState, goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
@@ -11,12 +11,19 @@ export const GOODS_LIST_PAGE_SIZE = 50;
 export const GOODS_LIST_PAGE_SIZES = [20, 50, 100] as const;
 /**
  * 검색 대상(S36-009·S36-X02). 상품번호는 시스템이 매기는 바뀌지 않는 숫자(goods.product_no), 상품 URL은 주소 끝의 영문 값(goods.id)이다.
- * 'id' 값은 예전 주소 호환을 위해 그대로 두고 이름만 '상품 URL'이다.
+ * 'id' 값은 예전 주소 호환을 위해 그대로 두고 이름만 '상품 URL'이다. 화면에서 고르는 항목은 `goodsListSearchChoices`가 정한다.
  */
 export const GOODS_LIST_SEARCH_FIELDS = [
   { value: 'all', label: '전체' }, { value: 'name', label: '상품명' }, { value: 'number', label: '상품번호' }, { value: 'id', label: '상품 URL' },
   { value: 'code', label: '상품 자동코드·옵션 자동코드' }, { value: 'erp', label: 'ERP 코드·품명' }, { value: 'barcode', label: '바코드' },
 ] as const;
+/**
+ * 검색 대상으로 고를 수 있는 항목. 상품 URL은 운영자가 쓸 일이 없는 영문 내부 값이라(고객 화면 주소는 상품 자동코드, ADR-0050) 고르는 항목에서 뺐다.
+ * '전체' 검색은 지금처럼 이 값도 찾고, 저장해 둔 주소(field=id)로 들어오면 그 조건이 보이도록 그때만 항목에 넣는다.
+ */
+export function goodsListSearchChoices(current: GoodsListSearchField = 'all') {
+  return GOODS_LIST_SEARCH_FIELDS.filter(item => item.value !== 'id' || current === 'id');
+}
 /**
  * 검색어 칸의 안내(TKT-074). 고른 검색 대상에 맞춰 입력 칸 안내(placeholder)와 말풍선(title)을 바꾼다.
  * 문구만 바뀌고 서버 검색 계약(field·q)은 같다. 입력 칸 안내는 1440 화면의 칸 폭(약 254px, 한글 16자 안팎)에 들도록 짧게 쓰고
@@ -27,13 +34,15 @@ export const GOODS_LIST_SEARCH_HINTS: Record<(typeof GOODS_LIST_SEARCH_FIELDS)[n
     title: '전체 검색은 상품명·영문명·상품번호·상품 URL·상품 자동코드·검색 키워드와 옵션의 옵션 자동코드·ERP 코드·ERP 품명·바코드에서 찾습니다. 상품번호는 숫자 전체가 같아야 찾습니다.' },
   name: { placeholder: '상품명 또는 영문명 일부', title: '상품명이나 영문 상품명에 입력한 글자가 들어간 상품을 찾습니다.' },
   number: { placeholder: '상품번호(쉼표로 여러 개)', title: '상품번호는 숫자 전체가 같은 상품을 찾습니다. 쉼표나 공백으로 구분해 여러 개를 한 번에 조회할 수 있습니다.' },
-  id: { placeholder: '상품 URL(쉼표로 여러 개)', title: '상품 URL은 주소 끝의 영문 값 전체가 같은 상품을 찾습니다. 쉼표나 공백으로 구분해 여러 개를 한 번에 조회할 수 있습니다.' },
+  /* 저장해 둔 주소(field=id)로 들어왔을 때만 보인다. 고객 화면 주소는 이제 상품 자동코드라 '주소 끝의 값'이라고 하지 않는다(ADR-0050). */
+  id: { placeholder: '상품 URL(쉼표로 여러 개)', title: '상품 URL은 상품을 처음 저장할 때 정해진 영문 값입니다. 값 전체가 같은 상품을 찾고, 쉼표나 공백으로 구분해 여러 개를 한 번에 조회할 수 있습니다.' },
   code: { placeholder: '상품 자동코드·옵션 자동코드 일부', title: '상품 자동코드나 옵션 자동코드에 입력한 글자가 들어간 상품을 찾습니다.' },
   erp: { placeholder: 'ERP 코드·품명 일부', title: '옵션에 연결한 ERP 코드나 ERP 품명에 입력한 글자가 들어간 상품을 찾습니다.' },
   barcode: { placeholder: '바코드 일부(앞자리 0 포함)', title: '옵션에 등록한 바코드에 입력한 글자가 들어간 상품을 찾습니다. 앞자리 0도 그대로 입력합니다.' },
 };
+/* 'published'는 전시상태가 공개로 바뀐 날이다 — 값 이름(초안·공개·보관)과 같은 말로 부른다. */
 export const GOODS_LIST_DATE_FIELDS = [
-  { value: 'created', label: '상품등록일' }, { value: 'updated', label: '상품수정일' }, { value: 'published', label: '전시시작일' },
+  { value: 'created', label: '상품등록일' }, { value: 'updated', label: '상품수정일' }, { value: 'published', label: '공개일' },
 ] as const;
 export const GOODS_LIST_SORT_OPTIONS = [
   { value: 'created_desc', label: '상품등록일순' }, { value: 'updated_desc', label: '상품수정일순' },
@@ -76,11 +85,11 @@ export interface GoodsListFilters {
   saleType?: 'all' | 'stock' | 'preorder';
   image?: 'all' | 'with' | 'without';
   restriction?: 'all' | 'none' | 'adult';
-  /** 판매기간 기준(R16): 판매대기(시작 전)·판매기간 종료. 판매 중·기간 없음은 'all'에 들어 있다. */
+  /** 판매기간 기준(R16): 판매 예정(시작 전)·판매 종료(끝난 뒤). 판매 중·기간 없음은 'all'에 들어 있다. */
   salePeriod?: 'all' | 'scheduled' | 'ended';
 }
 export interface AdminGoodSummary {
-  /** 상품 URL(주소 끝의 영문 값, goods.id). */
+  /** 상품 URL(상품을 처음 저장할 때 정해지는 영문 값, goods.id). 고객 화면 주소는 상품 자동코드(`code`)다(ADR-0050). */
   id: string;
   /** 상품번호(시스템 순번, 바뀌지 않는 숫자). 서버가 아직 싣지 않으면 null이다. */
   productNo?: number | null;
@@ -117,16 +126,16 @@ export interface AdminGoodSummary {
   inlineStock?: { variantId: string; stockQty: number } | null;
   /** 사용 옵션이 둘 이상인 상품의 옵션별 실재고(옵션 순서대로). 옵션별 재고 창의 '현재' 값이자 저장 기대값이다. */
   inlineOptions?: GoodsListOptionStock[] | null;
-  /** 고객 상세(`/shop/<id>`)가 열리는 상품(전시·미보관·판매 제한 없음·IP 공개). 아니면 상품 URL이 편집기 미리보기로 간다(R15). */
+  /** 고객 상세(`/shop/<상품 자동코드>`)가 열리는 상품(공개·미보관·판매 제한 없음·IP 공개). 아니면 상품명 옆 아이콘이 편집기 미리보기로 간다(R15). */
   customerVisible?: boolean;
-  /** 판매 가능 수량이 0인 예약판매 상품의 고객 화면 문구(`goodsListPreorderSaleLabel`). 있으면 상태 배지가 품절 대신 이 문구다. */
+  /** 판매 가능 수량이 0인 예약판매 상품의 예약 상태(`goodsListPreorderSaleLabel` — 접수 전은 '예약 접수 전', 나머지는 고객 화면 문구). 있으면 상태 배지가 품절 대신 이 문구다. */
   preorderSaleLabel?: string | null;
   /** 판매기간 밖 상품의 고객 화면 문구(`goodsListSalePeriodLabel`) — 시작 전 '판매 예정', 끝난 뒤 '판매 종료'. 있으면 상태 배지가 판매중·품절 대신 이 문구다. */
   salePeriodLabel?: string | null;
 }
 /**
  * 판매기간 밖 상품의 상태 문구 — 고객 카드·상세와 같은 판정(`goodsSalePeriodState`·`goodsSaleUnavailableLabel`)이라 시작 전은 '판매 예정',
- * 끝난 뒤는 '판매 종료'다. 목록의 판매대기·판매종료 보기와 같은 시각 기준이다. 판매기간이 없거나 판매 중이면 null이다.
+ * 끝난 뒤는 '판매 종료'다. 목록의 판매 예정·판매 종료 건수 칸과 같은 시각 기준이고 이름도 같다. 판매기간이 없거나 판매 중이면 null이다.
  */
 export function goodsListSalePeriodLabel(startsAt: string | null, endsAt: string | null, now: number): string | null {
   if (!startsAt && !endsAt) return null;
@@ -134,20 +143,30 @@ export function goodsListSalePeriodLabel(startsAt: string | null, endsAt: string
   return goodsSaleUnavailableLabel({ startsAt, endsAt, state, calculatedAt: new Date(now).toISOString(), nextChangeAt: null });
 }
 /**
- * 사용 옵션이 모두 예약판매이고 지금 주문받을 물량이 없는 상품의 상태 문구 — 고객 카드·상세와 같은 판정(`preorderUnavailableLabel`)이라
- * 접수 전은 '판매 예정', 물량이 다 차면 '예약 물량 마감', 접수가 끝나거나 멈추면 '예약 접수 종료'·'예약 접수 중지'다.
+ * 예약 접수가 아직 시작되지 않은 상품의 목록 배지. 고객 화면은 이 상품을 '판매 예정'이라 부르지만, 목록의 '판매 예정' 건수 칸·판매기간 조건은
+ * 판매기간 시작 전 상품만 센다(예약판매 상품에는 판매기간이 없다). 같은 이름이면 배지가 붙은 상품이 그 칸에 없어 집계가 틀린 것으로 읽히므로
+ * 목록에서는 '예약 접수 종료'·'예약 접수 중지'·'예약 물량 마감'과 한 벌인 이름으로 따로 부른다.
+ */
+export const GOODS_LIST_PREORDER_NOT_OPEN_LABEL = '예약 접수 전';
+/** 고객 화면이 접수 전 예약판매를 부르는 말(`preorderUnavailableLabel`). 목록에서만 위 이름으로 바꾼다. */
+const CUSTOMER_PREORDER_NOT_OPEN_LABEL = '판매 예정';
+/**
+ * 사용 옵션이 모두 예약판매이고 지금 주문받을 물량이 없는 상품의 상태 문구 — 고객 카드·상세와 같은 판정(`preorderUnavailableLabel`)이다.
+ * 물량이 다 차면 '예약 물량 마감', 접수가 끝나거나 멈추면 '예약 접수 종료'·'예약 접수 중지'로 고객 화면과 같은 말이고,
+ * 접수 전만 고객 화면의 '판매 예정' 대신 '예약 접수 전'이다(`GOODS_LIST_PREORDER_NOT_OPEN_LABEL`).
  * 일반 재고 옵션이 섞였거나 예약 상태를 하나라도 읽지 못하면 null이고, 그때 목록 배지는 지금처럼 품절이다.
  */
 export function goodsListPreorderSaleLabel(supplies: readonly unknown[]): string | null {
   const parsed = supplies.map(parseGoodsVariantSupply);
   const options = parsed.flatMap(supply => supply ? [{ stockQty: supply.availableQty, supply }] : []);
   if (!options.length || options.length !== parsed.length) return null;
-  return preorderUnavailableLabel(options, options.every(option => option.stockQty <= 0));
+  const label = preorderUnavailableLabel(options, options.every(option => option.stockQty <= 0));
+  return label === CUSTOMER_PREORDER_NOT_OPEN_LABEL ? GOODS_LIST_PREORDER_NOT_OPEN_LABEL : label;
 }
-/** 품절 보기·소량 재고 보기 칸의 건수. 키는 판매상태 필터 값이고, 재고 조건만 뺀 같은 검색 조건에서 센다 — 숫자가 곧 그 칸을 눌렀을 때의 목록 개수다. */
+/** 품절(재고 0)·소량 재고 칸의 건수. 키는 판매상태 필터 값이고, 재고 조건만 뺀 같은 검색 조건에서 센다 — 숫자가 곧 그 칸을 눌렀을 때의 목록 개수다. */
 export type GoodsListStockCounts = Record<'out_of_stock' | 'low', number>;
 /**
- * 판매대기·판매중지·판매종료 칸의 건수(SHEET-036). 판매중지는 재고 조건(stock=stopped) 축, 판매대기·판매종료는 판매기간
+ * 판매 예정·판매중지·판매 종료 칸의 건수(SHEET-036). 판매중지는 재고 조건(stock=stopped) 축, 판매 예정·판매 종료는 판매기간
  * (salePeriod) 축만 빼고 같은 검색 조건으로 센다 — 숫자가 곧 그 칸을 눌렀을 때의 목록 개수다.
  */
 export type GoodsListSaleStateCounts = Record<'scheduled' | 'stopped' | 'ended', number>;
@@ -180,7 +199,8 @@ export function normalizeGoodsListFilters(values: Record<string, string | string
   const stock = single(values.stock);
   let from = customerServiceDate(values.from);
   let to = customerServiceDate(values.to);
-  if (from && to && from > to) { from = null; to = null; }
+  /* 시작일과 종료일이 뒤바뀌어 오면 조건을 버리지 않고 바로잡아 건다(날짜 칸이 먼저 막고, 주소를 직접 고친 경우의 마지막 방어다). */
+  if (from && to && from > to) [from, to] = [to, from];
   const field = single(values.field);
   const dateField = single(values.dateField);
   const sort = single(values.sort);
@@ -212,6 +232,22 @@ export function normalizeGoodsListFilters(values: Record<string, string | string
     restriction: ['none', 'adult'].includes(restriction) ? restriction as 'none' | 'adult' : 'all',
     salePeriod: ['scheduled', 'ended'].includes(salePeriod) ? salePeriod as 'scheduled' | 'ended' : 'all',
   };
+}
+/*
+ * 기간 날짜 칸(GoodsListDateRange)이 시작일·종료일을 뒤바뀌지 않게 맞추는 규칙. 방금 고친 칸이 이기고 다른 칸이 따라온다.
+ * 값은 날짜 칸의 `YYYY-MM-DD` 글자이고, 비어 있으면 ''다.
+ */
+type GoodsListDateRangeValue = { from: string; to: string };
+/** 시작일을 바꾼다. 종료일보다 늦어지면 종료일을 같은 날로 당긴다. */
+export function goodsListDateRangeFromStart(range: GoodsListDateRangeValue, from: string): GoodsListDateRangeValue {
+  return { from, to: from && range.to && from > range.to ? from : range.to };
+}
+/**
+ * 종료일 입력을 마쳤을 때(칸을 떠날 때). 시작일보다 앞서면 시작일을 그날로 당긴다. 바른 기간은 같은 값을 그대로 돌려준다.
+ * 적는 도중에는 부르지 않는다 — 날짜 칸은 연도를 한 자리씩 적는 동안 0002년 같은 값을 거친다.
+ */
+export function goodsListDateRangeFromEnd(range: GoodsListDateRangeValue): GoodsListDateRangeValue {
+  return range.from && range.to && range.to < range.from ? { from: range.to, to: range.to } : range;
 }
 /** 검색어·조건으로 좁힌 목록인가. 0건일 때 "아직 등록한 상품이 없다"고 잘못 말하지 않게 한다(건수는 조건을 탄다). */
 export function goodsListIsNarrowed(filters: GoodsListFilters): boolean {
@@ -248,10 +284,15 @@ export function goodsConsoleFilterValues(filters: GoodsListFilters) {
     salePeriod: filters.salePeriod ?? 'all',
   };
 }
-export function goodEditorHref(filters: GoodsListFilters, id: string, target?: GoodsReadinessTarget): string {
-  return `${goodsListHref(filters)}&${new URLSearchParams({ goodId: id })}${target ? `#${goodsReadinessAnchor(target)}` : ""}`;
+/**
+ * 상품 수정 화면 주소. `to`가 준비 사유면 그 사유의 칸으로(편집기 판매 준비 카드와 같은 자리 — `goodReadinessReasonAnchor`),
+ * 영역 이름이면 그 영역으로 간다. 접힌 카드는 편집기가 주소의 자리를 읽어 펼친다(`GoodWorkspaceNavigation`).
+ */
+export function goodEditorHref(filters: GoodsListFilters, id: string, to?: GoodsReadinessTarget | Pick<AdminGoodsReadiness['reasons'][number], 'code' | 'target'>): string {
+  const anchor = !to ? '' : typeof to === 'string' ? goodsReadinessAnchor(to) : goodReadinessReasonAnchor(to);
+  return `${goodsListHref(filters)}&${new URLSearchParams({ goodId: id })}${anchor ? `#${anchor}` : ""}`;
 }
-/** 공개 전 상품의 상품 URL 목적지: 편집기의 '공개 화면 미리보기'(`<details id="good-preview">`). */
+/** 고객 화면이 아직 열리지 않는 상품의 미리보기 목적지: 편집기의 '공개 화면 미리보기'(`<details id="good-preview">`). */
 export function goodPreviewHref(filters: GoodsListFilters, id: string): string {
   return `${goodEditorHref(filters, id)}#good-preview`;
 }

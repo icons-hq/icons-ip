@@ -25,6 +25,9 @@ type StableNumberInputProps = Omit<ComponentProps<'input'>, 'value' | 'defaultVa
  *
  * 여기서는 칸을 비제어로 두고, 상태 값이 실제로 바뀌었을 때만(외부에서 값을 넣는 일괄 수정·ERP 판매가·옵션 다시 만들기 등) 화면 칸을 고친다.
  * 같은 값으로 다시 그려지는 렌더는 화면 칸을 건드리지 않으므로, 입력 도중의 렌더가 친 글자를 지우지 않는다. `onChange`는 그대로 상태를 고친다.
+ *
+ * 2026-11-26 덧붙임: 그 '틈'에 끼어든 렌더는 편집 폼의 `onInputCapture`가 캡처 단계에서 상태를 바꿔 생긴 것이었다(같은 input 이벤트의 onChange보다
+ * 먼저 커밋된다). 그 핸들러는 버블 단계로 옮겼다(GoodEditor.tsx, `npm run test:admin-option-typing-browser`). 이 부품은 방어선으로 그대로 둔다.
  */
 export function StableNumberInput({ value, ref, ...props }: StableNumberInputProps) {
   const own = useRef<HTMLInputElement | null>(null);

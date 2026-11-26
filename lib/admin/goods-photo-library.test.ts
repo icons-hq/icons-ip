@@ -41,7 +41,15 @@ describe('공용 사진 계약', () => {
     expect(goodsPhotoReferenceLabel('toString')).toBe('기타 참조');
   });
   it('사용 중·변경 충돌을 복구 가능한 메시지로 구분한다', () => {
-    expect(goodsPhotoError('goods_photo_in_use')).toContain('먼저');
-    expect(goodsPhotoError('goods_photo_changed')).toContain('입력은 그대로 있습니다');
+    expect(goodsPhotoError('goods_photo_in_use')).toBe('사용 중인 사진은 보관할 수 없습니다. 이 사진을 쓰는 상품·전시에서 먼저 다른 사진으로 바꿔 주세요.');
+    /* 저장 전 화면은 옛 내용이라 그대로 다시 저장하면 또 막힌다. 목록을 다시 불러오라고 알린다. */
+    expect(goodsPhotoError('goods_photo_changed')).toBe('다른 사람이 이 사진을 먼저 바꿨습니다. [검색]을 눌러 목록을 다시 불러온 뒤 다시 해 주세요.');
+  });
+  /* 올릴 때·이름을 바꿀 때·보관할 때 모두 같은 문구가 나온다. 어느 쪽에서 읽어도 맞고, 다음에 할 일을 말한다. */
+  it('이유를 모르는 저장 실패는 목록부터 보라고 안내하고 개발 용어를 쓰지 않는다', () => {
+    for (const message of [undefined, 'unexpected', 'permission denied']) {
+      expect(goodsPhotoError(message)).toBe('사진을 저장하지 못했습니다. 목록에 반영됐는지 먼저 보고, 안 됐으면 다시 해 주세요.');
+    }
+    expect(goodsPhotoError(undefined)).not.toMatch(/입력을 유지|저장 여부/);
   });
 });

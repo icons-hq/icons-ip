@@ -14,15 +14,20 @@ import {
 } from '@/app/admin/goods-import-actions';
 import { createClient } from '@/lib/supabase/client';
 import {
+  GOODS_IMAGES_ZIP_BYTES_LIMIT,
   GOODS_IMPORT_BUCKET,
   GOODS_IMPORT_PATH,
+  GOODS_WORKBOOK_BYTES_LIMIT,
+  GOODS_WORKBOOK_ROW_LIMIT,
 } from '@/lib/admin/goods-workbook';
 import type { goodsImportView } from '@/lib/admin/goods-import.server';
 import {
   parseRememberedSabangnetTargets,
   rememberSabangnetTargets,
+  sabangnetPriceReadback,
   SABANGNET_GALLERY_LIMIT,
   SABANGNET_IMAGE_LIMIT,
+  SABANGNET_PRICE_REQUIRED,
   SABANGNET_TARGETS,
   suggestSabangnetBrandIps,
   suggestSabangnetTargets,
@@ -73,6 +78,11 @@ const COLUMN_LABELS: Record<ColumnState, string> = {
   manual: '직접 고름',
 };
 const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+/* 파일 칸 아래 한 줄에 쓰는 올리기 한도. 서버가 받는 한도와 같은 값을 쓴다. */
+const megabytes = (bytes: number) => `${Math.round(bytes / (1024 * 1024))}MB`;
+const SABANGNET_FILE_HINT = `.xlsx 또는 .csv · ${megabytes(GOODS_WORKBOOK_BYTES_LIMIT)}까지 · 옵션을 한 줄씩 펼쳐 ${GOODS_WORKBOOK_ROW_LIMIT}줄까지 · 이미지는 한 번에 ${SABANGNET_IMAGE_LIMIT}장까지`;
+const ICONS_FILE_HINT = `${megabytes(GOODS_WORKBOOK_BYTES_LIMIT)}·${GOODS_WORKBOOK_ROW_LIMIT}줄까지입니다. 예전에 내려받은 양식도 올릴 수 있습니다.`;
+const ICONS_ZIP_HINT = `이미지 파일명 열을 썼다면 그 이미지(JPEG·PNG·WebP)를 ZIP으로 함께 올려주세요. ${megabytes(GOODS_IMAGES_ZIP_BYTES_LIMIT)}까지입니다.`;
 /* 몇 단계 중 어디인지 보이는 순서 표시. 단계 이름은 아래 카드 제목과 같은 말이다. */
 const IMPORT_STEPS: Record<ImportFormat, string[]> = {
   icons: ['파일 올리기', '검증 결과 확인·적용'],
@@ -132,16 +142,17 @@ export function SabangnetMappingStep({
   const brandColumn = targets.indexOf('brand');
   const brands = brandColumn >= 0 ? inspection.columns[brandColumn]?.values ?? [] : [];
   const unknown = columnStates.filter((state) => state === 'unknown' || state === 'guessed').length;
+  /* 숫자 앞뒤에 JSX 줄바꿈이 끼지 않게 한 문장으로 만든다. */
+  const summary = `${inspection.fileName} · 엑셀 ${inspection.headerRow}번째 줄을 열 이름으로 읽었습니다 · 상품 ${inspection.rowCount}줄${unknown ? ` · 확인이 필요한 열 ${unknown}개` : ''}`;
+  /* 돈이 걸린 연결은 결과를 되읽는다 — 지금 연결로 판매가·즉시할인이 어떻게 들어가는지, 금액 열이 빠졌으면 무엇을 골라야 하는지. */
+  const priceReadback = sabangnetPriceReadback(inspection.columns.map((column) => column.header), targets);
   return (
     <AdminSectionCard title="2. 열 연결·IP 선택">
-      <p className="text-sm text-muted-foreground">
-        {inspection.fileName} · {inspection.headerRow}행을 열 이름으로 읽었습니다 · 상품 {inspection.rowCount}행.
-        {unknown ? ` 확인이 필요한 열 ${unknown}개가 있습니다.` : ''} 연결하지 않은 열은 가져오지 않습니다.
-      </p>
+      <p className="text-sm text-muted-foreground">{summary}</p>
       <AdminField
         label="연결 IP (필수)"
         inputId="sabangnet-ip"
-        hint="사방넷 양식에는 IP가 없습니다. 새 상품을 모두 이 IP에 연결합니다."
+        hint="사방넷 파일에는 IP가 없어서 새 상품을 모두 이 IP에 연결합니다."
       >
         <AdminSelect
           id="sabangnet-ip"
@@ -201,10 +212,20 @@ export function SabangnetMappingStep({
           </TableBody>
         </Table>
       </div>
+      {priceReadback ? (
+        <p className="rounded-lg bg-muted/40 px-3 py-2 text-sm text-foreground" data-sabangnet-price="readback" role="status">
+          {priceReadback}
+        </p>
+      ) : (
+        <p className={WARNING} data-sabangnet-price="missing" role="status">
+          <TriangleAlert aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
+          {SABANGNET_PRICE_REQUIRED}
+        </p>
+      )}
       {brands.length ? (
         <div className="overflow-hidden rounded-lg border">
           <Table>
-            <TableCaption className="mt-0 caption-top px-2 py-2 text-left">브랜드별 IP · 브랜드명이 IP 이름과 같으면 그 IP를 미리 골라 두었습니다.</TableCaption>
+            <TableCaption className="mt-0 caption-top px-2 py-2 text-left">브랜드별 IP · 브랜드명과 이름이 같은 IP는 미리 골라 두었습니다.</TableCaption>
             <TableHeader>
               <TableRow>
                 <TableHead scope="col">브랜드명</TableHead>
@@ -238,8 +259,7 @@ export function SabangnetMappingStep({
         </div>
       ) : null}
       <p className="text-sm text-muted-foreground">
-        옵션제목·옵션상세명칭은 옵션 축과 값(쉼표 구분)으로, 대표이미지·부가이미지는 대표 이미지와
-        추가 이미지 {SABANGNET_GALLERY_LIMIT}장으로 가져옵니다. 옵션 재고는 0으로 만들고, 인증 정보는 KC 검토에 반영하지 않습니다.
+        {`대표이미지·부가이미지는 대표 이미지와 추가 이미지 ${SABANGNET_GALLERY_LIMIT}장까지 가져오고, 옵션 재고수량은 0으로 만듭니다.`}
       </p>
       <Button className="self-start" type="button" onClick={onPreview} disabled={busy}>
         미리보기 만들기
@@ -279,6 +299,8 @@ export function GoodsImportScreen({
     [],
   );
   const pending = view?.groups.filter((group) => !group.result).length ?? 0;
+  /** 엑셀에서 읽은 줄 수(옵션마다 한 줄이라 상품 수보다 많을 수 있다). */
+  const lines = view?.groups.reduce((count, group) => count + group.rows.length, 0) ?? 0;
   const applicable =
     view?.groups.filter(
       (group) =>
@@ -331,7 +353,7 @@ export function GoodsImportScreen({
             '이미지 ZIP 업로드를 완료하지 못했습니다. 다시 올려주세요.',
           );
       }
-      setStatus('행별 정보와 현재 상품을 비교하고 있습니다.');
+      setStatus('줄별 정보와 현재 상품을 비교하고 있습니다.');
       const preview = await previewGoodsImport(prepared.id);
       if (!preview.ok) throw new Error(preview.error);
       setView(preview.view);
@@ -344,7 +366,7 @@ export function GoodsImportScreen({
       setError(
         error instanceof Error
           ? error.message
-          : '파일 검증을 완료하지 못했습니다.',
+          : '파일을 올려 확인하지 못했습니다. 다시 시도해주세요.',
       );
     } finally {
       setBusy(false);
@@ -418,7 +440,7 @@ export function GoodsImportScreen({
     }
     setBusy(true);
     setError('');
-    setStatus('행을 엑스스퀘어 상품으로 바꾸고 이미지 주소를 확인하고 있습니다. 이미지가 많으면 몇 분 걸릴 수 있습니다.');
+    setStatus('엑셀 줄을 엑스스퀘어 상품으로 바꾸고 이미지 주소를 확인하고 있습니다. 이미지가 많으면 몇 분 걸릴 수 있습니다.');
     try {
       const brandColumn = targets.indexOf('brand');
       const brands = new Set(brandColumn >= 0 ? inspection.columns[brandColumn].values ?? [] : []);
@@ -497,11 +519,11 @@ export function GoodsImportScreen({
     <section className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-import">
       <AdminPageHeader
         title="상품 일괄등록"
-        description="옵션마다 한 행을 작성합니다. 검증 결과를 확인한 뒤 상품별로 적용합니다."
+        description="엑셀 파일을 올려 상품을 한꺼번에 등록·수정합니다."
         actions={
           <>
-            <Button variant="outline" type="button" onClick={() => setCategoryFinder(true)}>카테고리 찾기</Button>
-            <Button variant="outline" type="button" onClick={() => setCountryFinder(true)}>제조국 찾기</Button>
+            <Button variant="outline" type="button" onClick={() => setCategoryFinder(true)}>카테고리 코드 고르기</Button>
+            <Button variant="outline" type="button" onClick={() => setCountryFinder(true)}>원산지 고르기</Button>
             <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href="/admin/catalog/goods">
               상품 목록
             </Link>
@@ -521,7 +543,7 @@ export function GoodsImportScreen({
               hint={
                 format === 'sabangnet'
                   ? '사방넷에서 내려받은 상품 엑셀을 그대로 올립니다. 모든 상품은 초안으로 만듭니다.'
-                  : '엑스스퀘어 양식을 내려받아 작성한 파일을 올립니다.'
+                  : '엑스스퀘어 양식을 내려받아 옵션마다 한 줄씩 작성한 파일을 올립니다.'
               }
             >
               <AdminSelect
@@ -554,12 +576,7 @@ export function GoodsImportScreen({
         </div>
         {format === 'sabangnet' ? (
           <>
-            <p className="text-sm text-muted-foreground">
-              .xlsx 또는 .csv · 2MB · 상품 최대 500개(옵션 조합을 펼쳐 500행까지). 위쪽 안내 행은 건너뛰고 열
-              이름 행을 찾습니다. .xls 파일은 엑셀에서 .xlsx로 저장해 올려 주세요. 이미지 주소는 엑스스퀘어가 직접 내려받아
-              확인하며, 한 번에 최대 {SABANGNET_IMAGE_LIMIT}장까지 가져옵니다. 이미 등록된 상품 자동코드는 수정하지 않고 오류로 표시합니다.
-            </p>
-            <AdminField label="사방넷 상품 파일" inputId="sabangnet-workbook">
+            <AdminField label="사방넷 상품 파일" inputId="sabangnet-workbook" hint={SABANGNET_FILE_HINT}>
               <Input
                 className="sm:max-w-md"
                 id="sabangnet-workbook"
@@ -567,6 +584,7 @@ export function GoodsImportScreen({
                 accept=".xlsx,.csv,.xls"
                 ref={sabangnetFile}
                 disabled={busy}
+                aria-describedby="sabangnet-workbook-hint"
               />
             </AdminField>
             <Button
@@ -575,31 +593,27 @@ export function GoodsImportScreen({
               onClick={inspectSabangnet}
               disabled={busy}
             >
-              열 확인
+              열 읽어 오기
             </Button>
           </>
         ) : (
           <>
-            <AdminNotice tone="warning" title="상품번호나 상품 자동코드가 같으면 기존 상품을 수정합니다.">
-              옵션을 모두 포함해주세요. 상품번호는 그대로 두고 새 상품은 비워 둡니다. 판매가·즉시할인·옵션가는 상품 수정 화면과 같은 뜻이며 v3~v7 양식도 올릴 수 있습니다.
-              직접입력형 옵션과 A/S·사이즈 안내는 별도 시트에서 고치고, 내려받은 시트에 이미 채워진 번호 칸(ID·버전)은 그대로 두세요.
-              안내 시트나 상품 행을 빼면 기존 안내를 보존합니다.
-            </AdminNotice>
-            <p className="text-sm text-muted-foreground">XLSX 2MB · 상품·옵션 최대 500행 · 이미지 ZIP 50MB</p>
+            <AdminNotice tone="warning" title="상품번호나 상품 자동코드가 같으면 기존 상품을 수정합니다." />
             <AdminFormGrid>
-              <AdminField label="상품 XLSX" inputId="goods-workbook">
+              <AdminField label="상품 XLSX" inputId="goods-workbook" hint={ICONS_FILE_HINT}>
                 <Input
                   id="goods-workbook"
                   type="file"
                   accept=".xlsx"
                   ref={workbook}
                   disabled={busy}
+                  aria-describedby="goods-workbook-hint"
                 />
               </AdminField>
               <AdminField
                 label="이미지 ZIP (선택)"
                 inputId="goods-images"
-                hint="파일명 열을 쓴 경우 JPEG·PNG·WebP 이미지를 함께 올려주세요."
+                hint={ICONS_ZIP_HINT}
               >
                 <Input
                   id="goods-images"
@@ -617,7 +631,7 @@ export function GoodsImportScreen({
               onClick={upload}
               disabled={busy}
             >
-              파일 검증
+              파일 올리고 확인하기
             </Button>
           </>
         )}
@@ -649,11 +663,7 @@ export function GoodsImportScreen({
               : '2. 검증 결과 확인·적용'
           }
         >
-          <p className="text-sm tabular-nums">
-            {view.fileName} · {view.groups.length}개 상품 ·{' '}
-            {view.groups.reduce((count, group) => count + group.rows.length, 0)}
-            행
-          </p>
+          <p className="text-sm tabular-nums">{`${view.fileName} · ${view.groups.length}개 상품 · 엑셀 ${lines}줄`}</p>
           {/* 긴 표를 내리기 전에 오류 건수를 먼저 보이게 한다. */}
           <p className="flex flex-wrap gap-1.5">
             {(['error', 'new', 'update', 'unchanged'] as const).map((kind) => {
@@ -661,18 +671,6 @@ export function GoodsImportScreen({
               return count ? <AdminStatusBadge key={kind} tone={statusTone('goodsImport', kind)}>{labels[kind]} {count}</AdminStatusBadge> : null;
             })}
           </p>
-          {view.format === 'sabangnet' ? (
-            <p className="text-sm text-muted-foreground">
-              모든 상품을 초안으로 만들고 공개하지 않습니다. 받지 못한 이미지는 경고로 표시하고 이미지 없이
-              만듭니다. 대표 이미지·고시정보·출고지·KC 검토를 상품 편집에서 채운 뒤 공개해 주세요.
-            </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              같은 상품의 옵션은 함께 성공하거나 실패합니다. 변경 없는 상품은
-              저장하지 않습니다. 새 이미지는 적용할 때 검증하며, 주소·파일 오류가
-              있으면 해당 상품만 실패합니다.
-            </p>
-          )}
           {view.format === 'sabangnet' && ignoredColumns?.length ? (
             <p className="text-sm text-muted-foreground">
               가져오지 않은 열 {ignoredColumns.length}개: {ignoredColumns.join(', ')}
@@ -691,7 +689,7 @@ export function GoodsImportScreen({
                     : `검증한 ${applicable}개 상품 적용`
                   : unchanged
                     ? '변경 없이 완료'
-                    : '검증 오류 결과 확정'}
+                    : '오류만 기록하고 끝내기'}
               </Button>
             ) : null}
             {busy ? (
@@ -702,7 +700,7 @@ export function GoodsImportScreen({
                   stop.current = true;
                 }}
               >
-                현재 상품 처리 후 멈춤
+                지금 상품까지만 하고 멈추기
               </Button>
             ) : null}
             {failed ? (
@@ -712,28 +710,26 @@ export function GoodsImportScreen({
                 href={`/api/admin/goods-workbook?mode=failures&batch=${encodeURIComponent(view.id)}`}
               >
                 <Download aria-hidden="true" />
-                실패 행 내려받기
+                실패한 줄 내려받기
               </a>
             ) : null}
           </div>
-          {view.format === 'sabangnet' ? (
+          {/* 내려받을 파일이 있을 때만 그 파일로 무엇을 하는지 말한다. */}
+          {failed ? (
             <p className="text-sm text-muted-foreground">
-              이 작업은 24시간 동안 이어서 열 수 있습니다. 실패 행은 엑스스퀘어 양식으로 내려받으며, 이미 등록된
-              상품 자동코드 행은 넣지 않습니다. 고친 뒤 엑스스퀘어 자체 양식으로 올려 주세요.
+              {view.format === 'sabangnet'
+                ? '엑스스퀘어 양식으로 내려받습니다. 고친 뒤 양식을 “엑스스퀘어 자체 양식”으로 바꿔 올려주세요.'
+                : '고친 뒤 다시 올려주세요. 이미지 파일명을 썼다면 처음 올린 이미지 ZIP도 함께 올려주세요.'}
             </p>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              이 작업은 24시간 동안 이어서 열 수 있습니다. 실패 행을 다시 올릴 때
-              파일명을 사용했다면 원래 이미지 ZIP도 함께 올려주세요.
-            </p>
-          )}
+          ) : null}
+          {pending ? <p className="text-sm text-muted-foreground">이 작업은 24시간 동안 이어서 열 수 있습니다.</p> : null}
           <div role="region" aria-label="상품 엑셀 결과 가로 스크롤" tabIndex={0} className="relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50">
             <table className="w-full min-w-[620px] table-fixed caption-bottom text-sm" data-slot="table">
-              <caption className="sr-only">상품 엑셀 행별 검증 결과</caption>
-              <colgroup><col className="w-12" /><col className="w-[200px]" /><col className="w-[104px]" /><col /></colgroup>
+              <caption className="sr-only">상품 엑셀 줄별 검증 결과</caption>
+              <colgroup><col className="w-[72px]" /><col className="w-[200px]" /><col className="w-[104px]" /><col /></colgroup>
               <TableHeader>
                 <TableRow>
-                  <TableHead scope="col">행</TableHead>
+                  <TableHead scope="col">엑셀 줄</TableHead>
                   <TableHead scope="col">상품</TableHead>
                   <TableHead scope="col">분류</TableHead>
                   <TableHead scope="col">검증·적용 결과</TableHead>
@@ -746,7 +742,8 @@ export function GoodsImportScreen({
                     <TableCell className="align-top whitespace-normal wrap-anywhere">
                       {group.name || '이름 없음'}
                       <small className="block text-xs text-muted-foreground">
-                        {group.code || '코드 자동 생성'}
+                        {/* 코드를 비워 둔 새 상품은 저장할 때 상품 자동코드가 만들어진다. 저장된 뒤에도 '코드 자동 생성'으로 두면 아직 안 만들어진 것으로 읽힌다(QA S7). */}
+                        {group.code || (group.kind === 'new' && group.result?.status === 'success' ? '상품 자동코드 생성됨 · 상품 목록에서 확인' : '코드 자동 생성')}
                       </small>
                     </TableCell>
                     <TableCell className="align-top">

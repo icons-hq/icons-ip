@@ -6,8 +6,8 @@ import { ErpItemsScreen } from './ErpItemsScreen';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/app/admin/erp-item-actions', () => ({
-  importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), searchErpItemsAction: vi.fn(), deleteErpItemsAction: vi.fn(),
-  previewErpLinkedGoodsAction: vi.fn(), commitErpLinkedGoodsAction: vi.fn(),
+  importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), countErpItemClearsAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), setErpCategoryMappingsAction: vi.fn(),
+  deleteErpItemsAction: vi.fn(), previewErpLinkedGoodsAction: vi.fn(), commitErpLinkedGoodsAction: vi.fn(),
 }));
 
 const node = (id: string, name: string, parentId: string | null, extra: Partial<AdminCategoryNode> = {}): AdminCategoryNode => ({
@@ -56,20 +56,21 @@ describe('ERP 품목 화면', () => {
     expect(html).not.toMatch(/슬롯|가챠|충전/);
   });
 
-  /* 2026-11-10 사람 눈 시험: 두 화면의 ERP 연결 이름이 비슷해 어디서 해야 하는지 헷갈렸다. */
+  /* 2026-11-10 사람 눈 시험: 두 화면의 ERP 연결 이름이 비슷해 어디서 해야 하는지 헷갈렸다. 지금 카테고리 관리의 그 카드는 '카테고리별 ERP 코드'다. */
   it('이 연결이 쓰이는 곳과 카테고리 관리에서 하는 일을 구분해 알려 준다', () => {
     const html = renderToStaticMarkup(<ErpItemsScreen data={data()} canManagePlatform />);
-    expect(html).toContain('상품 옵션에서 ERP 품목을 고를 때 연결된 카테고리를 제안하는 데만 씁니다.');
-    expect(html).toContain('href="/admin/catalog/categories#category-erp-mapping"');
-    expect(html).toContain('카테고리마다 ERP 코드·품명을 적어 CSV로 내보내는 일도');
+    expect(html).toContain('상품 옵션에서 ERP 품목을 고르면 여기서 연결한 카테고리를 추천합니다. 이미 저장한 상품의 카테고리는 바뀌지 않습니다.');
+    expect(html).toMatch(/자동 연결에 쓰는 ERP 코드·품명은 카테고리 관리의 <a[^>]*href="\/admin\/catalog\/categories#category-erp-mapping"[^>]*>카테고리별 ERP 코드<\/a>에 적습니다\./);
+    expect(html).not.toContain('매핑');
   });
 
-  /* 카테고리 관리의 ERP 분류 매핑 카드는 플랫폼 관리 권한일 때만 그려진다(CategoryScreen). MD에게는 빈 곳으로 보내지 않는다. */
-  it('플랫폼 관리 권한이 없으면 카테고리 관리의 ERP 분류 매핑으로 보내지 않고 누가 하는지 알린다', () => {
+  /* 카테고리 관리의 '카테고리별 ERP 코드' 카드는 플랫폼 관리 권한일 때만 그려진다(CategoryScreen). MD에게는 빈 곳으로 보내지 않는다. */
+  it('플랫폼 관리 권한이 없으면 카테고리 관리의 카테고리별 ERP 코드로 보내지 않고 누가 하는지 알린다', () => {
     const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
     expect(html).not.toContain('#category-erp-mapping');
     expect(html).toContain('href="/admin/catalog/categories"');
-    expect(html).toContain('카테고리마다 ERP 코드·품명을 적는 카테고리 관리의 ERP 분류 매핑과 CSV 내보내기는 계정 주매니저·통합 매니저가 합니다.');
+    expect(html).toContain('자동 연결에 쓰는 카테고리별 ERP 코드는 계정 주매니저·통합 매니저가 적습니다.');
+    expect(html).not.toContain('매핑');
   });
 
   it('품목 반입이 접혀 있으면 화면 머리의 주 행동 버튼이 펼치는 길이고, 펼쳐 있으면 외곽선으로 물러난다', () => {
@@ -171,9 +172,28 @@ describe('ERP 품목 화면', () => {
     expect(order.every((position) => position >= 0)).toBe(true);
     expect([...order].sort((left, right) => left - right)).toEqual(order);
     expect(html).toContain('연결 상품 반영');
-    expect(html).toContain('할인 중인 상품(기간 할인 진행·예정, 상품 할인가 설정)은 건너뜁니다.');
-    expect(html).toContain('ERP에 바코드가 없으면 상품 바코드를 지우지 않습니다.');
+    expect(html).toContain('올린 ERP 판매가·바코드가 상품과 다른 줄을 찾아, 고른 줄만 상품에 반영합니다.');
     expect(html).toMatch(/<button[^>]*>전체 품목과 비교<\/button>/);
+  });
+
+  /* 화면 규칙 3: 설명 문단 대신 "?"는 두 곳에만 둔다 — 카드 '연결 상품 반영'과 연결 표의 '자동 연결'. 문단은 "?"를 열었을 때만 보인다. */
+  it('도움말 "?"는 연결 상품 반영과 자동 연결 두 곳에만 있고, 설명 문단을 늘어놓지 않는다', () => {
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data()} canManagePlatform />);
+    expect(html.match(/aria-label="[^"]* 도움말"/g)).toEqual(['aria-label="연결 상품 반영 도움말"', 'aria-label="자동 연결 도움말"']);
+    expect(html).not.toContain('연결 상품이라고 합니다');
+    expect(html).not.toContain('할인 중인 상품');
+    expect(html).not.toContain('직접 연결하지 않은 분류는 자동으로 연결됩니다');
+  });
+
+  /* 화면 규칙 4·8: 상품 판매가와 헷갈리지 않게 ERP에서 온 금액임을 이름에 적고, 지워진 카테고리는 내부 번호 대신 그렇다고 말한다. */
+  it('목록의 금액 열은 ERP 판매가이고, 연결된 카테고리가 지워졌으면 번호를 보이지 않는다', () => {
+    const GONE = '00000000-0000-4000-8000-00000007ffff';
+    const base = data();
+    const html = renderToStaticMarkup(<ErpItemsScreen data={data({ page: { total: 1, items: [{ ...base.page.items[0], mappedCategoryId: GONE }] } })} />);
+    expect(html).toMatch(/<th[^>]*>ERP 판매가<\/th>/);
+    expect(html).not.toMatch(/<th[^>]*>판매가<\/th>/);
+    expect(html).toContain('title="삭제된 카테고리">삭제된 카테고리</span>');
+    expect(html).not.toContain(GONE);
   });
 
   it('빈 목록과 분류 없음 상태를 안내한다', () => {

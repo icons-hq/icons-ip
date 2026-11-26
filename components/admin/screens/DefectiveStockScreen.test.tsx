@@ -21,7 +21,11 @@ describe('불량 재고 화면', () => {
     expect(html).toContain('data-admin-screen="defective-stock"');
     expect(html).toContain('판매 재고에는 들어 있지 않습니다');
     expect(html).toContain('옵션 1개 · 합계 3개');
-    expect(html).toContain('파랑 (KR-01)');
+    /* 괄호 값에는 이름표를 붙이고, 건수인 열은 건수라고 말한다. */
+    expect(html).toContain('파랑 (옵션 자동코드 KR-01)');
+    expect(html).not.toContain('파랑 (KR-01)');
+    expect(html).toContain('기록 횟수');
+    expect(html).toContain('2회');
     expect(html).toContain('3개');
     expect(html).toContain(`href="/admin/sales/claims/returns/${CLAIM}"`);
     expect(html).toContain('김담당');
@@ -36,6 +40,7 @@ describe('불량 재고 화면', () => {
     expect(empty).toContain('아직 기록된 불량 재고가 없습니다');
     const waiting = renderToStaticMarkup(<DefectiveStockScreen list={{ ...list, pending: [{ claimId: CLAIM, claimReference: 13, qty: 1, items: 1 }] }} />);
     expect(waiting).toContain('불량 기록 필요');
+    expect(waiting).toContain('환불은 끝났지만 불량 수량이 아직 기록되지 않았습니다');
     expect(waiting).toContain('[불량 기록 다시 시도]');
     expect(waiting).toContain('반품 처리 권한이 있는 담당자');
     expect(waiting).toContain(`href="/admin/sales/claims/returns/${CLAIM}"`);

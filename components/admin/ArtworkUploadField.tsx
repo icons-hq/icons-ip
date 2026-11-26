@@ -121,6 +121,7 @@ export function ArtworkUploadField({
   name = 'imagePath',
   onPreviewChange,
   onPathChange,
+  savedNote = '현재 저장된 이미지',
   showCropGuide = true,
   showGuidance = true,
   showPath = true,
@@ -130,6 +131,8 @@ export function ArtworkUploadField({
   autoUpload?: boolean;
   compact?: boolean;
   currentPath: string | null;
+  /** 받은 경로(`currentPath`)를 그대로 보일 때 사진 아래에 적는 말. 그 경로가 아직 저장 전이면(방금 고르거나 올린 사진) 부르는 쪽이 사실대로 바꿔 준다. */
+  savedNote?: string;
   currentUrl: string | null;
   fieldId?: string;
   helpText?: string;
@@ -410,7 +413,7 @@ export function ArtworkUploadField({
         </span>
       )}
       {status && <span aria-live="polite" className={`text-sm ${STATUS_TONE_CLASS[uploadState] ?? 'text-muted-foreground'}`} data-upload-status={uploadState} role="status">{status}</span>}
-      {!status && uploadState === 'saved' && <span aria-live="polite" className="text-sm text-muted-foreground" data-upload-status="saved" role="status">현재 저장된 이미지</span>}
+      {!status && uploadState === 'saved' && <span aria-live="polite" className="text-sm text-muted-foreground" data-upload-status="saved" role="status">{savedNote}</span>}
     </section>
   );
 }

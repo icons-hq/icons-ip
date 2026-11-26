@@ -7,6 +7,7 @@ import { loadGoodsGroup } from '@/lib/admin/goods-groups.server';
 import { loadGoodsGroupConsole } from '@/lib/admin/goods-group-console.server';
 import { normalizeGoodsGroupFilters } from '@/lib/admin/goods-group-console';
 import { loadGoodsCategoryOptions } from '@/lib/admin/category.server';
+import { categoriesInTreeOrder } from '@/lib/admin/category';
 import { loadGoodsFulfillmentOptions } from '@/lib/admin/fulfillment-origins.server';
 import { GoodsGroupsScreen } from '@/components/admin/screens/GoodsGroupsScreen';
 import { isUuid } from '@/lib/uuid';
@@ -23,5 +24,6 @@ export default async function GoodsGroupsPage({ searchParams }: { searchParams?:
   if (id && !initialGroup) notFound();
   const sessionId = session.data.session?.user.id === auth.user.id ? inquiryDraftSessionId(session.data.session.access_token) : null;
   return <GoodsGroupsScreen key={`${id ?? 'list'}:${auth.user.id}:${sessionId}:${JSON.stringify(filters)}`} initialGroup={initialGroup} initialPage={initialConsole} initialConsole={initialConsole} initialFilters={filters}
-    categories={categories.map(row => ({ id: row.id, name: row.name, depth: row.depth }))} origins={origins.map(row => ({ id: row.id, name: row.name }))} actorId={auth.user.id} sessionId={sessionId} />;
+    /* 카테고리 셀렉트는 단계만큼 들여 쓴다 — 상위 바로 아래에 하위가 오도록 카테고리 관리 화면과 같은 순서로 넘긴다. */
+    categories={categoriesInTreeOrder(categories).map(row => ({ id: row.id, name: row.name, depth: row.depth }))} origins={origins.map(row => ({ id: row.id, name: row.name }))} actorId={auth.user.id} sessionId={sessionId} />;
 }

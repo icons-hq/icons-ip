@@ -16,7 +16,10 @@ describe('상품공지사항 목록', () => {
       row({}), row({ id: '00000000-0000-4000-8000-000000062212', reference: 2, title: '교환·반품·배송 안내', placement: 'bottom', important: true }),
     ] }} />);
     expect(html).toContain('[&amp;_table]:min-w-[1084px]');
-    expect(html).not.toContain('노출 위치');
+    expect(html).not.toContain('노출');
+    /* 열 이름은 편집 화면의 칸 이름과 같고, 기간이 KST라는 것은 열 이름이 말한다. */
+    expect(html).toContain('>보이는 기기<'); expect(html).toContain('전시 기간 (KST)');
+    expect(html).not.toContain('KST 기준입니다');
     expect(html.match(/>상세 하단</g)).toHaveLength(1);
     const bodyRows = html.slice(html.indexOf('<tbody')).split('<tr ').slice(1);
     const bottomRow = bodyRows.find(markup => markup.includes('교환·반품·배송 안내'))!;

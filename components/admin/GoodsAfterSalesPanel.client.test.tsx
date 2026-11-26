@@ -1,16 +1,22 @@
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const hooks = vi.hoisted(() => ({ state: [] as unknown[], index: 0, refs: [] as { current: unknown }[], refIndex: 0, effects: [] as (() => void | (() => void))[] }));
 const mocks = vi.hoisted(() => ({ save: vi.fn(), load: vi.fn() }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'), useEffect: (effect: () => void | (() => void)) => { hooks.effects.push(effect); },
   useRef: (initial: unknown) => { const index = hooks.refIndex++; hooks.refs[index] ??= { current: initial }; return hooks.refs[index]; },
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.state)) hooks.state[index] = initial; return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? next(hooks.state[index]) : next; }]; },
 }));
+/* 이탈 경고에 넘긴 값을 본다(경고 자체의 동작은 lib/admin/leave-guard.test.ts가 본다). */
+const guard = vi.hoisted(() => ({ options: null as null | { dirty?: boolean; blocked?: boolean; message?: string } }));
+vi.mock('./useAdminLeaveGuard', () => ({ useAdminLeaveGuard: (options: { dirty?: boolean; blocked?: boolean; message?: string }) => { guard.options = options; return { formRef: () => {}, dirty: Boolean(options.dirty) }; } }));
 vi.mock('@/app/admin/goods-after-sales-actions', () => ({ saveGoodsAfterSalesAction: mocks.save, loadGoodsAfterSalesAction: mocks.load, listGoodsAfterSalesTemplatesAction: vi.fn(), saveGoodsAfterSalesTemplateAction: vi.fn() }));
 vi.mock('@/lib/media', () => ({ publicMediaUrl: (path: string) => { if (!path) throw new Error('Empty paths must not reach the configured media normalizer'); return `https://cdn.example/${path}`; } }));
 import { GoodsAfterSalesPanel } from './GoodsAfterSalesPanel';
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
-import type { GoodsAfterSalesValues } from '@/lib/goods-after-sales';
+import { GoodsAfterSalesTemplatePicker } from './GoodsAfterSalesTemplatePicker';
+import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import type { GoodsAfterSalesTemplate, GoodsAfterSalesValues } from '@/lib/goods-after-sales';
 const values = { phone: '02-123', guide: 'A/S 안내', sellerSpecialNotes: '배송 기간' };
 const snapshot = { ...values, goodId: 'good-1', goodName: '상품', revision: 1, updatedAt: '2026-10-13T14:00:00Z' };
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onSubmit?: (event: { preventDefault: () => void }) => void; onChange?: (event: { target: { value: string } }) => void; disabled?: boolean; value?: string }>;
@@ -20,15 +26,19 @@ function render() { hooks.index = 0; hooks.refIndex = 0; hooks.effects = []; ret
 function button(label: string) { const element = all(render()).find(item => item.type === 'button' && text(item) === label); if (!element) throw new Error(label); return element; }
 function submit() { const form = all(render()).find(item => item.type === 'form'); if (!form) throw new Error('missing form'); form.props.onSubmit?.({ preventDefault: () => {} }); }
 async function settle() { for (let i = 0; i < 18; i++) await Promise.resolve(); }
-beforeEach(() => { vi.clearAllMocks(); hooks.state = [{ ...snapshot }, { ...values }]; hooks.refs = []; hooks.effects = []; });
+let confirm: ReturnType<typeof stubAdminConfirm>;
+beforeEach(() => { vi.clearAllMocks(); hooks.state = [{ ...snapshot }, { ...values }]; hooks.refs = []; hooks.effects = []; confirm = stubAdminConfirm(true); });
+afterEach(() => { confirm.restore(); });
 it('keeps an unknown write on one fixed request and blocks same-render double submission', async () => {
   let finish!: (value: unknown) => void;
   mocks.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; })).mockResolvedValueOnce({ ok: true, value: { ...snapshot, revision: 2 } });
   submit(); submit(); expect(mocks.save).toHaveBeenCalledOnce();
   finish({ ok: false, uncertain: true, error: '응답 불명' }); await settle();
   expect(all(render()).find(item => item.type === 'fieldset')?.props.disabled).toBe(true);
+  /* 저장됐는지 모를 때의 문장과 버튼은 어느 화면에서나 같은 말이다(서버가 준 옛 문구를 그대로 보이지 않는다). */
+  expect(text(render())).toContain(SAVE_UNKNOWN_MESSAGE); expect(text(render())).not.toContain('응답 불명');
   button('저장된 내용으로 다시 불러오기').props.onClick?.(); await settle(); expect(mocks.load).not.toHaveBeenCalled();
-  button('같은 요청 결과 확인').props.onClick?.(); await settle();
+  button('저장됐는지 확인').props.onClick?.(); await settle();
   expect(mocks.save.mock.calls[1]).toEqual(mocks.save.mock.calls[0]); expect(hooks.state[0]).toMatchObject({ revision: 2 });
 });
 it('preserves losing edits after a confirmed conflict and requires an explicit fresh read', async () => {
@@ -77,9 +87,76 @@ it('retries an uncertain clear using its fixed empty request even when the forme
   hooks.state[1] = { phone: '수정 중', guide: '', sellerSpecialNotes: '미완성' };
   mocks.save.mockResolvedValueOnce({ ok: false, uncertain: true, error: '결과 불명' }).mockResolvedValueOnce({ ok: true, value: { ...snapshot, phone: '', guide: '', sellerSpecialNotes: '', revision: 2 } });
   button('안내 해제').props.onClick?.(); await settle();
-  button('같은 요청 결과 확인').props.onClick?.(); await settle();
+  button('저장됐는지 확인').props.onClick?.(); await settle();
   expect(mocks.save).toHaveBeenCalledTimes(2);
   expect(mocks.save.mock.calls[0]).toEqual(['good-1', { phone: '', guide: '', sellerSpecialNotes: '' }, 1, expect.any(String)]);
   expect(mocks.save.mock.calls[1]).toEqual(mocks.save.mock.calls[0]);
   expect(text(render())).toContain('상품 상세의 A/S 안내와 판매자 특이사항을 해제했습니다.');
+});
+
+/* G6(2026-11-25 리뷰, 화면 규칙 7): 내용을 지우거나 덮는 버튼은 누르기 전에 무엇이 사라지는지 말한다. */
+it('[안내 해제]는 고객 화면에서 내려가는 것과 지워지는 것을 말하고 확인받은 뒤에만 저장한다', async () => {
+  confirm.restore(); confirm = stubAdminConfirm(false);
+  button('안내 해제').props.onClick?.(); await settle();
+  expect(confirm).toHaveBeenCalledExactlyOnceWith('상품 상세에서 A/S 안내와 판매자 특이사항이 내려갑니다. 적어 둔 내용도 지워집니다.');
+  expect(mocks.save).not.toHaveBeenCalled(); expect(hooks.state[1]).toEqual(values);
+  confirm.restore(); confirm = stubAdminConfirm(true);
+  mocks.save.mockResolvedValue({ ok: true, value: { ...snapshot, phone: '', guide: '', sellerSpecialNotes: '', revision: 2 } });
+  button('안내 해제').props.onClick?.(); await settle();
+  expect(mocks.save).toHaveBeenCalledExactlyOnceWith('good-1', { phone: '', guide: '', sellerSpecialNotes: '' }, 1, expect.any(String));
+});
+it('[저장된 내용으로 다시 불러오기]는 적은 내용이 저장된 것과 다를 때만 사라진다고 묻는다', async () => {
+  mocks.load.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 2 } });
+  button('저장된 내용으로 다시 불러오기').props.onClick?.(); await settle();
+  expect(confirm).not.toHaveBeenCalled(); expect(mocks.load).toHaveBeenCalledOnce();
+  hooks.state[1] = { ...values, guide: '고치던 안내' };
+  confirm.restore(); confirm = stubAdminConfirm(false);
+  button('저장된 내용으로 다시 불러오기').props.onClick?.(); await settle();
+  expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적은 내용이 사라집니다.');
+  expect(mocks.load).toHaveBeenCalledOnce(); expect(hooks.state[1]).toEqual({ ...values, guide: '고치던 안내' });
+  confirm.restore(); confirm = stubAdminConfirm(true);
+  button('저장된 내용으로 다시 불러오기').props.onClick?.(); await settle();
+  expect(mocks.load).toHaveBeenCalledTimes(2); expect(hooks.state[1]).toMatchObject(values);
+});
+/* S8: 다른 사람이 먼저 바꿔 저장이 멈춘 동안에도 적어 둔 내용을 긁어 복사할 수 있어야 한다(1,300자짜리 안내). 잠그지 않고 읽기 전용으로 둔다. */
+it('다른 사람이 먼저 바꾼 뒤에는 칸을 잠그지 않고 읽기 전용으로 두고, 템플릿 고르기와 저장만 막는다', async () => {
+  mocks.save.mockResolvedValue({ ok: false, conflict: true, error: '다른 사람이 먼저 바꿨습니다.' });
+  submit(); await settle();
+  const tree = all(render());
+  expect(tree.find(item => item.type === 'fieldset')?.props.disabled).toBe(false);
+  expect(tree.filter(item => item.type === 'textarea' || item.type === 'input').map(item => (item.props as { readOnly?: boolean }).readOnly)).toEqual([true, true, true]);
+  expect(button('A/S 템플릿 고르기').props.disabled).toBe(true); expect(button('안내 저장').props.disabled).toBe(true);
+});
+
+/* F6(2026-11-26 QA-B): 따로 저장하는 영역이라 고치고 [안내 저장]을 누르지 않은 채 떠나면 적은 것이 사라졌다. 고친 내용이 있으면 이탈 경고가 뜬다. */
+it('고친 내용이 있으면 화면을 떠날 때 묻고, 저장된 그대로면 묻지 않는다', () => {
+  render();
+  expect(guard.options).toEqual({ dirty: false, blocked: false, message: 'A/S 안내를 고친 뒤 [안내 저장]을 누르지 않았습니다. 이 화면을 떠나면 적은 내용이 사라집니다. 이동할까요?' });
+  hooks.state[1] = { ...values, guide: '고치던 안내' }; render(); expect(guard.options?.dirty).toBe(true);
+  hooks.state[1] = { ...values, phone: '1588-0000' }; render(); expect(guard.options?.dirty).toBe(true);
+  hooks.state = [null, { phone: '', guide: '', sellerSpecialNotes: '' }]; render(); expect(guard.options?.dirty).toBe(false);
+});
+it('저장된 안내가 없는 상품에 고시의 A/S 연락처가 미리 들어간 것만으로는 묻지 않는다', () => {
+  const empty = { ...snapshot, phone: '', guide: '', sellerSpecialNotes: '' };
+  /* 전화번호 칸은 운영자가 적지 않아도 고시 연락처로 채워진다. 그것만으로 떠날 때마다 묻지 않는다. */
+  hooks.state = [empty, { phone: '02-123-4567', guide: '', sellerSpecialNotes: '' }]; render(); expect(guard.options?.dirty).toBe(false);
+  hooks.state = [empty, { phone: '02-123-4567', guide: '접수 방법', sellerSpecialNotes: '' }]; render(); expect(guard.options?.dirty).toBe(true);
+});
+
+it('템플릿은 공용 선택창에서 고르고, 지금 적어 둔 안내를 선택창에 알려 바꾸기 전에 묻게 한다', () => {
+  expect(all(render()).some(item => item.type === GoodsAfterSalesTemplatePicker)).toBe(false);
+  expect(all(render()).some(item => item.type === 'button' && text(item) === 'A/S 템플릿')).toBe(false);
+  button('A/S 템플릿 고르기').props.onClick?.();
+  const picker = all(render()).find(item => item.type === GoodsAfterSalesTemplatePicker) as unknown as { props: { current: GoodsAfterSalesValues; onSelect: (template: GoodsAfterSalesTemplate) => void; onClose: () => void } };
+  expect(picker.props.current).toEqual(values);
+  picker.props.onSelect({ id: '93800000-0000-4000-8000-000000000801', phone: '1588-0000', guide: '템플릿 안내', sellerSpecialNotes: '', revision: 1, archived: false, createdAt: '2026-10-13T14:00:00Z' });
+  picker.props.onClose();
+  expect(hooks.state[1]).toEqual({ phone: '1588-0000', guide: '템플릿 안내', sellerSpecialNotes: '' });
+  expect(all(render()).some(item => item.type === GoodsAfterSalesTemplatePicker)).toBe(false);
+});
+
+it('비어 있는 칸은 저장하기 전에 어느 칸인지 말한다', () => {
+  hooks.state[1] = { phone: '02-123', guide: '  ', sellerSpecialNotes: '' };
+  submit();
+  expect(mocks.save).not.toHaveBeenCalled(); expect(text(render())).toContain('A/S 안내를 적어 주세요.');
 });

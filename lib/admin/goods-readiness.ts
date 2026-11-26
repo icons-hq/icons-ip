@@ -2,7 +2,7 @@
 export const GOODS_READINESS_REASONS = {
   archived: { label: '보관된 상품', detail: '상품을 복원한 뒤 공개 준비를 확인하세요.', target: 'publish' },
   draft: { label: '초안 · 공개 전', detail: '필요한 입력과 KC 검토 후 공개를 요청하세요.', target: 'publish' },
-  stopped: { label: '운영자가 판매 중지', detail: '기본 정보의 판매상태가 판매 중지입니다. 재고수량이 남아 있어도 팔리지 않습니다. 팔려면 판매상태를 바꿔 저장하세요.', target: 'basic' },
+  stopped: { label: '판매상태가 판매중지', detail: '추가 설정의 판매상태가 판매중지입니다. 재고수량이 남아 있어도 팔리지 않습니다. 팔려면 판매상태를 판매중으로 바꿔 저장하세요.', target: 'basic' },
   ip_unpublished: { label: '연결 IP 비공개', detail: '연결 IP의 게시 상태를 확인하세요.', target: 'ip' },
   ip_archived: { label: '연결 IP 보관', detail: '연결 IP를 복원하거나 다른 IP 연결을 검토하세요.', target: 'ip' },
   /* ADR-0044: 상품 유형은 없다. 공개하려면 대표 카테고리가 있어야 한다. 초안은 blocking, 공개 중은 review다(DB가 정한다). */
@@ -38,6 +38,15 @@ export const GOODS_READINESS_STATE_LABELS: Record<AdminGoodsReadiness['state'], 
 export function goodsReadinessAnchor(target: GoodsReadinessTarget): string {
   if (target === 'kc' || target === 'publish') return `good-operation-${target}`;
   return `good-section-${target === 'ip' ? 'basic' : target}`;
+}
+/**
+ * 준비 사유를 눌렀을 때 닿는 상품 수정 화면의 자리. 편집기의 판매 준비 카드와 상품 목록의 사유 링크가 함께 쓴다 — 한 곳에서 정해야
+ * 같은 사유가 화면마다 다른 곳으로 가지 않는다. 사유 표의 대상(`target`)이 기본이고, 입력이 다른 카드로 옮겨 간 세 사유만 그 칸으로 보낸다:
+ * 대표 카테고리(기본 정보 맨 위 칸), 판매상태(접혀 있는 '추가 설정'), 대표 이미지('상품이미지' 카드).
+ */
+export function goodReadinessReasonAnchor(reason: { code: GoodsReadinessReasonCode; target: GoodsReadinessTarget }): string {
+  if (reason.code === 'category_missing') return 'good-section-category';
+  return reason.code === 'stopped' ? 'good-section-information' : reason.code === 'image_missing' ? 'good-section-images' : goodsReadinessAnchor(reason.target);
 }
 export function unknownGoodsReadiness(): AdminGoodsReadiness {
   return { state: 'unknown', checkedAt: null, publication: 'unknown', operation: 'unknown', availableQty: null,

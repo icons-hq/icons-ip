@@ -2,6 +2,7 @@ import 'server-only';
 import { unstable_rethrow } from 'next/navigation';
 import { loadGoodsEditorOwnership } from './goods-group-common.server';
 import { loadGoodsCategoryOptions } from './category.server';
+import { categoriesInTreeOrder } from './category';
 import { hasUsableCategoryTemplates } from './category-templates.server';
 import { loadActiveShippingNoticeTemplateOptions } from './shipping-notice-templates.server';
 import { createClient } from '@/lib/supabase/server';
@@ -56,12 +57,14 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
   const [ips, categories, origins] = await Promise.all([
     loadGoodsIpOptions().then(rows => rows.map(ip => ({ id: ip.id, title: ip.title, archivedAt: ip.archivedAt }))),
     (async () => {
-      const rows: NonNullable<AdminGoodsListData['categories']> = [];
+      /* 셀렉트는 단계만큼 들여 써서 보인다. 상위 바로 아래에 하위가 오도록 카테고리 관리 화면과 같은 순서로 늘어놓는다(상위·순서·코드를 함께 읽는다). */
+      const rows: (NonNullable<AdminGoodsListData['categories']>[number] & { parentId: string | null; sortOrder: number; code: string })[] = [];
       for (let offset = 0; ; offset += 1000) {
-        const page = await client.from('catalog_categories').select('id,name,depth,archived_at').order('sort_order').order('code').range(offset, offset + 999);
+        const page = await client.from('catalog_categories').select('id,name,depth,archived_at,parent_id,sort_order,code').order('sort_order').order('code').range(offset, offset + 999);
         if (page.error) throw new Error('카테고리 필터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-        rows.push(...(page.data ?? []).map(category => ({ id: category.id, name: category.name, depth: category.depth, archivedAt: category.archived_at })));
-        if ((page.data?.length ?? 0) < 1000) return rows;
+        rows.push(...(page.data ?? []).map(category => ({ id: category.id, name: category.name, depth: category.depth, archivedAt: category.archived_at,
+          parentId: category.parent_id, sortOrder: category.sort_order, code: category.code })));
+        if ((page.data?.length ?? 0) < 1000) return categoriesInTreeOrder(rows).map(({ id, name, depth, archivedAt }) => ({ id, name, depth, archivedAt }));
       }
     })(),
     loadGoodsFulfillmentOptions().then(rows => rows.map(origin => ({ id: origin.id, name: origin.name, active: origin.active }))),
@@ -104,7 +107,7 @@ async function loadGoodsListCustomerVisibility(ids: string[]) {
   return visible;
 }
 
-/* 판매 가능 수량이 0인 예약판매 상품은 품절이 아니라 고객 화면과 같은 예약 상태(접수 전 '판매 예정' 등)로 보인다.
+/* 판매 가능 수량이 0인 예약판매 상품은 품절이 아니라 예약 상태로 보인다(접수 전은 목록 이름 '예약 접수 전', 나머지는 고객 화면과 같은 말).
    예약 상태는 고객 화면이 읽는 옵션 공급 값(goods_variant_supply)과 같다. 읽지 못하거나 한도에 걸려 일부만 읽으면 배지는 지금처럼 품절이다. */
 async function loadGoodsListPreorderSaleLabels(ids: string[]) {
   const labels = new Map<string, string>();

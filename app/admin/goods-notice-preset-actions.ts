@@ -23,6 +23,10 @@ export interface GoodsNoticePresetActionState extends AdminFormValuesState {
 const VALUE_FIELDS = ['id', 'name', 'updatedAt', ...GOODS_NOTICE_FIELDS.map((field) => field.formName)];
 const SAVE_FAILED = '템플릿을 저장하지 못했습니다. 입력한 내용은 그대로 있습니다. 잠시 후 다시 저장해주세요.';
 const DELETE_FAILED = '템플릿을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.';
+/* 고시 내용 일곱 칸은 비워 둘 수 있다 — 비운 칸은 상품에 가져올 때 상품의 값을 건드리지 않는다. 모두 비우면 가져올 내용이 없다. */
+const ALL_BLANK = '고시 내용을 한 칸 이상 적어 주세요. 일곱 칸이 모두 비어 있으면 상품에 가져올 내용이 없습니다.';
+const SAVE_CONFLICT = '다른 사람이 먼저 바꿨습니다. 새로고침하면 최신 내용이 보입니다. 지금 적은 내용은 사라지니 필요한 칸은 먼저 복사해 두세요.';
+const DELETE_CONFLICT = '다른 사람이 먼저 바꿨습니다. 새로고침해 최신 내용을 확인한 뒤 다시 삭제해 주세요.';
 
 async function staffError(): Promise<string | null> {
   try {
@@ -35,9 +39,8 @@ async function staffError(): Promise<string | null> {
 
 function rpcError(error: { code?: string; message: string }, fallback = SAVE_FAILED): Record<string, string> {
   if (error.code === '23505') return { name: '이미 사용 중인 템플릿 이름입니다. 다른 이름을 입력해주세요.' };
-  if (error.message.includes('goods_notice_preset_conflict')) {
-    return { form: '다른 운영자가 수정했습니다. 입력값을 복사한 뒤 새로고침해 최신 내용을 확인해주세요.' };
-  }
+  if (error.message.includes('goods_notice_preset_conflict')) return { form: fallback === DELETE_FAILED ? DELETE_CONFLICT : SAVE_CONFLICT };
+  if (error.message.includes('goods_notice_preset_empty')) return { form: ALL_BLANK };
   if (error.message.includes('goods_notice_preset_not_found')) return { form: '템플릿을 찾을 수 없습니다. 다른 사람이 삭제했을 수 있으니 새로고침해 목록을 확인해주세요.' };
   if (error.message.includes('staff_required')) return { form: '관리자 권한이 필요합니다.' };
   return { form: fallback };
@@ -59,25 +62,25 @@ export async function saveGoodsNoticePresetAction(
     try {
       const raw=JSON.parse(values.kcTemplate);
       kcTemplate=normalizeGoodsKcPresetTemplate(raw);
-      if (raw!==null && !kcTemplate) errors.kcTemplate='KC 유형 틀의 제품군·제도·안내 문구를 확인해주세요.';
+      if (raw!==null && !kcTemplate) errors.kcTemplate='KC 유형 틀의 제품군·적용 제도·안내 문구를 확인해주세요.';
     } catch {errors.kcTemplate='KC 유형 틀의 입력 형식을 확인해주세요.';}
   }
   const name = values.name.trim();
-  if (!name || name.length > GOODS_NOTICE_PRESET_NAME_MAX) errors.name = `이름은 1~${GOODS_NOTICE_PRESET_NAME_MAX}자로 입력해주세요.`;
+  if (!name || name.length > GOODS_NOTICE_PRESET_NAME_MAX) errors.name = `템플릿 이름을 ${GOODS_NOTICE_PRESET_NAME_MAX}자 안으로 적어 주세요.`;
   if (values.id && (!isUuid(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) {
     errors.form = '화면 정보가 오래됐습니다. 새로고침해 최신 템플릿을 다시 열어주세요.';
   }
+  const notice = Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, values[field.formName].trim()]));
   for (const field of GOODS_NOTICE_FIELDS) {
-    const value = values[field.formName].trim();
-    if (!value || value.length > GOODS_NOTICE_PRESET_FIELD_MAX) errors[field.formName] = `${field.label} 항목은 1~${GOODS_NOTICE_PRESET_FIELD_MAX}자로 입력해주세요.`;
+    if (notice[field.key].length > GOODS_NOTICE_PRESET_FIELD_MAX) errors[field.formName] = `${field.label} 칸은 ${GOODS_NOTICE_PRESET_FIELD_MAX.toLocaleString('ko-KR')}자까지 적을 수 있습니다.`;
   }
+  if (GOODS_NOTICE_FIELDS.every((field) => !notice[field.key])) errors.form ??= ALL_BLANK;
   if (Object.keys(errors).length) return fail(errors);
   try {
     const supabase = await createClient();
     const { error } = await supabase.rpc('admin_save_goods_notice_preset', {
       target_id: values.id || null, target_name: name,
-      target_notice: {...Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, values[field.formName].trim()])),
-        ...('kcTemplate' in values?{kcTemplate}:{})},
+      target_notice: { ...notice, ...('kcTemplate' in values?{kcTemplate}:{}) },
       expected_updated_at: values.updatedAt || null,
     });
     if (error) return fail(rpcError(error));
@@ -86,7 +89,7 @@ export async function saveGoodsNoticePresetAction(
   }
   revalidatePath(GOODS_NOTICE_PRESETS_PATH);
   revalidatePath('/admin/catalog/goods');
-  return { attempt, message: '상품정보제공고시 템플릿을 저장했습니다.' };
+  return { attempt, message: `‘${name}’ 템플릿을 ${values.id ? '저장' : '등록'}했습니다.` };
 }
 
 export async function deleteGoodsNoticePresetAction(
@@ -100,7 +103,8 @@ export async function deleteGoodsNoticePresetAction(
   const id = typeof data.get('id') === 'string' ? data.get('id') as string : '';
   const updatedAt = typeof data.get('updatedAt') === 'string' ? data.get('updatedAt') as string : '';
   if (!isUuid(id) || !updatedAt || Number.isNaN(Date.parse(updatedAt))) return fail({ form: '화면 정보가 오래됐습니다. 새로고침해 최신 템플릿을 다시 열어주세요.' });
-  if (data.get('confirmed') !== 'true') return fail({ form: '삭제 확인을 선택해주세요.' });
+  /* 화면은 확인창을 지난 뒤에만 confirmed를 싣는다(GoodsNoticePresetFeedback). */
+  if (data.get('confirmed') !== 'true') return fail({ form: '삭제 확인을 받지 못했습니다. [삭제]를 다시 눌러 주세요.' });
   try {
     const supabase = await createClient();
     const { error } = await supabase.rpc('admin_delete_goods_notice_preset', {
@@ -112,5 +116,6 @@ export async function deleteGoodsNoticePresetAction(
   }
   revalidatePath(GOODS_NOTICE_PRESETS_PATH);
   revalidatePath('/admin/catalog/goods');
-  return { attempt, message: '템플릿을 삭제했습니다. 이 템플릿으로 이미 채운 상품의 상품정보제공고시는 그대로 남습니다.' };
+  /* 채운 상품의 내용이 그대로 남는다는 말은 삭제 확인창에서 한 번만 한다. */
+  return { attempt, message: '템플릿을 삭제했습니다.' };
 }

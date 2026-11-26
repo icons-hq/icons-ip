@@ -4,10 +4,10 @@ import { isObject, parseGoodsRelation, parseRelationGoods, type GoodsRelation, t
 
 export async function loadGoodsRelation(id: string): Promise<GoodsRelation | null> {
   const client = await createClient(); const { data, error } = await client.rpc('admin_get_goods_relation', { p_id: id });
-  if (error) throw new Error('연관상품 편성을 불러오지 못했습니다. 다시 시도해주세요.');
+  if (error) throw new Error('연관상품을 불러오지 못했습니다. 잠시 뒤 다시 시도해 주세요.');
   if (data === null) return null;
   const parsed = parseGoodsRelation(data);
-  if (!parsed) throw new Error('연관상품 편성을 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해주세요.');
+  if (!parsed) throw new Error('연관상품을 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해 주세요.');
   return parsed;
 }
 export async function loadGoodsRelations(filters: GoodsRelationFilters): Promise<GoodsRelationList> {

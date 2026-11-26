@@ -174,6 +174,17 @@ export function assignStockColumnTarget(mapping: readonly StockColumnTarget[], i
   });
 }
 
+/**
+ * 지금 열 연결 가운데 머리글로 자동 정한 것과 달라진 열의 수 — 운영자가 손으로 바꾼 열이다.
+ * [처음부터 다시]가 이 연결을 버리기 전에 묻는 데 쓴다. 손으로 바꾼 열이 없으면 0이라 묻지 않는다.
+ */
+export function stockManualColumnCount(table: readonly (readonly string[])[], plan: Pick<StockReconcilePlan, 'headerIndex' | 'columns'>): number {
+  const automatic = plan.headerIndex >= 0
+    ? defaultStockColumnMapping(table[plan.headerIndex] ?? [], plan.columns.length)
+    : plan.columns.map((): StockColumnTarget => 'ignore');
+  return plan.columns.filter((column, index) => column.target !== automatic[index]).length;
+}
+
 function columnLetter(index: number): string {
   let label = '';
   for (let value = index + 1; value > 0; value = Math.floor((value - 1) / 26)) label = String.fromCharCode(65 + ((value - 1) % 26)) + label;
@@ -223,7 +234,7 @@ export function buildStockReconcilePlan(table: readonly (readonly string[])[], o
   const keyColumns = STOCK_KEY_FIELDS.map((field) => [field, columnOf(field)] as const).filter(([, column]) => column >= 0);
 
   const warnings: string[] = [];
-  if (headerIndex < 0 && table.length) warnings.push('머리글 행을 찾지 못했습니다. 열마다 가져올 항목을 골라주세요.');
+  if (headerIndex < 0 && table.length) warnings.push('머리글 줄을 찾지 못했습니다. 열마다 가져올 항목을 골라주세요.');
   const numeric = new Set(options.numericColumns ?? []);
   for (const [field, column] of keyColumns) {
     if (field !== 'goodsCode' && numeric.has(column)) {
@@ -253,13 +264,13 @@ export function buildStockReconcilePlan(table: readonly (readonly string[])[], o
     if (result.ok) rows.push(result.row);
     else issues.push(result.issue);
   }
-  if (skippedRowCount) warnings.push(`코드와 수량이 모두 빈 ${skippedRowCount.toLocaleString('ko-KR')}행은 대조하지 않습니다.`);
+  if (skippedRowCount) warnings.push(`코드와 수량이 모두 빈 ${skippedRowCount.toLocaleString('ko-KR')}줄은 대조하지 않습니다.`);
 
   let blocking: string | null = null;
   if (quantityColumn < 0) blocking = '재고 수량 열을 골라야 대조할 수 있습니다.';
   else if (!keyColumns.length) blocking = '옵션 자동코드·ERP 코드(품번)·바코드·상품 자동코드 중 한 열 이상을 골라야 대조할 수 있습니다.';
-  else if (rows.length > STOCK_RECONCILE_ROW_LIMIT) blocking = `한 번에 ${STOCK_RECONCILE_ROW_LIMIT.toLocaleString('ko-KR')}행까지 대조할 수 있습니다. 파일을 나누어 올려주세요.`;
-  else if (!rows.length) blocking = dataRowCount ? '대조할 수 있는 행이 없습니다. 행별 사유를 확인해주세요.' : '대조할 행이 없습니다.';
+  else if (rows.length > STOCK_RECONCILE_ROW_LIMIT) blocking = `한 번에 ${STOCK_RECONCILE_ROW_LIMIT.toLocaleString('ko-KR')}줄까지 대조할 수 있습니다. 파일을 나누어 올려주세요.`;
+  else if (!rows.length) blocking = dataRowCount ? '대조할 수 있는 줄이 없습니다. 아래에서 줄마다 적힌 사유를 확인해주세요.' : '대조할 줄이 없습니다. 머리글 아래에 재고가 적힌 줄을 넣어주세요.';
   return { headerIndex, columns, rows, issues, dataRowCount, skippedRowCount, blocking, warnings };
 }
 
@@ -293,7 +304,7 @@ export function stockAsOfError(iso: string | null, now = new Date()): string | n
 export type StockMatchKind = 'option_code' | 'erp_code' | 'barcode' | 'goods_code';
 export type StockReconcileIssueReason = 'duplicate' | 'not_found' | 'conflict' | 'option_required' | 'other_origin' | 'goods_archived' | 'option_stopped';
 export const STOCK_RECONCILE_ISSUE_LABELS: Record<StockReconcileIssueReason, string> = {
-  duplicate: '같은 옵션을 가리키는 행이 둘 이상 — 위치별로 나뉜 파일이면 합계로 만든 뒤 올려주세요',
+  duplicate: '같은 옵션을 가리키는 줄이 둘 이상 — 위치별로 나뉜 파일이면 합계로 만든 뒤 올려주세요',
   not_found: '사이트에서 찾지 못함(코드·바코드 등록 확인)',
   conflict: '코드끼리 서로 다른 옵션·상품을 가리킴',
   option_required: '옵션이 여럿인 상품 — 옵션 자동코드·ERP 코드·바코드가 필요함',
@@ -593,6 +604,6 @@ export function stockReconcileErrorMessage(error: { code?: unknown; message?: un
   if (message.includes('invalid_stock_reconcile_as_of')) return `재고 기준 시각은 지금부터 ${STOCK_RECONCILE_AS_OF_DAYS}일 안이어야 합니다.`;
   if (message.includes('invalid_stock_reconcile_reason')) return '반영 사유를 200자 이내로 입력해주세요.';
   if (message.includes('fulfillment_origin_not_found')) return '고른 출고지를 찾지 못했습니다. 새로고침한 뒤 다시 골라주세요.';
-  if (message.includes('invalid_stock_reconcile')) return '대조할 행을 확인한 뒤 다시 시도해주세요.';
+  if (message.includes('invalid_stock_reconcile')) return '대조할 줄을 확인한 뒤 다시 시도해주세요.';
   return '재고 대조를 처리하지 못했습니다. 잠시 후 다시 시도해주세요.';
 }

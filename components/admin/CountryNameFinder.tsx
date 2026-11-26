@@ -1,121 +1,103 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
 import { Search } from 'lucide-react';
-import { COUNTRY_NAME_PAGE_SIZE, COUNTRY_NAME_SOURCE, countryNamePage, findCountryName } from '@/lib/admin/country-names';
-import { KOREAN_PROVINCES, KOREAN_REGION_SOURCE, findKoreanProvince, koreanOriginValue } from '@/lib/admin/korean-regions';
-import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
+import { AdminPickerDialog, type AdminPickerRowView } from '@/components/admin/console/AdminPickerDialog';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
-import { NativeSelect } from '@/components/admin/kit/ui/native-select';
-import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
+import { COUNTRY_NAME_SOURCE } from '@/lib/admin/country-names';
+import { KOREAN_REGION_SOURCE } from '@/lib/admin/korean-regions';
+import { ORIGIN_CHOICE_FILTERS, originChoiceLoader, type OriginChoice } from '@/lib/admin/origin-choices';
 import { AdminField } from './console/AdminKit';
 import { GOOD_INPUT_CLASS } from './GoodEditorParts';
 
 type CountryNameFinderProps = {
   onClose: () => void;
-} & ({ mode: 'copy' } | { mode: 'apply'; currentValue: string; disabled: boolean; onApply: (name: string) => boolean });
+} & ({ mode: 'copy' } | {
+  mode: 'apply'; currentValue: string; disabled: boolean; onApply: (name: string) => boolean;
+  /** 지금 원산지를 바꿀 수 없는 이유. `disabled`이거나 `onApply`가 값을 받지 않았을 때 창에 보인다. */
+  blockedReason?: string;
+});
 
-const LABEL_CLASS = 'text-sm leading-snug font-medium text-foreground';
-/* 선택한 값은 결과물이라 읽기 전용이어도 흐리게 두지 않는다(점선 테두리만 읽기 전용 표시). */
-const SELECTED_VALUE_CLASS = `${GOOD_INPUT_CLASS} read-only:text-foreground`;
-/* 원산지 입력칸은 다른 고시 칸(fields.tsx Field)과 같은 모양이다 — 찾기 아이콘 버튼과 한 줄에 놓으려고 입력만 직접 그린다. */
+/* 직접 복사할 값은 결과물이라 읽기 전용이어도 흐리게 두지 않는다(점선 테두리만 읽기 전용 표시). */
+const COPY_VALUE_CLASS = `${GOOD_INPUT_CLASS} read-only:text-foreground`;
+/* 원산지 입력칸은 다른 고시 칸(fields.tsx Field)과 같은 모양이다 — 고르기 아이콘 버튼과 한 줄에 놓으려고 입력만 직접 그린다. */
 const ORIGIN_INPUT_CLASS = 'h-8 w-full min-w-0 flex-1 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none placeholder:text-placeholder focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-muted disabled:text-secondary-foreground disabled:opacity-100 read-only:border-dashed read-only:bg-muted/50 read-only:text-muted-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
+const SOURCE_LINK_CLASS = 'underline underline-offset-4 hover:text-foreground';
 
-/** The picker is outside the native product form, including its autosave event listeners. */
+const PICKER_TITLE = '원산지 고르기';
+/* 엑셀 일괄등록 양식의 열 이름은 '제조국'이다(lib/admin/goods-workbook.ts). 화면 이름 '원산지'와 다르므로 열 이름을 그대로 적는다. */
+const COPY_GUIDE = "원산지를 찾아 [복사]를 누른 뒤 엑셀의 '제조국' 열에 붙여 넣으세요.";
+const ORIGIN_PUBLISHED_LOCK = '공개 중인 상품은 원산지를 바꿀 수 없습니다. [초안으로 전환 후 수정]을 누른 뒤 바꿔 주세요.';
+const ORIGIN_BLOCKED = '지금은 원산지를 바꿀 수 없습니다. 저장 중이면 끝난 뒤 다시 골라 주세요.';
+
+const originRowKey = (row: OriginChoice) => row.value;
+/* 줄의 이름이 곧 원산지 칸에 들어가는 글자다. 국가 코드는 검색에만 쓰고 보이지 않는다(화면 규칙 8). */
+const originRowView = (row: OriginChoice): AdminPickerRowView => ({ title: row.value, meta: row.english || undefined });
+
+/**
+ * 원산지 고르기 창. 공용 선택창(화면 규칙 1)에 국가·지역과 국내 지역(시·도, 시·군·구)을 한 목록으로 보인다.
+ * - apply: 줄의 [선택]이 원산지 칸에 그 글자를 넣고 창을 닫는다. 칸이 값을 받지 않으면(그 사이 잠김) 창을 닫지 않고 이유를 보인다.
+ * - copy: 엑셀 일괄등록용. 줄의 [복사]가 그 글자를 클립보드에 넣는다. 여러 줄을 이어서 복사할 수 있게 창은 닫지 않는다.
+ * 창은 공용 선택창이 body로 포털해 상품 폼의 제출·자동저장 이벤트와 섞이지 않는다.
+ */
 export function CountryNamePicker(props: CountryNameFinderProps) {
-  if (typeof document === 'undefined') return null;
-  return createPortal(<div className="wc-admin" data-country-finder-shell="" onChange={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); event.stopPropagation(); }}>
-    <CountryNameFinder {...props} />
-  </div>, document.body);
-}
-
-export function CountryNameFinder(props: CountryNameFinderProps) {
-  const [query, setQuery] = useState(''), [page, setPage] = useState(1), [selectedCode, setSelectedCode] = useState('');
-  const [scope, setScope] = useState<'country' | 'domestic'>('country');
-  const [provinceCode, setProvinceCode] = useState(''), [districtCode, setDistrictCode] = useState('');
-  const [message, setMessage] = useState(''), [error, setError] = useState(false), [copying, setCopying] = useState(false);
-  const mounted = useRef(true), copyOperation = useRef(false);
-  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  const result = countryNamePage(query, page), province = findKoreanProvince(provinceCode);
-  const selectedValue = scope === 'country' ? findCountryName(selectedCode)?.name ?? '' : koreanOriginValue(provinceCode, districtCode);
-  const blocked = props.mode === 'apply' && props.disabled;
-  function select(code: string) { setSelectedCode(code); setMessage(''); setError(false); }
-  function changeScope(next: 'country' | 'domestic') {
-    setScope(next); select(''); setProvinceCode(''); setDistrictCode('');
+  const [copied, setCopied] = useState<{ value: string; failed: boolean } | null>(null);
+  const [refused, setRefused] = useState(false);
+  const alive = useRef(true), copying = useRef(false);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  const apply = props.mode === 'apply' ? props : null;
+  const current = apply?.currentValue.trim() ?? '';
+  const choose = (row: OriginChoice) => {
+    if (apply?.onApply(row.value)) return true;
+    setRefused(true);
+    return false;
+  };
+  async function copy(value: string) {
+    if (copying.current) return;
+    copying.current = true;
+    let failed = false;
+    try { await navigator.clipboard.writeText(value); } catch { failed = true; }
+    copying.current = false;
+    /* 복사가 끝나기 전에 창을 닫았으면 아무것도 바꾸지 않는다. */
+    if (alive.current) setCopied({ value, failed });
   }
-  async function confirm() {
-    if (!selectedValue || blocked || copying || copyOperation.current) return;
-    if (props.mode === 'apply') {
-      if (props.onApply(selectedValue)) props.onClose();
-      else { setMessage('현재 입력을 바꿀 수 없습니다. 상품 상태를 확인해주세요.'); setError(true); }
-      return;
-    }
-    copyOperation.current = true; setCopying(true); setMessage(''); setError(false);
-    try {
-      await navigator.clipboard.writeText(selectedValue);
-      if (mounted.current) setMessage('제조국 값을 복사했습니다. 엑셀의 제조국 칸에 붙여넣으세요.');
-    } catch {
-      if (mounted.current) { setMessage('자동 복사를 사용할 수 없습니다. 선택한 입력값을 직접 복사해주세요.'); setError(true); }
-    } finally { copyOperation.current = false; if (mounted.current) setCopying(false); }
-  }
-  return <CustomerServiceDialog title={props.mode === 'copy' ? '제조국 찾기' : '원산지 국가·지역 찾기'} onClose={props.onClose}>
-    <section className="flex min-w-0 flex-col gap-4 text-sm" data-country-finder="">
-      <p className="text-muted-foreground">{props.mode === 'copy' ? '국가·지역 또는 국내 상세지역을 골라 엑셀의 제조국 칸에 붙여넣으세요.' : '선택한 값을 현재 원산지 입력에 넣습니다. 상품 저장 후 반영됩니다.'}</p>
-      <fieldset className="m-0 flex min-w-0 flex-wrap gap-x-6 gap-y-1 border-0 p-0" disabled={copying}>
-        <legend className="sr-only">찾기 범위</legend>
-        <label className="inline-flex min-h-8 cursor-pointer items-center gap-2"><input type="radio" name="originFinderScope" value="country" checked={scope === 'country'} onChange={() => changeScope('country')} />국가·지역</label>
-        <label className="inline-flex min-h-8 cursor-pointer items-center gap-2"><input type="radio" name="originFinderScope" value="domestic" checked={scope === 'domestic'} onChange={() => changeScope('domestic')} />국내 상세지역</label>
-      </fieldset>
-      {scope === 'country' ? <>
-      <label className={`flex min-w-0 flex-col gap-2 ${LABEL_CLASS}`}>국가·지역명 또는 코드<input className={GOOD_INPUT_CLASS} data-slot="input" type="search" maxLength={120} value={query} disabled={copying}
-        placeholder="예: 대한민국, 한국, Korea, KR" onChange={event => { setQuery(event.target.value); setPage(1); select(''); }}
-        onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); } }} /></label>
-      <p className="text-xs text-muted-foreground tabular-nums" role="status">검색 결과 {result.total.toLocaleString('ko-KR')}개</p>
-      <fieldset className="m-0 max-h-[19.5rem] min-w-0 overflow-y-auto rounded-lg border p-0 max-sm:max-h-64" disabled={copying}>
-        <legend className="sr-only">국가·지역 선택</legend>
-        {result.rows.map(row => <label className="flex min-h-12 min-w-0 cursor-pointer items-center gap-3 border-b px-3 py-2 last:border-b-0 hover:bg-muted/50 data-[selected]:bg-muted" key={row.code} data-selected={row.code === selectedCode || undefined}>
-          <input type="radio" name="countryNameChoice" value={row.code} checked={row.code === selectedCode} onChange={() => select(row.code)} />
-          <span className="flex min-w-0 flex-1 flex-col wrap-anywhere"><strong className="font-medium text-foreground">{row.name}</strong><small className="text-xs text-muted-foreground">{row.english}</small></span><span className="shrink-0 text-xs whitespace-nowrap text-muted-foreground tabular-nums">{row.code} · {row.alpha3}</span>
-        </label>)}
-        {!result.rows.length && <p className="p-4 text-muted-foreground">일치하는 국가·지역이 없습니다. 원산지는 직접 입력할 수도 있습니다.</p>}
-      </fieldset>
-      <ConsolePagination label="국가·지역 목록 페이지" page={result.page} pageSize={COUNTRY_NAME_PAGE_SIZE} total={result.total} unit="개" disabled={copying} onPageChange={setPage} />
-      </> : <div className="flex min-w-0 flex-col gap-4">
-        <p className="text-muted-foreground">시·도만 선택하거나 시·군·구까지 지정할 수 있습니다.</p>
-        <div className="flex min-w-0 flex-col gap-2"><label className={LABEL_CLASS} htmlFor="country-finder-province">시·도</label><NativeSelect className="w-full" id="country-finder-province" value={provinceCode} disabled={copying} onChange={event => {
-          setProvinceCode(event.target.value); setDistrictCode(''); setMessage(''); setError(false);
-        }}>
-          <option value="">시·도를 선택해주세요</option>
-          {KOREAN_PROVINCES.map(row => <option key={row.code} value={row.code}>{row.name}</option>)}
-        </NativeSelect></div>
-        {province && (province.districts.length ? <div className="flex min-w-0 flex-col gap-2"><label className={LABEL_CLASS} htmlFor="country-finder-district">시·군·구 (선택)</label><NativeSelect className="w-full" id="country-finder-district" value={districtCode} disabled={copying} onChange={event => {
-          setDistrictCode(event.target.value); setMessage(''); setError(false);
-        }}>
-          <option value="">{province.name}만 사용</option>
-          {province.districts.map(row => <option key={row.code} value={row.code}>{row.name}</option>)}
-        </NativeSelect></div> : <p className="text-muted-foreground">세종특별자치시는 시·도 선택으로 완료됩니다.</p>)}
-      </div>}
-      <div className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/40 p-4 wrap-anywhere">
-        {props.mode === 'apply' && <p>현재 원산지: <strong className="font-medium">{props.currentValue || '입력 안 함'}</strong></p>}
-        <label className={`flex min-w-0 flex-col gap-2 ${LABEL_CLASS}`}>선택한 입력값<input className={SELECTED_VALUE_CLASS} data-slot="input" readOnly value={selectedValue} onFocus={event => event.target.select()} placeholder="국가·지역 또는 국내 상세지역을 선택해주세요" /></label>
-        {blocked && <p className="text-muted-foreground" role="status">현재 상품 상태에서는 원산지를 바꿀 수 없습니다.</p>}
-        {message && <p className={error ? 'text-destructive' : 'text-[var(--wc-success)]'} role={error ? 'alert' : 'status'}>{message}</p>}
-        <div className="flex flex-wrap items-center gap-2">
-          <button type="button" className={buttonVariants()} data-slot="button" disabled={!selectedValue || blocked || copying} onClick={() => void confirm()}>
-            {props.mode === 'copy' ? copying ? '복사 중…' : '제조국 값 복사' : '현재 입력에 적용'}
-          </button>
-          <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" onClick={props.onClose}>취소</button>
-        </div>
-      </div>
-      <p className="flex flex-wrap gap-3 text-xs text-muted-foreground">{scope === 'country' ? <><a className="underline underline-offset-4 hover:text-foreground" href={COUNTRY_NAME_SOURCE.url} target="_blank" rel="noreferrer">국가명: Unicode CLDR</a><a className="underline underline-offset-4 hover:text-foreground" href={COUNTRY_NAME_SOURCE.licenseUrl} target="_blank" rel="noreferrer">라이선스</a></> : <a className="underline underline-offset-4 hover:text-foreground" href={KOREAN_REGION_SOURCE.url} target="_blank" rel="noreferrer">국내 지역: 국토교통부 · {KOREAN_REGION_SOURCE.version}</a>}</p>
-    </section>
-  </CustomerServiceDialog>;
+  return <AdminPickerDialog<OriginChoice>
+    title={PICKER_TITLE}
+    description={!apply ? COPY_GUIDE : current ? <>고르면 원산지 칸에 지금 적힌 <strong className="font-medium text-foreground wrap-anywhere">{`'${current}'`}</strong> 대신 들어갑니다.</> : '고르면 원산지 칸에 들어갑니다.'}
+    blockedReason={apply && (apply.disabled || refused) ? apply.blockedReason ?? ORIGIN_BLOCKED : null}
+    load={originChoiceLoader}
+    rowKey={originRowKey}
+    rowView={originRowView}
+    filterLabel="범위"
+    filterOptions={ORIGIN_CHOICE_FILTERS}
+    searchPlaceholder="예: 중국, Vietnam, 수원"
+    emptyText={apply ? '찾는 이름이 없습니다. 원산지 칸에 직접 적어도 됩니다.' : '찾는 이름이 없습니다. 엑셀에 직접 적어도 됩니다.'}
+    selectedKeys={current ? [current] : undefined}
+    onSelect={choose}
+    rowAction={apply ? undefined : (row, { busy }) => <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={busy} onClick={() => void copy(row.value)}>
+      {copied && !copied.failed && copied.value === row.value ? '복사됨' : '복사'}
+    </button>}
+    footer={<>
+      {copied ? copied.failed ? <div className="flex min-w-0 flex-col gap-2" data-origin-copy="failed">
+        <p className="text-destructive" role="alert">자동으로 복사하지 못했습니다. 아래 글자를 직접 복사해 주세요.</p>
+        <input aria-label="복사할 원산지" className={COPY_VALUE_CLASS} data-slot="input" readOnly value={copied.value} onFocus={event => event.target.select()} />
+      </div> : <p className="text-muted-foreground wrap-anywhere" data-origin-copy="done" role="status">복사한 원산지: <strong className="font-medium text-foreground">{copied.value}</strong></p> : null}
+      {/* 이름 자료의 출처와 라이선스. Unicode 라이선스(저작권·허가문을 사본이나 관련 문서에 함께 둘 것)는 원문을 /licenses 아래에 두고 이 창에서 잇는 방식으로 지킨다
+          (vendor/unicode-cldr/48.2.0/README.md, docs/research/smartstore-admin/origin-country-finder-proposal.md). 링크를 지우기 전에 그 조건을 다시 확인한다. */}
+      <p className="flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground" data-origin-sources="">
+        <a className={SOURCE_LINK_CLASS} href={COUNTRY_NAME_SOURCE.url} target="_blank" rel="noreferrer">국가·지역 이름: Unicode CLDR</a>
+        <a className={SOURCE_LINK_CLASS} href={COUNTRY_NAME_SOURCE.licenseUrl} target="_blank" rel="noreferrer">라이선스</a>
+        <a className={SOURCE_LINK_CLASS} href={KOREAN_REGION_SOURCE.url} target="_blank" rel="noreferrer">국내 지역 이름: 국토교통부</a>
+      </p>
+    </>}
+    onClose={props.onClose}
+  />;
 }
 
 /**
  * Keep the existing editable text field and write only its selected Korean name.
- * ADM-004(복잡도 표 209행): 찾기는 입력칸 바로 옆 아이콘 버튼이다(입력칸 아래 글자 버튼이던 것을 줄였다). 이름은 aria-label·title로 남긴다.
+ * ADM-004(복잡도 표 209행): 고르기는 입력칸 바로 옆 아이콘 버튼이다(입력칸 아래 글자 버튼이던 것을 줄였다). 이름은 aria-label·title로 남긴다.
+ * 고른 값은 칸에 바로 보이므로 따로 알리는 글을 두지 않는다.
  */
 export function GoodsOriginField({ defaultValue, error, label, readOnly, required, disabled }: {
   defaultValue: string; error?: string; label: string; readOnly: boolean; required: boolean; disabled: boolean;
@@ -123,7 +105,8 @@ export function GoodsOriginField({ defaultValue, error, label, readOnly, require
   const root = useRef<HTMLDivElement>(null);
   /* 원산지 칸은 상품 편집기·그룹 공통정보 편집 화면에 하나뿐이다. */
   const inputId = 'goods-notice-origin';
-  const [currentValue, setCurrentValue] = useState<string | null>(null), [message, setMessage] = useState('');
+  /* 창을 연 순간 칸에 적혀 있던 값. null이면 창이 닫혀 있다. */
+  const [currentValue, setCurrentValue] = useState<string | null>(null);
   const blocked = disabled || readOnly;
   function input() { return root.current?.querySelector<HTMLInputElement>('input[name="noticeOrigin"]'); }
   return <div className="flex min-w-0 flex-col gap-2" data-country-origin-field="" ref={root}>
@@ -131,17 +114,16 @@ export function GoodsOriginField({ defaultValue, error, label, readOnly, require
       <div className="flex min-w-0 items-center gap-1.5">
         <input className={ORIGIN_INPUT_CLASS} data-slot="input" id={inputId} name="noticeOrigin" defaultValue={defaultValue} placeholder="대한민국" readOnly={readOnly} required={required}
           aria-describedby={error ? `${inputId}-error` : undefined} aria-invalid={Boolean(error)} />
-        <button type="button" className={buttonVariants({ variant: 'outline', size: 'icon' })} data-slot="button" data-country-finder-open="" aria-label="원산지 국가·지역 찾기" title="원산지 국가·지역 찾기" disabled={blocked}
-          onClick={() => { const field = input(); if (!blocked && field) { setCurrentValue(field.value); setMessage(''); } }}><Search aria-hidden="true" /></button>
+        <button type="button" className={buttonVariants({ variant: 'outline', size: 'icon' })} data-slot="button" data-country-finder-open="" aria-haspopup="dialog" aria-label={PICKER_TITLE} title={PICKER_TITLE} disabled={blocked}
+          onClick={() => { const field = input(); if (!blocked && field) setCurrentValue(field.value); }}><Search aria-hidden="true" /></button>
       </div>
     </AdminField>
-    {message && <p className="text-xs text-muted-foreground" role="status">{message}</p>}
-    {currentValue !== null && <CountryNamePicker mode="apply" currentValue={currentValue} disabled={blocked} onClose={() => setCurrentValue(null)} onApply={name => {
+    {/* 읽기 전용(readOnly)은 공개 중 잠금이다(GoodEditor). 그 밖의 잠금(disabled)은 저장 중·보관처럼 화면마다 달라 창이 공통 문구를 쓴다. */}
+    {currentValue !== null && <CountryNamePicker mode="apply" currentValue={currentValue} disabled={blocked} blockedReason={readOnly ? ORIGIN_PUBLISHED_LOCK : undefined} onClose={() => setCurrentValue(null)} onApply={name => {
       const field = input();
       if (blocked || !field || field.readOnly || field.disabled) return false;
       field.value = name;
       field.dispatchEvent(new Event('input', { bubbles: true }));
-      setMessage(`${name} 입력을 적용했습니다. 상품 저장 후 반영됩니다.`);
       return true;
     }} />}
   </div>;

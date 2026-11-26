@@ -92,7 +92,8 @@ beforeEach(() => {
 
 describe('연결 상품 반영 패널', () => {
   it('전체 품목과 비교하면 값이 다른 행만 보이고, 반영할 수 있는 행은 미리 고르며 건너뛰는 행은 이유를 보인다', async () => {
-    expect(text(render())).toContain('할인 중인 상품(기간 할인 진행·예정, 상품 할인가 설정)은 건너뜁니다.');
+    /* 설명 문단은 카드 제목 옆 "?"로 옮겼다(화면 규칙 3). 비교하기 전에는 버튼만 보인다. */
+    expect(text(render())).toBe('전체 품목과 비교');
     button(render(), '전체 품목과 비교').props.onClick?.();
     await settle();
     expect(hooks.preview).toHaveBeenCalledWith(null);
@@ -178,6 +179,78 @@ describe('연결 상품 반영 패널', () => {
     expect(text(tree)).toContain('아무것도 반영하지 않았습니다. 다시 비교해주세요.');
     expect(button(tree, '건 반영')).toBeUndefined();
     expect(hooks.refresh).not.toHaveBeenCalled();
+  });
+
+  /* R-03: 같은 상품의 판매가 줄을 따로 반영하면 DB가 통째로 거절한다(erp_goods_apply_partial_price). 누른 뒤가 아니라 고를 때 맞춘다. */
+  describe('함께 반영해야 하는 판매가 줄', () => {
+    const C = '00000000-0000-4000-8000-000000071203';
+    const option = (variantId: string, extra: Record<string, unknown>) => row(variantId, 'price', { goodId: 'good-a', goodName: '아크릴 키링', isDefault: false, ...extra });
+    /* 상품 판매가가 10,000 → 12,000원으로 오른다. 11,000원이던 '대형'을 그대로 두면 상품 판매가보다 싸진다. '특대'는 13,000원이라 따로 둬도 된다. */
+    const RAISED = [
+      row(A, 'price', { current: 10000, next: 12000 }),
+      option(B, { optionName: '대형', current: 11000, next: 13000 }),
+      option(C, { optionName: '특대', current: 13000, next: 15000 }),
+    ];
+    const boxes = (tree: ReactNode) => ['아크릴 키링 기본 옵션 판매가 반영', '아크릴 키링 대형 판매가 반영', '아크릴 키링 특대 판매가 반영'].map((label) => checkbox(tree, label).props.checked);
+    const open = async (rows = RAISED) => {
+      hooks.preview.mockResolvedValueOnce(preview(rows));
+      button(render(), '전체 품목과 비교').props.onClick?.();
+      await settle();
+    };
+
+    it('옵션 줄을 빼면 그 옵션 없이는 반영할 수 없는 기본 옵션 줄도 함께 빼고, 그 줄에 이유를 보인다', async () => {
+      await open();
+      expect(boxes(render())).toEqual([true, true, true]);
+      checkbox(render(), '아크릴 키링 대형 판매가 반영').props.onChange?.({ target: { checked: false } });
+      const tree = render();
+      expect(boxes(tree)).toEqual([false, false, true]);
+      expect(text(tree)).toContain('‘대형’ 판매가와 함께 반영해야 해서 같이 뺐습니다. 따로 반영하면 옵션 금액이 상품 판매가보다 낮아집니다.');
+      expect(text(button(tree, '건 반영'))).toBe('선택한 1건 반영');
+    });
+
+    it('기본 옵션 줄을 다시 고르면 필요한 옵션 줄을 함께 고르고, 따로 둬도 되는 줄은 건드리지 않는다', async () => {
+      await open();
+      checkbox(render(), '아크릴 키링 대형 판매가 반영').props.onChange?.({ target: { checked: false } });
+      checkbox(render(), '아크릴 키링 특대 판매가 반영').props.onChange?.({ target: { checked: false } });
+      expect(boxes(render())).toEqual([false, false, false]);
+      /* 지난 이유는 다음에 고르면 지운다. */
+      expect(text(render())).not.toContain('같이 뺐습니다');
+      checkbox(render(), '아크릴 키링 기본 옵션 판매가 반영').props.onChange?.({ target: { checked: true } });
+      const tree = render();
+      expect(boxes(tree)).toEqual([true, true, false]);
+      expect(text(tree)).toContain('‘기본 옵션’ 판매가와 함께 반영해야 해서 같이 골랐습니다.');
+    });
+
+    it('따로 반영해도 되는 줄은 혼자 빼고 고를 수 있고, 그대로 확정에 보낸다', async () => {
+      stubAdminConfirm(true);
+      hooks.commit.mockResolvedValueOnce({ ok: true, receipt: { state: 'completed', operationId: 'op-1', applied: { price: 2, barcode: 0, goods: 1 }, failed: [] }, message: '상품 1개에 판매가 2건을 반영했습니다.' });
+      await open();
+      checkbox(render(), '아크릴 키링 특대 판매가 반영').props.onChange?.({ target: { checked: false } });
+      const tree = render();
+      expect(boxes(tree)).toEqual([true, true, false]);
+      expect(text(tree)).not.toContain('함께 반영해야 해서');
+      await button(tree, '선택한 2건 반영').props.onClick?.();
+      await settle();
+      expect(hooks.commit).toHaveBeenCalledWith({ operationId: 'op-1', keys: [`${A}:price`, `${B}:price`] });
+    });
+
+    it('머리글 칸으로 모두 고르거나 빼면 이유를 지운다', async () => {
+      await open();
+      checkbox(render(), '아크릴 키링 대형 판매가 반영').props.onChange?.({ target: { checked: false } });
+      checkbox(render(), '반영할 수 있는 줄 전체 선택').props.onChange?.({ target: { checked: true } });
+      const tree = render();
+      expect(boxes(tree)).toEqual([true, true, true]);
+      expect(text(tree)).not.toContain('함께 반영해야 해서');
+    });
+  });
+
+  it('공개하지 않은 상품의 줄에는 전시상태 초안을 붙인다', async () => {
+    hooks.preview.mockResolvedValueOnce(preview([row(A, 'price', { published: false })]));
+    button(render(), '전체 품목과 비교').props.onClick?.();
+    await settle();
+    const tree = render();
+    expect(text(tree)).toContain('기본 옵션 · 초안');
+    expect(text(tree)).not.toContain('비공개');
   });
 
   it('연결 옵션이 없거나 값이 모두 같으면 그렇게 알리고 반영 버튼을 두지 않는다', async () => {
