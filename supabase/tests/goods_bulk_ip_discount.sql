@@ -59,16 +59,23 @@ select pg_temp.ip_preview(2,'discount_stop','{}') as stop_preview \gset
 select pg_temp.bulk_assert((select r->'discounts'->>'count'='1' and r->'discounts'->>'minPrice'='9500' and r->'skip'='null'::jsonb from jsonb_array_elements(:'stop_preview'::jsonb->'goods') r where r->>'id'='bulk-ip-001')
  and (select r->'discounts'->>'minPrice'='9000' from jsonb_array_elements(:'stop_preview'::jsonb->'goods') r where r->>'id'='bulk-ip-050')
  and (select r->>'skip'='no_active_discount' and r->'discounts'='null'::jsonb from jsonb_array_elements(:'stop_preview'::jsonb->'goods') r where r->>'id'='bulk-ip-002'),'stop preview lists discounts to turn off');
--- A base price change is refused at preview while a current/upcoming discount exists (same rule as the option price guard).
-select pg_temp.bulk_error($q$select public.admin_preview_goods_bulk(md5('bulk-ip-test:price')::uuid,'{"kind":"goods","ids":["bulk-ip-050"],"command":"price","values":{"mode":"set","value":12000}}','b9100000-0000-4000-8000-000000000001','b9100000-0000-4000-8000-000000000011')$q$,'active_price_period_requires_reset');
+-- A base price change skips the good at preview while a current/upcoming discount exists (same rule as the option price guard, 20261126150000).
+select pg_temp.bulk_assert((select r->>'skip'='active_price_period_requires_reset' from jsonb_array_elements(public.admin_preview_goods_bulk(md5('bulk-ip-test:price')::uuid,'{"kind":"goods","ids":["bulk-ip-050"],"command":"price","values":{"mode":"set","value":12000}}','b9100000-0000-4000-8000-000000000001','b9100000-0000-4000-8000-000000000011')->'goods') r),
+ 'price preview names the blocking discount');
+select pg_temp.bulk_assert(public.admin_commit_goods_bulk(md5('bulk-ip-test:price')::uuid,'b9100000-0000-4000-8000-000000000001','b9100000-0000-4000-8000-000000000011')->>'error'='goods_bulk_all_skipped','blocked price change is not saved');
 -- The list projection explains why inline price edit is closed.
 select pg_temp.bulk_assert((select jsonb_object_agg(r->>'id',r->'activeDiscountEndsAt' is distinct from 'null'::jsonb) from jsonb_array_elements(public.admin_goods_list_price_states(array['bulk-ip-050','bulk-ip-002'])) r)
  ='{"bulk-ip-050":true,"bulk-ip-002":false}'::jsonb,'list price state shows active discounts');
--- A changed option price still rejects the whole batch.
+-- A changed price or discount on a good to be changed still rejects the whole batch. A good the preview skipped
+-- (bulk-ip-002 has no discount to stop) is neither locked nor compared, so its own price change is not the reason
+-- (20261126150000; goods_bulk_skip_blocked.sql pins that a skipped good alone never blocks the save).
 reset role;
 update public.goods_variants set price=price+1 where good_id='bulk-ip-002';
 set local role authenticated;
-select pg_temp.bulk_assert(pg_temp.ip_commit(2)->>'error'='goods_bulk_changed','price change rejects');
+-- Someone adds another discount to a good whose discounts the reviewed stop would turn off.
+select public.admin_save_goods_price_period('bulk-ip-050',(select id from public.goods_variants where good_id='bulk-ip-050'),null,
+ jsonb_build_object('state','active','discountPrice',8000,'startsAt',now()+interval '10 days','endsAt',now()+interval '11 days'),null);
+select pg_temp.bulk_assert(pg_temp.ip_commit(2)->>'error'='goods_bulk_changed','a change to a good to be changed rejects');
 -- Stop for real: goods without discounts are skipped and reported, the rest lose every active period.
 select pg_temp.ip_preview(6,'discount_stop','{}');
 select pg_temp.ip_commit(6) as stop_receipt \gset

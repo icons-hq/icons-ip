@@ -24,6 +24,15 @@ describe('사은품·이벤트 입력', () => {
     expect(tree.filter(node => node.type === 'p').map(node => textOf(node))).toEqual(['사진은 최대 3장, 500×500 크기를 권장합니다.']);
   });
 
+  it('템플릿을 여는 버튼은 누르면 일어나는 일을 말한다(이벤트 템플릿 고르기)', () => {
+    const onOpenTemplates = vi.fn();
+    const tree = nodes(GoodsBenefitFields({ values: { eventText: '', giftText: '', giftImagePaths: [] }, onChange: () => {}, onPickPhoto: () => {}, onOpenTemplates }));
+    const labels = tree.filter(node => node.type === 'button').map(node => textOf(node.props.children as ReactNode));
+    expect(labels).toContain('이벤트 템플릿 고르기'); expect(labels).not.toContain('이벤트 템플릿');
+    (tree.find(node => node.type === 'button' && textOf(node.props.children as ReactNode) === '이벤트 템플릿 고르기')!.props.onClick as () => void)();
+    expect(onOpenTemplates).toHaveBeenCalledOnce();
+  });
+
   it('사진을 올렸는데 사은품 설명이 비어 있을 때만 설명도 적으라고 그 자리에서 알린다', () => {
     const none = photoNote({ eventText: '', giftText: '', giftImagePaths: [] });
     expect(textOf(none)).toBe('사진은 최대 3장, 500×500 크기를 권장합니다.');

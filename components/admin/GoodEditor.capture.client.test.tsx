@@ -98,6 +98,32 @@ it('속성 초기화가 외부 저장 잠금과 겹쳐도 요약과 pristine 상
   expect(summary(tree, 'good-section-basic')).toBe('실제 변경한 상품명'); expect(mocks.reported).toHaveBeenLastCalledWith({ goodId: good.id, dirty: true, busy: false });
 });
 
+/*
+ * F7(2026-11-26): 옵션의 바코드·ERP 코드·ERP 품명·옵션 이름 칸이 빠른 입력(바코드 스캐너)에서 글자를 잃었다.
+ * 폼의 onInputCapture(캡처 단계)가 상태를 바꾸면, 같은 input 이벤트의 onChange(버블 단계)보다 먼저 화면이 다시 그려져
+ * 값을 상태로 들고 있는 칸이 방금 친 글자 이전 값으로 되돌아간다. 임시저장 안내는 버블 단계에서 지운다.
+ * 실제 브라우저에서 글자가 남는지는 `npm run test:admin-option-typing-browser`가 본다(vitest에는 DOM이 없고, 가짜 DOM에는 이 틈이 없다).
+ */
+it('폼은 입력의 캡처 단계에서 상태를 바꾸지 않는다 — 임시저장 안내는 버블 단계(onInput)에서 지운다', async () => {
+  const h = setup(false, false, null);
+  const form = () => h.render().find(node => node.type === 'form')!;
+  for (const capture of ['onInputCapture', 'onChangeCapture', 'onBeforeInputCapture', 'onKeyPressCapture']) expect(form().props[capture], capture).toBeUndefined();
+  expect(form().props.onInput).toBeTypeOf('function');
+  /* 안내가 없을 때의 입력은 아무 상태도 바꾸지 않는다. */
+  const before = [...hooks.values];
+  (form().props.onInput as () => void)();
+  expect(hooks.values.length).toBe(before.length); expect(hooks.values.every((value, index) => Object.is(value, before[index]))).toBe(true);
+  /* 임시저장 결과 안내가 떠 있으면 다음 입력에서 지운다. */
+  h.entries.set('name', '임시저장할 상품');
+  mocks.saveLocal.mockReturnValue(true); mocks.saveServer.mockResolvedValue({ ok: true, draft: { id: '99000000-0000-4000-8000-000000000777', revision: 1 } });
+  const save = h.render().find(node => node.type === 'button' && text(node.props.children as ReactNode) === '임시저장')!;
+  await (save.props.onClick as () => Promise<void>)();
+  const saved = () => h.render().filter(node => node.props.role === 'status').map(node => text(node.props.children as ReactNode)).filter(line => line.includes('임시저장'));
+  expect(saved()).toHaveLength(1);
+  (form().props.onInput as () => void)();
+  expect(saved()).toEqual([]);
+});
+
 it('처음부터 잠긴 폼은 빈 baseline을 만들지 않고 첫 유효 snapshot에서 초기 기준을 정한다', () => {
   const h = setup(true); h.initialize(); h.render();
   expect(h.reads).not.toHaveBeenCalled(); expect(mocks.reported).toHaveBeenLastCalledWith({ goodId: good.id, dirty: false, busy: false });

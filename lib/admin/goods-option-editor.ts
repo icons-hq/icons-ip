@@ -428,7 +428,7 @@ export function collapseGoodsOptionRows(rows: readonly GoodsOptionRow[]): GoodsO
 export function goodsOptionCollapseNotice(rows: readonly GoodsOptionRow[]): string {
   const [first, ...rest] = rows;
   return `'${GOODS_OPTION_NONE_LABEL}'으로 바꾸면 첫 옵션(${first?.name ?? ''})만 옵션값 없이 남습니다. 첫 옵션의 재고수량·옵션 자동코드·ERP 정보는 그대로입니다.`
-    + (first?.isActive === false ? ' 첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 추가 설정의 판매상태를 판매 중지로 바꿔주세요.' : '')
+    + (first?.isActive === false ? ' 첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 추가 설정의 판매상태를 판매중지로 바꿔주세요.' : '')
     + (rest.length ? ` 나머지 옵션 ${rest.length}개(${optionNameList(rest)})는 목록에서 빠지고 재고 입력도 사라집니다.` : '')
     + (rest.some((row) => row.id) ? ` ${GOODS_OPTION_REMOVAL_NOTE}` : '');
 }
@@ -458,7 +458,8 @@ const erpIdentityKey = (value: string | null | undefined) => value?.trim().toLow
 /**
  * 옵션의 ERP 품명에서 ERP 품목을 고를 때. ERP 코드·바코드는 저장할 때 옵션 전체에서 하나뿐이어야 하므로
  * (대소문자·앞뒤 공백 무시) 같은 상품의 다른 옵션이 이미 쓰는 값이면 채우지 않고 이유를 돌려준다.
- * 바코드는 비어 있어 ERP 품목 값으로 채울 때만 비교한다. 다른 상품·사용 중지한 옵션과의 충돌은 저장 오류가 알린다.
+ * 바코드는 비어 있어 ERP 품목 값으로 채울 때만 비교한다. 다른 상품·사용 중지한 옵션이 쓰는 품목은 선택창이 조회 결과(`usedBy`)로 막는다
+ * (components/admin/ErpItemPicker의 erpItemTakenReason). 직접 적은 값의 충돌은 저장 오류가 알린다.
  */
 export function selectErpItemForGoodsOption(
   rows: readonly GoodsOptionRow[],

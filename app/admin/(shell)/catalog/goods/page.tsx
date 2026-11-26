@@ -15,6 +15,7 @@ import { loadAdminGoodsList, loadAdminGoodEditor } from '@/lib/admin/goods-list.
 import { GOODS_LIST_PATH, goodsListHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 import { getBusinessInfo } from '@/lib/legal/business-info.server';
 import { loadAdminShippingRegionExpiry } from '@/lib/admin/shipping-regions.server';
+import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
 
 export default async function AdminCatalogGoodsPage({ searchParams }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -46,7 +47,9 @@ export default async function AdminCatalogGoodsPage({ searchParams }: {
       <GoodsGroupCommonEditor key={`${groupCommon}:${auth.user.id}:${sessionId}`} snapshot={snapshot} actorId={auth.user.id} sessionId={sessionId} categories={editor.categories} ips={editor.records.ips} />
     </CategoryTemplatesAvailableProvider>;
   }
-  const regionSummaries = await loadGoodShippingRegionSummaries(editor.origins);
+  /* 쇼핑몰의 주문 설정이 꺼져 있으면 DB가 택배 외 수령 방식·주문 후 제작 저장을 거절한다. 화면이 고르기 전에 막도록 미리 읽는다(화면 규칙 5).
+     읽지 못했으면('unavailable') 막지 않는다 — 그때는 저장 오류 문구가 할 일을 말한다. */
+  const [regionSummaries, transactionRuntime] = await Promise.all([loadGoodShippingRegionSummaries(editor.origins), loadGoodsTransactionRuntimeMode()]);
   const selected = creating ? null : editor.records.goods.find((good) => good.id === goodId);
   if (!creating && !selected) notFound();
   const initialIpId = creating && editor.records.ips.some((ip) => ip.id === filters.ipId && !ip.archivedAt)
@@ -59,6 +62,6 @@ export default async function AdminCatalogGoodsPage({ searchParams }: {
       accountId={auth.user.id} cloneOperationId={randomUUID()} canManageCosts={canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })} canReadOrders={hasAdminCapability(auth, 'sales.read')} canManageSales={hasAdminCapability(auth, 'sales.manage')} canSearchErp={hasAdminCapability(auth, 'catalog.manage')} canOpenIp={hasAdminCapability(auth, 'platform.manage')} canManageMedia={hasAdminCapability(auth, 'catalog.manage')} categories={editor.categories} shippingNoticeOptions={editor.shippingNoticeOptions} origins={editor.origins} returnAddresses={editor.returnAddresses} noticeDefaults={business ? { asManager: business.companyName, asContact: business.phone || business.email } : undefined}
       adjustmentId={randomUUID()} catalogIps={editor.catalogIps} ips={editor.records.ips}
       records={selected ? [selected] : []} variants={editor.variants} readiness={editor.readiness} regionSummaries={regionSummaries}
-      initialIpId={initialIpId} initialSelectedId={selected?.id} hideRecordList listHref={listHref} /></CategoryTemplatesAvailableProvider>
+      initialIpId={initialIpId} initialSelectedId={selected?.id} hideRecordList listHref={listHref} transactionRuntimeOff={transactionRuntime === 'legacy'} /></CategoryTemplatesAvailableProvider>
   </section>;
 }

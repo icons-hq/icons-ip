@@ -57,7 +57,7 @@ beforeEach(() => {
 describe('목록 화면 수준의 창 (리뷰 21·22 — 상품이 현재 페이지에서 빠져도 결과가 남는다)', () => {
   it('옵션별 재고: 저장 뒤 그 상품의 행이 목록에서 빠져도 창과 옵션별 결과(저장됨·다시 확인)가 남고, 다시 확인 줄은 새로 읽은 수량을 보인다', async () => {
     // 서버 묶음 저장: 블루 저장, 레드는 그사이 바뀌어 거절 — 거절 옵션의 현재 수량(0)을 같은 응답에 돌려준다.
-    mocks.adjustBatch.mockResolvedValue({ ok: true, outcomes: [{ variantId: 'v-blue', state: 'saved', stockQty: 8 }, { variantId: 'v-red', state: 'rejected', message: '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.' }],
+    mocks.adjustBatch.mockResolvedValue({ ok: true, outcomes: [{ variantId: 'v-blue', state: 'saved', stockQty: 8 }, { variantId: 'v-red', state: 'rejected', message: '그사이 재고수량이 바뀌었습니다. 지금 수량을 확인한 뒤 다시 저장해주세요.' }],
       options: [{ variantId: 'v-blue', name: '블루', code: 'B', stockQty: 8 }, { variantId: 'v-red', name: '레드', code: 'R', stockQty: 0 }] });
     render(row).value.openOptionStock({ goodId: 'good-a', ipId: 'ip-a', goodName: '상품 A', goodCode: 'A', editorHref: '/admin/catalog/goods?goodId=good-a',
       options: [{ variantId: 'v-blue', name: '블루', code: 'B', stockQty: 5 }, { variantId: 'v-red', name: '레드', code: 'R', stockQty: 1 }] });
@@ -128,7 +128,7 @@ describe('목록 화면 수준의 창 (리뷰 21·22 — 상품이 현재 페이
     expect(view.discount.phase).toMatchObject({ step: 'price-uncertain', stoppedHere: true, operationId: 'b9000000-0000-4000-8000-000000000002' });
     view.discount.close();
     expect(render(null).discount.phase).toMatchObject({ step: 'price-uncertain' });
-    // 결과 조회가 완료를 확인하면 창을 닫고 결과 문구를 남긴다.
+    // [저장됐는지 확인]이 완료를 확인하면 창을 닫고 결과 문구를 남긴다.
     mocks.read.mockResolvedValue({ value: { state: 'completed', operationId: 'b9000000-0000-4000-8000-000000000002', goodsCount: 1, groupsCount: 0, error: null } });
     render(null).discount.recover(false);
     await settle();

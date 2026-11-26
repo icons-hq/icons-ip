@@ -25,7 +25,7 @@ vi.mock('@/app/admin/actions', () => ({ adjustAdminStockAction: mocks.adjust }))
 vi.mock('./GoodsInlineDialogHost', () => ({ useGoodsInlineDialogs: () => null }));
 
 import { setAdminConfirmHandler } from '@/lib/admin/confirm';
-import { GoodsInlinePrice, GoodsInlineStock, InlineEditor } from './GoodsInlineEdit';
+import { GoodsInlinePrice, GoodsInlineSale, GoodsInlineStock, InlineEditor } from './GoodsInlineEdit';
 
 type El = ReactElement<Record<string, unknown>>;
 const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
@@ -110,11 +110,40 @@ describe('목록 칸 안 바로 수정의 입력 안전', () => {
     answer = false;
     (editor.props.onSubmit as (form: FormData) => void)(formOf('stockQty', '70'));
     await settle();
-    expect(confirmations[0].message).toContain('7개에서 70개로 바꿉니다');
+    expect(confirmations[0].message).toBe('상품 A의 재고수량을 7개에서 70개로 바꿉니다. 재고수량 조정 기록이 남습니다.');
     expect(mocks.adjust).not.toHaveBeenCalled();
     answer = true;
     (editor.props.onSubmit as (form: FormData) => void)(formOf('stockQty', '70'));
     await settle();
     expect(mocks.adjust).toHaveBeenCalledTimes(1);
+  });
+  /* I-03: 판매중지는 고객 화면에 바로 품절로 드러난다 — 판매가·재고수량처럼 저장 전에 한 번 묻는다. 판매중으로 되돌릴 때는 묻지 않는다. */
+  it('판매상태를 판매중지로 바꿀 때만 확인을 받고, 취소하면 보내지 않는다', async () => {
+    const selling = <GoodsInlineSale goodId="good-a" goodName="토끼 피규어" stopped={false} identity={identity} />;
+    const { editor } = renderEditor(selling as El);
+    answer = false;
+    (editor.props.onSubmit as (form: FormData) => void)(formOf('sale', 'stopped'));
+    await settle();
+    expect(confirmations).toEqual([expect.objectContaining({ title: '판매중지 확인', confirmLabel: '판매중지로',
+      message: '토끼 피규어를 판매중지로 바꿉니다. 판매중지인 상품은 고객 화면에 품절로 보이고 주문할 수 없습니다.' })]);
+    expect(mocks.preview).not.toHaveBeenCalled();
+    answer = true;
+    (editor.props.onSubmit as (form: FormData) => void)(formOf('sale', 'stopped'));
+    await settle();
+    expect(mocks.preview).toHaveBeenCalledWith(expect.any(String), { kind: 'goods', ids: ['good-a'], command: 'stop', values: {} }, identity);
+    expect(mocks.commit).toHaveBeenCalledTimes(1);
+  });
+  it('판매중으로 되돌릴 때와 값이 같을 때는 묻지 않는다', async () => {
+    mocks.preview.mockImplementation(async (operationId: string, request: unknown) => ({ value: { state: 'ready', operationId, request, groups: [], goods: [{ ...row, stopped: true }], expiresAt: '2026-10-27T00:15:00Z' } }));
+    const stopped = <GoodsInlineSale goodId="good-a" stopped identity={identity} />;
+    const { editor } = renderEditor(stopped as El);
+    (editor.props.onSubmit as (form: FormData) => void)(formOf('sale', 'stopped'));
+    await settle();
+    expect(mocks.preview).not.toHaveBeenCalled();
+    (editor.props.onSubmit as (form: FormData) => void)(formOf('sale', 'active'));
+    await settle();
+    expect(confirmations).toHaveLength(0);
+    expect(mocks.preview).toHaveBeenCalledWith(expect.any(String), { kind: 'goods', ids: ['good-a'], command: 'start', values: {} }, identity);
+    expect(mocks.commit).toHaveBeenCalledTimes(1);
   });
 });

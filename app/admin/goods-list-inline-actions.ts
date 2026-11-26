@@ -22,8 +22,8 @@ import { isUuid } from '@/lib/uuid';
  * 창은 목록 페이지와 따로 남아 있어(필터·정렬로 그 상품이 목록에서 빠져도) 목록이 다시 그린 값에 기대지 않는다.
  */
 type Client = Awaited<ReturnType<typeof createClient>>;
-const READ_FAILED = '현재 옵션 수량을 읽지 못했습니다. 잠시 후 다시 시도해주세요.';
-const UNCERTAIN = '저장 결과를 확인하지 못했습니다. 같은 수량으로 다시 저장하면 한 번만 반영됩니다.';
+const READ_FAILED = '지금 옵션 수량을 읽지 못했습니다. 잠시 뒤 다시 해주세요.';
+const UNCERTAIN = '저장됐는지 확인하지 못했습니다. 같은 수량으로 다시 저장하면 한 번만 반영됩니다.';
 /** 한 번에 저장할 수 있는 옵션 수. 목록이 한 상품에 싣는 사용 옵션보다 넉넉하다('use server' 파일이라 내보내지 않는다). */
 const OPTION_STOCK_BATCH_LIMIT = 300;
 
@@ -41,8 +41,8 @@ export type GoodsOptionStockReadResult = { ok: true; options: GoodsListOptionSto
 
 export async function readGoodsOptionStocksAction(goodId: unknown): Promise<GoodsOptionStockReadResult> {
   try {
-    if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.read' })) return { ok: false, error: '상품을 조회할 권한이 필요합니다.' };
-    if (!validGoodsGroupGoodId(goodId)) return { ok: false, error: '상품을 확인하지 못했습니다.' };
+    if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.read' })) return { ok: false, error: '상품을 볼 권한이 없습니다. 최고 관리자에게 매니저 관리에서 권한을 요청해주세요.' };
+    if (!validGoodsGroupGoodId(goodId)) return { ok: false, error: '상품을 찾지 못했습니다. 창을 닫고 새로고침해주세요.' };
     const options = await readActiveOptionStocks(await createClient(), goodId);
     return options ? { ok: true, options } : { ok: false, error: READ_FAILED };
   } catch (error) {
@@ -59,15 +59,15 @@ export type GoodsOptionStockSaveResult =
   | { ok: true; outcomes: OptionStockOutcome[]; options?: GoodsListOptionStock[] }
   | { ok: false; error: string };
 
-/** 기존 재고 조정 액션(app/admin/actions.ts adjustAdminStockAction)과 같은 운영자 문구. 'catalog_archived'는 보관 상품 안내를 더한다. */
+/** 옵션 한 줄이 거절된 이유. 칸 이름과 같은 '재고수량'으로 쓰고, 무엇을 하면 되는지 함께 적는다. */
 function stockAdjustmentFailure(message: string) {
-  if (message.includes('stock_changed')) return '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.';
-  if (message.includes('adjustment_conflict')) return '이미 사용된 재고 조정 요청입니다. 최신 수량을 확인해주세요.';
-  if (message.includes('stock_out_of_range')) return '재고는 0개 미만이거나 허용 범위를 넘도록 조정할 수 없습니다.';
-  if (message.includes('goods_variant_not_found')) return '재고를 조정할 옵션을 찾을 수 없습니다. 최신 옵션 목록을 확인해주세요.';
-  if (message.includes('good_not_found')) return '상품을 찾을 수 없습니다.';
-  if (message.includes('catalog_archived') || message.includes('catalog_item_archived')) return '보관된 상품은 재고를 조정할 수 없습니다. 상품을 먼저 복원해주세요.';
-  return '실재고를 조정하지 못했습니다. 다시 시도해주세요.';
+  if (message.includes('stock_changed')) return '그사이 재고수량이 바뀌었습니다. 지금 수량을 확인한 뒤 다시 저장해주세요.';
+  if (message.includes('adjustment_conflict')) return '이미 저장된 수정입니다. 지금 수량을 확인해주세요.';
+  if (message.includes('stock_out_of_range')) return '재고수량은 0개보다 작거나 2,147,483,647개보다 클 수 없습니다. 수량을 다시 입력해주세요.';
+  if (message.includes('goods_variant_not_found')) return '이 옵션을 찾을 수 없습니다. 상품 수정의 옵션에서 확인해주세요.';
+  if (message.includes('good_not_found')) return '상품을 찾을 수 없습니다. 창을 닫고 새로고침해주세요.';
+  if (message.includes('catalog_archived') || message.includes('catalog_item_archived')) return '보관된 상품은 재고수량을 바꿀 수 없습니다. 상품을 먼저 복원해주세요.';
+  return '재고수량을 저장하지 못했습니다. 잠시 뒤 다시 저장해주세요.';
 }
 
 const record = (value: unknown): value is Record<string, unknown> => typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -99,15 +99,15 @@ export async function adjustGoodsOptionStocksAction(goodId: unknown, ipId: unkno
   /* 조정을 하나라도 보내기 전까지의 실패는 '아무것도 바꾸지 않음'이다. */
   let parsed: AdminStockAdjustmentFormValue[], client: Client;
   try {
-    if (!await requireAdminActionAccess('/admin', { capability: 'catalog.manage' })) return { ok: false, error: '관리자 권한이 필요합니다.' };
-    if (!validGoodsGroupGoodId(goodId)) return { ok: false, error: '상품을 확인하지 못했습니다.' };
+    if (!await requireAdminActionAccess('/admin', { capability: 'catalog.manage' })) return { ok: false, error: '재고수량을 바꿀 권한이 없습니다. 최고 관리자에게 매니저 관리에서 상품 관리 권한을 요청해주세요.' };
+    if (!validGoodsGroupGoodId(goodId)) return { ok: false, error: '상품을 찾지 못했습니다. 창을 닫고 새로고침해주세요.' };
     const result = parseRequests(goodId, requests);
     if (typeof result === 'string') return { ok: false, error: result };
     parsed = result;
     client = await createClient();
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, error: '재고수량을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.' };
+    return { ok: false, error: '재고수량을 저장하지 못했습니다. 잠시 뒤 다시 저장해주세요.' };
   }
   const outcomes: OptionStockOutcome[] = [];
   /* 한 옵션씩 차례로 — 같은 상품 행을 잠그는 조정이 서로 기다리지 않고, 옵션마다 결과가 따로 남는다. */

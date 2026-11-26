@@ -7,29 +7,29 @@ import { parseGoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { createClient } from '@/lib/supabase/server';
 import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
 import { parseDigitalFile, parseGoodsFulfillment, type GoodsFulfillmentSettings } from '@/lib/goods-fulfillment';
-import { fulfillmentError } from '@/lib/admin/goods-fulfillment-messages';
+import { GOODS_FULFILLMENT_SAVE_UNCERTAIN, fulfillmentError } from '@/lib/admin/goods-fulfillment-messages';
 import { transactionExactKeys, transactionGoodId, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
 import { isUuid } from '@/lib/uuid';
 import { prepareDigitalAsset, verifyDigitalAsset, type DigitalAssetResult } from '@/lib/admin/digital-assets.server';
 const path = '/admin/catalog/goods';
-const unknown = () => ({ error: fulfillmentError(), uncertain: true });
+const unknown = () => ({ error: GOODS_FULFILLMENT_SAVE_UNCERTAIN, uncertain: true });
 export async function readGoodsFulfillmentAction(goodId: unknown): Promise<{ settings: GoodsFulfillmentSettings } | { error: string }> {
  if (!transactionGoodId(goodId) || !await requireAdminActionAccess(path, { capability: 'catalog.manage' })) return { error: fulfillmentError('42501') };
  try { const { data, error } = await (await createClient()).rpc('admin_get_goods_fulfillment', { p_good: goodId }); const settings = error ? null : parseGoodsFulfillment(data, true);
   return settings?.goodId === goodId ? { settings } : { error: fulfillmentError(error?.code, error?.message) };
  } catch (error) { unstable_rethrow(error); return { error: fulfillmentError() }; }
 }
+/** 상품의 수령 방식 저장. 설정 근거·확인 체크는 받지 않는다(2026-11-25 결정 — 저장 = 적용, 누가 언제 바꿨는지는 감사 기록). */
 export async function saveGoodsFulfillmentAction(goodId: unknown, values: unknown, revision: unknown, operation: unknown, rawIdentity: unknown) {
  const identity = parseGoodsGroupIdentity(rawIdentity);
  if (!identity || !transactionGoodId(goodId) || !isUuid(operation) || !transactionInteger(revision, 0) || !transactionRecord(values)
-  || !transactionExactKeys(values, ['mode', 'methods', 'files', 'publicNote', 'evidence', 'confirmed']) || values.confirmed !== true
-  || typeof values.evidence !== 'string' || values.evidence.trim().length < 2
-  || !parseGoodsFulfillment({ ...Object.fromEntries(Object.entries(values).filter(([k]) => k !== 'confirmed')), goodId, revision, updatedAt: new Date().toISOString() }, true)) return { error: fulfillmentError('22023'), uncertain: false };
+  || !transactionExactKeys(values, ['mode', 'methods', 'files', 'publicNote'])
+  || !parseGoodsFulfillment({ ...values, goodId, revision })) return { error: fulfillmentError('22023'), uncertain: false };
  const auth = await requireAdminActionAccess(path, { capability: 'catalog.manage' }); if (auth?.user.id !== identity.actorId) return { error: fulfillmentError('42501'), uncertain: false };
  try {
   const client = await createClient(), { files, ...rest } = values;
   const saved = await client.rpc('admin_save_goods_fulfillment', { p_good: goodId, p_values: { ...rest, assetIds: (files as { id: string }[]).map(f => f.id) }, p_revision: revision, p_operation: operation, p_actor: identity.actorId, p_session: identity.sessionId });
-  if (saved.error) return { error: fulfillmentError(saved.error.code, saved.error.message), uncertain: !/^(?:PT409|22[0-9A-Z]{3}|23[0-9A-Z]{3}|42501|P0002)$/.test(saved.error.code ?? '') };
+  if (saved.error) { const unsure = !/^(?:PT409|22[0-9A-Z]{3}|23[0-9A-Z]{3}|42501|P0002)$/.test(saved.error.code ?? ''); return { error: unsure ? GOODS_FULFILLMENT_SAVE_UNCERTAIN : fulfillmentError(saved.error.code, saved.error.message), uncertain: unsure }; }
   if (parseGoodsFulfillment(saved.data, true)?.goodId !== goodId) return unknown();
   const latest = await client.rpc('admin_get_goods_fulfillment', { p_good: goodId }), settings = latest.error ? null : parseGoodsFulfillment(latest.data, true);
   if (!settings || settings.goodId !== goodId) return unknown();

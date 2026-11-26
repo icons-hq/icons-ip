@@ -24,3 +24,11 @@ export function koreanOriginValue(provinceCode: string, districtCode = ''): stri
   const district = province.districts.find(row => row.code === districtCode);
   return district ? `대한민국(${province.name} ${district.name})` : '';
 }
+
+/**
+ * 국내 지역을 원산지 칸에 들어가는 글자 그대로 한 줄씩 편 목록. 시·도 다음에 그 시·도의 시·군·구가 이어진다(둘 다 가나다순).
+ * 원산지 선택창이 국가·지역과 같은 목록에 놓아 '수원' 같은 검색어로 바로 찾게 한다. 값은 `koreanOriginValue`가 만든다.
+ */
+export const KOREAN_ORIGIN_VALUES: readonly string[] = KOREAN_PROVINCES.flatMap(province => [
+  koreanOriginValue(province.code), ...province.districts.map(district => koreanOriginValue(province.code, district.code)),
+]);

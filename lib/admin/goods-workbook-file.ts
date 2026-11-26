@@ -81,7 +81,7 @@ export async function buildGoodsWorkbook(
   sizeRows: GoodsSizeWorkbookRow[] = [],
 ): Promise<Buffer> {
   if (rows.length > GOODS_WORKBOOK_ROW_LIMIT)
-    throw new Error('파일당 최대 500행입니다. 페이지를 나누어 내려받아주세요.');
+    throw new Error('한 파일에 500줄까지 담을 수 있습니다. 페이지를 나누어 내려받아주세요.');
   const workbook = new ExcelJS.Workbook();
   workbook.creator = '엑스스퀘어';
   workbook.created = new Date('2026-09-08T00:00:00Z');
@@ -305,7 +305,7 @@ export async function buildGoodsWorkbook(
   return bytes;
 }
 function addGoodsKcWorksheet(workbook: ExcelJS.Workbook, rows: GoodsKcWorkbookRow[]) {
-  if (rows.length > GOODS_WORKBOOK_ROW_LIMIT * 50) throw new Error('KC 모델은 상품당 50행까지입니다.');
+  if (rows.length > GOODS_WORKBOOK_ROW_LIMIT * 50) throw new Error('KC 모델은 상품당 50줄까지입니다.');
   const sheet = workbook.addWorksheet(GOODS_KC_WORKBOOK_SHEET, { views: [{ state: 'frozen', xSplit: 3, ySplit: 4, showGridLines: false }] });
   sheet.getCell('A1').value = GOODS_WORKBOOK_VERSION;
   sheet.getCell('A1').font = { name: 'Arial', size: 14, bold: true };
@@ -401,9 +401,9 @@ export async function parseGoodsWorkbookWithKc(
   });
   if (result.length > 500)
     throw new Error(
-      '옵션 행은 파일당 최대 500행입니다. 파일을 나누어 올려주세요.',
+      '한 파일에 500줄까지 올릴 수 있습니다(옵션마다 한 줄). 파일을 나누어 올려주세요.',
     );
-  if (!result.length) throw new Error('5행부터 상품 정보를 입력해주세요.');
+  if (!result.length) throw new Error('엑셀 5번째 줄부터 상품 정보를 입력해주세요.');
   const kcSheet = workbook.getWorksheet(GOODS_KC_WORKBOOK_SHEET);
   let kcRows: GoodsKcWorkbookInputRow[] | null = null;
   if (kcSheet) {
@@ -418,14 +418,14 @@ export async function parseGoodsWorkbookWithKc(
       const values = emptyGoodsKcWorkbookRow();
       keys.forEach((key, index) => {
         const cell = readSafeWorkbookCell(row.getCell(index + 1), ['goodCode', 'variantCodes', 'identifier'].includes(key));
-        if (cell.error) throw new Error(`KC 검토 ${number}행 ${kcHeaders[key]}: ${cell.error}`);
+        if (cell.error) throw new Error(`KC 검토 ${number}번째 줄 ${kcHeaders[key]}: ${cell.error}`);
         values[key] = cell.value;
       });
       values.goodCode = values.goodCode.trim().toUpperCase();
       values.variantCodes = values.variantCodes.split(/\r?\n/).map(code => code.trim().toUpperCase()).join('\n');
       if (keys.some(key => values[key] !== '')) kcRows!.push({ row: number, values });
     });
-    if (kcRows.length > GOODS_WORKBOOK_ROW_LIMIT * 50) throw new Error('KC 모델은 상품당 50행까지입니다.');
+    if (kcRows.length > GOODS_WORKBOOK_ROW_LIMIT * 50) throw new Error('KC 모델은 상품당 50줄까지입니다.');
     const orphans = goodsKcWorkbookOrphanErrors(kcRows, result.map(row => row.values.code.trim().toUpperCase()));
     if (orphans.length) throw new Error(orphans.join('\n'));
   }
@@ -504,7 +504,7 @@ export async function readSabangnetGoodsSheet(bytes: Buffer): Promise<SabangnetG
     index = detectSabangnetHeaderRow(rows);
   }
   if (index === null || index < 0)
-    throw new Error('사방넷 상품 양식의 열 이름(상품명·판매가 등)을 찾지 못했습니다. 첫 10행 안에 열 이름 행이 있는지 확인해 주세요.');
+    throw new Error('사방넷 상품 양식의 열 이름(상품명·판매가 등)을 찾지 못했습니다. 처음 10줄 안에 열 이름 줄이 있는지 확인해 주세요.');
   const width = sabangnetHeaderWidth(rows[index].cells);
   const headers = rows[index].cells.slice(0, width).map((cell) => cell.trim());
   const data = rows

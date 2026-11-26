@@ -88,6 +88,6 @@ it('겹침·판매 옵션 없음으로 건너뛴 줄만 규칙 선택을 잠그�
   const summary = screen.find(node => node.type === 'p' && text(node.props.children as ReactNode).includes('(KST)'))!;
   expect(text(summary.props.children as ReactNode)).toContain('2026. 11. 12. 14:01 ~ 2026. 11. 19. 14:01 (KST)');
   const whole = text(screen[0]);
-  expect(whole).toContain('건너뜀 · 기간이 겹치는 즉시할인이 이미 있음 (개별 할인 2026. 11. 12. 00:00 ~ 2026. 12. 12. 13:55)');
+  expect(whole).toContain('건너뜀 · 기간이 겹치는 할인이 이미 있음 (개별 할인 2026. 11. 12. 00:00 ~ 2026. 12. 12. 13:55)');
   expect(whole).not.toMatch(/오전|오후/);
 });

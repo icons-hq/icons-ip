@@ -81,4 +81,12 @@ describe('A/S 전화번호 칸 아래 한 줄', () => {
     expect(tree.find(node => node.type === 'textarea' && String(node.props.placeholder).startsWith('예: 접수 방법'))).toBeDefined();
     expect(tree.filter(node => node.type === 'p').map(node => textOf(node))).toEqual(['A/S 안내와 판매자 특이사항은 상품 상세 하단에 보입니다.']);
   });
+
+  it('템플릿 편집 창에서는 상품정보제공고시 연락처 한 줄과 미리 채움을 두지 않는다(템플릿에는 상품도 고시도 없다)', () => {
+    hooks.context = '02-000-0000';
+    const tree = nodes(GoodsAfterSalesFields({ values: empty, onChange, forTemplate: true }));
+    expect(tree.some(node => typeof node.type === 'function' && (node.type as { name: string }).name === 'AfterSalesPhonePrefill')).toBe(false);
+    expect(textOf(GoodsAfterSalesFields({ values: empty, onChange, forTemplate: true }))).not.toContain('상품정보제공고시');
+    expect(tree.filter(node => node.type === 'p').map(node => textOf(node))).toEqual(['템플릿을 가져간 상품의 상세 하단에 A/S 안내와 판매자 특이사항이 보입니다.']);
+  });
 });

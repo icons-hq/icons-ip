@@ -16,7 +16,7 @@ export const ERP_COLUMN_TARGET_LABELS: Record<ErpColumnTarget, string> = {
   code: 'ERP 코드(품번)',
   name: 'ERP 품명',
   category: 'ERP 분류',
-  salePrice: '판매가',
+  salePrice: 'ERP 판매가',
   barcode: '바코드',
   ignore: '가져오지 않음',
 };
@@ -204,7 +204,7 @@ export function parseErpDelimitedTable(text: string): ErpDelimitedTable {
   const source = text.replace(/^\ufeff/, '');
   const { rows, unclosedCells } = parseDelimitedText(source, detectDelimiter(source), { quotedCellScanLimit: QUOTED_CELL_SCAN_LIMIT });
   const warnings = unclosedCells.length
-    ? [`닫는 큰따옴표가 없는 셀 ${unclosedCells.length.toLocaleString('ko-KR')}개(${unclosedCells.slice(0, 3).map((line) => `${line}행`).join(', ')}${unclosedCells.length > 3 ? ' 등' : ''})는 따옴표를 포함해 적힌 그대로 읽었습니다. 값을 확인해주세요.`]
+    ? [`닫는 큰따옴표가 없는 셀 ${unclosedCells.length.toLocaleString('ko-KR')}개(${unclosedCells.slice(0, 3).map((line) => `${line}번째 줄`).join(', ')}${unclosedCells.length > 3 ? ' 등' : ''})는 따옴표를 포함해 적힌 그대로 읽었습니다. 값을 확인해주세요.`]
     : [];
   return { rows, warnings };
 }

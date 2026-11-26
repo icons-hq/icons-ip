@@ -5,14 +5,17 @@ import { parseGoodsOptionRows, GOODS_OPTION_AXIS_LIMIT, GOODS_OPTION_ROW_LIMIT, 
 export const GOODS_OPTION_IMPORT_PATH = '/admin/catalog/goods';
 export const GOODS_OPTION_IMPORT_PAGE_SIZE = 20;
 /**
- * 상품 검색 조건. `optionSourcesOnly`·`excludeGoodId`는 '다른 상품 옵션 불러오기' 선택창만 쓰는 선택 조건이다
+ * 상품 검색 조건. `optionSourcesOnly`·`noticeSourcesOnly`·`excludeGoodId`는 가져올 것이 있는 상품만 보여야 하는 선택창이 쓰는 선택 조건이다
  * (docs/admin-screen-rules.md 규칙 2 — 고를 수 없는 상품은 조회에서 뺀다). 주지 않으면 지금까지처럼 보관하지 않은 상품 전체를 찾는다.
+ * 두 조건은 선택창이 달라 함께 쓰지 않는다.
  */
 export type GoodsOptionImportFilters = {
   query: string; field: 'name' | 'code' | 'id'; categoryId: string; page: number;
-  /** true면 사용 중인 선택형 옵션(옵션값이 있는 옵션)이 하나라도 있는 상품만 찾는다. */
+  /** '다른 상품 옵션 불러오기' 선택창. true면 사용 중인 선택형 옵션(옵션값이 있는 옵션)이 하나라도 있는 상품만 찾는다. */
   optionSourcesOnly?: boolean;
-  /** `optionSourcesOnly`와 함께 쓴다. 이 상품(지금 편집 중인 상품)은 목록에서 뺀다. */
+  /** 상품정보제공고시 '다른 상품에서 복사' 선택창. true면 고시 7칸 가운데 하나라도 적어 둔 상품만 찾는다. */
+  noticeSourcesOnly?: boolean;
+  /** `optionSourcesOnly`나 `noticeSourcesOnly`와 함께 쓴다. 이 상품(지금 편집 중인 상품)은 목록에서 뺀다. */
   excludeGoodId?: string;
 };
 export type GoodsOptionImportCandidate = { id: string; code: string; name: string; categoryName: string | null; imageUrl: string | null; published: boolean };
@@ -42,10 +45,12 @@ export function parseGoodsOptionImportFilters(value: unknown): GoodsOptionImport
     || typeof value.categoryId !== 'string' || value.categoryId !== '' && !isUuid(value.categoryId)
     || !Number.isSafeInteger(value.page) || Number(value.page) < 1 || Number(value.page) > 100000) return null;
   /* 선택 조건은 없거나(undefined·null) 정해진 모양일 때만 받는다. 없으면 결과에 키를 넣지 않아 기존 호출과 같은 값이 된다. */
-  const sourcesOnly = value.optionSourcesOnly ?? undefined, excluded = value.excludeGoodId ?? undefined;
-  if (sourcesOnly !== undefined && typeof sourcesOnly !== 'boolean' || excluded !== undefined && !validOptionImportGoodId(excluded)) return null;
+  const sourcesOnly = value.optionSourcesOnly ?? undefined, noticeOnly = value.noticeSourcesOnly ?? undefined, excluded = value.excludeGoodId ?? undefined;
+  if (sourcesOnly !== undefined && typeof sourcesOnly !== 'boolean' || noticeOnly !== undefined && typeof noticeOnly !== 'boolean'
+    || sourcesOnly && noticeOnly || excluded !== undefined && !validOptionImportGoodId(excluded)) return null;
   return { query: value.query.trim(), field: value.field as GoodsOptionImportFilters['field'], categoryId: value.categoryId.toLowerCase(), page: Number(value.page),
-    ...(sourcesOnly ? { optionSourcesOnly: true } : {}), ...(sourcesOnly && excluded ? { excludeGoodId: excluded } : {}) };
+    ...(sourcesOnly ? { optionSourcesOnly: true } : {}), ...(noticeOnly ? { noticeSourcesOnly: true } : {}),
+    ...((sourcesOnly || noticeOnly) && excluded ? { excludeGoodId: excluded } : {}) };
 }
 
 /** 운영자에게 그대로 보여도 되는 불러오기 오류(원인과 고칠 방법). 그 밖의 예외는 서버 액션이 일반 문구로 바꾼다. */

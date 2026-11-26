@@ -9,6 +9,8 @@ import { EMPTY_GOODS_AFTER_SALES, type GoodsAfterSalesValues } from '@/lib/goods
 import { parseGoodsSizeChart } from '@/lib/goods-size-chart';
 import { GOODS_HTML_MAX_LENGTH, goodsHtmlCleanedLengthWarning, goodsHtmlSourceLengthWarning, sanitizeGoodsDescription } from '@/lib/goods-description';
 import { goodsAttributeSubmissionReady } from '@/lib/admin/goods-attributes';
+import { adminConfirm } from '@/lib/admin/confirm';
+import { goodsGroupCommonConfirm } from '@/lib/admin/goods-group-confirm';
 import { GroupCompleted, GroupOperationStatus, useGoodsGroupOperation, useGoodsGroupSession } from './GoodsGroupOperation';
 import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 import { AdminFormGrid, AdminSectionCard } from './console/AdminKit';
@@ -20,9 +22,9 @@ import { GoodsAttributeEditor } from './GoodsAttributeEditor';
 import { GoodNoticePicker } from './GoodNoticePicker';
 import { GoodsOriginField } from './CountryNameFinder';
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
-import { GoodsAfterSalesTemplatePicker } from './screens/GoodsAfterSalesTemplatesScreen';
+import { GoodsAfterSalesTemplatePicker } from './GoodsAfterSalesTemplatePicker';
 import { GoodsSizeChartFields } from './GoodsSizeChartFields';
-import { GoodsSizeTemplatePicker } from './screens/GoodsSizeTemplatesScreen';
+import { GoodsSizeTemplatePicker } from './GoodsSizeTemplatePicker';
 import { GoodSizeChart } from '@/components/shop/GoodSizeChart';
 import { GoodsDescription } from '@/components/shop/GoodsDescription';
 import { GoodsDescriptionTools } from './GoodsDescriptionTools';
@@ -46,11 +48,14 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
   const formRef = useRef<HTMLFormElement | null>(null);
   const locked = session.blocked || operation.locked || operation.receipt !== null;
   const ready = goodsAttributeSubmissionReady(attributes, categoryId);
+  /* 서버로 가는 A/S 안내. 끄면 빈 값이 가서 연결된 모든 상품의 A/S 안내가 비워진다. */
+  const sentAfterSales = afterSalesEnabled ? afterSales : EMPTY_GOODS_AFTER_SALES;
   const onAttributes = useCallback((submission: string, _draft: string, initialize: boolean) => { setAttributes(submission); if (!initialize) setDirty(true); }, []);
   function leave(event: { preventDefault: () => void }) {
     if (operation.pending) event.preventDefault();
   }
   useAdminLeaveGuard({ dirty: dirty && !operation.receipt, blocked: operation.pending, message: '저장하지 않은 공통정보 입력을 두고 이동할까요?' });
+  /** 입력이 맞는지 먼저 보고, 맞으면 바뀌는 상품 수와 결과를 보여 준 뒤에만 저장한다(확인을 기다리는 동안 이중 제출은 확인창이 막는다). */
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (locked || !identity || !ready) return;
     const form = new FormData(event.currentTarget), normalized = normalizeGoodsGroupCommonForm(form);
@@ -58,7 +63,7 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
     setErrors({});
     const metadata = { ...identity, version: 1 as const, command: 'common' as const, groupId: snapshot.group.id,
       expectedRevision: snapshot.group.revision, operationId: crypto.randomUUID() };
-    operation.execute(metadata, () => saveGoodsGroupCommonAction(metadata, form));
+    void adminConfirm(goodsGroupCommonConfirm(snapshot.group, sentAfterSales)).then(ok => { if (ok) operation.execute(metadata, () => saveGoodsGroupCommonAction(metadata, form)); });
   }
   function applyNotice(notice: GoodsNoticeInfo) {
     for (const field of GOODS_NOTICE_FIELDS) {
@@ -76,9 +81,9 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-group-common">
     <AdminSectionCard title={`${snapshot.group.name} · 공통정보 편집`}>
       <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
-        <p>연결된 {snapshot.group.members.length}개 상품에 아래 정보를 한 번에 적용합니다. 저장하면 모두 미공개로 전환되고 KC를 다시 검토해야 합니다.</p>
+        <p>연결된 {snapshot.group.members.length}개 상품에 아래 정보를 한 번에 적용합니다. 저장하면 모두 초안으로 바뀌고 KC를 다시 검토해야 합니다.</p>
         <p>그룹명·옵션명·옵션값은 <Link className="text-foreground underline underline-offset-4" href={goodsGroupHref(snapshot.group.id)} aria-disabled={operation.pending || undefined} onNavigate={leave}>그룹 구성</Link>에서 수정합니다.</p>
-        <p>가격·재고·상품이미지·결제 설정은 개별 상품에서 관리합니다. 입력 내용은 이 화면에만 남습니다. 결과 확인을 위해 브라우저에는 요청 번호만 보관하고 입력 내용은 보관하지 않습니다.</p>
+        <p>가격·재고·상품이미지·결제 설정은 개별 상품에서 관리합니다.</p>
       </div>
     </AdminSectionCard>
     {session.blocked ? <p className="text-sm text-destructive" role="alert">로그인이 변경되었습니다. 화면을 다시 열어주세요.</p> : null}
@@ -119,14 +124,14 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
         <AdminSectionCard title="A/S 안내·판매자 특이사항">
           <label className="flex cursor-pointer items-center gap-2 text-sm font-medium"><input type="checkbox" checked={afterSalesEnabled} onChange={event => { setAfterSalesEnabled(event.target.checked); setDirty(true); }} /> A/S 안내 사용</label>
           {afterSalesEnabled ? <GoodsAfterSalesFields values={afterSales} onChange={value => { setAfterSales(value); setDirty(true); }} /> : <p className="text-sm text-muted-foreground">설정안함으로 저장하면 모든 연결 상품의 A/S 안내와 판매자 특이사항을 비웁니다.</p>}
-          <Button className="self-start" variant="outline" type="button" onClick={() => setAsTemplates(true)}>A/S 템플릿 불러오기</Button>
-          <input type="hidden" name="groupAfterSales" value={JSON.stringify(afterSalesEnabled ? afterSales : EMPTY_GOODS_AFTER_SALES)} />
+          <Button className="self-start" variant="outline" type="button" onClick={() => setAsTemplates(true)}>A/S 템플릿 고르기</Button>
+          <input type="hidden" name="groupAfterSales" value={JSON.stringify(sentAfterSales)} />
         </AdminSectionCard>
         <AdminSectionCard title="사이즈 안내">
           <label className="flex flex-col gap-2 text-sm font-medium">공개 표시<AdminSelect value={String(sizeChart.enabled)} wrapperClassName="w-full sm:w-52" onChange={event => { setSizeChart({ ...sizeChart, enabled: event.target.value === 'true' }); setDirty(true); }}><option value="false">설정안함</option><option value="true">설정함</option></AdminSelect></label>
           <p className="text-sm text-muted-foreground">설정안함은 작성한 표를 보존하고 공개 표시만 중지합니다.</p>
           <GoodsSizeChartFields chart={sizeChart.chart} onChange={chart => { setSizeChart({ ...sizeChart, chart }); setDirty(true); }} />
-          <Button className="self-start" variant="outline" type="button" onClick={() => setSizeTemplates(true)}>사이즈 템플릿 불러오기</Button>
+          <Button className="self-start" variant="outline" type="button" onClick={() => setSizeTemplates(true)}>사이즈 템플릿 고르기</Button>
           <input type="hidden" name="groupSizeChart" value={JSON.stringify(sizeChart)} />
           <GoodSizeChart chart={parseGoodsSizeChart(sizeChart.chart)} />
         </AdminSectionCard>
@@ -134,7 +139,7 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
         <div className="flex flex-wrap items-center gap-2"><Button type="submit" disabled={!ready}>{operation.pending ? '저장 중…' : `연결된 ${snapshot.group.members.length}개 상품에 공통정보 적용`}</Button><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupHref(snapshot.group.id)} aria-disabled={operation.pending || undefined} onNavigate={leave}>취소</Link></div>
       </fieldset>
     </form>
-    {asTemplates && !locked ? <GoodsAfterSalesTemplatePicker onClose={() => setAsTemplates(false)} onSelect={template => { setAfterSales(template); setAfterSalesEnabled(true); setAsTemplates(false); setDirty(true); }} /> : null}
-    {sizeTemplates && !locked ? <GoodsSizeTemplatePicker onClose={() => setSizeTemplates(false)} onSelect={template => { setSizeChart({ ...sizeChart, chart: structuredClone(template.chart) }); setSizeTemplates(false); setDirty(true); }} /> : null}
+    {asTemplates && !locked ? <GoodsAfterSalesTemplatePicker current={sentAfterSales} onClose={() => setAsTemplates(false)} onSelect={template => { setAfterSales(template); setAfterSalesEnabled(true); setAsTemplates(false); setDirty(true); }} /> : null}
+    {sizeTemplates && !locked ? <GoodsSizeTemplatePicker current={sizeChart.chart} onClose={() => setSizeTemplates(false)} onSelect={template => { setSizeChart({ ...sizeChart, chart: structuredClone(template.chart) }); setSizeTemplates(false); setDirty(true); }} /> : null}
   </div>;
 }

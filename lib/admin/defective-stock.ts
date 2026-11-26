@@ -20,7 +20,7 @@ export const DEFECTIVE_STOCK_FIELD_NOTE = '불량으로 고른 품목은 판매 
 /* 교환 회수품(CLM-046). 회수를 확인한 출고지마다 재출고 전에 고른다. 재출고가 재고를 정하는 순간 함께 기록되므로 '기록 필요'가 없다. */
 export const EXCHANGE_STOCK_FIELD_NOTE = '불량으로 고른 회수 상품은 재출고할 때 판매 재고에 넣지 않고 불량 재고 목록에 따로 기록합니다. 나머지는 지금처럼 판매 재고로 복원합니다.';
 export const EXCHANGE_STOCK_DECISION_REQUIRED = '하자·오배송 교환은 회수 상품의 재고 처리(불량 분리 또는 정상 재고 복원)를 정해야 재출고할 수 있습니다.';
-export const DEFECTIVE_STOCK_PENDING_NOTICE = '환불(재고)은 확정됐지만 불량 재고 기록이 끝나지 않았습니다. 환불은 다시 하지 말고 반품 처리 권한이 있는 담당자가 [불량 기록 다시 시도]만 눌러주세요.';
+export const DEFECTIVE_STOCK_PENDING_NOTICE = '환불은 확정됐지만 불량 수량이 아직 기록되지 않았습니다. 환불은 다시 하지 말고 반품 처리 권한이 있는 담당자가 [불량 기록 다시 시도]만 눌러주세요.';
 
 /** 기록 RPC 실패를 운영자 문구로 옮긴다. 원문 코드는 노출하지 않는다. */
 export function defectiveStockRecordError(message: string | null | undefined) {

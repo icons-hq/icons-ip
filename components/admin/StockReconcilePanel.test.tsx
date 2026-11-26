@@ -43,6 +43,20 @@ describe('재고 파일 대조 화면', () => {
     expect(html).not.toContain('기준 시각 뒤 재고를 직접 바꾼 옵션');
   });
 
+  /* QA G7: 1440 화면에서 표가 놓이는 칸은 1082px다. 최소 폭이 그보다 크면(전에는 1180px) 마지막 '상태' 열이 가로 스크롤 뒤로 밀린다. */
+  it("대조 결과 표는 1440 화면의 칸(1082px)보다 넓지 않게 그리고, 긴 머리글은 낱말 사이에서 접는다 — 마지막 '상태' 열까지 보인다", () => {
+    const html = renderToStaticMarkup(<StockReconcileResult snapshot={snapshot} showSame={false} />);
+    const result = html.split('aria-label="옵션별 대조 결과"')[1].split('</table>')[0];
+    const minWidth = Number(/<table[^>]*class="[^"]*min-w-\[(\d+)px\]/.exec(result)?.[1]);
+    expect(minWidth).toBeLessThanOrEqual(1082);
+    const heads = [...result.matchAll(/<th[^>]*class="([^"]*)"[^>]*>(.*?)<\/th>/g)].map(match => ({ wraps: match[1].split(' ').includes('whitespace-normal') && match[1].split(' ').includes('break-keep'), text: match[2].replace(/<[^>]+>/g, '') }));
+    expect(heads.map(head => head.text.replace(/맞춘 뒤 재고수량.*/, '맞춘 뒤 재고수량'))).toEqual(['상품 · 옵션', '옵션 자동코드', '찾은 코드', '파일 수량', '기준 시각 뒤 출고', '기준 시각 뒤 회수', '출고 대기', '회수 뒤 미반영', '지금 재고수량', '맞춘 뒤 재고수량', '상태']);
+    for (const name of ['기준 시각 뒤 출고', '기준 시각 뒤 회수', '회수 뒤 미반영', '지금 재고수량']) expect(heads.find(head => head.text === name)?.wraps, name).toBe(true);
+    expect(heads.find(head => head.text.startsWith('맞춘 뒤 재고수량'))?.wraps).toBe(true);
+    /* 접히는 머리글의 한 줄 넘김이 덮이지 않게(kit 기본은 한 줄) 한 줄 고정 클래스가 함께 남지 않는다. */
+    for (const head of heads.filter(item => item.wraps)) expect(html).not.toMatch(new RegExp(`<th[^>]*class="[^"]*whitespace-nowrap[^"]*whitespace-normal[^"]*"[^>]*>${head.text.slice(0, 4)}`));
+  });
+
   it('기준 시각 뒤 재고 조정·다른 대조가 있으면 반영 전에 알린다', () => {
     const adjusted = { ...snapshot, items: snapshot.items.map((entry, index) => index === 0
       ? { ...entry, returnedSinceQty: 2, awaitingReturnQty: 1, adjustedSinceCount: 1, adjustedSinceQty: 5 } : entry) };
@@ -83,6 +97,10 @@ describe('재고 파일 대조 화면', () => {
     expect(fresh).toContain('옵션 2개 재고 반영');
     expect(fresh).toContain('value="재고 파일 대조 · 서원 재고.xlsx"');
     expect(fresh).toContain('value="2031-05-01T10:00"');
+    /* 사유를 비우면 반영 버튼이 잠긴다 — 칸 이름이 필수라고 말하고, 예시 글이 무엇을 적는지 보인다(설명 줄은 두지 않는다). */
+    expect(fresh).toContain('<label class="text-sm leading-snug font-medium" for="stock-reconcile-reason">반영 사유 (필수)</label>');
+    expect(fresh).toMatch(/<input(?=[^>]*id="stock-reconcile-reason")(?=[^>]*required)(?=[^>]*placeholder="예: 서원 11\/12 09시 재고 대조")/);
+    expect(fresh).not.toContain('감사 기록에 남습니다');
     const stale = renderToStaticMarkup(<StockReconcilePanel origins={[]} initialSnapshot={snapshot} now="2031-05-02T01:00:00Z" />);
     expect(stale).toContain('24시간이 지난 미리보기는 반영할 수 없습니다');
     expect(stale).not.toContain('옵션 2개 재고 반영');
@@ -115,6 +133,36 @@ describe('재고 파일 대조 화면', () => {
     expect(new Set(ids).size).toBe(ids.length);
     expect(html).toMatch(/<label[^>]*for="stock-reconcile-file-input"[^>]*>또는 파일 선택<\/label>/);
     expect(html).toMatch(/<input[^>]*(?:id="stock-reconcile-file-input"[^>]*type="file"|type="file"[^>]*id="stock-reconcile-file-input")/);
+  });
+
+  it('설명 글을 줄이고 "?"는 파일의 재고 기준 시각에만 단다(맞춘 뒤 재고수량은 미리보기 표 머리에)', () => {
+    const html = renderToStaticMarkup(<StockReconcileScreen origins={[{ id: 'o1', name: '남양주', active: false }]} history={[]} snapshot={null} digest={null} canManageDigest={false} now="2031-05-01T01:00:00Z" />);
+    /* 파일 수량이 엑스스퀘어 몫이어야 한다는 조건은 남기고, 칸 아래·카드 요약에서 되풀이하던 설명은 뺀다. */
+    expect(html).toContain('파일의 수량은 엑스스퀘어 판매용으로 떼어 둔 수량이어야 합니다');
+    for (const gone of ['자동으로 연동되지는 않습니다', '창고 실물은 출고할 때 줄기 때문입니다', '다른 출고지 상품의 행은', '열을 자동으로 짝짓습니다', 'KB 이하, 한 번에', '감사 기록에 남습니다']) expect(html).not.toContain(gone);
+    expect(html.match(/data-admin-help=""/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="파일의 재고 기준 시각 (KST) 도움말"');
+    /* 출고지 상태는 상품 목록과 같은 '사용 안 함'이다. */
+    expect(html).toContain('남양주 (사용 안 함)');
+    expect(html).not.toContain('(비활성)');
+  });
+
+  it('맞춘 뒤 재고수량 열 머리에만 계산식 "?"를 달고, 표 위에 계산식 글을 늘어놓지 않는다', () => {
+    const preview = renderToStaticMarkup(<StockReconcileResult snapshot={snapshot} showSame={false} onToggleSame={() => {}} />);
+    expect(preview).toContain('aria-label="맞춘 뒤 재고수량 도움말"');
+    expect(preview).toContain('반영 전 미리보기');
+    expect(preview).not.toContain('= 파일 수량');
+    const applied = renderToStaticMarkup(<StockReconcileResult snapshot={{ ...snapshot, appliedAt: '2031-05-01T00:10:00Z', appliedByName: '운영자', applyReason: '대조',
+      applyResult: { changed: 2, increased: 1, decreased: 1, shortages: 1, totalDelta: -9 } }} showSame={false} />);
+    expect(applied).not.toContain('data-admin-help');
+  });
+
+  it('표의 행은 줄이라 부른다', () => {
+    const html = renderToStaticMarkup(<StockReconcileResult snapshot={snapshot} showSame={false} />);
+    expect(html).toContain('옵션 자동코드 · 2번째 줄');
+    expect(html).toContain('aria-label="반영하지 않는 줄"');
+    expect(html).not.toContain('2행');
+    expect(html).not.toContain('반영하지 않는 행');
   });
 
   it('파일은 형식·크기를 먼저 본다', () => {

@@ -17,6 +17,7 @@
     "test:admin-visual-qa-harness": "node scripts/admin-visual-qa-self-test.mjs",
     "admin:visual-fixture": "node scripts/admin-visual-fixture.mjs",
     "test:admin-visual-fixture": "node scripts/admin-visual-fixture/qa.mjs",
+    "test:admin-option-typing-browser": "node scripts/admin-option-typing-browser.mjs",
     "test:hyosan-g1-browser": "node scripts/hyosan-g1-browser-smoke.mjs",
     "test:aouad-mobile-browser": "node scripts/aouad-mobile-browser-smoke.mjs",
     "test:aouad-hyosan-browser": "node scripts/aouad-hyosan-browser-smoke.mjs",

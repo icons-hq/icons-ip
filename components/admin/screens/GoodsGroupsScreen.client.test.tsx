@@ -66,3 +66,33 @@ it('선택 해제 버튼이 선택을 비우고, 검색·페이지 이동은 지
   (form.props.onSubmit as (event: unknown) => void)({ preventDefault: vi.fn() }); await Promise.all(mocks.work);
   expect(toolbar().props.selectedIds).toEqual([]);
 });
+
+/* G-01: 그룹 번호(UUID)와 상품 URL은 운영자가 쓸 일이 없는 내부 값이라 목록에도 검색 항목에도 보이지 않는다. */
+const GROUP_UUID = 'bc1d0000-0000-4000-8000-000000000123';
+function renderWithMembers() {
+  const row = { id: GROUP_UUID, name: '머그컵 그룹', optionNames: ['색상'], archivedAt: null, members: [
+    { goodId: 'mug-red', name: '머그컵 빨강', code: 'MUG-RED', values: ['빨강'], price: 9000, stockQty: 3, publishedAt: '2026-11-01T00:00:00Z', archivedAt: null },
+    { goodId: 'mug-old', name: '머그컵 파랑', code: null, values: ['파랑'], price: 9000, stockQty: 0, publishedAt: null, archivedAt: null }] } as unknown as GoodsGroupSnapshot;
+  mocks.index = 0; mocks.refIndex = 0;
+  const base = { initialPage: page([row]), initialConsole: { ...page([row]), metadata: { [GROUP_UUID]: { createdAt: '2026-11-01T00:00:00Z', updatedAt: '2026-11-02T00:00:00Z', category: '머그' } } } as never, initialGroup: null,
+    initialFilters: { ...DEFAULT_GROUP_FILTERS }, actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
+  return GoodsGroupsScreen(base);
+}
+it('그룹 이름 아래에 그룹 번호 조각을 보이지 않는다', () => {
+  mocks.states = []; mocks.refs = []; const tree = nodes(renderWithMembers());
+  expect(tree.some(node => text(node.props.children as ReactNode).includes('머그컵 그룹'))).toBe(true);
+  expect(tree.some(node => text(node.props.children as ReactNode).includes(GROUP_UUID.slice(0, 8)))).toBe(false);
+  expect(tree.some(node => node.props.title === GROUP_UUID)).toBe(false);
+});
+it('펼친 판매옵션 표는 상품 자동코드가 없을 때 상품 번호 대신 줄표를 보인다', () => {
+  mocks.states = []; mocks.refs = []; renderWithMembers();
+  const toggle = nodes(renderWithMembers()).find(node => node.type === Button && node.props['aria-label'] === '머그컵 그룹 판매옵션 펼치기')!;
+  (toggle.props.onClick as () => void)();
+  const shown = nodes(renderWithMembers()).filter(node => node.type === 'small').map(node => text(node.props.children as ReactNode));
+  expect(shown).toEqual(['MUG-RED', '—']);
+});
+it('검색 항목은 전체·상품 자동코드·그룹상품명·제조사명이다', () => {
+  mocks.states = []; mocks.refs = [];
+  const labels = nodes(renderWithMembers()).filter(node => node.type === 'input' && node.props.name === 'group-field').map(node => node.props.value);
+  expect(labels).toEqual(['all', 'code', 'name', 'maker']);
+});

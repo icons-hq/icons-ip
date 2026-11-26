@@ -14,7 +14,8 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 vi.mock('@/lib/admin/erp-items.server', () => ({ loadErpItemsWorkspace: mocks.load }));
-vi.mock('@/app/admin/erp-item-actions', () => ({ importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), deleteErpItemsAction: vi.fn(),
+vi.mock('@/app/admin/erp-item-actions', () => ({ importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), countErpItemClearsAction: vi.fn(),
+  setErpCategoryMappingAction: vi.fn(), setErpCategoryMappingsAction: vi.fn(), deleteErpItemsAction: vi.fn(),
   previewErpLinkedGoodsAction: vi.fn(), commitErpLinkedGoodsAction: vi.fn() }));
 
 beforeEach(() => {
@@ -38,6 +39,8 @@ describe('ERP 품목 라우트', () => {
     expect(mocks.load).toHaveBeenCalledWith({ query: '키링', page: 2 });
     expect(html).toContain('ERP 품목');
     expect(html).toContain('value="키링"');
+    /* 화면 규칙 3: 설명 문단 대신 "?"는 카드 '연결 상품 반영' 한 곳에 둔다(연결 표의 '자동 연결' "?"는 ERP 분류가 있을 때 표와 함께 나온다). */
+    expect(html.match(/aria-label="[^"]* 도움말"/g)).toEqual(['aria-label="연결 상품 반영 도움말"']);
   });
 
   /* 1027T-016(사용자 결정 2026-11-11 "MD 권한"): 부매니저도 상품 관리 권한으로 화면을 열고 반입한다. 삭제는 플랫폼 관리 권한에만 보인다. */

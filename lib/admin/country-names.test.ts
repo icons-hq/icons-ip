@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { COUNTRY_NAMES, COUNTRY_NAME_PAGE_SIZE, countryNamePage, findCountryName } from './country-names';
+import { COUNTRY_NAMES, findCountryName, searchCountryNames } from './country-names';
 
 const raw = (path: string) => readFileSync(new URL(path, import.meta.url));
 describe('고정 CLDR 국가·지역명 사전', () => {
@@ -23,21 +23,22 @@ describe('고정 CLDR 국가·지역명 사전', () => {
     expect(COUNTRY_NAMES.map(row => row.name)).toEqual(COUNTRY_NAMES.map(row => row.name).sort((a, b) => a.localeCompare(b, 'ko')));
   });
   it.each(['대한민국', '한국', 'South Korea', 'KR', 'kor', ' 410 ', 'ＫＲ'])('%s 검색은 코드 대신 대한민국을 적용할 수 있게 한다', query => {
-    expect(countryNamePage(query).rows.map(row => [row.code, row.name])).toEqual([['KR', '대한민국']]);
+    expect(searchCountryNames(query).map(row => [row.code, row.name])).toEqual([['KR', '대한민국']]);
   });
   it('한글·영문 별칭은 검색에만 쓰고 기본 명칭을 임의로 바꾸지 않는다', () => {
-    expect(countryNamePage('홍콩').rows[0]).toMatchObject({ code: 'HK', name: '홍콩(중국 특별행정구)' });
-    expect(countryNamePage('United States').rows[0]).toMatchObject({ code: 'US', name: '미국' });
+    expect(searchCountryNames('홍콩')[0]).toMatchObject({ code: 'HK', name: '홍콩(중국 특별행정구)' });
+    expect(searchCountryNames('United States')[0]).toMatchObject({ code: 'US', name: '미국' });
     expect(findCountryName('AU')?.name).toBe('오스트레일리아');
   });
-  it('20개씩 마지막 9개까지 중복·누락 없이 이동하고 빈 결과도 1페이지로 처리한다', () => {
-    expect(COUNTRY_NAME_PAGE_SIZE).toBe(20);
-    const pages = Array.from({ length: 13 }, (_, i) => countryNamePage('', i + 1));
-    expect(pages.slice(0, -1).every(page => page.rows.length === 20)).toBe(true);
-    expect(pages[12].rows).toHaveLength(9);
-    expect(pages.flatMap(page => page.rows.map(row => row.code))).toEqual(COUNTRY_NAMES.map(row => row.code));
-    expect(countryNamePage('', 99).page).toBe(13);
-    expect(countryNamePage('없는국가명', 4)).toEqual({ rows: [], total: 0, page: 1, pages: 1 });
-    expect(countryNamePage('', Number.NaN).page).toBe(1);
+  it('빈 검색어는 가나다순 전체이고 없는 이름은 빈 결과다', () => {
+    expect(searchCountryNames('')).toBe(COUNTRY_NAMES);
+    expect(searchCountryNames('   ')).toHaveLength(249);
+    expect(searchCountryNames('없는국가명')).toEqual([]);
+  });
+  it('국가 코드는 정확히 같을 때만 찾아 이름에 그 글자가 든 다른 나라를 섞지 않는다', () => {
+    /* 'kr'은 Ukraine의 영어 이름에도 들어 있다. 코드와 정확히 같으면 그 나라만 낸다. */
+    expect(searchCountryNames('kr').map(row => row.code)).toEqual(['KR']);
+    expect(searchCountryNames('ukr').map(row => row.code)).toEqual(['UA']);
+    expect(searchCountryNames('ukra').map(row => row.code)).toEqual(['UA']);
   });
 });

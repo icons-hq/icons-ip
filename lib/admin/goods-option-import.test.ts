@@ -107,6 +107,20 @@ describe('다른 상품 선택형 옵션을 현재 초안에 적용', () => {
       expect(parseGoodsOptionImportFilters({ ...base, ...invalid })).toBeNull();
     }
   });
+  /* 화면 규칙 2: 고시 '다른 상품에서 복사' 선택창은 "고시를 적어 둔 상품만"·"지금 편집 중인 상품 제외" 조건을 더한다. */
+  it('고시 원본 조건도 선택 인자다: 주면 정해진 모양만 받고, 옵션 원본 조건과 함께는 받지 않는다', () => {
+    const base = { query: '', field: 'name', categoryId: '', page: 1 };
+    const plain = parseGoodsOptionImportFilters(base)!;
+    for (const absent of [{ noticeSourcesOnly: undefined }, { noticeSourcesOnly: null }, { noticeSourcesOnly: false }, { noticeSourcesOnly: false, excludeGoodId: 'good-1' }]) {
+      expect(parseGoodsOptionImportFilters({ ...base, ...absent })).toEqual(plain);
+    }
+    expect(parseGoodsOptionImportFilters({ ...base, noticeSourcesOnly: true })).toEqual({ ...plain, noticeSourcesOnly: true });
+    expect(parseGoodsOptionImportFilters({ ...base, noticeSourcesOnly: true, excludeGoodId: 'good-1' })).toEqual({ ...plain, noticeSourcesOnly: true, excludeGoodId: 'good-1' });
+    expect(parseGoodsOptionImportFilters({ ...base, noticeSourcesOnly: true, optionSourcesOnly: false, excludeGoodId: 'good-1' })).toEqual({ ...plain, noticeSourcesOnly: true, excludeGoodId: 'good-1' });
+    for (const invalid of [{ noticeSourcesOnly: 'true' }, { noticeSourcesOnly: 1 }, { noticeSourcesOnly: true, excludeGoodId: 'Bad/Id' }, { noticeSourcesOnly: true, optionSourcesOnly: true }]) {
+      expect(parseGoodsOptionImportFilters({ ...base, ...invalid })).toBeNull();
+    }
+  });
   /* 지금까지는 불러올 수 없는 모든 경우가 한 문구였다. 원인마다 무엇이 문제이고 어떻게 고치는지를 말한다. */
   it('불러올 수 없는 상품은 원인을 가려 알린다', () => {
     const row = (attributes: Record<string, string>, name = '옵션') => ({ name, attributes, price: 10000 });

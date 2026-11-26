@@ -14,6 +14,7 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui
 import { GoodsGroupProductPicker, GroupCompleted, GroupOperationStatus, GroupTable, useGoodsGroupOperation, useGoodsGroupSession } from './GoodsGroupOperation';
 import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 import { adminConfirm } from '@/lib/admin/confirm';
+import { goodsGroupAxisConfirm, goodsGroupMemberConfirm } from '@/lib/admin/goods-group-confirm';
 
 /* 셸의 콘솔 전환과 같은 탭 모양(템플릿 룩, ADR-0028). */
 const TAB = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
@@ -70,7 +71,27 @@ export function GoodsGroupEditor({ initial, newGroupId, actorId, sessionId, titl
   function leave(event: { preventDefault: () => void }) {
     if (pending || operation.pending) event.preventDefault();
   }
-  function change(next: GoodsGroupValues) { if (locked || !session.current()) return; setValues(next); setComparison(null); setApproved(false); setArchiveReview(false); setError(''); setProblems(null); }
+  /** `update`는 확인창을 기다린 뒤에 쓴다. 기다리는 동안 상품 선택이 끝났을 수 있어 그때의 값에서 바꾼다. */
+  function update(next: (current: GoodsGroupValues) => GoodsGroupValues) { if (locked || !session.current()) return; setValues(next); setComparison(null); setApproved(false); setArchiveReview(false); setError(''); setProblems(null); }
+  function change(next: GoodsGroupValues) { update(() => next); }
+  /** 적어 둔 이름이 없는 상품은 이름 대신 안내 문구로 보인다(상품 번호는 화면에 내지 않는다). */
+  const productName = (goodId: string) => known.get(goodId)?.name ?? '이름을 확인하지 못한 상품';
+  /** 옵션명 개수. 줄이면 줄어드는 쪽에 적어 둔 옵션명·옵션값이 사라지므로 있을 때만 묻는다. */
+  async function setAxisCount(count: number) {
+    if (locked || !session.current() || count === values.optionNames.length) return;
+    const ask = count < values.optionNames.length ? goodsGroupAxisConfirm(values.optionNames, values.members, count) : null;
+    if (ask && !await adminConfirm(ask)) return;
+    update(current => ({ ...current, optionNames: Array.from({ length: count }, (_, index) => current.optionNames[index] ?? ''),
+      members: current.members.map(row => ({ ...row, values: Array.from({ length: count }, (_, index) => row.values[index] ?? '') })) }));
+  }
+  /** 상품 제외. 그 상품에 적어 둔 옵션값이 있으면 묻는다. */
+  async function exclude(goodId: string) {
+    if (locked || !session.current()) return;
+    const row = values.members.find(member => member.goodId === goodId); if (!row) return;
+    const ask = goodsGroupMemberConfirm(productName(goodId), row.values);
+    if (ask && !await adminConfirm(ask)) return;
+    update(current => ({ ...current, members: current.members.filter(member => member.goodId !== goodId) }));
+  }
   function add(source: GoodsGroupSource) {
     if (locked || !session.current()) return;
     if (source.groupId && source.groupId !== stored?.id) { setError('이미 다른 그룹상품에 연결되어 있습니다. 기존 그룹에서 제외한 뒤 선택해주세요.'); return; }
@@ -143,25 +164,24 @@ export function GoodsGroupEditor({ initial, newGroupId, actorId, sessionId, titl
       {picker && !stored?.archivedAt ? <GoodsGroupProductPicker identity={identity} disabled={locked} onSelect={add} title={stored ? undefined : '1. 상품 선택'} /> : null}
       <form onSubmit={event => { event.preventDefault(); compare(); }}><AdminSectionCard title={stored ? stored.name : '2. 그룹상품 구성'}><fieldset className="flex min-w-0 flex-col gap-4" disabled={locked}>
         <AdminFormGrid><AdminField label="그룹상품명 (필수) · 40자" inputId="group-name" error={problems?.name}><Input id="group-name" aria-invalid={Boolean(problems?.name)} aria-describedby={problems?.name ? 'group-name-error' : undefined} value={values.name} maxLength={80} onChange={event => change({ ...values, name: event.target.value })} /></AdminField>
-          <AdminField label="옵션명 개수" inputId="group-axis-count"><AdminSelect id="group-axis-count" value={values.optionNames.length} onChange={event => { const count = Number(event.target.value); change({ ...values,
-            optionNames: Array.from({ length: count }, (_, index) => values.optionNames[index] ?? ''), members: values.members.map(row => ({ ...row, values: Array.from({ length: count }, (_, index) => row.values[index] ?? '') })) }); }}>{[1, 2, 3].map(count => <option key={count} value={count}>{count}개</option>)}</AdminSelect></AdminField>
+          <AdminField label="옵션명 개수" inputId="group-axis-count"><AdminSelect id="group-axis-count" value={values.optionNames.length} onChange={event => { void setAxisCount(Number(event.target.value)); }}>{[1, 2, 3].map(count => <option key={count} value={count}>{count}개</option>)}</AdminSelect></AdminField>
           {values.optionNames.map((name, index) => <AdminField key={index} label={`옵션명 ${index + 1} (필수) · 40자`} inputId={`group-axis-${index}`} error={problems?.optionNames[index]}><Input id={`group-axis-${index}`} aria-invalid={Boolean(problems?.optionNames[index])} aria-describedby={problems?.optionNames[index] ? `group-axis-${index}-error` : undefined} value={name} maxLength={80} onChange={event => change({ ...values, optionNames: values.optionNames.map((value, at) => at === index ? event.target.value : value) })} /></AdminField>)}</AdminFormGrid>
         {/* 고른 상품이 없을 때는 닫을 이유가 없어 버튼을 두지 않는다. 무엇을 닫는지 위 카드 이름으로 말한다. */}
         <div className="flex flex-wrap items-center gap-2"><span className="text-sm tabular-nums">판매옵션 {values.members.length} / 100개</span>{problems?.members ? <span className="text-sm text-destructive" role="alert">{problems.members}</span> : null}{!picker || values.members.length ? <Button size="sm" variant="outline" type="button" onClick={() => setPicker(!picker)}>{picker ? '위 상품 선택 접기' : '상품 추가'}</Button> : null}</div>
         <GroupTable label="그룹상품 판매옵션 구성" className="min-w-[720px]"><TableHeader><TableRow><TableHead>상품</TableHead><TableHead>가격·재고</TableHead>{values.optionNames.map((name, index) => <TableHead key={index}>{name || `옵션명 ${index + 1}`} 값</TableHead>)}<TableHead>순서·제외</TableHead></TableRow></TableHeader><TableBody>
-          {values.members.map((row, index) => { const product = known.get(row.goodId); return <TableRow key={row.goodId}><TableCell className="whitespace-normal"><span className="flex min-w-36 flex-col items-start gap-1">{product?.name ?? row.goodId}<small className="text-xs text-muted-foreground">{product?.code ?? row.goodId}</small>
+          {values.members.map((row, index) => { const product = known.get(row.goodId), label = productName(row.goodId); return <TableRow key={row.goodId}><TableCell className="whitespace-normal"><span className="flex min-w-36 flex-col items-start gap-1">{label}{product?.code ? <small className="text-xs text-muted-foreground">{product.code}</small> : null}
             {stored?.commonGoodId === row.goodId ? <AdminStatusBadge>공통정보 기준 상품</AdminStatusBadge> : null}<Link className="text-sm underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(row.goodId)}`} aria-disabled={pending || operation.pending || undefined} onNavigate={leave}>상품 관리</Link></span></TableCell>
             <TableCell className="tabular-nums">{product ? <span className="flex flex-col">{formatWon(product.price)}<span>재고 {product.stockQty.toLocaleString('ko-KR')}개</span></span> : '저장 시 확인'}</TableCell>
-            {values.optionNames.map((name, axis) => { const valueProblem = problems?.values[`${row.goodId}:${axis}`]; return <TableCell key={axis}><Input className="min-w-32" id={`group-value-${row.goodId}:${axis}`} aria-invalid={Boolean(valueProblem)} aria-describedby={valueProblem ? `group-value-${row.goodId}:${axis}-error` : undefined} aria-label={`${product?.name ?? row.goodId} ${name || `옵션명 ${axis + 1}`} 값`} value={row.values[axis]} maxLength={160}
+            {values.optionNames.map((name, axis) => { const valueProblem = problems?.values[`${row.goodId}:${axis}`]; return <TableCell key={axis}><Input className="min-w-32" id={`group-value-${row.goodId}:${axis}`} aria-invalid={Boolean(valueProblem)} aria-describedby={valueProblem ? `group-value-${row.goodId}:${axis}-error` : undefined} aria-label={`${productName(row.goodId)} ${name || `옵션명 ${axis + 1}`} 값`} value={row.values[axis]} maxLength={160}
               onChange={event => change({ ...values, members: values.members.map((member, at) => at === index ? { ...member, values: member.values.map((value, offset) => offset === axis ? event.target.value : value) } : member) })} />{valueProblem ? <p className="mt-1 text-xs text-destructive" id={`group-value-${row.goodId}:${axis}-error`} role="alert">{valueProblem}</p> : null}</TableCell>; })}
-            <TableCell><div className="flex items-center gap-1"><Button size="icon-sm" variant="outline" type="button" disabled={index === 0} aria-label={`${product?.name ?? row.goodId} 위로`} onClick={() => move(index, -1)}><ArrowUp aria-hidden="true" /></Button><Button size="icon-sm" variant="outline" type="button" disabled={index === values.members.length - 1} aria-label={`${product?.name ?? row.goodId} 아래로`} onClick={() => move(index, 1)}><ArrowDown aria-hidden="true" /></Button>
-              <Button size="sm" variant="outline" type="button" onClick={() => change({ ...values, members: values.members.filter(member => member.goodId !== row.goodId) })}>{product?.name ?? row.goodId} 제외</Button></div></TableCell></TableRow>; })}
+            <TableCell><div className="flex items-center gap-1"><Button size="icon-sm" variant="outline" type="button" disabled={index === 0} aria-label={`${label} 위로`} onClick={() => move(index, -1)}><ArrowUp aria-hidden="true" /></Button><Button size="icon-sm" variant="outline" type="button" disabled={index === values.members.length - 1} aria-label={`${label} 아래로`} onClick={() => move(index, 1)}><ArrowDown aria-hidden="true" /></Button>
+              <Button size="sm" variant="outline" type="button" onClick={() => { void exclude(row.goodId); }}>{label} 제외</Button></div></TableCell></TableRow>; })}
           {!values.members.length ? <TableRow><TableCell className="h-24 text-center text-muted-foreground" colSpan={3 + values.optionNames.length}>{stored ? '연결할 상품을 선택해주세요.' : '위에서 상품을 검색해 2개 이상 선택해주세요.'}</TableCell></TableRow> : null}</TableBody></GroupTable>
       </fieldset>{problems?.combination ? <p className="text-sm text-destructive" role="alert">{problems.combination}</p> : null}{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}<div className="flex flex-wrap items-center gap-2"><Button type="submit" disabled={locked}>{stored ? '변경사항 확인' : '구성 확인'}</Button><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={GOODS_GROUPS_PATH} aria-disabled={pending || operation.pending || undefined} onNavigate={leave}>취소</Link><span className="text-sm text-muted-foreground">다음 단계에서 저장할 내용을 확인합니다. 아직 저장되지 않습니다.</span></div></AdminSectionCard></form>
       {comparison ? <AdminSectionCard title="저장 전 확인"><p className="text-sm">{comparison.name} · {comparison.members.length}개 판매옵션</p><ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground">
         <li>이름은 그룹상품명과 옵션값을 합쳐 저장합니다. 구성 상품 전체가 미공개로 바뀌고 KC 재검토가 필요합니다.</li>
         <li>제외할 상품 {removed.length}개는 개별 상품으로 남습니다. 상품을 합치거나 재고를 옮기지 않습니다.</li><li>공통 상품정보가 서로 같은 상품만 연결할 수 있습니다.</li><li>기존 합산 할인·배송비·구매한도는 그대로 적용됩니다.</li></ul>
-        <GroupTable label="저장할 판매옵션"><TableHeader><TableRow><TableHead>상품 URL</TableHead><TableHead>저장할 상품명</TableHead></TableRow></TableHeader><TableBody>{comparison.members.map(row => <TableRow key={row.goodId}><TableCell>{row.goodId}</TableCell><TableCell className="whitespace-normal">{comparison.name} {row.values.join(' / ')}</TableCell></TableRow>)}</TableBody></GroupTable>
+        <GroupTable label="저장할 판매옵션"><TableHeader><TableRow><TableHead>지금 상품명</TableHead><TableHead>저장할 상품명</TableHead></TableRow></TableHeader><TableBody>{comparison.members.map(row => <TableRow key={row.goodId}><TableCell className="whitespace-normal">{productName(row.goodId)}</TableCell><TableCell className="whitespace-normal">{comparison.name} {row.values.join(' / ')}</TableCell></TableRow>)}</TableBody></GroupTable>
         <label className={CHECK}><input type="checkbox" checked={approved} disabled={locked} onChange={event => setApproved(event.target.checked)} /> 변경 내용과 미공개·KC 재검토를 확인했습니다.</label>
         <Button className="self-start" type="button" disabled={locked || !approved} onClick={save}>이 구성으로 저장</Button></AdminSectionCard> : null}
       {stored && !stored.archivedAt ? <AdminSectionCard title="그룹 연결 해제"><p className="text-sm">그룹 연결을 모두 해제합니다. 개별 상품의 번호·가격·재고와 기존 합산 조건은 유지됩니다.</p>

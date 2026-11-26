@@ -579,7 +579,7 @@ export function normalizeAdminStockAdjustmentForm(
     || !Number.isInteger(expectedStockQty)
     || expectedStockQty > INT32_MAX
   ) {
-    errors.expectedStockQty = '현재 실재고를 확인해주세요.';
+    errors.expectedStockQty = '현재 재고수량을 확인하지 못했습니다. 새로고침한 뒤 다시 조정해주세요.';
   }
 
   const delta = Number(deltaRaw);

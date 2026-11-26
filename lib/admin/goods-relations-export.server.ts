@@ -8,7 +8,7 @@ import { addSafeWorkbookInfoSheet, addWorkbookTable, tableColumn as column } fro
 
 export class GoodsRelationsExportError extends Error {
   constructor(readonly code: 'limit' | 'changed') {
-    super(code === 'limit' ? `최대 ${GOODS_RELATIONS_EXPORT_LIMIT.toLocaleString('ko-KR')}개 편성을 받을 수 있습니다. 검색 조건을 좁혀주세요.` : '내려받는 동안 편성이나 상품 정보가 변경됐습니다. 다시 조회한 뒤 내려받아 주세요.');
+    super(code === 'limit' ? `연관상품은 한 번에 ${GOODS_RELATIONS_EXPORT_LIMIT.toLocaleString('ko-KR')}개까지 받을 수 있습니다. 검색 조건을 좁혀 주세요.` : '내려받는 동안 연관상품이나 상품 정보가 바뀌었습니다. 목록을 다시 조회한 뒤 내려받아 주세요.');
   }
 }
 
@@ -42,22 +42,24 @@ export async function buildGoodsRelationsWorkbook(snapshot: GoodsRelationsExport
   const book = new ExcelJS.Workbook();
   const includesOtherComposition = snapshot.filters.kind === 'other_composition' || snapshot.rows.some(row => row.kind === 'other_composition');
   book.creator = '엑스스퀘어'; book.created = new Date(snapshot.verifiedAt);
-  addWorkbookTable(book, '연관상품 편성', [column('편성 번호', 'code', 38), column('노출 제목', 'text', 36), column('유형', 'text', 20), column('전시상태', 'text', 12), column('전시 사용', 'text', 10), column('대표 상품 URL', 'code', 24), column('대표 상품 자동코드', 'code', 20), column('대표 상품명', 'text', 36), column('구성 상품수', 'count'), column('공개 상품수', 'count'), column('시작일시', 'date'), column('종료일시', 'date'), column('등록일시', 'date'), column('수정일시', 'date'), column('저장 회차', 'count')], snapshot.rows.map(row => {
+  /* 시트·열 이름은 화면의 말과 같다(연관상품·담은 상품·전시 여부·시작 (KST)). 이 파일은 내려받기 전용이라 다시 올려 읽는 머리글이 없다.
+     '연관상품 번호'는 두 시트의 줄을 잇는 값이다. */
+  addWorkbookTable(book, '연관상품', [column('연관상품 번호', 'code', 38), column('노출 제목', 'text', 36), column('유형', 'text', 20), column('전시상태', 'text', 12), column('전시 여부', 'text', 10), column('대표 상품 URL', 'code', 24), column('대표 상품 자동코드', 'code', 20), column('대표 상품명', 'text', 36), column('담은 상품수', 'count'), column('공개 상품수', 'count'), column('시작 (KST)', 'date'), column('종료 (KST)', 'date'), column('등록일시', 'date'), column('수정일시', 'date'), column('저장 회차', 'count')], snapshot.rows.map(row => {
     const representative = row.goods.find(good => good.id === row.representativeGoodId)!;
-    return [row.id, row.title, goodsRelationKindLabel(row), goodsRelationStateLabel(row.state), row.enabled ? '사용' : '중지', representative.id, representative.code, representative.name, row.goods.length, row.goods.filter(good => good.public).length,
+    return [row.id, row.title, goodsRelationKindLabel(row), goodsRelationStateLabel(row.state), row.enabled ? '전시' : '전시중지', representative.id, representative.code, representative.name, row.goods.length, row.goods.filter(good => good.public).length,
       kstDateTimeText(row.startsAt) || '제한 없음', kstDateTimeText(row.endsAt) || '제한 없음', kstDateTimeText(row.createdAt), kstDateTimeText(row.updatedAt), row.revision];
   }));
-  addWorkbookTable(book, '구성 상품', [column('편성 번호', 'code', 38), column('노출 제목', 'text', 36), column('구성 순서', 'count'), column('대표 여부', 'text', 10), column('상품 URL', 'code', 24), column('상품 자동코드', 'code', 20), column('상품명', 'text', 36), column('현재 공개 가능', 'text', 16), ...(includesOtherComposition ? [column('구성 표시값', 'text', 23)] : [])], snapshot.rows.flatMap(row => row.goods.map((good, index) => [row.id, row.title, index + 1, good.id === row.representativeGoodId ? '대표' : '', good.id, good.code, good.name, good.public ? '가능' : '불가', ...(includesOtherComposition ? [row.kind === 'other_composition' ? good.compositionLabel ?? '' : ''] : [])])));
+  addWorkbookTable(book, '담은 상품', [column('연관상품 번호', 'code', 38), column('노출 제목', 'text', 36), column('순서', 'count'), column('대표 여부', 'text', 10), column('상품 URL', 'code', 24), column('상품 자동코드', 'code', 20), column('상품명', 'text', 36), column('현재 공개 가능', 'text', 16), ...(includesOtherComposition ? [column('구성 표시값', 'text', 23)] : [])], snapshot.rows.flatMap(row => row.goods.map((good, index) => [row.id, row.title, index + 1, good.id === row.representativeGoodId ? '대표' : '', good.id, good.code, good.name, good.public ? '가능' : '불가', ...(includesOtherComposition ? [row.kind === 'other_composition' ? good.compositionLabel ?? '' : ''] : [])])));
   addSafeWorkbookInfoSheet(book, [
     ['화면', '연관상품 관리'],
     ['조회 범위', '현재 검색 조건의 전체 페이지'], ['검색어', snapshot.filters.query || '전체'],
     ['유형', snapshot.filters.kind === 'all' ? '전체' : GOODS_RELATION_KINDS.find(item => item.value === snapshot.filters.kind)!.label],
-    ['전시상태', goodsRelationStateLabel(snapshot.filters.state)], ['정렬', '수정일 최신순, 같은 시각은 편성 번호 오름차순'],
-    ['건수', `편성 ${snapshot.rows.length.toLocaleString('ko-KR')}개 · 구성 상품 ${snapshot.rows.reduce((sum, row) => sum + row.goods.length, 0).toLocaleString('ko-KR')}행`],
+    ['전시상태', goodsRelationStateLabel(snapshot.filters.state)], ['정렬', '수정일 최신순, 같은 시각은 연관상품 번호 오름차순'],
+    ['건수', `연관상품 ${snapshot.rows.length.toLocaleString('ko-KR')}개 · 담은 상품 ${snapshot.rows.reduce((sum, row) => sum + row.goods.length, 0).toLocaleString('ko-KR')}줄`],
     ['조회 시작 (KST)', kstDateTimeText(snapshot.startedAt)], ['내려받은 시각 (KST)', kstDateTimeText(snapshot.verifiedAt)],
-    ['파일 한도', `${GOODS_RELATIONS_EXPORT_LIMIT.toLocaleString('ko-KR')}개 편성`],
+    ['파일 한도', `연관상품 ${GOODS_RELATIONS_EXPORT_LIMIT.toLocaleString('ko-KR')}개`],
     ['조회 방식', '내려받을 때 전체를 두 번 읽어 순서·값·개수가 같은지 확인했습니다. 한 시각에 고정해 찍어 둔 기록은 아닙니다.'],
-    ['공개 기준', includesOtherComposition ? '다른 구성은 표시 설정이 켜져 있고 현재 상품 외에 공개 가능한 구성이 있어야 표시됩니다. 대표 상품의 공개 여부는 다른 구성의 노출을 제한하지 않습니다. 기존 유형은 대표 포함 공개 상품 2개 이상이어야 하며, 조회 뒤 상태와 기간은 달라질 수 있습니다.' : '전시중이어도 대표 상품을 포함해 현재 공개 가능한 상품이 2개 이상이어야 표시됩니다. 조회 뒤 상태와 기간은 달라질 수 있습니다.'],
+    ['공개 기준', includesOtherComposition ? '다른 구성은 표시 설정이 켜져 있고 현재 상품 외에 공개 가능한 구성이 있어야 표시됩니다. 대표 상품의 공개 여부는 다른 구성의 노출을 제한하지 않습니다. 기존 유형은 대표 포함 공개 상품 2개 이상이어야 하며, 조회 뒤 상태와 기간은 달라질 수 있습니다. 판매 제한(19금) 상품도 공개 상품으로 세지만 고객 화면에서는 성인 인증 고객에게만 보이고, 기능 공개 관리에서 성인 상품을 숨겼으면 아무에게도 보이지 않습니다.' : '전시중이어도 대표 상품을 포함해 현재 공개 가능한 상품이 2개 이상이어야 표시됩니다. 조회 뒤 상태와 기간은 달라질 수 있습니다. 판매 제한(19금) 상품도 공개 상품으로 세지만 고객 화면에서는 성인 인증 고객에게만 보이고, 기능 공개 관리에서 성인 상품을 숨겼으면 아무에게도 보이지 않습니다.'],
     ['편집 범위', '저장된 값만 담았습니다. 이 파일을 고쳐 다시 올리는 양식이 아닙니다.'],
   ]);
   return Buffer.from(await book.xlsx.writeBuffer());

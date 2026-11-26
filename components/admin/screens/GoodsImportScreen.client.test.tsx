@@ -110,7 +110,7 @@ describe('상품 엑셀 파일 업로드 본문 형식', () => {
       format.props.onChange?.({ target: { value: 'sabangnet' } });
       const file = new File(['상품명,판매가\n키링,9000\n'], '사방넷 상품.csv', { type });
       hooks.refs[REF.sabangnet].current = { files: [file] };
-      await button(render(), '열 확인').props.onClick?.();
+      await button(render(), '열 읽어 오기').props.onClick?.();
 
       expect(hooks.upload).toHaveBeenCalledTimes(1);
       const [path, body, options] = hooks.upload.mock.calls[0];
@@ -128,7 +128,7 @@ describe('상품 엑셀 파일 업로드 본문 형식', () => {
     find(first, (element) => (element.type === 'select' || element.type === AdminSelect) && element.props.id === 'goods-import-format')[0]
       .props.onChange?.({ target: { value: 'sabangnet' } });
     hooks.refs[REF.sabangnet].current = { files: [new File(['PK'], '사방넷.xlsx', { type: '' })] };
-    await button(render(), '열 확인').props.onClick?.();
+    await button(render(), '열 읽어 오기').props.onClick?.();
     expect((hooks.upload.mock.calls[0][1] as Blob).type).toBe(XLSX);
 
     hooks.upload.mockClear();
@@ -138,7 +138,7 @@ describe('상품 엑셀 파일 업로드 본문 형식', () => {
     hooks.refs[REF.workbook].current = { files: [new File(['PK'], '상품.xlsx', { type: '' })] };
     // Windows Chrome은 .zip을 application/x-zip-compressed로 붙인다.
     hooks.refs[REF.zip].current = { files: [new File(['PK'], '이미지.zip', { type: 'application/x-zip-compressed' })] };
-    await button(render(), '파일 검증').props.onClick?.();
+    await button(render(), '파일 올리고 확인하기').props.onClick?.();
     expect(hooks.upload.mock.calls.map(([path, body, options]) => [path, (body as Blob).type, options.contentType])).toEqual([
       ['staff/batch/workbook.xlsx', XLSX, XLSX],
       ['staff/batch/images.zip', 'application/zip', 'application/zip'],

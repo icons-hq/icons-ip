@@ -26,8 +26,8 @@ beforeEach(() => {
   mocks.createClient.mockReset().mockResolvedValue({ from: () => query });
 });
 
-describe('프리셋 관리 라우트', () => {
-  it('일반 회원에게 프리셋 로딩과 화면을 허용하지 않는다', async () => {
+describe('상품정보제공고시 템플릿 관리 라우트', () => {
+  it('일반 회원에게 템플릿 로딩과 화면을 허용하지 않는다', async () => {
     mocks.auth.isStaff = false;
     await expect(Page({ searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_NOT_FOUND');
     expect(mocks.createClient).not.toHaveBeenCalled();
@@ -38,5 +38,16 @@ describe('프리셋 관리 라우트', () => {
       expect(html).toContain(`value="${value}"`);
     }
     expect(html).toContain('value="2026-09-08T01:00:00.123456Z"');
+  });
+  it('칸을 비워 둔 템플릿은 빈 칸 그대로 읽고, 비운 칸은 상품 값을 그대로 둔다고 되읽는다', async () => {
+    mocks.range.mockResolvedValue({ data: [{
+      id: 'preset-2', name: '키링 공통', maker: 'DB 제조사', origin: '대한민국', material: '아크릴',
+      size: '', made_on: '', as_manager: 'DB 고객센터', as_contact: '02-000-0000', kc_template: null,
+      updated_at: '2026-11-25T01:00:00Z',
+    }], count: 1, error: null });
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
+    for (const name of ['noticeSize', 'noticeMadeOn']) expect(html).toMatch(new RegExp(`<input(?=[^>]*name="${name}")(?=[^>]*value="")[^>]*>`));
+    expect(html).toContain('상품에 가져오면 5개 칸이 이 내용으로 바뀝니다. 비운 칸(크기 · 중량, 제조연월)은 상품에 적어 둔 값 그대로입니다.');
+    expect(html).toContain('제조사 DB 제조사 · 소재 아크릴');
   });
 });

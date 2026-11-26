@@ -17,7 +17,6 @@ export type AdminGoodsPickerRow = GoodsOptionImportCandidate;
 export const ADMIN_GOODS_PICKER_FIELDS: readonly AdminPickerOption[] = [
   { value: 'name', label: '상품명' },
   { value: 'code', label: '상품 자동코드·옵션 자동코드' },
-  { value: 'id', label: '상품 URL' },
 ];
 
 /** 상품 검색을 선택창 조회로 잇는다. `accountId`를 주면 그사이 로그인 계정이 바뀐 응답을 받지 않는다. */
@@ -56,7 +55,7 @@ export function AdminGoodsPicker({ title, description, accountId, categories, lo
     rowKey={(good) => good.id}
     rowView={adminGoodsPickerRowView}
     searchFields={ADMIN_GOODS_PICKER_FIELDS}
-    searchPlaceholder="상품명·상품 자동코드·상품 URL"
+    searchPlaceholder="상품명·상품 자동코드"
     showImages
     title={title}
     {...panel}

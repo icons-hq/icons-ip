@@ -70,7 +70,7 @@ export interface StockReconcilePreviewInput {
 export async function previewStockReconcileAction(input: StockReconcilePreviewInput): Promise<StockReconcilePreviewResult> {
   try {
     if (!await requireAdminActionAccess(STOCK_RECONCILE_PATH, ACCESS)) return { ok: false, error: STAFF_ONLY };
-    if (!input || typeof input !== 'object') return { ok: false, error: '대조할 행을 확인한 뒤 다시 시도해주세요.' };
+    if (!input || typeof input !== 'object') return { ok: false, error: '대조할 줄을 읽지 못했습니다. 파일을 다시 올려주세요.' };
     const originId = input.originId === null || input.originId === '' ? null : input.originId;
     if (originId !== null && !isUuid(originId)) return { ok: false, error: '출고지를 다시 골라주세요.' };
     const asOf = typeof input.asOf === 'string' && Number.isFinite(Date.parse(input.asOf)) ? new Date(input.asOf).toISOString() : null;
@@ -79,15 +79,15 @@ export async function previewStockReconcileAction(input: StockReconcilePreviewIn
     const sourceLabel = typeof input.sourceLabel === 'string' ? input.sourceLabel.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, STOCK_RECONCILE_LABEL_LIMIT) : '';
     if (!sourceLabel) return { ok: false, error: '파일 이름이 비어 있습니다. 다시 올려주세요.' };
     if (!Array.isArray(input.rows) || !input.rows.length || input.rows.length > STOCK_RECONCILE_ROW_LIMIT) {
-      return { ok: false, error: `한 번에 1~${STOCK_RECONCILE_ROW_LIMIT.toLocaleString('ko-KR')}행을 대조할 수 있습니다.` };
+      return { ok: false, error: `한 번에 1~${STOCK_RECONCILE_ROW_LIMIT.toLocaleString('ko-KR')}줄까지 대조할 수 있습니다. 파일을 나누어 올려주세요.` };
     }
     const rows: StockReconcileRow[] = [];
     for (const value of input.rows) {
       const row = normalizeStockRowInput(value);
-      if (!row) return { ok: false, error: '대조할 행을 확인한 뒤 다시 시도해주세요.' };
+      if (!row) return { ok: false, error: '대조할 줄을 읽지 못했습니다. 파일을 다시 올려주세요.' };
       rows.push(row);
     }
-    if (new Set(rows.map((row) => row.row)).size !== rows.length) return { ok: false, error: '같은 행 번호가 두 번 들어왔습니다. 파일을 다시 올려주세요.' };
+    if (new Set(rows.map((row) => row.row)).size !== rows.length) return { ok: false, error: '같은 줄이 두 번 들어왔습니다. 파일을 다시 올려주세요.' };
     const supabase = await createClient();
     const { data, error } = await supabase.rpc('admin_preview_stock_reconcile', {
       p_origin_id: originId,

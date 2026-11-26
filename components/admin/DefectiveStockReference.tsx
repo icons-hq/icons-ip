@@ -27,7 +27,7 @@ export function DefectiveStockReference({ items }: { items: { variantId: string;
   return <section aria-label="불량 재고 참고" className="flex min-w-0 flex-col gap-1.5 rounded-lg border bg-muted/30 p-3 text-sm" data-stock-reconcile="defective-reference">
     <h5 className="font-medium">참고 · 반품·교환 불량 재고</h5>
     <p className="text-xs text-muted-foreground">
-      아래 옵션에는 반품·교환 불량으로 따로 기록한 수량이 있습니다. 판매 재고에는 들어 있지 않고 위 계산에도 쓰지 않았습니다. 창고 파일에 불량품이 포함돼 있으면 그만큼 차이가 날 수 있습니다.{' '}
+      아래 옵션에는 반품·교환 불량으로 따로 기록한 수량이 있습니다. 판매 재고와 위 계산에는 넣지 않아서, 창고 파일에 불량품이 섞여 있으면 그만큼 차이가 날 수 있습니다.{' '}
       <Link className="underline underline-offset-4" href={DEFECTIVE_STOCK_PATH}>불량 재고 보기</Link>
     </p>
     <ul className="flex list-disc flex-col gap-0.5 pl-4">

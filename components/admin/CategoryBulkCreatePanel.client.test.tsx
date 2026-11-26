@@ -38,7 +38,10 @@ beforeEach(() => { vi.clearAllMocks(); hooks.state = []; hooks.refs = []; });
 it('붙여넣은 경로 줄 수를 세고, 비어 있으면 등록 버튼을 막는다', () => {
   expect(submit().props.disabled).toBe(true);
   type('문구>노트>스프링노트\n\n문구>메모/수첩>메모지');
-  expect(text(render())).toContain('경로 2줄');
+  expect(text(render())).toContain('경로 2줄 · 한 번에 1,000줄까지');
+  /* C-13: 안내는 한 줄이다. 적는 방식은 입력칸의 예시가 보여 준다. */
+  expect(text(render())).toContain('한 줄에 하나씩 ‘대>중>소’로 적습니다. 이미 있는 카테고리는 다시 만들지 않습니다.');
+  expect(all(render()).filter(item => item.type === 'p')).toHaveLength(1);
   expect(submit().props.disabled).toBe(false);
 });
 
@@ -69,7 +72,7 @@ it('응답을 받지 못하면 같은 작업 번호로 다시 보내 중복 생�
   type('문구>노트>스프링노트');
   submit().props.onClick?.();
   await settle();
-  expect(text(render())).toContain('결과를 확인하지 못했습니다');
+  expect(text(render())).toContain('등록됐는지 확인하지 못했습니다. [일괄 등록]을 다시 눌러도 이미 만든 카테고리는 다시 만들지 않습니다.');
   submit().props.onClick?.();
   await settle();
   expect(mocks.bulk).toHaveBeenCalledTimes(2);

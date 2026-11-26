@@ -290,9 +290,9 @@ $$;
 create function pg_temp.workspace_after_sales() returns jsonb language sql as $$
   select jsonb_build_object('phone','02-1234-5678','guide','TEST-ONLY A/S 안내','sellerSpecialNotes','');
 $$;
-create function pg_temp.workspace_production(p_confirmed boolean) returns jsonb language sql as $$
-  select jsonb_build_object('enabled',false,'leadDays',null,'dayBasis','calendar','closedDates','[]'::jsonb,'publicNote','',
-    'evidence','TEST-ONLY 제작 근거','confirmed',p_confirmed);
+-- 주문 후 제작·수령 방식은 설정 근거·확인 체크 없이 보낸다(20261126156000). 사용(p_enabled)인데 발송 예정 기간이 없으면 그 섹션이 거절된다.
+create function pg_temp.workspace_production(p_enabled boolean) returns jsonb language sql as $$
+  select jsonb_build_object('enabled',p_enabled,'leadDays',null,'dayBasis','calendar','closedDates','[]'::jsonb,'publicNote','');
 $$;
 
 -- 롤백: 섹션 하나라도 실패하면(앞 섹션이 이미 저장됐어도) 기본 상품·KC·앞 섹션까지 아무것도 남지 않고, 실패한 섹션 이름을 알린다.
@@ -306,7 +306,7 @@ select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::
 select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
   pg_temp.workspace_payload('12000000-0000-4000-8000-000000000111',pg_temp.workspace_complete_good('workspace-section-fail','섹션 실패 상품',null),
     jsonb_build_object('benefits',pg_temp.workspace_benefits('TEST 사은품'),'afterSales',pg_temp.workspace_after_sales(),
-      'production',pg_temp.workspace_production(false)))::text),
+      'production',pg_temp.workspace_production(true)))::text),
   'goods_workspace_section_failed:production:','22023');
 select pg_temp.expect_error(format('select public.admin_save_good_workspace(%L::jsonb)',
   pg_temp.workspace_payload('12000000-0000-4000-8000-000000000112',pg_temp.workspace_complete_good('workspace-section-fail','섹션 실패 상품',null),
@@ -376,8 +376,8 @@ select pg_temp.workspace_payload('12000000-0000-4000-8000-000000000120',pg_temp.
     'shippingChargeGroup',jsonb_build_object('groupId','12000000-0000-4000-8000-0000000b0002','expectedRevision',(:'group_receipt'::jsonb#>>'{group,revision}')::integer),
     'subscriptionPolicy',jsonb_build_object('enabled',false,'intervals',jsonb_build_array('month_1'),'message',''),
     'fulfillment',jsonb_build_object('mode','shipping','methods',jsonb_build_array(jsonb_build_object('method','parcel','feeAmount',null,'feeBasis','per_order','installationFee',0)),
-      'assetIds','[]'::jsonb,'publicNote','','evidence','TEST-ONLY 수령 근거','confirmed',true),
-    'production',pg_temp.workspace_production(true))) as all_request \gset
+      'assetIds','[]'::jsonb,'publicNote',''),
+    'production',pg_temp.workspace_production(false))) as all_request \gset
 select public.admin_save_good_workspace(:'all_request'::jsonb) as all_result \gset
 -- 재시도: 같은 작업 ID·같은 요청은 영수증을 돌려주고 어떤 섹션도 다시 쓰지 않는다.
 select public.admin_save_good_workspace(:'all_request'::jsonb) as all_replay \gset
@@ -404,8 +404,8 @@ select 1/case when :'all_result'::jsonb->>'id'='workspace-all' and (:'all_result
   and (select revision=1 from private.goods_transaction_configs where good_id='workspace-all')
   and (select group_id='12000000-0000-4000-8000-0000000b0002' from private.shipping_charge_group_assignments where owner_good_id='workspace-all')
   and (select not enabled and revision=1 from private.goods_subscription_policies where good_id='workspace-all')
-  and (select mode='shipping' and revision=1 from private.goods_fulfillment_settings where good_id='workspace-all')
-  and (select not enabled and revision=1 from private.goods_production_settings where good_id='workspace-all')
+  and (select mode='shipping' and revision=1 and evidence='' from private.goods_fulfillment_settings where good_id='workspace-all')
+  and (select not enabled and revision=1 and evidence='' from private.goods_production_settings where good_id='workspace-all')
   and (:'all_replay'::jsonb->>'replayed')::boolean and (:'all_replay'::jsonb-'replayed')=:'all_result'::jsonb
   and (select count(*)=1 from private.goods_variant_price_periods p join public.goods_variants v on v.id=p.variant_id where v.good_id='workspace-all')
   and (select count(*)=1 from public.goods where name='전부 입력 상품')

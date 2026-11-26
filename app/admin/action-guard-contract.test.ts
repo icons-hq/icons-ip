@@ -28,8 +28,6 @@ const NO_GUARD_EXEMPT: Record<string, string> = {
   'app/admin/artwork-actions.ts:verifyAdminArtworkUploadAction': ARTWORK_REASON,
   'app/admin/goods-media-actions.ts:cancelGoodsMediaAction':
     '업로드 취소는 스태프 자격을 잃은 뒤에도 자기 업로드를 풀 수 있어야 해서 로그인 여부만 읽는다(RPC가 service_role 전용·actor로 범위가 좁혀져 있다).',
-  'app/admin/erp-item-actions.ts:searchErpItemsAction':
-    '상품 편집 중 백그라운드로 부르는 제안 검색은 세션이 끝나도 로그인으로 옮기지 않는다 — 헬퍼와 같은 판정(설정·로그인·스태프·catalog.manage)을 직접 하고 이동만 뺀다. 입력은 두고 저장 액션의 가드가 이동시킨다.',
 };
 
 /** 가드 외에 인증 상태를 직접 읽어도 되는 함수. NO_GUARD_EXEMPT와 같은 이유다(검증 단계는 자체 판정 없이 RPC가 신원을 증명한다). */

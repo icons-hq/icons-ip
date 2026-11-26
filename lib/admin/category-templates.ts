@@ -35,11 +35,16 @@ export function parseCategoryTemplateChanges(value: unknown): CategoryTemplateCh
   }
   return new Set(changes.map(row => row.categoryId)).size !== changes.length ? null : changes.sort((a, b) => a.categoryId.localeCompare(b.categoryId));
 }
-/** 새 등록(저장 버전 0)이 충돌했다 = 그 카테고리의 등록 기록이 이미 있다. 사용 중인지 보관됐는지는 응답으로 구분되지 않는다. */
-export const CATEGORY_TEMPLATE_ALREADY_EXISTS = '이미 자주 쓰는 카테고리로 등록됐거나 보관된 카테고리입니다. 보관된 것이면 조회 조건의 보관 상태를 보관됨으로 바꿔 찾은 뒤 복구해주세요.';
+/** 새 등록(저장 버전 0)이 충돌했다 = 그 카테고리의 등록 기록이 이미 있다. 사용 중인지 보관됐는지는 응답으로 구분되지 않는다. 등록 창은 등록한 카테고리를 목록에서 빼므로 다른 사람이 막 등록한 경우에만 나온다. */
+export const CATEGORY_TEMPLATE_ALREADY_EXISTS = '고른 카테고리 중에 이미 등록된 것(보관한 것 포함)이 있습니다. 창을 닫았다 다시 열면 목록에서 빠집니다.';
+/** 결과를 모를 때의 문장과 버튼 이름(화면과 서버 액션이 함께 쓴다). 낱말 표: 저장됐는지 확인. */
+export const CATEGORY_TEMPLATE_CHECK_LABEL = '저장됐는지 확인';
+export const CATEGORY_TEMPLATE_UNCERTAIN = `저장됐는지 확인하지 못했습니다. [${CATEGORY_TEMPLATE_CHECK_LABEL}]을 누르면 같은 내용이 두 번 저장되지 않습니다.`;
+/** 목록을 읽지 못했을 때. 선택창이 쓰는 문구와 같다. */
+export const CATEGORY_TEMPLATE_LIST_FAILED = '목록을 불러오지 못했습니다. 잠시 뒤 다시 검색해주세요.';
 export function categoryTemplateError(message?: string): string {
-  if (message === 'category_templates_changed' || message === 'operation_conflict') return '다른 사람(다른 작업)이 먼저 바꿨습니다. 고른 항목은 그대로 두었습니다. [최신 목록 다시 조회]로 목록을 새로 불러온 뒤 다시 저장해주세요.';
-  if (message === 'category_not_usable') return '보관되지 않은 마지막 단계 카테고리만 등록·복구할 수 있습니다. 카테고리 관리에서 보관 여부와 하위 카테고리가 있는지 확인해주세요.';
+  if (message === 'category_templates_changed' || message === 'operation_conflict') return '다른 사람이 먼저 바꿨습니다. 고른 항목은 그대로 두었습니다. [최신 목록 다시 조회]를 누른 뒤 다시 저장해주세요.';
+  if (message === 'category_not_usable') return '보관했거나 하위 카테고리가 있는 카테고리는 등록·복원할 수 없습니다. 카테고리 관리에서 확인해주세요.';
   if (message === 'category_not_found') return '카테고리를 찾을 수 없습니다. 새로고침한 뒤 다시 골라주세요.';
   if (message === 'operator_capability_required') return '상품 관리 권한이 있는 계정만 저장할 수 있습니다. 로그인한 계정의 권한을 확인해주세요.';
   return '자주 쓰는 카테고리를 저장하지 못했습니다. 새로고침한 뒤 다시 시도해주세요. 계속 안 되면 계정에 상품 관리 권한이 있는지 확인해주세요.';
@@ -55,4 +60,21 @@ export function selectedCategoryPath(categories: AdminCategoryNode[], selectedId
 export function usableTemplateCategory(categories: AdminCategoryNode[], id: string): boolean {
   const path = selectedCategoryPath(categories, id), leaf = path.at(-1);
   return Boolean(leaf && path[0]?.parentId === null && leaf.childCount === 0 && path.every(row => !row.archivedAt));
+}
+/** 고르는 창에서 한 줄을 찾는 글자: 경로, 붙여 쓴 경로(리빙>머그), 코드. 검색어의 낱말이 모두 들어 있으면 걸린다. */
+export function categoryTemplateText(row: CategoryTemplate): string {
+  return `${row.path.join(' > ')} ${row.path.join('>')} ${row.code}`;
+}
+/** 등록 창의 한 줄. `text`는 찾는 글자(경로·붙여 쓴 경로·코드)다. */
+export interface RegistrableTemplateCategory { id: string; path: string; code: string; text: string }
+/**
+ * 등록 창에 올릴 카테고리: 지금 쓸 수 있는 마지막 단계 카테고리 가운데 아직 자주 쓰는 카테고리로 등록하지 않은 것.
+ * `registered`에는 보관한 등록의 번호도 넣는다 — 보관한 것은 목록에서 복원하므로 새로 등록하지 않는다. 경로 순.
+ */
+export function registrableTemplateCategories(categories: AdminCategoryNode[], registered: ReadonlySet<string>): RegistrableTemplateCategory[] {
+  const collator = new Intl.Collator('ko');
+  return categories.filter(category => !registered.has(category.id) && usableTemplateCategory(categories, category.id)).map(category => {
+    const names = selectedCategoryPath(categories, category.id).map(row => row.name);
+    return { id: category.id, path: names.join(' > '), code: category.code, text: `${names.join(' > ')} ${names.join('>')} ${category.code}` };
+  }).sort((left, right) => collator.compare(left.path, right.path));
 }

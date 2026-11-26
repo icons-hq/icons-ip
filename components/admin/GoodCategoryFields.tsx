@@ -6,7 +6,7 @@ import { AdminLabelWithHelp } from '@/components/admin/console/AdminHelpTip';
 import { AdminPickerDialog, type AdminPickerRowView } from '@/components/admin/console/AdminPickerDialog';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
-import { CATEGORY_PATH, categoryPath } from '@/lib/admin/category';
+import { CATEGORY_PATH, categoryPath, categoryTreeOrder } from '@/lib/admin/category';
 import { usableTemplateCategory } from '@/lib/admin/category-templates';
 import { GOOD_EDITOR_HELP } from '@/lib/admin/help/good-editor';
 import { adminPickerLocalPage, type AdminPickerLoader } from '@/lib/admin/picker';
@@ -42,28 +42,8 @@ export function categoryPickerLoader(categories: CategorySearchNode[], hidden: R
   };
 }
 
-/**
- * 카테고리 관리 화면과 같은 순서(상위 카테고리 아래에 하위, 같은 단계는 노출 순서 → 코드). 선택창이 받은 배열 순서가 아니라 이 순서로 보인다 —
- * '굿즈 > 인형', '굿즈 > 키링', '굿즈 > 문구 > 스티커'처럼 같은 상위끼리 모여야 찾기 쉽다.
- */
-export function categoryTreeOrder(categories: readonly CategorySearchNode[]): Map<string, number> {
-  const ids = new Set(categories.map((category) => category.id));
-  const children = new Map<string, CategorySearchNode[]>();
-  for (const category of categories) {
-    const parent = category.parentId && ids.has(category.parentId) ? category.parentId : '';
-    children.set(parent, [...(children.get(parent) ?? []), category]);
-  }
-  const order = new Map<string, number>();
-  const visit = (parent: string) => {
-    for (const category of [...(children.get(parent) ?? [])].sort((left, right) => left.sortOrder - right.sortOrder || left.code.localeCompare(right.code))) {
-      if (order.has(category.id)) continue;
-      order.set(category.id, order.size);
-      visit(category.id);
-    }
-  };
-  visit('');
-  return order;
-}
+/* 선택창은 받은 배열 순서가 아니라 카테고리 관리 화면과 같은 순서(lib/admin/category의 categoryTreeOrder)로 보인다 —
+   '굿즈 > 인형', '굿즈 > 키링', '굿즈 > 문구 > 스티커'처럼 같은 상위끼리 모여야 찾기 쉽다. */
 
 const categoryRowKey = (row: CategoryPickerRow) => row.category.id;
 /* 카테고리 코드는 엑셀의 '카테고리 코드' 열에 넣는 값이다. 무엇인지 알 수 있게 이름표를 붙인다(규칙 8). */

@@ -17,27 +17,22 @@ const SHARED_PICKER = 'components/admin/console/AdminPickerDialog.tsx';
 
 /** 아직 공용 선택창으로 옮기지 않은 화면. 옮겼으면 그 줄을 지운다(줄어들기만 한다). 줄 끝은 어느 화면인지다. */
 const LEGACY_PICKERS: readonly string[] = [
-  'components/admin/CategoryCodeFinder.tsx', // 카테고리 찾기 창(코드로 찾기)
   'components/admin/CategoryDisplayGoodsPicker.tsx', // 카테고리 전시·캠페인·할인 프로모션의 상품 고르기
-  'components/admin/CategoryErpMappingTable.tsx', // 카테고리 관리의 ERP 분류 연결 표(목록 화면)
-  'components/admin/CountryNameFinder.tsx', // 고시정보 원산지의 국가·지역 찾기
+  'components/admin/CategoryErpMappingTable.tsx', // 카테고리 관리의 카테고리별 ERP 코드 표(목록 화면)
   'components/admin/CouponCategoryPicker.tsx', // 쿠폰 대상 카테고리 고르기
   'components/admin/CouponIpPicker.tsx', // 쿠폰 대상 IP 고르기
   'components/admin/CouponTargetingFields.tsx', // 쿠폰 대상 상품 고르기
-  'components/admin/GoodsDraftLibraryDialog.tsx', // 상품 등록 임시저장 불러오기
   'components/admin/GoodsGroupOperation.tsx', // 그룹상품·일괄 변경의 상품 표(검색)
   'components/admin/ShoppingStoryGoodsPicker.tsx', // 쇼핑스토리 관련상품 찾기
   'components/admin/screens/BenefitReportScreen.tsx', // 혜택 리포트(목록 화면)
-  'components/admin/screens/CategoryTemplatesScreen.tsx', // 자주 쓰는 카테고리 관리·등록 창
+  'components/admin/screens/CategoryTemplatesScreen.tsx', // 자주 쓰는 카테고리 관리(목록 화면)
   'components/admin/screens/CsReplyTemplateTools.tsx', // 상담 답변 템플릿 고르기
   'components/admin/screens/ErpItemsScreen.tsx', // ERP 품목(목록 화면)
-  'components/admin/screens/GoodsAfterSalesTemplatesScreen.tsx', // A/S 템플릿 관리·고르기
-  'components/admin/screens/GoodsAnnouncementProductPicker.tsx', // 상품공지사항 대상 상품 찾기
-  'components/admin/screens/GoodsEventTemplatesScreen.tsx', // 이벤트 템플릿 관리·고르기
+  'components/admin/screens/GoodsAfterSalesTemplatesScreen.tsx', // A/S 템플릿 관리(목록 화면)
+  'components/admin/screens/GoodsEventTemplatesScreen.tsx', // 이벤트 템플릿 관리(목록 화면)
   'components/admin/screens/GoodsNoticePresetsScreen.tsx', // 상품정보제공고시 템플릿 관리(목록 화면)
-  'components/admin/screens/GoodsPhotoLibraryScreen.tsx', // 사진 보관함·상품 이미지 고르기
-  'components/admin/screens/GoodsRelationProductPicker.tsx', // 연관상품 찾기
-  'components/admin/screens/GoodsSizeTemplatesScreen.tsx', // 사이즈 템플릿 관리·고르기
+  'components/admin/screens/GoodsPhotoLibraryScreen.tsx', // 사진 보관함(목록 화면)
+  'components/admin/screens/GoodsSizeTemplatesScreen.tsx', // 사이즈 템플릿 관리(목록 화면)
   'components/admin/screens/InquiryChatScreen.tsx', // 문의 상담 화면(목록 검색)
   'components/admin/screens/InquiryReplyTemplateTools.tsx', // 고객문의 답변 템플릿 고르기
   'components/admin/screens/OperatorDirectoryScreen.tsx', // 운영자 목록(목록 화면)

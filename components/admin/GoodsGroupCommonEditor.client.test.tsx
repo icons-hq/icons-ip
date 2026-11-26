@@ -1,8 +1,10 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
-import { setAdminConfirmHandler } from '@/lib/admin/confirm';
+import { setAdminConfirmHandler, type AdminConfirmRequest } from '@/lib/admin/confirm';
 let leaveConfirm: ReturnType<typeof stubAdminConfirm>;
+/** [공통정보 적용]을 누르면 뜨는 확인창. 이동 확인(leaveConfirm)과 따로 센다. */
+let applyConfirm: ReturnType<typeof vi.fn<(request: AdminConfirmRequest) => boolean>>;
 let lastLink: { click: ReturnType<typeof vi.fn> } | null = null;
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: new Map<number, { deps: unknown[]; cleanup?: () => void }>(), jobs: [] as (() => void)[], pending: false }));
 const mocks = vi.hoisted(() => ({ save: vi.fn(), read: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
@@ -19,6 +21,9 @@ vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthS
 import { GoodsGroupCommonEditor } from './GoodsGroupCommonEditor';
 import { GoodsAttributeEditor } from './GoodsAttributeEditor';
 import { GroupCompleted, GroupOperationStatus } from './GoodsGroupOperation';
+import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
+import { GoodsAfterSalesTemplatePicker } from './GoodsAfterSalesTemplatePicker';
+import { GoodsSizeTemplatePicker } from './GoodsSizeTemplatePicker';
 import { AdminSectionCard } from './console/AdminKit';
 import { Button } from './kit/ui/button';
 import { TextArea } from './fields';
@@ -66,6 +71,8 @@ function click(label: string) { const button = render().find(node => (node.type=
 function saved() { return JSON.parse([...storage.values()][0]) as GoodsGroupRecovery; }
 beforeEach(async () => {
   leaveConfirm = stubAdminConfirm(false); lastLink = null;
+  applyConfirm = vi.fn<(request: AdminConfirmRequest) => boolean>(() => true);
+  setAdminConfirmHandler(async request => request.confirmLabel === '적용' ? applyConfirm(request) : leaveConfirm(request.message));
   hooks.values=[]; hooks.effects.clear(); hooks.jobs=[]; hooks.pending=false; storage.clear(); vi.clearAllMocks();
   const submitted = [...commonTestForm().entries()]; submitted.push(['description','PRIVATE COMMON CONTENT']);
   vi.stubGlobal('FormData', class extends originalFormData { constructor(form?: unknown) { super(); if (form) for (const [key,value] of submitted) this.set(key,value); } });
@@ -108,7 +115,7 @@ describe('그룹 공통정보 편집 복구',()=>{
     const attributes = render().find(node => node.type === GoodsAttributeEditor)!;
     (attributes.props.onChange as (submission:string,draft:string,initialize:boolean)=>void)(String(commonTestForm().get('productAttributes')), '[]', false);
     let resolve!: (value: unknown) => void;
-    mocks.save.mockImplementation(() => new Promise(done => { resolve = done; })); submit(); render();
+    mocks.save.mockImplementation(() => new Promise(done => { resolve = done; })); submit(); await flush();
     expect(navigate().defaultPrevented).toBe(true); expect(leaveConfirm).not.toHaveBeenCalled();
     resolve({ value: { ...commonTestReceipt, operationId: saved().operationId } }); await flush();
     expect(navigate().defaultPrevented).toBe(false); expect(leaveConfirm).not.toHaveBeenCalled();
@@ -158,6 +165,87 @@ describe('그룹 공통정보 편집 복구',()=>{
     storageApi.setItem.mockImplementationOnce(()=>{throw new Error('quota');});submit();await flush();expect(mocks.save).not.toHaveBeenCalled();
     const metadata={...identity,version:1 as const,command:'common' as const,groupId:commonTestSnapshot().group.id,expectedRevision:1,operationId:id(888)};
     storage.set(`${goodsGroupRecoveryKey(identity,`common:${metadata.groupId}`)}:${metadata.operationId}`,JSON.stringify(metadata));submit();await flush();expect(mocks.save).not.toHaveBeenCalled();expect(saved()).toEqual(metadata);
+  });
+});
+
+/* G-12: 연결된 모든 상품에 같은 값이 들어가고, 공개 중인 상품은 초안으로 바뀐다. 저장 전에 수와 결과를 보여 주고 확인받는다. */
+async function mount(snapshot = commonTestSnapshot()) {
+  for (const effect of hooks.effects.values()) effect.cleanup?.();
+  hooks.values = []; hooks.effects.clear(); hooks.jobs = []; hooks.pending = false; storage.clear(); vi.clearAllMocks();
+  render(snapshot); authenticate(); await flush();
+  const attributes = render().find(node => node.type === GoodsAttributeEditor)!;
+  (attributes.props.onChange as (submission: string, draft: string, initialize: boolean) => void)(String(commonTestForm().get('productAttributes')), '[]', true); await flush();
+}
+const withAfterSales = () => { const snapshot = commonTestSnapshot();
+  snapshot.afterSales = { ...snapshot.afterSales, phone: '1588-0000', guide: '평일 10시부터 17시까지 받습니다.', revision: 1, updatedAt: '2026-11-01T00:00:00Z' }; return snapshot; };
+describe('공통정보 적용 확인', () => {
+  it('바뀌는 상품 수와 결과를 보여 주고, 취소하면 저장하지 않는다', async () => {
+    const snapshot = commonTestSnapshot(); snapshot.group.members[0].publishedAt = '2026-11-20T00:00:00Z';
+    await mount(snapshot); applyConfirm.mockReturnValue(false);
+    submit(); await flush();
+    expect(applyConfirm).toHaveBeenCalledOnce();
+    const request = applyConfirm.mock.calls[0][0];
+    expect(request.title).toBe('연결된 2개 상품에 공통정보를 적용할까요?'); expect(request.confirmLabel).toBe('적용');
+    expect(request.message.split('\n')).toEqual([
+      '공개 중인 상품 1개가 초안으로 바뀌어 고객 화면에서 내려갑니다.',
+      '상품 2개 모두 KC 검토를 다시 마쳐야 공개할 수 있습니다.',
+      'A/S 안내와 판매자 특이사항은 상품 2개 모두에서 비워집니다.',
+    ]);
+    expect(mocks.save).not.toHaveBeenCalled(); expect(storage.size).toBe(0);
+    expect(render().find(node => node.type === 'fieldset')!.props.disabled).toBe(false);
+    expect(leaveConfirm).not.toHaveBeenCalled();
+  });
+  it('확인하면 한 번만 저장한다. 같은 확인이 떠 있는 동안 다시 눌러도 확인창은 하나다', async () => {
+    await mount(); let answer!: (value: boolean) => void;
+    applyConfirm.mockImplementation(() => new Promise<boolean>(done => { answer = done; }) as unknown as boolean);
+    submit(); submit(); await flush();
+    expect(applyConfirm).toHaveBeenCalledOnce(); expect(mocks.save).not.toHaveBeenCalled();
+    answer(true); await flush();
+    expect(mocks.save).toHaveBeenCalledOnce(); expect(saved()).toMatchObject({ command: 'common', expectedRevision: 1 });
+  });
+  it('이미 모두 초안이면 초안 전환 줄을 빼고, A/S 안내를 적어 뒀으면 비운다는 줄도 뺀다', async () => {
+    await mount(withAfterSales());
+    submit(); await flush();
+    expect(applyConfirm.mock.calls[0][0].message).toBe('상품 2개 모두 KC 검토를 다시 마쳐야 공개할 수 있습니다.');
+    expect(mocks.save).toHaveBeenCalledOnce();
+  });
+  it('A/S 안내 사용을 끄고 저장하면 모든 상품의 A/S 안내를 비운다고 알린다', async () => {
+    await mount(withAfterSales());
+    const checkbox = render().flatMap(node => node.type === 'label' ? nodes(node) : []).find(node => node.type === 'input' && node.props.type === 'checkbox')!;
+    (checkbox.props.onChange as (event: unknown) => void)({ target: { checked: false } });
+    submit(); await flush();
+    expect(applyConfirm.mock.calls[0][0].message).toContain('A/S 안내와 판매자 특이사항은 상품 2개 모두에서 비워집니다.');
+  });
+  it('A/S 안내를 켜 둔 채 세 칸을 모두 비워도 서버가 비우므로 같은 안내를 보인다', async () => {
+    await mount(withAfterSales());
+    (render().find(node => node.type === GoodsAfterSalesFields)!.props.onChange as (values: unknown) => void)({ phone: ' ', guide: '', sellerSpecialNotes: '\n' });
+    submit(); await flush();
+    expect(applyConfirm.mock.calls[0][0].message).toContain('A/S 안내와 판매자 특이사항은 상품 2개 모두에서 비워집니다.');
+  });
+  it('입력이 맞지 않으면 묻지 않고 칸 오류부터 알린다', async () => {
+    await mount(); vi.stubGlobal('FormData', class extends originalFormData { constructor(form?: unknown) { super(); if (form) this.set('productAttributes', 'invalid'); } });
+    submit(); await flush();
+    expect(applyConfirm).not.toHaveBeenCalled(); expect(mocks.save).not.toHaveBeenCalled();
+  });
+  it('템플릿 선택창에는 지금 적어 둔 A/S 안내와 사이즈표를 넘겨, 바꾸기 전에 묻게 한다', async () => {
+    const snapshot = withAfterSales(); await mount(snapshot);
+    click('A/S 템플릿 고르기'); click('사이즈 템플릿 고르기');
+    const tree = render();
+    expect(tree.find(node => node.type === GoodsAfterSalesTemplatePicker)!.props.current).toMatchObject({ phone: '1588-0000', guide: '평일 10시부터 17시까지 받습니다.', sellerSpecialNotes: '' });
+    expect(tree.find(node => node.type === GoodsSizeTemplatePicker)!.props.current).toEqual(snapshot.sizeChart.values.chart);
+  });
+  it('A/S 안내를 끄면 템플릿 선택창은 비어 있는 것으로 본다', async () => {
+    await mount(withAfterSales());
+    const checkbox = render().flatMap(node => node.type === 'label' ? nodes(node) : []).find(node => node.type === 'input' && node.props.type === 'checkbox')!;
+    (checkbox.props.onChange as (event: unknown) => void)({ target: { checked: false } });
+    click('A/S 템플릿 고르기');
+    expect(render().find(node => node.type === GoodsAfterSalesTemplatePicker)!.props.current).toEqual({ phone: '', guide: '', sellerSpecialNotes: '' });
+  });
+  it('안내 문단에 브라우저 보관 설명을 두지 않고, 상태를 초안으로 말한다', async () => {
+    await mount();
+    const notes = render().filter(node => node.type === 'p').map(node => text(node)).join('\n');
+    expect(notes).not.toContain('브라우저'); expect(notes).not.toContain('요청 번호');
+    expect(notes).toContain('저장하면 모두 초안으로 바뀌고 KC를 다시 검토해야 합니다.'); expect(notes).not.toContain('미공개');
   });
 });
 

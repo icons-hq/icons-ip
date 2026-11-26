@@ -39,3 +39,15 @@ it('기존 검색 입력은 그대로 넘기고, 옵션 원본 조건은 줄 때
   }
   expect(mocks.search).toHaveBeenCalledTimes(2);
 });
+/* 고시 '다른 상품에서 복사' 선택창도 같은 검색에 고시 원본 조건을 더해 부른다. 두 원본 조건을 함께 주면 받지 않는다. */
+it('고시 원본 조건은 줄 때만 더해 넘기고, 옵션 원본 조건과 함께 오면 거절한다', async () => {
+  mocks.search.mockResolvedValue({ rows: [], total: 0, page: 1, pageSize: 20 });
+  await searchGoodsOptionImportAction({ query: '', field: 'name', categoryId: '', page: 1, noticeSourcesOnly: true, excludeGoodId: 'target' });
+  expect(mocks.search).toHaveBeenLastCalledWith({ query: '', field: 'name', categoryId: '', page: 1, noticeSourcesOnly: true, excludeGoodId: 'target' });
+  await searchGoodsOptionImportAction({ query: '', field: 'name', categoryId: '', page: 1, noticeSourcesOnly: true });
+  expect(mocks.search).toHaveBeenLastCalledWith({ query: '', field: 'name', categoryId: '', page: 1, noticeSourcesOnly: true });
+  for (const invalid of [{ noticeSourcesOnly: 'yes' }, { noticeSourcesOnly: true, optionSourcesOnly: true }, { noticeSourcesOnly: true, excludeGoodId: '../etc' }]) {
+    expect(await searchGoodsOptionImportAction({ query: '', field: 'name', categoryId: '', page: 1, ...invalid })).toEqual({ ok: false, error: '상품 검색 조건을 확인해주세요.' });
+  }
+  expect(mocks.search).toHaveBeenCalledTimes(2);
+});

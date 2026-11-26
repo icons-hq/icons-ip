@@ -539,7 +539,7 @@ describe('admin catalog form normalization', () => {
       ok: false,
       errors: {
         adjustmentId: '재고 조정 요청을 읽지 못했습니다. 새로고침한 뒤 다시 시도해주세요.',
-        expectedStockQty: '현재 실재고를 확인해주세요.',
+        expectedStockQty: '현재 재고수량을 확인하지 못했습니다. 새로고침한 뒤 다시 조정해주세요.',
       },
     });
   });

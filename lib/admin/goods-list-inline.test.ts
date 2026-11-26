@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   applyOptionStockOutcomes, applyOptionStockRead, discountStopApplied, discountStopAwaitingResult, discountStopSummary, openOptionStockRows, optionStockDefaultReason,
-  optionStockNeedsRead, optionStockSummary, parseInlineSalePrice, parseInlineStockQty, planOptionStockSave, type GoodsListOptionStock, type OptionStockRow,
+  optionStockNeedsRead, optionStockSummary, optionStockUnsavedCount, parseInlineSalePrice, parseInlineStockQty, planOptionStockSave, type GoodsListOptionStock, type OptionStockRow,
 } from './goods-list-inline';
 
 const options: GoodsListOptionStock[] = [
@@ -51,13 +51,29 @@ describe('옵션별 재고 창 규칙 (1014-106·107)', () => {
     expect(planOptionStockSave(openOptionStockRows(options, newId))).toMatchObject({ ok: true, requests: [] });
   });
 
+  /* I-01(화면 규칙 7): 닫기 전에 사라질 입력이 몇 줄인지 센다. */
+  it('저장하지 않고 닫으면 사라지는 줄만 센다 — 새 수량이 지금 수량과 다르거나 사유를 적은 줄', () => {
+    sequence = 0;
+    const opened = openOptionStockRows(options, newId);
+    expect(optionStockUnsavedCount(opened)).toBe(0);
+    expect(optionStockUnsavedCount(edit(opened, 'v-blue', { input: '5' }))).toBe(0);
+    expect(optionStockUnsavedCount(edit(edit(opened, 'v-blue', { input: '8' }), 'v-red', { reason: ' 입고 ' }))).toBe(2);
+    expect(optionStockUnsavedCount(edit(opened, 'v-blue', { input: '' }))).toBe(1);
+    // 저장된 줄은 새 수량이 지금 수량으로 돌아가 있어 세지 않는다. 거절돼 지금 수량을 아직 못 읽은 줄은 적어 둔 수량이 남아 있어 센다.
+    const after = applyOptionStockOutcomes(edit(edit(opened, 'v-blue', { input: '8' }), 'v-red', { input: '9' }),
+      [{ variantId: 'v-blue', state: 'saved', stockQty: 8 }, { variantId: 'v-red', state: 'rejected', message: '거절' }], newId);
+    expect(optionStockUnsavedCount(after)).toBe(1);
+    // 사용 중인 옵션에서 사라진 줄은 고칠 수 없으니 세지 않는다.
+    expect(optionStockUnsavedCount(applyOptionStockRead(after, options.filter(option => option.variantId !== 'v-red')))).toBe(0);
+  });
+
   it('다른 사람이 먼저 바꾼 옵션만 다시 확인이 되고, 그 상품을 새로 읽은 현재 수량을 보인 뒤에만 그 값을 기대값으로 다시 저장한다', () => {
     sequence = 0;
     const rows = edit(edit(edit(openOptionStockRows(options, newId), 'v-blue', { input: '8' }), 'v-red', { input: '9' }), 'v-green', { input: '1' });
     const next = applyOptionStockOutcomes(rows, [
       { variantId: 'v-blue', state: 'saved', stockQty: 8 },
-      { variantId: 'v-red', state: 'rejected', message: '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.' },
-      { variantId: 'v-green', state: 'uncertain', message: '저장 결과를 확인하지 못했습니다.' },
+      { variantId: 'v-red', state: 'rejected', message: '그사이 재고수량이 바뀌었습니다. 지금 수량을 확인한 뒤 다시 저장해주세요.' },
+      { variantId: 'v-green', state: 'uncertain', message: '저장됐는지 확인하지 못했습니다.' },
     ], newId);
     expect(next.map(row => [row.variantId, row.status, row.seen, row.input, row.requestId])).toEqual([
       ['v-blue', 'saved', 8, '8', 'req-4'], ['v-red', 'recheck', null, '9', 'req-5'], ['v-green', 'uncertain', 3, '1', 'req-3'],
@@ -67,7 +83,7 @@ describe('옵션별 재고 창 규칙 (1014-106·107)', () => {
     expect(planOptionStockSave(next).ok && (planOptionStockSave(next) as { requests: { variantId: string }[] }).requests.map(request => request.variantId)).toEqual(['v-green']);
     // 그 상품만 새로 읽어 빈 줄을 채운다. 이미 보고 있는 줄(저장됨·결과 확인 필요)의 기대값은 바꾸지 않는다.
     const read = applyOptionStockRead(next, options.map(option => option.variantId === 'v-red' ? { ...option, stockQty: 2 } : { ...option, stockQty: 99 }));
-    expect(read.map(row => [row.seen, row.status, row.message])).toEqual([[8, 'saved', ''], [2, 'recheck', '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.'], [3, 'uncertain', '저장 결과를 확인하지 못했습니다.']]);
+    expect(read.map(row => [row.seen, row.status, row.message])).toEqual([[8, 'saved', ''], [2, 'recheck', '그사이 재고수량이 바뀌었습니다. 지금 수량을 확인한 뒤 다시 저장해주세요.'], [3, 'uncertain', '저장됐는지 확인하지 못했습니다.']]);
     expect(optionStockNeedsRead(read)).toBe(false);
     const retry = planOptionStockSave(read);
     expect(retry.ok && retry.requests).toEqual([
@@ -82,7 +98,7 @@ describe('옵션별 재고 창 규칙 (1014-106·107)', () => {
     const withoutRed = planOptionStockSave(gone);
     expect(withoutRed.ok && withoutRed.requests.map(request => request.variantId)).toEqual(['v-green']);
     expect(optionStockSummary([{ variantId: 'a', state: 'saved', stockQty: 1 }, { variantId: 'b', state: 'rejected', message: '' }]))
-      .toBe('1개 옵션의 재고수량을 저장했습니다. 1개 옵션은 저장하지 않았습니다. 현재 수량을 다시 확인하고 저장해주세요.');
+      .toBe('1개 옵션의 재고수량을 저장했습니다. 1개 옵션은 저장하지 않았습니다. 지금 수량을 다시 확인하고 저장해주세요.');
   });
 });
 

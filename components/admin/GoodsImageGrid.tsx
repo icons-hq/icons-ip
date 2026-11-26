@@ -42,7 +42,7 @@ import { ChevronRight } from 'lucide-react';
 export const GOODS_IMAGE_GUIDANCE_ID = 'goods-image-upload-guidance';
 export const GOODS_IMAGE_RATIO_GUIDANCE = '1000×1000(1:1) 이미지를 권장합니다. 올린 원본 비율 그대로, 잘리지 않고 표시됩니다.';
 /** R20(MD-0025): 타일에 직접 올린 사진은 사진 보관함에도 등록되어, 상품을 저장하지 않고 떠나도 다시 고를 수 있다. */
-export const GOODS_IMAGE_LIBRARY_NOTICE = '타일에 올린 사진은 사진 보관함에도 자동으로 등록됩니다.';
+export const GOODS_IMAGE_LIBRARY_NOTICE = '여기에 올린 사진은 사진 보관함에도 들어갑니다.';
 export const GOODS_IMAGE_LIBRARY_FAILURE = '사진 보관함에 등록하지 못한 사진이 있습니다. 상품 이미지는 그대로 저장할 수 있고, 사진 보관함에서 직접 올릴 수 있습니다.';
 
 type Slots = GoodsImageSlots<File>;
@@ -52,6 +52,13 @@ type DragSource = 'frame' | 'handle';
 type DragState = { pointerId: number; from: number; startX: number; startY: number; active: boolean; over: number };
 
 const DRAG_THRESHOLD = 6;
+/** 사진 보관함 선택창에서 넣은 사진의 타일 키 앞머리. 이 사진만 선택창 안에서 [빼기]로 다시 뺀다(원래 있던 이미지는 이미지 칸의 ×로 뺀다). */
+const LIBRARY_TILE_KEY = 'library-';
+/** 이 보관함 사진이 들어 있는 자리. 없으면 -1. 상품 폼의 경로와 앞머리 표기가 달라도 같은 사진으로 본다. */
+function libraryPhotoPosition(slots: Slots, photo: { imagePath: string }): number {
+  const wanted = normalizePublicMediaPath(photo.imagePath);
+  return slots.findIndex(tile => Boolean(tile?.path) && normalizePublicMediaPath(tile!.path) === wanted);
+}
 
 /*
  * 타일 틀의 테두리·배경. 상태가 겹칠 때(대표+업로드 중, 실패+놓을 자리 등) 옛 규칙의 우선순위를 그대로 따르도록
@@ -546,17 +553,38 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
       <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"><ChevronRight aria-hidden="true" className="size-3.5 shrink-0 transition-transform group-open/image-guide:rotate-90 motion-reduce:transition-none" />이미지 바꾸기·순서·삭제 방법</summary>
       <p className="mt-1.5">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 왼쪽 위 손잡이(⋮⋮)를 끌거나 ←·→ 키로 순서를 바꾸며(마우스는 이미지를 바로 끌어도 됩니다), 이 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시됩니다. {{ draft: '×를 누르면 그 이미지를 뺍니다.', published: '추가 이미지는 ×로 빼고, 공개 중인 상품의 대표 이미지는 교체만 합니다.', archived: '보관 상품은 복원한 뒤 이미지를 고쳐 저장합니다.' }[publication]} 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다. {GOODS_IMAGE_LIBRARY_NOTICE}</p>
     </GoodWorkspaceDetails>
-    <button type="button" className={cn(buttonVariants({ variant: 'outline' }), 'self-start')} data-slot="button" disabled={slots.every(Boolean)} onClick={() => setPhotoPicker(true)}>사진 보관함에서 선택</button>
-    {photoPicker ? <GoodsPhotoPicker onClose={() => setPhotoPicker(false)} onSelect={photo => {
+    {/* 자리가 다 차면 버튼이 잠긴다 — 왜 잠겼는지와 푸는 방법을 옆에 적는다(화면 규칙 5). */}
+    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+      <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={slots.every(Boolean)} onClick={() => setPhotoPicker(true)}>사진 보관함에서 고르기</button>
+      {slots.every(Boolean) ? <span className="text-xs text-muted-foreground" data-good-image-library-full="">{`이미지 ${slots.length}자리가 모두 찼습니다. 보관함 사진을 넣으려면 먼저 한 장을 뺍니다.`}</span> : null}
+    </div>
+    {/*
+      여러 장을 이어서 고른다 — 고른 사진은 그때마다 빈 자리에 들어가고 창은 [완료]로 닫는다(추가 이미지 9장에 창을 9번 열지 않는다).
+      이미 넣은 사진과 남은 자리를 창에 넘겨, 고를 수 없는 사진은 창 안에서 [선택]이 없다. 고른 뒤에 닫고 거절하지 않는다.
+      넣은 사진은 들어간 자리 이름(대표 이미지·추가 이미지 N)으로 보이고, 창에서 넣은 사진은 창 안에서 [빼기]로 다시 뺀다 — 잘못 골랐을 때 창을 닫고 ×를 찾지 않는다.
+      창을 열기 전부터 있던 이미지는 여기서 빼지 않는다(이미지 칸의 ×로 뺀다). 공개 중인 상품의 대표 이미지는 교체만 하므로 창에서도 빼지 않고 까닭을 적는다.
+    */}
+    {photoPicker ? <GoodsPhotoPicker multiple pickedPaths={slots.flatMap(tile => tile?.path ? [tile.path] : [])} remaining={slots.filter(tile => !tile).length} nextIsMain={!slots[0]} onClose={() => setPhotoPicker(false)}
+      placeOf={photo => { const position = libraryPhotoPosition(slots, photo); return position < 0 ? null : goodsImageLabel(position); }}
+      deselectBlocked={photo => {
+        const position = libraryPhotoPosition(slots, photo), tile = slots[position];
+        if (!tile?.key.startsWith(LIBRARY_TILE_KEY)) return '';
+        return position === 0 && !mainRemovable ? '공개 중이라 뺄 수 없음' : null;
+      }}
+      onDeselect={photo => {
+        const current = slotsRef.current, position = libraryPhotoPosition(current, photo), tile = current[position];
+        if (!tile?.key.startsWith(LIBRARY_TILE_KEY) || (position === 0 && !mainRemovable)) return;
+        commit(removeGoodsImage(current, position), `${goodsImageLabel(position)}에 넣은 보관함 사진을 뺐습니다.`);
+      }}
+      onSelect={photo => {
       const current = slotsRef.current;
       const position = current.findIndex(tile => !tile);
-      if (position < 0) { setNotice('상품 이미지는 최대 10장입니다.'); setPhotoPicker(false); return; }
-      if (current.some(tile => tile?.path === photo.imagePath)) { setNotice('이미 선택한 사진입니다.'); setPhotoPicker(false); return; }
+      /* 창이 막아 주므로 여기까지 오는 것은 빠르게 두 번 누른 경우뿐이다. 두 번째는 조용히 버린다. */
+      if (position < 0 || libraryPhotoPosition(current, photo) >= 0) return;
       keyCounter.current += 1;
       const next = [...current];
-      next[position] = { key: `library-${keyCounter.current}`, path: photo.imagePath, url: publicMediaUrl(photo.imagePath), status: 'uploaded' };
-      commit(next, `${goodsImageLabel(position)}에 보관함 사진을 선택했습니다. 상품 저장 전입니다.`);
-      setPhotoPicker(false);
+      next[position] = { key: `${LIBRARY_TILE_KEY}${keyCounter.current}`, path: photo.imagePath, url: publicMediaUrl(photo.imagePath), status: 'uploaded' };
+      commit(next, `${goodsImageLabel(position)}에 보관함 사진을 넣었습니다. 상품 저장 전입니다.`);
     }} /> : null}
     <ol className="m-0 grid max-w-[680px] list-none grid-cols-[repeat(auto-fill,minmax(96px,1fr))] gap-3 p-0">
       {Array.from({ length: GOODS_IMAGE_SLOT_COUNT }, (_, position) =>

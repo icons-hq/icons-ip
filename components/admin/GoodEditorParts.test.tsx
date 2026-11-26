@@ -56,7 +56,7 @@ describe('편집기 하나 고르기(설정함/설정안함)', () => {
 
 /** 트랙 B(상품 등록·수정 편집기)가 소유한 화면 파일(components/admin 기준). */
 const EDITOR_FILES = [
-  'ArtworkUploadField.tsx', 'BodyTemplateTools.tsx', 'CategoryAssignmentField.tsx', 'CountryNameFinder.tsx', 'ErpItemNameInput.tsx',
+  'ArtworkUploadField.tsx', 'BodyTemplateTools.tsx', 'CategoryAssignmentField.tsx', 'CountryNameFinder.tsx', 'ErpItemPicker.tsx',
   'GoodBankTransferControl.tsx', 'GoodClonePanel.tsx', 'GoodCopySourcePicker.tsx', 'GoodEditor.tsx', 'GoodEditorParts.tsx',
   'GoodIdentifierFields.tsx', 'GoodNoticePicker.tsx', 'GoodPublishControls.tsx', 'GoodSaleRestrictionControl.tsx',
   'GoodShippingChargeGroupPanel.tsx', 'GoodSizeChartPanel.tsx', 'GoodUrlAddField.tsx', 'GoodVariantsPanel.tsx', 'GoodWorkspace.tsx',

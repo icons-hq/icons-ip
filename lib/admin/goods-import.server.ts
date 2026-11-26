@@ -259,7 +259,7 @@ export async function loadGoodsExportWorkbook(
   );
   if (rows.length > 500)
     throw new Error(
-      '옵션 구성이 바뀌어 500행을 초과했습니다. 내보내기 페이지를 새로 열어주세요.',
+      '옵션 구성이 바뀌어 500줄을 넘었습니다. 내보내기 화면을 새로 열어주세요.',
     );
   return {
     rows,
@@ -295,7 +295,7 @@ export function goodsImportErrorMessage(error?: string) {
     return '이미지를 저장하지 못했습니다. URL·ZIP 파일을 확인하고 다시 올려주세요.';
   if (error?.includes('publish') || error?.includes('origin'))
     return '공개에 필요한 정보(대표 이미지·대표 카테고리·고시정보·출고지·KC 검토)와 출고지 설정을 확인하고 다시 검증해주세요.';
-  return '상품 정보를 저장하지 못했습니다. 실패 행의 필수 정보와 옵션 구성을 확인하고 다시 올려주세요.';
+  return '상품 정보를 저장하지 못했습니다. 실패한 줄의 필수 정보와 옵션 구성을 확인하고 다시 올려주세요.';
 }
 export function goodsImportView(batch: GoodsImportBatch) {
   return {

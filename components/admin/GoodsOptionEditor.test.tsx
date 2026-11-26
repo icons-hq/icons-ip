@@ -32,13 +32,17 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     />);
     for (const label of ['ERP 코드', 'ERP 품명', '바코드', '0000123', 'ERP 품명', '0007']) expect(html).toContain(label);
     expect(html).toContain('aria-label="옵션 1 ERP 품명"');
+    /* 저장된 ERP 값은 직접 적은 것과 같은 입력 칸으로 보이고, 이번에 고른 품목이 아니므로 고른 품목 표시는 없다. */
+    expect(html).toMatch(/aria-label="옵션 1 ERP 품명"[^>]*value="ERP 품명"/);
+    expect(html).not.toContain('data-good-option-erp-picked');
     expect(html).toContain('&quot;erpCode&quot;:&quot;0000123&quot;');
     expect(html).toContain('&quot;externalUpdatedAt&quot;:&quot;2026-09-10T07:00:00.000Z&quot;');
   });
 
   /* 2026-11-19 MD가 받은 엑셀의 '코드'(ERP 코드)를 옛 '관리코드' 칸에 넣었다. 어느 칸에 무엇을 넣고 어느 엑셀에 찍히는지는 그 칸에서 보이고
      (머리글 아래 작은 줄·입력칸 예시·잠긴 자동코드), ERP 코드·바코드 칸이 옵션 자동코드보다 앞에 온다. 2026-11-25 '글보다 화면':
-     네 줄 안내 문단은 빼고, 이름이 비슷해 헷갈리는 ERP 코드·ERP 품명·옵션 자동코드에만 "?"를 단다. */
+     네 줄 안내 문단은 빼고, 이름이 비슷해 헷갈리는 ERP 코드·옵션 자동코드에만 "?"를 단다. ERP 품명 칸은 제안 목록 없이 직접 적는 칸이고,
+     ERP 품목은 줄 맨 앞의 [ERP 품목 고르기]에서 고른다(화면 규칙 1). */
   it('옵션 상세 정보는 사람이 넣는 ERP 코드·바코드를 자동코드보다 앞에 두고 넣을 값과 찍히는 엑셀을 그 칸에서 보인다', () => {
     const rows = [{ id: savedA, name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 1 }];
     const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={rows} baseline={[savedA]} basePrice={1000} canSearchErp />);
@@ -51,7 +55,16 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     /* 늘 보이던 안내 문단(목록)은 없다. 헷갈리는 세 칸의 머리글에만 "?"가 있다. */
     expect(details).not.toContain('goods-option-external-identity-guidance');
     expect(details).not.toContain('data-good-option-guidance');
-    expect([...details.matchAll(/aria-label="([^"]+) 도움말"/g)].map((match) => match[1])).toEqual(['ERP 코드', 'ERP 품명', '옵션 자동코드']);
+    expect([...details.matchAll(/aria-label="([^"]+) 도움말"/g)].map((match) => match[1])).toEqual(['ERP 코드', '옵션 자동코드']);
+    for (const retired of ['role="combobox"', 'role="listbox"', '이름으로 검색']) expect(details, retired).not.toContain(retired);
+    expect(details).toMatch(/aria-label="옵션 1 ERP 품명"[^>]*placeholder="ERP 상품 이름"/);
+    /* 고르는 버튼은 손으로 적는 세 칸보다 앞(옵션 이름 아래)에 있고, 폼을 제출하지 않는 버튼이다. */
+    expect(details).toMatch(/<button type="button"[^>]*data-erp-item-picker=""[^>]*aria-label="ERP 품목 고르기"[^>]*>ERP 품목 고르기<\/button>/);
+    expect(details.indexOf('data-erp-item-picker=""')).toBeLessThan(details.indexOf('aria-label="옵션 1 ERP 코드"'));
+    expect(details.indexOf('aria-label="옵션 이름"')).toBeLessThan(details.indexOf('data-erp-item-picker=""'));
+    /* 고르기 전에는 고른 품목 표시도 선택창도 없다. */
+    expect(details).not.toContain('data-good-option-erp-picked');
+    expect(details).not.toContain('data-admin-picker');
     expect(details.match(/직접 입력 · 거래확정·출고 엑셀에 찍힘/g)).toHaveLength(2);
     expect(details).toMatch(/aria-label="옵션 1 바코드"[^>]*placeholder="엑셀의 &#x27;바코드&#x27;"/);
     expect(details).toMatch(/aria-label="옵션 1 안전재고 기준"[^>]*placeholder="비우면 알림 없음"/);
@@ -62,6 +75,33 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     expect(details).toContain('>옵션 자동코드 직접 바꾸기</button>');
     expect(details).toMatch(/aria-label="옵션 1 ERP 코드"[^>]*placeholder="엑셀의 &#x27;코드&#x27;"/);
     for (const jargon of ['반입', '선행 0', '미설정', '관리코드']) expect(details, jargon).not.toContain(jargon);
+  });
+
+  /* 1027T-016: ERP 품목을 찾는 일은 상품 관리 권한으로 연다. 권한이 없으면 고르는 버튼만 빠지고 세 칸은 그대로 직접 적는다. */
+  it('ERP 품목을 찾을 수 없는 운영자에게는 고르는 버튼을 보이지 않고 직접 적는 칸만 둔다', () => {
+    const rows = [{ id: savedA, name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 1 }];
+    const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={rows} baseline={[savedA]} basePrice={1000} canSearchErp={false} />);
+    expect(html).not.toContain('data-erp-item-picker');
+    expect(html).not.toContain('ERP 품목 고르기');
+    for (const label of ['옵션 1 ERP 코드', '옵션 1 바코드', '옵션 1 ERP 품명']) expect(html).toMatch(new RegExp(`<input(?![^>]* (?:readOnly|disabled)="")[^>]*aria-label="${label}"`));
+  });
+
+  /* 공개 중(옵션 구성 잠금)·그룹 공통정보 잠금에서도 ERP 코드·바코드·ERP 품명과 고르는 버튼은 열려 있다(지금까지와 같다). */
+  it('옵션 구성이 잠겨 있어도 ERP 정보는 고르거나 적을 수 있다', () => {
+    const rows = [
+      { id: savedA, name: '빨강', code: 'LOCK-01', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 3 },
+      { id: savedB, name: '파랑', code: 'LOCK-02', attributes: { 색상: '파랑' }, extraPrice: 0, stockQty: 5 },
+    ];
+    for (const lock of [{ compositionLockedReason: '공개 중에는 옵션을 더하거나 뺄 수 없습니다.' }, { structureLocked: true }]) {
+      const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={rows} baseline={[savedA, savedB]} basePrice={1000} {...lock} />);
+      const details = html.slice(html.indexOf('data-good-option-details'));
+      expect(details.match(/<button type="button"(?![^>]* disabled="")[^>]*data-erp-item-picker=""/g)).toHaveLength(2);
+      for (const label of ['옵션 1 ERP 코드', '옵션 1 바코드', '옵션 1 ERP 품명']) expect(details, label).toMatch(new RegExp(`<input(?![^>]* (?:readOnly|disabled)="")[^>]*aria-label="${label}"`));
+      /* 옵션 상세 정보 표는 잠금 fieldset 바깥이다(앞에서 연 fieldset은 모두 닫혀 있다). */
+      const before = html.slice(0, html.indexOf('data-good-option-details'));
+      expect(before.match(/<fieldset/g)?.length).toBeGreaterThan(0);
+      expect(before.match(/<fieldset/g)?.length).toBe(before.match(/<\/fieldset>/g)?.length);
+    }
   });
 
   it('잠긴 옵션 자동코드에 바코드 형식 값이 들어 있으면 바코드 칸으로 경고만 한다', () => {
@@ -187,6 +227,9 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     expect(html.indexOf('옵션목록 편집표')).toBeLessThan(html.indexOf('옵션 상세 정보 · ERP 코드·바코드·ERP 품명·옵션 자동코드·안전재고'));
     expect(html).toContain('GOOD-01');
     expect(html).toContain(savedB);
+    /* 옵션 상세 정보의 줄마다 [ERP 품목 고르기]가 하나씩 있고, 어느 옵션의 버튼인지는 읽어 주는 이름으로 구분한다. */
+    expect([...html.matchAll(/data-erp-item-picker=""[^>]*aria-label="([^"]+)"/g)].map((match) => match[1])).toEqual(['옵션 1 ERP 품목 고르기', '옵션 2 ERP 품목 고르기']);
+    expect(html.match(/>ERP 품목 고르기<\/button>/g)).toHaveLength(2);
     for (const legacy of ['기준 판매가', '추가금액', '옵션 판매가', '할당 재고', '조합 생성']) expect(html).not.toContain(legacy);
   });
 

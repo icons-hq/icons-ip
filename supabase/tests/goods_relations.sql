@@ -49,7 +49,10 @@ select public.admin_save_goods_relation('74000000-0000-4000-8000-000000000002',0
 do $$ declare saved jsonb; begin
  saved:=public.admin_get_goods_relation('74000000-0000-4000-8000-000000000002');
  if saved->>'revision'<>'1' or saved->'goods'->1->>'id'<>'goods-relations-qa-c' or jsonb_array_length(saved->'goods')<>7 then raise exception 'saved relation order mismatch %',saved; end if;
- if (select count(*) from jsonb_array_elements(saved->'goods') good where (good->>'public')::boolean)<>3 then raise exception 'staff public availability mismatch %',saved; end if;
+ -- 관리자 화면의 public은 상품·IP가 공개됐는지만 본다(판매 제한 상품도 true). 고객에게 안 보이는 이유는 visibility가 나눈다.
+ if (select count(*) from jsonb_array_elements(saved->'goods') good where (good->>'public')::boolean)<>4
+  or (select jsonb_agg(good->>'visibility' order by position) from jsonb_array_elements(saved->'goods') with ordinality item(good,position))
+   <>'["public","public","public","draft","ip_draft","restricted","archived"]'::jsonb then raise exception 'staff public availability mismatch %',saved; end if;
  if public.admin_list_goods_relations('100%')->>'total'<>'1' then raise exception 'literal relation title search failed'; end if;
  if public.admin_list_goods_relations('goods-relations-qa-b','similar')->>'total'<>'1' then raise exception 'member relation search failed'; end if;
  if public.admin_search_goods_for_relation('goods-relations-qa-archived')->>'total'<>'0' then raise exception 'archived candidate searchable'; end if;

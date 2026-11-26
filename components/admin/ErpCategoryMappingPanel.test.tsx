@@ -43,15 +43,20 @@ vi.mock('react', async () => {
 });
 
 const { ErpCategoryMappingPanel } = await import('./ErpCategoryMappingPanel');
-const { AdminSearchSelect } = await import('./console/AdminSearchSelect');
+const { AdminHelpTip } = await import('./console/AdminHelpTip');
+const { AdminPickerDialog } = await import('./console/AdminPickerDialog');
 const { Button } = await import('./kit/ui/button');
 const { ConsoleBulkActionBar } = await import('./console/ConsoleBulkActionBar');
+const { ERP_ITEMS_HELP } = await import('@/lib/admin/help/erp-items');
 /* kit 버튼도 네이티브와 같은 조작 부품으로 찾는다(ADR-0028). */
 const isButton = (element: ReactElement) => element.type === 'button' || element.type === Button;
-const isSelect = (element: ReactElement) => element.type === AdminSearchSelect;
+/* 공용 선택창(화면 규칙 1). 열려 있을 때만 트리에 있다. */
+const isPicker = (element: ReactElement) => element.type === AdminPickerDialog;
 
-type Option = { value: string; label: string };
-type Props = { children?: ReactNode; row?: { erpCategory: string }; locked?: boolean; value?: string; disabled?: boolean; onClick?: () => void; onValueChange?: (value: string) => void; options?: readonly Option[]; pinnedOptions?: readonly Option[]; 'aria-label'?: string };
+type Choice = { id: string; label: string; erp: string | null; search: string };
+type Picker = { title: string; description: string; selectedKeys?: readonly string[]; excludedNote: string; load: Load; onSelect: (choice: Choice) => void; onClose: () => void; rowView: (choice: Choice) => { title: string; meta?: string } };
+type Load = (request: { query: string; field: string; filter: string; page: number }) => Promise<{ rows: readonly Choice[]; total: number }>;
+type Props = { children?: ReactNode; row?: { erpCategory: string }; locked?: boolean; value?: string; disabled?: boolean; onClick?: () => void; 'aria-label'?: string; 'data-erp-category-pick'?: string };
 
 const node = (id: string, name: string, parentId: string | null, extra: Partial<AdminCategoryNode> = {}): AdminCategoryNode => ({
   id, code: id, name, parentId, depth: parentId ? 2 : 1, sortOrder: 0, archivedAt: null,
@@ -77,8 +82,8 @@ function text(tree: ReactNode): string {
   return isValidElement<Props>(tree) ? text(tree.props.children) : '';
 }
 
-/* 패널의 useState 개수: 검색어·연결 필요만·저장 안 한 선택·체크·일괄 카테고리·일괄 결과·행 사유·저장 직후 값·일괄 횟수. 행의 훅은 그 뒤에 이어진다. */
-const PANEL_STATE_COUNT = 9;
+/* 패널의 useState 개수: 검색어·연결 필요만·저장 안 한 선택·체크·일괄 카테고리·일괄 결과·행 사유·저장 직후 값·일괄 횟수·일괄 선택창. 행의 훅은 그 뒤에 이어진다. */
+const PANEL_STATE_COUNT = 10;
 
 /* 패널은 행 컴포넌트를 렌더할 뿐이라, 행 요소를 꺼내 같은 훅 저장소로 직접 렌더한다. */
 async function renderRow(options: { rows?: Row[]; categoryErpMappings?: Mapping[] } = {}) {
@@ -90,6 +95,20 @@ async function renderRow(options: { rows?: Row[]; categoryErpMappings?: Mapping[
   return component(rowElement.props);
 }
 const button = (tree: ReactNode, label: string) => find(tree, (element) => isButton(element) && text(element).includes(label))[0];
+const picker = (tree: ReactNode) => find(tree, (element) => isPicker(element))[0] as unknown as ReactElement<Picker> | undefined;
+/* 줄의 고객 카테고리 칸: 지금 값 글자 + [카테고리 고르기] + (값이 있으면) 비우는 버튼. */
+const pickGroup = (tree: ReactNode) => find(tree, (element) => element.props['data-erp-category-pick'] === '')[0];
+const valueOf = (tree: ReactNode) => text([pickGroup(tree).props.children].flat()[0]);
+const clearButton = (tree: ReactNode) => find(pickGroup(tree), (element) => isButton(element) && text(element) === '비우기')[0];
+const choice = (id: string): Choice => ({ id, label: id, erp: null, search: id });
+/* 줄에서 카테고리를 고른다: [카테고리 고르기]로 창을 열어 그 줄의 [선택]을 누르고 닫는 것과 같다. 빈 값은 값 옆의 [비우기]다. */
+async function pickInRow(draw: () => ReactNode | Promise<ReactNode>, value: string) {
+  if (!value) { clearButton(await draw()).props.onClick?.(); return; }
+  button(await draw(), '카테고리 고르기').props.onClick?.();
+  const dialog = picker(await draw());
+  dialog?.props.onSelect(choice(value));
+  dialog?.props.onClose();
+}
 
 beforeEach(() => {
   hooks.state = [];
@@ -112,16 +131,15 @@ describe('ERP 분류 연결 표', () => {
     expect(hooks.save).toHaveBeenCalledWith({ erpCategory: '문구 > 포토카드', categoryId: PHOTO });
     const tree = await renderRow();
     expect(text(tree)).toContain('ERP 분류를 고객 카테고리에 연결했습니다.');
-    expect(button(tree, '연결').props.disabled).toBe(true);
+    expect(button(tree, '연결 저장').props.disabled).toBe(true);
     expect(find(tree, (element) => isButton(element) && text(element).includes('같은 경로로 연결'))).toHaveLength(0);
     expect(hooks.refresh).toHaveBeenCalledOnce();
   });
 
   it('고른 값만 저장하고, 서버 거절 문구를 그 행에 보여 준다', async () => {
     hooks.save.mockResolvedValue({ ok: false, error: '보관된 카테고리에는 연결할 수 없습니다.' });
-    let tree = await renderRow();
-    find(tree, (element) => isSelect(element))[0].props.onValueChange?.(PHOTO);
-    tree = await renderRow();
+    await pickInRow(renderRow, PHOTO);
+    const tree = await renderRow();
     button(tree, '연결 저장').props.onClick?.();
     await Promise.all(hooks.pending.splice(0));
     expect(text(await renderRow())).toContain('보관된 카테고리에는 연결할 수 없습니다.');
@@ -131,21 +149,23 @@ describe('ERP 분류 연결 표', () => {
   /* 2026-10-07 QA: 연결 안 된 분류에도 비활성 '연결 해제' 버튼이 보여 이미 연결된 분류처럼 읽혔다. */
   it('연결도 선택도 없으면 저장 버튼을 숨기고, 저장된 연결을 비웠을 때만 연결 해제를 보여 준다', async () => {
     const saveButtons = (tree: ReactNode) => find(tree, (element) => isButton(element) && /연결 (저장|해제)|저장 중/.test(text(element)));
-    const choose = (tree: ReactNode, value: string) => find(tree, (element) => isSelect(element))[0].props.onValueChange?.(value);
     let tree = await renderRow();
     expect(saveButtons(tree)).toHaveLength(0);
-    choose(tree, PHOTO);
+    /* 고른 값이 없으면 비울 것도 없다. */
+    expect(clearButton(tree)).toBeUndefined();
+    await pickInRow(renderRow, PHOTO);
     tree = await renderRow();
     expect(saveButtons(tree).map((element) => [text(element), element.props.disabled])).toEqual([['연결 저장', false]]);
-    choose(tree, '');
+    await pickInRow(renderRow, '');
     expect(saveButtons(await renderRow())).toHaveLength(0);
 
     hooks.state = [];
     const linkedRows: Row[] = [{ ...rows[0], categoryId: PHOTO, updatedAt: '2026-10-07T00:00:00Z' }];
     tree = await renderRow({ rows: linkedRows });
     expect(saveButtons(tree).map((element) => [text(element), element.props.disabled])).toEqual([['연결 저장', true]]);
-    choose(tree, '');
+    await pickInRow(() => renderRow({ rows: linkedRows }), '');
     tree = await renderRow({ rows: linkedRows });
+    expect(valueOf(tree)).toBe('연결 안 함');
     expect(saveButtons(tree).map((element) => [text(element), element.props.disabled])).toEqual([['연결 해제', false]]);
     hooks.save.mockResolvedValue({ ok: true, changed: true, categoryId: null, message: 'ERP 분류 연결을 해제했습니다.' });
     button(tree, '연결 해제').props.onClick?.();
@@ -156,14 +176,26 @@ describe('ERP 분류 연결 표', () => {
     expect(text(tree)).toContain('ERP 분류 연결을 해제했습니다.');
   });
 
-  it('새 연결이 없어도 고객 카테고리의 정본 ERP 분류 매핑으로 제안 중인 말단을 보여 주고 연결된 분류로 센다', async () => {
+  it('새 연결이 없어도 카테고리 관리에 적은 ERP 코드·품명으로 자동 연결된 말단을 값 자리에 보여 주고 연결된 분류로 센다', async () => {
     const fallbackRows: Row[] = [{ erpCategory: '키링', itemCount: 2, categoryId: null, updatedAt: null, fallbackCategoryId: KEYRING }];
     const mappings = [{ categoryId: KEYRING, erpCode: 'KR-01', erpName: '키링' }];
     const panel = ErpCategoryMappingPanel({ rows: fallbackRows, categories, categoryErpMappings: mappings });
-    expect(text(panel)).toContain('ERP 분류 1개 중 1개 연결됨');
+    expect(text(panel)).toContain('ERP 분류 1개 중 1개 연결됨 · 연결 필요 0개 · 자동 연결 1개');
     const tree = await renderRow({ rows: fallbackRows, categoryErpMappings: mappings });
-    expect(text(tree)).toContain('카테고리 관리의 ERP 분류 매핑에 적힌 값에 따라 ‘문구 > 키링’ 카테고리를 제안합니다.');
-    expect(find(tree, (element) => isButton(element) && text(element).includes('ERP 분류 매핑대로 연결'))).toHaveLength(0);
+    expect(valueOf(tree)).toBe('자동 연결 · 문구 > 키링');
+    /* 자동 연결은 이미 쓰이는 연결이라 처리할 일(연결 필요·제안)로 보이지 않는다. 줄마다 설명을 되풀이하지도 않는다. */
+    expect(text(tree)).not.toContain('연결 필요');
+    expect(text(tree)).not.toContain('자동으로 연결됩니다');
+    expect(find(tree, (element) => isButton(element) && text(element).includes('적힌 대로 연결'))).toHaveLength(0);
+  });
+
+  /* 화면 규칙 3: 자동 연결이 언제 되는지는 표만 봐서는 알 수 없어 건수 옆 "?" 하나에 모은다. 줄마다 설명 문단을 두지 않는다. */
+  it('자동 연결 규칙은 건수 옆 "?" 하나에만 있다', () => {
+    const panel = ErpCategoryMappingPanel({ rows, categories, categoryErpMappings: [] });
+    const tips = find(panel, (element) => element.type === AdminHelpTip) as unknown as ReactElement<{ label: string; help: unknown }>[];
+    expect(tips.map((tip) => [tip.props.label, tip.props.help])).toEqual([['자동 연결', ERP_ITEMS_HELP.autoLink]]);
+    expect(text(panel)).toContain('ERP 분류 1개 중 0개 연결됨 · 연결 필요 1개 · 자동 연결 0개');
+    expect(text(panel)).not.toContain('이름만 같고 경로가 다르면');
   });
 
   /* R9: DB가 전체 경로로 자동 연결한 분류는 '연결됨'으로 세고, 연결 필요 개수와 필터를 따로 보인다. */
@@ -176,7 +208,7 @@ describe('ERP 분류 연결 표', () => {
     expect(text(panel)).toContain('ERP 분류 2개 중 1개 연결됨 · 연결 필요 1개');
     expect(text(panel)).toContain('연결 필요만');
     const tree = await renderRow({ rows: pathRows });
-    expect(text(tree)).toContain('같은 경로의 ‘문구 > 키링’ 카테고리에 자동으로 연결됩니다. 다른 카테고리를 쓰려면 골라 저장해주세요.');
+    expect(valueOf(tree)).toBe('자동 연결 · 문구 > 키링');
   });
 
   /* 1027T-016: 반입 결과의 '미연결 분류 N건 — 연결하기'가 이 표를 연결 필요만 보이게 열고 그 자리로 옮긴다. */
@@ -203,31 +235,82 @@ describe('ERP 분류 연결 표', () => {
     expect(focused).toHaveBeenCalledWith({ preventScroll: true });
   });
 
-  it('고른 말단의 정본 ERP 분류 매핑이 이 ERP 분류와 다르면 저장 전에 경고한다', async () => {
+  it('고른 말단이 카테고리 관리에 다른 ERP 분류로 적혀 있으면 저장 전에 경고한다', async () => {
     const mappings = [{ categoryId: KEYRING, erpCode: 'ST-01', erpName: '문구' }, { categoryId: PHOTO, erpCode: 'PC-01', erpName: '문구 > 포토카드' }];
-    let tree = await renderRow({ categoryErpMappings: mappings });
-    expect(text(tree)).not.toContain('다른 ERP 분류');
-    find(tree, (element) => isSelect(element))[0].props.onValueChange?.(KEYRING);
-    tree = await renderRow({ categoryErpMappings: mappings });
-    expect(text(tree)).toContain('고른 카테고리는 카테고리 관리의 ERP 분류 매핑에 다른 ERP 분류(‘문구’, ST-01)로 적혀 있습니다. 맞는 카테고리인지 확인해주세요.');
-    find(tree, (element) => isSelect(element))[0].props.onValueChange?.(PHOTO);
-    expect(text(await renderRow({ categoryErpMappings: mappings }))).not.toContain('다른 ERP 분류');
+    const draw = () => renderRow({ categoryErpMappings: mappings });
+    expect(text(await draw())).not.toContain('다른 ERP 분류');
+    await pickInRow(draw, KEYRING);
+    expect(text(await draw())).toContain('고른 카테고리는 카테고리 관리에 다른 ERP 분류(‘문구’, ST-01)로 적혀 있습니다. 맞는 카테고리인지 확인해주세요.');
+    await pickInRow(draw, PHOTO);
+    expect(text(await draw())).not.toContain('다른 ERP 분류');
   });
 
-  /* 2026-11-10 실측: 행마다 select에 말단 전체를 그려 첫 진입이 4초까지 걸렸다. 선택 칸은 행마다 하나, 목록은 표가 한 벌을 나눠 쓴다. */
-  it('행마다 같은 선택지 배열을 나눠 쓰고, 칸 이름과 연결 안 함을 준다', async () => {
+  /* 2026-11-10 실측: 행마다 select에 말단 전체를 그려 첫 진입이 4초까지 걸렸다. 줄에는 지금 값과 버튼만 두고, 카테고리 목록은 선택창을 열 때만 표가 나눠 쓰는 한 벌에서 읽는다. */
+  it('줄마다 같은 조회를 나눠 쓰고, 칸 이름과 지금 값을 보인다', async () => {
     const twoRows: Row[] = [rows[0], { ...rows[0], erpCategory: '문구 > 키링' }];
     const panel = ErpCategoryMappingPanel({ rows: twoRows, categories, categoryErpMappings: [] });
-    const rowElements = find(panel, (element) => Boolean(element.props.row)) as ReactElement<Props & { options: readonly Option[] }>[];
-    expect(rowElements[0].props.options).toBe(rowElements[1].props.options);
-    expect(rowElements[0].props.options).toEqual([
-      { value: KEYRING, label: '문구 > 키링', keywords: '문구>키링' },
-      { value: PHOTO, label: '문구 > 포토카드', keywords: '문구>포토카드' },
-    ]);
-    const field = find(await renderRow(), (element) => isSelect(element))[0];
-    expect(field.props['aria-label']).toBe('문구 > 포토카드 고객 카테고리');
-    expect(field.props.value).toBe('');
-    expect(field.props.pinnedOptions).toEqual([{ value: '', label: '연결 안 함' }]);
+    const rowElements = find(panel, (element) => Boolean(element.props.row)) as ReactElement<Props & { load: Load; canPick: boolean }>[];
+    expect(rowElements[0].props.load).toBe(rowElements[1].props.load);
+    expect(rowElements[0].props.canPick).toBe(true);
+    const tree = await renderRow();
+    expect(pickGroup(tree).props['aria-label']).toBe('문구 > 포토카드 고객 카테고리');
+    expect(valueOf(tree)).toBe('연결 안 함');
+    /* 닫힌 줄에는 선택창이 없다. */
+    expect(picker(tree)).toBeUndefined();
+  });
+
+  /* 화면 규칙 1·2: 카테고리는 공용 선택창에서 고른다. 고를 수 없는 카테고리(보관·하위 있음)는 목록에 넣지 않고 한 줄로 알린다. */
+  describe('[카테고리 고르기] 선택창', () => {
+    const request = (query = '', page = 1) => ({ query, field: '', filter: '', page });
+
+    it('줄의 버튼이 그 ERP 분류의 선택창을 열고, 닫으면 사라진다', async () => {
+      const linkedRows: Row[] = [{ ...rows[0], categoryId: KEYRING, updatedAt: 'x' }];
+      const draw = () => renderRow({ rows: linkedRows });
+      const opener = button(await draw(), '카테고리 고르기');
+      expect(opener.props['aria-haspopup' as keyof Props]).toBe('dialog');
+      opener.props.onClick?.();
+      const dialog = picker(await draw());
+      expect(dialog?.props.title).toBe('카테고리 고르기');
+      expect(dialog?.props.description).toBe('ERP 분류 ‘문구 > 포토카드’에 연결할 카테고리를 고릅니다.');
+      expect(dialog?.props.selectedKeys).toEqual([KEYRING]);
+      expect(dialog?.props.excludedNote).toBe('하위 카테고리가 있거나 보관한 카테고리는 목록에서 뺐습니다.');
+      dialog?.props.onClose();
+      expect(picker(await draw())).toBeUndefined();
+    });
+
+    it('연결할 수 있는 마지막 단계 카테고리만 경로순으로 내고, 붙여 쓴 경로로도 찾는다', async () => {
+      const archived = '00000000-0000-4000-8000-000000071113';
+      const withArchived = [...categories, node(archived, '단종', PARENT, { archivedAt: '2026-10-01T00:00:00Z' })];
+      const panel = ErpCategoryMappingPanel({ rows, categories: withArchived, categoryErpMappings: [] });
+      const { load } = (find(panel, (element) => Boolean(element.props.row))[0] as unknown as ReactElement<{ load: Load }>).props;
+      const all = await load(request());
+      expect(all.rows.map((row) => [row.id, row.label])).toEqual([[KEYRING, '문구 > 키링'], [PHOTO, '문구 > 포토카드']]);
+      expect(all.total).toBe(2);
+      expect((await load(request('문구>포토'))).rows.map((row) => row.id)).toEqual([PHOTO]);
+      expect((await load(request('문구 > 키링'))).rows.map((row) => row.id)).toEqual([KEYRING]);
+      expect((await load(request('없는 카테고리'))).total).toBe(0);
+    });
+
+    it('카테고리 관리에 적어 둔 ERP 코드·품명을 줄에 보이고 그 값으로도 찾는다', async () => {
+      const mappings = [{ categoryId: KEYRING, erpCode: 'KR-01', erpName: '열쇠고리' }];
+      const panel = ErpCategoryMappingPanel({ rows, categories, categoryErpMappings: mappings });
+      const { load } = (find(panel, (element) => Boolean(element.props.row))[0] as unknown as ReactElement<{ load: Load }>).props;
+      button(await renderRow({ categoryErpMappings: mappings }), '카테고리 고르기').props.onClick?.();
+      const view = picker(await renderRow({ categoryErpMappings: mappings }))?.props.rowView;
+      const [keyring, photo] = (await load(request())).rows;
+      expect(view?.(keyring)).toEqual({ title: '문구 > 키링', meta: 'ERP 코드 KR-01 · ERP 품명 열쇠고리' });
+      expect(view?.(photo)).toEqual({ title: '문구 > 포토카드', meta: undefined });
+      expect((await load(request('kr-01'))).rows.map((row) => row.id)).toEqual([KEYRING]);
+      expect((await load(request('열쇠고리'))).rows.map((row) => row.id)).toEqual([KEYRING]);
+    });
+
+    it('연결할 카테고리가 하나도 없으면 버튼을 잠그고 만들 곳을 알린다', async () => {
+      const panel = ErpCategoryMappingPanel({ rows, categories: [], categoryErpMappings: [] });
+      expect(text(panel)).toContain('연결할 마지막 단계 카테고리가 없습니다. 카테고리 관리에서 먼저 만들어주세요.');
+      hooks.stateIndex = PANEL_STATE_COUNT;
+      const rowElement = find(panel, (element) => Boolean(element.props.row))[0];
+      expect(button((rowElement.type as (props: Props) => ReactNode)(rowElement.props), '카테고리 고르기').props.disabled).toBe(true);
+    });
   });
 
   it('현재 연결이 보관되거나 하위가 생겨 고를 수 없어도 그 값을 칸에 그대로 보여 주고 연결 안 함으로 바꿀 수 있다', async () => {
@@ -239,55 +322,55 @@ describe('ERP 분류 연결 표', () => {
       const panel = ErpCategoryMappingPanel({ rows: [{ ...staleRows[0], categoryId }], categories: withArchived, categoryErpMappings: [] });
       hooks.stateIndex = PANEL_STATE_COUNT;
       const rowElement = find(panel, (element) => Boolean(element.props.row))[0];
-      return find((rowElement.type as (props: Props) => ReactNode)(rowElement.props), (element) => isSelect(element))[0];
+      return (rowElement.type as (props: Props) => ReactNode)(rowElement.props);
     };
-    expect(render(archived).props.value).toBe(archived);
-    expect(render(archived).props.pinnedOptions).toEqual([{ value: '', label: '연결 안 함' }, { value: archived, label: '문구 > 단종 · 지금은 연결할 수 없음' }]);
-    expect(render(archived).props.options?.map((option) => option.value)).not.toContain(archived);
+    expect(valueOf(render(archived))).toBe('문구 > 단종 · 지금은 연결할 수 없음');
+    expect(clearButton(render(archived))).toBeDefined();
+    await pickInRow(() => render(archived), '');
+    expect(valueOf(render(archived))).toBe('연결 안 함');
+    expect(text(button(render(archived), '연결 해제'))).toBe('연결 해제');
     /* 카테고리가 지워져 경로를 모르면 경로 대신 그렇다고 말한다. */
     hooks.state = [];
-    expect(render('00000000-0000-4000-8000-00000007ffff').props.pinnedOptions?.[1].label).toBe('삭제된 카테고리 · 지금은 연결할 수 없음');
-    /* 활성 말단이면 따로 고정하지 않는다. */
+    expect(valueOf(render('00000000-0000-4000-8000-00000007ffff'))).toBe('삭제된 카테고리 · 지금은 연결할 수 없음');
+    /* 활성 말단이면 경로만 보인다. */
     hooks.state = [];
-    expect(render(PHOTO).props.pinnedOptions).toEqual([{ value: '', label: '연결 안 함' }]);
+    expect(valueOf(render(PHOTO))).toBe('문구 > 포토카드');
   });
 
   /* 사람 눈 시험(2026-11-10): 고른 값을 저장하지 않고 왼쪽 메뉴로 나가면 경고 없이 사라졌다. */
   describe('저장하지 않은 연결을 두고 떠날 때', () => {
     const MESSAGE = '저장하지 않은 ERP 분류 연결이 있습니다. 이 화면을 떠나면 고른 연결이 사라집니다. 이동할까요?';
     const guard = () => hooks.leaveGuard.mock.calls.at(-1)?.[0] as { dirty: boolean; message: string };
-    const field = (tree: ReactNode) => find(tree, (element) => isSelect(element))[0];
 
     it('고르기만 하고 저장하지 않으면 묻고, 처음 값으로 되돌리면 묻지 않는다', async () => {
-      let tree = await renderRow();
+      await renderRow();
       expect(guard()).toEqual({ dirty: false, message: MESSAGE, survivesQueryChange: true });
-      field(tree).props.onValueChange?.(PHOTO);
-      tree = await renderRow();
+      await pickInRow(renderRow, PHOTO);
+      let tree = await renderRow();
       expect(guard()).toEqual({ dirty: true, message: MESSAGE, survivesQueryChange: true });
-      expect(field(tree).props.value).toBe(PHOTO);
-      field(tree).props.onValueChange?.('');
+      expect(valueOf(tree)).toBe('문구 > 포토카드');
+      await pickInRow(renderRow, '');
       tree = await renderRow();
       expect(guard().dirty).toBe(false);
-      expect(field(tree).props.value).toBe('');
+      expect(valueOf(tree)).toBe('연결 안 함');
     });
 
     it('저장에 성공하면 묻지 않고, 실패하면 고른 값이 남아 계속 묻는다', async () => {
       hooks.save.mockResolvedValueOnce({ ok: false, error: '저장 실패' });
+      await pickInRow(renderRow, PHOTO);
       let tree = await renderRow();
-      field(tree).props.onValueChange?.(PHOTO);
-      tree = await renderRow();
       button(tree, '연결 저장').props.onClick?.();
       await Promise.all(hooks.pending.splice(0));
       tree = await renderRow();
       expect(guard().dirty).toBe(true);
-      expect(field(tree).props.value).toBe(PHOTO);
+      expect(valueOf(tree)).toBe('문구 > 포토카드');
 
       hooks.save.mockResolvedValueOnce({ ok: true, changed: true, categoryId: PHOTO, message: '연결했습니다.' });
       button(tree, '연결 저장').props.onClick?.();
       await Promise.all(hooks.pending.splice(0));
       tree = await renderRow();
       expect(guard().dirty).toBe(false);
-      expect(field(tree).props.value).toBe(PHOTO);
+      expect(valueOf(tree)).toBe('문구 > 포토카드');
       expect(button(tree, '연결 저장').props.disabled).toBe(true);
     });
 
@@ -325,42 +408,31 @@ describe('ERP 분류 연결 표', () => {
   /* 2차 사람 눈 시험(2026-11-10): 저장 직후 값을 바꿔도 지난 초록 문구가 남아 저장된 줄로 읽혔다. */
   describe('저장 결과 문구는 그때 저장한 값에만 붙는다', () => {
     const OK = 'ERP 분류를 고객 카테고리에 연결했습니다.';
-    const field = (tree: ReactNode) => find(tree, (element) => isSelect(element))[0];
-    const saveDone = async (tree: ReactNode) => { button(tree, '연결 저장').props.onClick?.(); await Promise.all(hooks.pending.splice(0)); };
+    const saveDone = async () => { button(await renderRow(), '연결 저장').props.onClick?.(); await Promise.all(hooks.pending.splice(0)); };
 
     it('값을 바꾸면 지난 결과를 지운다', async () => {
       hooks.save.mockResolvedValue({ ok: true, changed: true, categoryId: PHOTO, message: OK });
-      let tree = await renderRow();
-      field(tree).props.onValueChange?.(PHOTO);
-      tree = await renderRow();
-      await saveDone(tree);
-      tree = await renderRow();
-      expect(text(tree)).toContain(OK);
-      field(tree).props.onValueChange?.(KEYRING);
-      tree = await renderRow();
-      expect(text(tree)).not.toContain(OK);
+      await pickInRow(renderRow, PHOTO);
+      await saveDone();
+      expect(text(await renderRow())).toContain(OK);
+      await pickInRow(renderRow, KEYRING);
+      expect(text(await renderRow())).not.toContain(OK);
     });
 
     it('같은 값을 다시 고른 것은 바뀐 것이 아니다', async () => {
       hooks.save.mockResolvedValue({ ok: true, changed: true, categoryId: PHOTO, message: OK });
-      let tree = await renderRow();
-      field(tree).props.onValueChange?.(PHOTO);
-      tree = await renderRow();
-      await saveDone(tree);
-      tree = await renderRow();
-      field(tree).props.onValueChange?.(PHOTO);
+      await pickInRow(renderRow, PHOTO);
+      await saveDone();
+      await pickInRow(renderRow, PHOTO);
       expect(text(await renderRow())).toContain(OK);
     });
 
     it('실패 문구도 값을 바꾸면 지운다', async () => {
       hooks.save.mockResolvedValue({ ok: false, error: '저장 실패' });
-      let tree = await renderRow();
-      field(tree).props.onValueChange?.(PHOTO);
-      tree = await renderRow();
-      await saveDone(tree);
-      tree = await renderRow();
-      expect(text(tree)).toContain('저장 실패');
-      field(tree).props.onValueChange?.(KEYRING);
+      await pickInRow(renderRow, PHOTO);
+      await saveDone();
+      expect(text(await renderRow())).toContain('저장 실패');
+      await pickInRow(renderRow, KEYRING);
       expect(text(await renderRow())).not.toContain('저장 실패');
     });
 
@@ -388,12 +460,18 @@ describe('ERP 분류 연결 표', () => {
   /* 사람 눈 시험(2026-11-10): 자동 연결된 분류의 칸이 '연결 안 함'으로 읽혀 257번 저장해야 하는 줄 알았다. */
   it('자동 연결이 있는 분류의 빈 값은 자동 연결된 카테고리로 표시하고, 없으면 연결 안 함이다', async () => {
     const auto: Row[] = [{ erpCategory: '문구>키링', itemCount: 2, categoryId: null, updatedAt: null, fallbackCategoryId: KEYRING }];
-    expect(find(await renderRow({ rows: auto }), (element) => isSelect(element))[0].props.pinnedOptions).toEqual([{ value: '', label: '자동 연결 · 문구 > 키링' }]);
+    expect(valueOf(await renderRow({ rows: auto }))).toBe('자동 연결 · 문구 > 키링');
+    expect(clearButton(await renderRow({ rows: auto }))).toBeUndefined();
+    /* 직접 연결한 값을 비우면 자동 연결로 돌아간다 — 비운 뒤의 값 자리가 그렇게 보인다. */
     hooks.state = [];
     const explicit: Row[] = [{ ...auto[0], categoryId: PHOTO }];
-    expect(find(await renderRow({ rows: explicit }), (element) => isSelect(element))[0].props.pinnedOptions).toEqual([{ value: '', label: '자동 연결 · 문구 > 키링' }]);
+    const draw = () => renderRow({ rows: explicit });
+    expect(valueOf(await draw())).toBe('문구 > 포토카드');
+    await pickInRow(draw, '');
+    expect(valueOf(await draw())).toBe('자동 연결 · 문구 > 키링');
+    expect(text(button(await draw(), '연결 해제'))).toBe('연결 해제');
     hooks.state = [];
-    expect(find(await renderRow(), (element) => isSelect(element))[0].props.pinnedOptions).toEqual([{ value: '', label: '연결 안 함' }]);
+    expect(valueOf(await renderRow())).toBe('연결 안 함');
   });
 });
 
@@ -406,7 +484,14 @@ describe('ERP 분류 일괄 연결', () => {
   const rowOf = (panel: ReactNode, name: string) => rowsOf(panel).find((row) => row.row.erpCategory === name)!;
   const headerBox = (panel: ReactNode) => find(panel, (element) => element.props['aria-label'] === '보이는 ERP 분류 전체 선택')[0] as unknown as { props: { checked: boolean; onChange: (event: { target: { checked: boolean } }) => void } };
   const bulkForm = (panel: ReactNode) => find(panel, (element) => element.type === 'form')[0] as unknown as { props: { onSubmit: (event: unknown) => void } };
-  const bulkBar = (panel: ReactNode) => find(panel, (element) => element.type === ConsoleBulkActionBar)[0] as unknown as ReactElement<{ selectedCount: number; controls: ReactElement<{ onValueChange: (value: string) => void; value: string }>; actions: { name: string; disabled?: boolean }[] }>;
+  const bulkBar = (panel: ReactNode) => find(panel, (element) => element.type === ConsoleBulkActionBar)[0] as unknown as ReactElement<{ selectedCount: number; controls: ReactElement<Props>; actions: { name: string; disabled?: boolean }[] }>;
+  /* 일괄 막대에서 카테고리를 고른다: 막대의 [카테고리 고르기]로 창을 열어 줄의 [선택]을 누르고 닫는 것과 같다. */
+  const chooseBulk = (value: string, draw: () => ReactNode = render) => {
+    button(bulkBar(draw()).props.controls, '카테고리 고르기').props.onClick?.();
+    const dialog = picker(draw());
+    dialog?.props.onSelect(choice(value));
+    dialog?.props.onClose();
+  };
   /* 패널이 넘긴 값으로 행을 실제로 그린다. 값 전달뿐 아니라 행이 그 값을 쓰는지까지 본다. */
   const drawRow = (panel: ReactNode, name: string) => {
     const element = find(panel, (candidate) => (candidate.props as { row?: { erpCategory: string } }).row?.erpCategory === name)[0];
@@ -432,7 +517,7 @@ describe('ERP 분류 일괄 연결', () => {
     panel = render();
     expect(bulkBar(panel).props.selectedCount).toBe(2);
     expect(bulkBar(panel).props.actions.map((action) => [action.name, action.disabled])).toEqual([['link', true], ['unlink', true]]);
-    bulkBar(panel).props.controls.props.onValueChange(KEYRING);
+    chooseBulk(KEYRING);
     panel = render();
     expect(bulkBar(panel).props.actions[0].disabled).toBe(false);
     await submit(panel, 'link');
@@ -449,10 +534,9 @@ describe('ERP 분류 일괄 연결', () => {
   it('새 목록이 오면 저장 직후 값을 버리고 서버 값을 쓴다', async () => {
     hooks.saveMany.mockResolvedValue(okResult(1));
     const before: Row[] = [needLink('가')];
-    let panel = render(before);
+    const panel = render(before);
     rowOf(panel, '가').onSelect('가', true);
-    panel = render(before);
-    bulkBar(panel).props.controls.props.onValueChange(KEYRING);
+    chooseBulk(KEYRING, () => render(before));
     await submit(render(before), 'link');
     expect(rowOf(render(before), '가').saved).toBe(KEYRING);
     expect(rowOf(render([{ ...needLink('가'), categoryId: PHOTO }]), '가').saved).toBe(PHOTO);
@@ -470,7 +554,7 @@ describe('ERP 분류 일괄 연결', () => {
     panel = render();
     expect(headerBox(panel).props.checked).toBe(true);
     expect(bulkBar(panel).props.selectedCount).toBe(1);
-    bulkBar(panel).props.controls.props.onValueChange(KEYRING);
+    chooseBulk(KEYRING);
     await submit(render(), 'link');
     expect(hooks.saveMany).toHaveBeenCalledWith([{ erpCategory: '가', categoryId: KEYRING }]);
   });
@@ -481,7 +565,7 @@ describe('ERP 분류 일괄 연결', () => {
     rowOf(panel, '가').onSelect('가', true);
     rowOf(panel, '다').onSelect('다', true);
     panel = render();
-    bulkBar(panel).props.controls.props.onValueChange(KEYRING);
+    chooseBulk(KEYRING);
     await submit(render(), 'link');
     expect(confirm.mock.calls[0]).toEqual(['이미 다른 카테고리에 연결된 1건(자동 연결 포함)이 들어 있습니다. 선택한 2건을 모두 ‘문구 > 키링’에 연결할까요?']);
     expect(hooks.saveMany).not.toHaveBeenCalled();
@@ -492,13 +576,13 @@ describe('ERP 분류 일괄 연결', () => {
     let panel = render();
     rowOf(panel, '문구>키링').onSelect('문구>키링', true);
     panel = render();
-    bulkBar(panel).props.controls.props.onValueChange(PHOTO);
+    chooseBulk(PHOTO);
     await submit(render(), 'link');
     expect(confirm).toHaveBeenCalledOnce();
     expect(confirm.mock.calls[0][0]).toContain('이미 다른 카테고리에 연결된 1건(자동 연결 포함)');
     expect(hooks.saveMany).not.toHaveBeenCalled();
     confirm.mockClear();
-    bulkBar(render()).props.controls.props.onValueChange(KEYRING);
+    chooseBulk(KEYRING);
     hooks.saveMany.mockResolvedValue(okResult(1));
     await submit(render(), 'link');
     expect(confirm).not.toHaveBeenCalled();
@@ -511,7 +595,7 @@ describe('ERP 분류 일괄 연결', () => {
     let panel = render();
     rowOf(panel, '가').onSelect('가', true);
     panel = render();
-    bulkBar(panel).props.controls.props.onValueChange(KEYRING);
+    chooseBulk(KEYRING);
     await submit(render(), 'link');
     expect(confirm).not.toHaveBeenCalled();
     expect(hooks.saveMany).toHaveBeenCalledOnce();
@@ -526,9 +610,41 @@ describe('ERP 분류 일괄 연결', () => {
     panel = render();
     expect(bulkBar(panel).props.actions[1].disabled).toBe(false);
     await submit(panel, 'unlink');
-    expect(confirm.mock.calls[0][0]).toContain('직접 연결한 1건의 연결을 해제할까요?');
+    /* 해제한 뒤의 모습을 함께 말한다: 자동으로 이어지지 않는 분류는 연결 필요로 남는다. */
+    expect(confirm.mock.calls[0][0]).toBe('선택한 ERP 분류 중 직접 연결한 1건의 연결을 해제할까요? 해제하면 연결 필요로 남습니다.');
     expect(hooks.saveMany).toHaveBeenCalledWith([{ erpCategory: '다', categoryId: null }]);
     expect(rowOf(render(), '다').saved).toBe('');
+  });
+
+  it('연결 해제 확인창은 자동 연결로 돌아가는 건수와 연결 필요로 남는 건수를 말한다', async () => {
+    const confirm = stubConfirm(false);
+    const linked: Row[] = [
+      { ...needLink('가'), categoryId: PHOTO, updatedAt: 'x' },
+      { ...needLink('문구>키링'), categoryId: PHOTO, updatedAt: 'x', fallbackCategoryId: KEYRING },
+    ];
+    const draw = () => render(linked);
+    rowOf(draw(), '가').onSelect('가', true);
+    rowOf(draw(), '문구>키링').onSelect('문구>키링', true);
+    await submit(draw(), 'unlink');
+    expect(confirm.mock.calls[0][0]).toBe('선택한 ERP 분류 중 직접 연결한 2건의 연결을 해제할까요? 1건은 자동 연결로 돌아가고 1건은 연결 필요로 남습니다.');
+    rowOf(draw(), '가').onSelect('가', false);
+    await submit(draw(), 'unlink');
+    expect(confirm.mock.calls[1][0]).toBe('선택한 ERP 분류 중 직접 연결한 1건의 연결을 해제할까요? 해제하면 자동 연결로 돌아갑니다.');
+    expect(hooks.saveMany).not.toHaveBeenCalled();
+  });
+
+  it('일괄 막대는 고른 카테고리를 글자로 되읽고, 같은 선택창으로 고른다', () => {
+    rowOf(render(), '가').onSelect('가', true);
+    rowOf(render(), '나').onSelect('나', true);
+    expect(text(bulkBar(render()).props.controls)).toBe('연결할 카테고리를 골라주세요카테고리 고르기');
+    button(bulkBar(render()).props.controls, '카테고리 고르기').props.onClick?.();
+    const dialog = picker(render());
+    expect(dialog?.props.title).toBe('카테고리 고르기');
+    expect(dialog?.props.description).toBe('선택한 ERP 분류 2건에 연결할 카테고리를 고릅니다.');
+    dialog?.props.onSelect(choice(KEYRING));
+    dialog?.props.onClose();
+    expect(picker(render())).toBeUndefined();
+    expect(text(bulkBar(render()).props.controls)).toBe('문구 > 키링카테고리 고르기');
   });
 
   it('거절된 행은 체크를 남기고 그 행에 사유를 보이며, 나머지는 저장한다', async () => {
@@ -537,7 +653,7 @@ describe('ERP 분류 일괄 연결', () => {
     rowOf(panel, '가').onSelect('가', true);
     rowOf(panel, '나').onSelect('나', true);
     panel = render();
-    bulkBar(panel).props.controls.props.onValueChange(KEYRING);
+    chooseBulk(KEYRING);
     await submit(render(), 'link');
     panel = render();
     expect(rowOf(panel, '가').saved).toBe(KEYRING);
@@ -563,7 +679,7 @@ describe('ERP 분류 일괄 연결', () => {
     };
     const bulkLink = async () => {
       rowOf(render(), '가').onSelect('가', true);
-      bulkBar(render()).props.controls.props.onValueChange(PHOTO);
+      chooseBulk(PHOTO);
       await submit(render(), 'link');
     };
     stubConfirm(true);
@@ -576,7 +692,7 @@ describe('ERP 분류 일괄 연결', () => {
     expect(text(drawRow(render(), '가'))).not.toContain(OK);
     /* 다음 일괄 저장이 성공하면 사유도 지난 문구도 남지 않는다. */
     hooks.saveMany.mockResolvedValue(okResult(1));
-    bulkBar(render()).props.controls.props.onValueChange(PHOTO);
+    chooseBulk(PHOTO);
     await submit(render(), 'link');
     const tree = text(drawRow(render(), '가'));
     expect(tree).not.toContain(REASON);
@@ -594,7 +710,7 @@ describe('ERP 분류 일괄 연결', () => {
     panel = render();
     expect(rowOf(panel, '가').selected).toBe(true);
     expect(rowOf(panel, '나').draft).toBe(KEYRING);
-    expect(text(panel)).toContain('저장 결과를 확인하지 못했습니다.');
+    expect(text(panel)).toContain('저장됐는지 확인하지 못했습니다.');
     expect(hooks.refresh).not.toHaveBeenCalled();
   });
 
@@ -609,7 +725,7 @@ describe('ERP 분류 일괄 연결', () => {
     panel = render();
     expect(rowOf(panel, '나').draft).toBe(KEYRING);
     expect(rowOf(panel, '가').draft).toBe(PHOTO);
-    expect(text(drawRow(panel, '가'))).toContain('저장 결과를 확인하지 못했습니다.');
+    expect(text(drawRow(panel, '가'))).toContain('저장됐는지 확인하지 못했습니다.');
   });
 
   it('세션이 끝나 로그인으로 보내는 신호는 삼키지 않는다', async () => {
@@ -666,7 +782,7 @@ describe('ERP 분류 일괄 연결', () => {
     let panel = render();
     rowOf(panel, '가').onSelect('가', true);
     panel = render();
-    bulkBar(panel).props.controls.props.onValueChange(KEYRING);
+    chooseBulk(KEYRING);
     await submit(render(), 'link');
     panel = render();
     expect(statusLine(panel)).toBe('ERP 분류 연결을 저장하지 못했습니다. 다시 시도해주세요.');
@@ -736,12 +852,12 @@ describe('ERP 분류 일괄 연결', () => {
     await button(draw(), '제안대로 1건 연결').props.onClick?.();
     await Promise.all(hooks.pending.splice(0));
     expect(hooks.saveMany).toHaveBeenCalledWith([{ erpCategory: 'zz 분류1', categoryId: KEYRING }]);
-    expect(find(drawRow(), (element) => isSelect(element))[0].props.value).toBe(KEYRING);
+    expect(valueOf(drawRow())).toBe('문구 > 키링');
     expect(text(drawRow())).not.toContain('다른 ERP 분류');
     /* 일괄 막대에서 같은 카테고리를 골라도 마찬가지다. */
     hooks.state = [];
     rowOf(draw(), 'zz 분류1').onSelect('zz 분류1', true);
-    bulkBar(draw()).props.controls.props.onValueChange(KEYRING);
+    chooseBulk(KEYRING, draw);
     expect(text(draw())).not.toContain('다른 ERP 분류');
   });
 
@@ -752,8 +868,8 @@ describe('ERP 분류 일괄 연결', () => {
     rowOf(panel, '가').onSelect('가', true);
     panel = draw();
     expect(statusLine(panel)).toBe('');
-    bulkBar(panel).props.controls.props.onValueChange(KEYRING);
-    expect(statusLine(draw())).toBe('고른 카테고리는 카테고리 관리의 ERP 분류 매핑에 다른 ERP 분류(‘문구’, ST-01)로 적혀 있습니다. 맞는 카테고리인지 확인해주세요.');
+    chooseBulk(KEYRING);
+    expect(statusLine(draw())).toBe('고른 카테고리는 카테고리 관리에 다른 ERP 분류(‘문구’, ST-01)로 적혀 있습니다. 맞는 카테고리인지 확인해주세요.');
   });
 
   it('한 번에 500행까지 그리고, 일괄 저장 상한과 같다', () => {
@@ -768,7 +884,7 @@ describe('ERP 분류 일괄 연결', () => {
     expect(rowsOf(panel)[0].locked).toBe(false);
     rowOf(panel, '가').onSelect('가', true);
     panel = render();
-    bulkBar(panel).props.controls.props.onValueChange(KEYRING);
+    chooseBulk(KEYRING);
     hooks.transitionPending = true;
     panel = render();
     expect(bulkBar(panel).props.actions[0].disabled).toBe(true);
@@ -776,7 +892,7 @@ describe('ERP 분류 일괄 연결', () => {
     hooks.transitionPending = false;
     const row = drawRow(panel, '가');
     expect(box(row).props.disabled).toBe(true);
-    expect(find(row, (element) => isSelect(element))[0].props.disabled).toBe(true);
+    expect(button(row, '카테고리 고르기').props.disabled).toBe(true);
     hooks.transitionPending = true;
     await submit(panel, 'link');
     expect(hooks.saveMany).not.toHaveBeenCalled();

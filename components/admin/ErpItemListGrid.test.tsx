@@ -104,6 +104,8 @@ describe('ERP 품목 목록 선택 삭제', () => {
     await submit(tree);
     expect(hooks.confirm).toHaveBeenCalledWith(expect.stringContaining('선택한 ERP 품목 1건을 지울까요?'));
     expect(hooks.confirm.mock.calls[0][0]).toContain('이미 상품 옵션에 넣은 ERP 코드·품명은 바뀌지 않습니다');
+    /* 상품 옵션은 [ERP 품목 고르기] 선택창에서 품목을 고른다. 지우면 그 창에 나오지 않는다. */
+    expect(hooks.confirm.mock.calls[0][0]).toContain('지운 품목은 상품 옵션의 [ERP 품목 고르기]에 나오지 않습니다.');
     await Promise.all(hooks.pending.splice(0));
     expect(hooks.remove).toHaveBeenCalledWith(['K-2']);
     tree = render();

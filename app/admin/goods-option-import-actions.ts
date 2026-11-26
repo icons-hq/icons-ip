@@ -10,8 +10,9 @@ function errorMessage(error: unknown): string {
   return error instanceof GoodsOptionImportError ? error.message : '상품과 옵션을 불러오지 못했습니다. 현재 입력은 유지됩니다.';
 }
 /**
- * 상품 검색(공용 상품 선택창·복사등록·옵션 불러오기가 함께 쓴다). 입력은 `{ query, field, categoryId, page }`이고,
- * 옵션 불러오기 선택창만 선택 조건 `optionSourcesOnly`·`excludeGoodId`를 더한다 — 주지 않으면 결과는 지금까지와 같다.
+ * 상품 검색(공용 상품 선택창·복사등록·옵션 불러오기·고시 복사가 함께 쓴다). 입력은 `{ query, field, categoryId, page }`이고,
+ * 옵션 불러오기 선택창은 `optionSourcesOnly`를, 고시 '다른 상품에서 복사' 선택창은 `noticeSourcesOnly`를 더한다(둘 다 `excludeGoodId`로 지금 상품을 뺀다) —
+ * 주지 않으면 결과는 지금까지와 같다.
  */
 export async function searchGoodsOptionImportAction(input: unknown): Promise<{ ok: true; accountId: string; data: GoodsOptionImportPage } | { ok: false; error: string }> {
   const auth = await requireAdminActionAccess(GOODS_OPTION_IMPORT_PATH);

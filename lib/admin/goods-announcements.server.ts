@@ -42,7 +42,7 @@ export async function loadGoodsAnnouncements(filters: GoodsAnnouncementFilters):
     p_category: filters.category, p_state: filters.state, p_from: filters.from || null, p_to: filters.to || null,
     p_limit: filters.pageSize, p_offset: (filters.page - 1) * filters.pageSize });
   if (error || !object(data) || !nonnegative(data.total) || !Array.isArray(data.rows) || data.rows.some(row => !object(row) || !validBase(row)
-    || !nonnegative(row.goodCount) || !GOODS_ANNOUNCEMENT_STATES.some(item => item.value === row.state))) throw new Error('상품 공지사항을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+    || !nonnegative(row.goodCount) || !GOODS_ANNOUNCEMENT_STATES.some(item => item.value === row.state))) throw new Error('공지 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
   const lastPage = Math.max(1, Math.ceil(Number(data.total) / filters.pageSize));
   if (filters.page > lastPage) return loadGoodsAnnouncements({ ...filters, page: lastPage });
   return { rows: (data.rows as Record<string, unknown>[]).map(row => ({ ...row, placement: goodsAnnouncementPlacement(row.placement) }) as unknown as GoodsAnnouncementListRow),
@@ -50,15 +50,15 @@ export async function loadGoodsAnnouncements(filters: GoodsAnnouncementFilters):
 }
 export async function loadGoodsAnnouncement(id: string, allowNew = false): Promise<GoodsAnnouncement | null> {
   const client = await createClient(); const { data, error } = await client.rpc('admin_get_goods_announcement_editor_context', { p_id: id });
-  if (error) throw new Error('상품 공지를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+  if (error) throw new Error('공지를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
   const popup = object(data) ? parsePopupSelection(data.popup) : null;
-  if (!object(data) || !popup) throw new Error('상품 공지를 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해주세요.');
+  if (!object(data) || !popup) throw new Error('공지를 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해주세요.');
   if (data.announcement === null) {
-    if (popup.selected) throw new Error('상품 공지를 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해주세요.');
+    if (popup.selected) throw new Error('공지를 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해주세요.');
     return allowNew ? { ...blankGoodsAnnouncement(id), popup } : null;
   }
   const value = object(data.announcement) ? parseGoodsAnnouncement({ ...data.announcement, popup }) : null;
-  if (!value || value.id !== id) throw new Error('상품 공지를 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해주세요.');
+  if (!value || value.id !== id) throw new Error('공지를 불러왔지만 내용을 읽지 못했습니다. 새로고침한 뒤 다시 확인해주세요.');
   return value;
 }
 export async function searchGoodsForAnnouncement(query: string, page: number): Promise<GoodsAnnouncementCandidates> {

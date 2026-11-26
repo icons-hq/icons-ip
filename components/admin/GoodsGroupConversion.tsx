@@ -13,12 +13,17 @@ import { Input } from './kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 import { GoodsGroupProductPicker, GroupCompleted, GroupOperationStatus, GroupTable, useGoodsGroupOperation, useGoodsGroupSession } from './GoodsGroupOperation';
 import { useAdminLeaveGuard } from './useAdminLeaveGuard';
+import { adminConfirm } from '@/lib/admin/confirm';
+import { GOODS_GROUP_SOURCE_CONFIRM, goodsGroupAxisConfirm, goodsGroupSelectionConfirm } from '@/lib/admin/goods-group-confirm';
 
+type SourceVariant = GoodsGroupSource['variants'][number];
+/** 원상품의 옵션에서 채워지는 옵션값. 옵션명 칸마다 같은 이름의 선택 값을 쓰고, 없으면 첫 칸에 옵션 이름을 쓴다. */
+const variantValues = (variant: SourceVariant, optionNames: string[]) => optionNames.map((name, index) => variant.attributes[name] ?? (index === 0 ? variant.name : ''));
 function initialDraft(source: GoodsGroupSource | null): GoodsGroupConversionRequest {
   const optionNames = Object.keys(source?.variants.find(row => Object.keys(row.attributes).length > 0)?.attributes ?? {}).slice(0, 3);
   if (!optionNames.length) optionNames.push('종류');
   return { sourceGoodId: source?.goodId ?? '', name: [...(source?.name ?? '')].slice(0, 40).join(''), optionNames,
-    selections: source?.variants.slice(0, 100).map(row => ({ variantId: row.id, values: optionNames.map((name, index) => row.attributes[name] ?? (index === 0 ? row.name : '')) })) ?? [] };
+    selections: source?.variants.slice(0, 100).map(row => ({ variantId: row.id, values: variantValues(row, optionNames) })) ?? [] };
 }
 const CONVERSION_DESCRIPTION = '한 상품의 선택형 옵션을 각각 독립된 판매옵션으로 전환합니다. 첫 번째 옵션이 기존 상품번호·상품 URL을 유지합니다.';
 
@@ -33,21 +38,40 @@ export function GoodsGroupConversion({ initialSource, actorId, sessionId, title 
   /* 상품을 고르기만 했으면 기본값 그대로라 잃을 입력이 없다. 전환이 끝났거나 로그인이 바뀌면 입력 칸이 사라져 묻지 않는다. */
   const dirty = !session.blocked && operation.receipt?.state !== 'completed' && JSON.stringify(draft) !== JSON.stringify(initialDraft(source));
   useAdminLeaveGuard({ dirty, blocked: operation.pending });
-  function change(next: GoodsGroupConversionRequest) { if (locked || !session.current()) return; sequence.current += 1; setDraft(next); setPreview(null); setApproved(false); setError(''); }
-  function selectSource(next: GoodsGroupSource) { if (locked || !session.current()) return; setSource(next); setDraft(initialDraft(next)); setChoosing(false); setPreview(null); setApproved(false); setError(''); sequence.current += 1; }
-  function toggle(variantId: string) {
+  /** `update`는 확인창을 기다린 뒤에 쓴다. 기다리는 동안 입력이 바뀌었을 수 있어 그때의 값에서 바꾼다. */
+  function update(next: (current: GoodsGroupConversionRequest) => GoodsGroupConversionRequest) { if (locked || !session.current()) return; sequence.current += 1; setDraft(next); setPreview(null); setApproved(false); setError(''); }
+  function change(next: GoodsGroupConversionRequest) { update(() => next); }
+  /** 다른 상품을 고르면 입력이 새 상품의 값으로 다시 채워진다. 기본값에서 고친 것이 있을 때만 묻고, 취소하면 선택창을 그대로 둔다. */
+  async function selectSource(next: GoodsGroupSource) {
+    if (locked || !session.current()) return;
+    if (dirty && !await adminConfirm(GOODS_GROUP_SOURCE_CONFIRM)) return;
+    if (!session.current()) return;
+    setSource(next); setDraft(initialDraft(next)); setChoosing(false); setPreview(null); setApproved(false); setError(''); sequence.current += 1;
+  }
+  /** 체크를 풀면 그 옵션의 옵션값이 사라진다. 원상품에서 채워진 값은 다시 체크하면 되살아나므로, 고쳐 적은 값이 있을 때만 묻는다. */
+  async function toggle(variantId: string) {
     if (!source) return;
-    const present = draft.selections.some(row => row.variantId === variantId), variant = source.variants.find(row => row.id === variantId);
-    if (!variant || !present && draft.selections.length >= 100) return;
-    change({ ...draft, selections: present ? draft.selections.filter(row => row.variantId !== variantId)
-      : [...draft.selections, { variantId, values: draft.optionNames.map((name, index) => variant.attributes[name] ?? (index === 0 ? variant.name : '')) }] });
+    const row = draft.selections.find(item => item.variantId === variantId), variant = source.variants.find(item => item.id === variantId);
+    if (!variant || !row && draft.selections.length >= 100) return;
+    if (row) {
+      const original = variantValues(variant, draft.optionNames), ask = goodsGroupSelectionConfirm(variant.name, row.values.filter((value, index) => value.trim() && value !== original[index]).length);
+      if (ask && !await adminConfirm(ask)) return;
+    }
+    update(current => ({ ...current, selections: row ? current.selections.filter(item => item.variantId !== variantId)
+      : [...current.selections, { variantId, values: variantValues(variant, current.optionNames) }] }));
   }
   function move(index: number, delta: number) {
     const next = [...draft.selections], target = index + delta; if (target < 0 || target >= next.length) return;
     [next[index], next[target]] = [next[target], next[index]]; change({ ...draft, selections: next });
   }
-  function axes(count: number) { change({ ...draft, optionNames: Array.from({ length: count }, (_, index) => draft.optionNames[index] ?? ''),
-    selections: draft.selections.map(row => ({ ...row, values: Array.from({ length: count }, (_, index) => row.values[index] ?? '') })) }); }
+  /** 옵션명 개수. 줄이면 줄어드는 쪽의 옵션명·옵션값이 사라지고, 다시 늘려도 되살아나지 않으므로 있을 때만 묻는다. */
+  async function axes(count: number) {
+    if (locked || !session.current() || count === draft.optionNames.length) return;
+    const ask = count < draft.optionNames.length ? goodsGroupAxisConfirm(draft.optionNames, draft.selections, count) : null;
+    if (ask && !await adminConfirm(ask)) return;
+    update(current => ({ ...current, optionNames: Array.from({ length: count }, (_, index) => current.optionNames[index] ?? ''),
+      selections: current.selections.map(row => ({ ...row, values: Array.from({ length: count }, (_, index) => row.values[index] ?? '') })) }));
+  }
   function compare() {
     if (locked || busy.current || !identity || !source || !session.current()) return;
     const request = parseGoodsGroupConversionRequest({ ...draft, name: draft.name.trim(), optionNames: draft.optionNames.map(value => value.trim()),
@@ -79,20 +103,20 @@ export function GoodsGroupConversion({ initialSource, actorId, sessionId, title 
     {operation.receipt?.state === 'completed' ? <GroupCompleted receipt={operation.receipt} /> : <>
       {operation.receipt?.state === 'sealed' ? <Button className="self-start" variant="outline" type="button" onClick={() => { operation.clearReceipt(); setPreview(null); setApproved(false); }}>입력으로 돌아가 다시 비교</Button> : null}
       {choosing ? <GoodsGroupProductPicker identity={identity} disabled={locked} onSelect={selectSource} /> : null}
-      {source ? <><AdminSectionCard title="전환할 원상품"><p className="flex flex-col text-sm"><strong className="font-medium">{source.name}</strong><span className="text-muted-foreground">상품 URL {source.goodId} · 상품 자동코드 {source.code ?? '—'}</span></p>
+      {source ? <><AdminSectionCard title="전환할 원상품"><p className="flex flex-col text-sm"><strong className="font-medium">{source.name}</strong><span className="text-muted-foreground">상품 자동코드 {source.code ?? '—'}</span></p>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2"><Button variant="outline" type="button" disabled={locked} onClick={() => setChoosing(!choosing)}>{choosing ? '상품 선택 닫기' : '다른 상품 선택'}</Button>
           <Link className="text-sm underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(source.goodId)}`}>상품 관리</Link>{source.groupId ? <Link className="text-sm underline underline-offset-4" href={goodsGroupHref(source.groupId)}>기존 그룹상품 열기</Link> : null}</div>
         {source.blockers.length ? <ul className="list-disc space-y-1 pl-5 text-sm text-destructive" role="alert">{source.blockers.map(value => <li key={value}>{goodsGroupBlockerLabel(value)}</li>)}</ul> : null}
       </AdminSectionCard>
       <form onSubmit={event => { event.preventDefault(); compare(); }}><AdminSectionCard title="그룹명과 판매옵션"><fieldset className="flex min-w-0 flex-col gap-4" disabled={locked || source.blockers.length > 0}>
         <AdminFormGrid><AdminField label="그룹상품명 · 40자" inputId="conversion-group-name"><Input id="conversion-group-name" value={draft.name} maxLength={80} onChange={event => change({ ...draft, name: event.target.value })} /></AdminField>
-          <AdminField label="옵션명 개수" inputId="conversion-axis-count"><AdminSelect id="conversion-axis-count" value={draft.optionNames.length} onChange={event => axes(Number(event.target.value))}>{[1, 2, 3].map(count => <option key={count} value={count}>{count}개</option>)}</AdminSelect></AdminField>
+          <AdminField label="옵션명 개수" inputId="conversion-axis-count"><AdminSelect id="conversion-axis-count" value={draft.optionNames.length} onChange={event => { void axes(Number(event.target.value)); }}>{[1, 2, 3].map(count => <option key={count} value={count}>{count}개</option>)}</AdminSelect></AdminField>
           {draft.optionNames.map((name, index) => <AdminField key={index} label={`옵션명 ${index + 1} · 40자`} inputId={`conversion-axis-${index}`}><Input id={`conversion-axis-${index}`} value={name} maxLength={80}
             onChange={event => change({ ...draft, optionNames: draft.optionNames.map((value, at) => at === index ? event.target.value : value) })} placeholder={index === 0 ? '색상' : index === 1 ? '크기' : '용량'} /></AdminField>)}</AdminFormGrid>
         <p className="text-sm text-muted-foreground">선택 {draft.selections.length} / 100개. 선택 순서의 첫 옵션이 기존 상품번호·상품 URL을 유지하며 나머지는 새 상품번호·상품 URL로 분리됩니다.</p>
         <GroupTable label="전환할 옵션과 순서" className="min-w-[720px]"><TableHeader><TableRow><TableHead className="w-10 min-w-10">선택</TableHead><TableHead>기존 옵션</TableHead><TableHead className="text-right">기본 판매가</TableHead><TableHead className="text-right">재고수량</TableHead>{draft.optionNames.map((name, index) => <TableHead key={index}>{name || `옵션명 ${index + 1}`} 값</TableHead>)}<TableHead>순서</TableHead></TableRow></TableHeader><TableBody>
           {ordered.map(variant => { const index = draft.selections.findIndex(row => row.variantId === variant.id), selected = index >= 0; return <TableRow key={variant.id} data-selected={selected} data-state={selected ? 'selected' : undefined}>
-            <TableCell className="relative w-10 min-w-10 p-0"><label className="absolute inset-0 flex cursor-pointer items-center justify-center"><input type="checkbox" aria-label={`${variant.name} 변환 선택`} checked={selected} disabled={!selected && draft.selections.length >= 100} onChange={() => toggle(variant.id)} /></label></TableCell>
+            <TableCell className="relative w-10 min-w-10 p-0"><label className="absolute inset-0 flex cursor-pointer items-center justify-center"><input type="checkbox" aria-label={`${variant.name} 변환 선택`} checked={selected} disabled={!selected && draft.selections.length >= 100} onChange={() => { void toggle(variant.id); }} /></label></TableCell>
             <TableCell className="whitespace-normal"><span className="flex min-w-32 flex-col items-start gap-1">{variant.name}<small className="text-xs text-muted-foreground">{variant.code ?? '옵션 자동코드 없음'}</small>{index === 0 ? <AdminStatusBadge>기존 상품번호 유지</AdminStatusBadge> : null}</span></TableCell>
             <TableCell className="text-right tabular-nums">{formatWon(variant.price)}</TableCell><TableCell className="text-right tabular-nums">{variant.stockQty.toLocaleString('ko-KR')}개</TableCell>
             {draft.optionNames.map((name, axis) => <TableCell className="text-muted-foreground" key={axis}>{selected ? <Input className="min-w-32 text-foreground" aria-label={`${variant.name} ${name || `옵션명 ${axis + 1}`} 값`} value={draft.selections[index].values[axis]} maxLength={160}
@@ -101,8 +125,8 @@ export function GoodsGroupConversion({ initialSource, actorId, sessionId, title 
           </TableRow>; })}</TableBody></GroupTable>
       </fieldset>{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}<Button className="self-start" type="submit" disabled={locked || source.blockers.length > 0}>{pending ? '비교 중…' : '변환 전 변경사항 비교'}</Button></AdminSectionCard></form>
       {preview?.state === 'blocked' ? <AdminSectionCard title="전환 전에 확인할 사항"><ul className="list-disc space-y-1 pl-5 text-sm text-destructive" role="alert">{preview.blockers.map(value => <li key={value}>{goodsGroupBlockerLabel(value)}</li>)}</ul><p className="text-sm text-muted-foreground">관련 상태를 처리한 뒤 상품을 다시 선택하고 비교해주세요.</p></AdminSectionCard> : null}
-      {preview?.state === 'ready' ? <AdminSectionCard title="변환 전 최종 비교"><GroupTable label="전환 결과 비교" className="min-w-[640px]"><TableHeader><TableRow><TableHead>기존 옵션</TableHead><TableHead>변환 후 상품명</TableHead><TableHead>상품 URL</TableHead><TableHead className="text-right">기본 판매가</TableHead><TableHead className="text-right">재고수량</TableHead></TableRow></TableHeader><TableBody>
-        {preview.plan.members.map(row => <TableRow key={row.sourceVariantId}><TableCell className="whitespace-normal">{row.sourceVariantName}</TableCell><TableCell className="whitespace-normal">{row.name}</TableCell><TableCell>{row.retainsGoodId ? `${row.goodId} 유지` : '새 상품 URL·상품번호 발급'}</TableCell><TableCell className="text-right tabular-nums">{formatWon(row.price)}</TableCell><TableCell className="text-right tabular-nums">{row.stockQty.toLocaleString('ko-KR')}개</TableCell></TableRow>)}</TableBody></GroupTable>
+      {preview?.state === 'ready' ? <AdminSectionCard title="변환 전 최종 비교"><GroupTable label="전환 결과 비교" className="min-w-[640px]"><TableHeader><TableRow><TableHead>기존 옵션</TableHead><TableHead>변환 후 상품명</TableHead><TableHead>상품번호</TableHead><TableHead className="text-right">기본 판매가</TableHead><TableHead className="text-right">재고수량</TableHead></TableRow></TableHeader><TableBody>
+        {preview.plan.members.map(row => <TableRow key={row.sourceVariantId}><TableCell className="whitespace-normal">{row.sourceVariantName}</TableCell><TableCell className="whitespace-normal">{row.name}</TableCell><TableCell>{row.retainsGoodId ? '기존 상품번호 유지' : '새 상품번호 발급'}</TableCell><TableCell className="text-right tabular-nums">{formatWon(row.price)}</TableCell><TableCell className="text-right tabular-nums">{row.stockQty.toLocaleString('ko-KR')}개</TableCell></TableRow>)}</TableBody></GroupTable>
         <ul className="list-disc space-y-1 pl-5 text-sm text-muted-foreground"><li>선택하지 않은 옵션 {preview.plan.unselectedOptions.length}개는 원상품에 판매 중지 상태로 남기며, 재고 {preview.plan.unselectedOptions.reduce((sum, row) => sum + row.stockQty, 0).toLocaleString('ko-KR')}개를 보존합니다.</li>
           <li>원상품을 포함한 모든 결과 상품은 미공개로 바뀌며 KC 재검토가 필요합니다.</li><li>기존 주문·결제·리뷰 이력은 원래 상품번호에 남습니다.</li><li>원상품의 합산 할인·배송비·구매한도는 계속 함께 적용됩니다.</li><li>기존 장바구니에서 중지된 옵션은 다시 선택해야 합니다.</li></ul>
         <label className="flex cursor-pointer items-center gap-2 text-sm"><input type="checkbox" checked={approved} disabled={locked} onChange={event => setApproved(event.target.checked)} /> 비교 내용과 미공개·KC 재검토 전환을 확인했습니다.</label>

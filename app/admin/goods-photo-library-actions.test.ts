@@ -26,7 +26,7 @@ describe('공용 사진 서버 액션', () => {
     expect(await saveGoodsPhotoAction({...photo, imagePath:'https://example.com/img.png'})).toMatchObject({error:expect.stringContaining('사진을 다시 올려주세요')});
     expect(mocks.rpc).not.toHaveBeenCalled();
     mocks.rpc.mockResolvedValueOnce({ error: { code: 'PT409', message: 'goods_photo_changed' } });
-    expect(await saveGoodsPhotoAction(photo)).toMatchObject({ error: expect.stringContaining('입력은 그대로 있습니다') });
+    expect(await saveGoodsPhotoAction(photo)).toMatchObject({ error: expect.stringContaining('다른 사람이 이 사진을 먼저 바꿨습니다') });
     mocks.rpc.mockResolvedValueOnce({ error: { message: 'goods_photo_in_use' } });
     expect(await saveGoodsPhotoAction({...photo, archived:true})).toMatchObject({ error: expect.stringContaining('사용 중인 사진') });
   });

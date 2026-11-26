@@ -51,7 +51,7 @@ export async function GET(request: Request) {
       });
       if (!rows.length)
         return Response.json(
-          { error: '실패한 행이 없습니다.' },
+          { error: '실패한 줄이 없습니다.' },
           { status: 400 },
         );
     } else if (mode !== 'template')

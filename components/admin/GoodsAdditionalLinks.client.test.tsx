@@ -78,7 +78,7 @@ describe('연결 목록', () => {
     for (const label of ['추가구성상품 찾기', '상품 A 아래로 이동', '상품 A 연결에서 빼기']) expect(v.button(label).props.disabled, label).toBe(true);
   });
   it('안내 한 줄은 두 화면이 같은 말을 쓴다', () => {
-    expect(GOODS_ADDITIONAL_INTRO).toBe('연결한 상품은 각자의 옵션·가격 그대로 팔립니다. 품절·판매 중지 상품은 고객에게 보이지 않습니다.');
+    expect(GOODS_ADDITIONAL_INTRO).toBe('연결한 상품은 각자의 옵션·가격 그대로 팔립니다. 품절·판매중지 상품은 고객에게 보이지 않습니다.');
   });
 });
 
@@ -102,7 +102,7 @@ describe('상품 선택창', () => {
   /* 규칙 2: 고를 수 없는 상품은 목록에 넣고 눌렀을 때 거절하지 않는다. 조회가 지금 연결할 수 있는 상품만 돌려주고(총 개수·페이지도 그 수), 뺐다고 한 줄로 알린다. */
   it('지금 연결할 수 있는 상품만 돌려주는 조회를 쓰고, 뺀 상품을 한 줄로 알린다', async () => {
     const picker = open();
-    expect(picker.props.excludedNote).toBe('지금 고객이 살 수 없는 상품(공개 전·판매기간 밖·품절·판매 중지·판매 제한)은 목록에서 뺐습니다.');
+    expect(picker.props.excludedNote).toBe('지금 고객이 살 수 없는 상품(공개 전·판매기간 밖·품절·판매중지·판매 제한)은 목록에서 뺐습니다.');
     const page = { rows: [good('g-c')], total: 1, page: 2, pageSize: 20 };
     mocks.search.mockResolvedValueOnce({ ok: true, data: page });
     await expect(picker.props.load!({ query: '케이스', field: 'code', filter: 'category-1', page: 2 })).resolves.toBe(page);

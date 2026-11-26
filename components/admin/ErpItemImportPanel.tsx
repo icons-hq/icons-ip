@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { importErpItemsAction, readErpItemFileAction, type ErpItemFileResult, type ErpItemImportResult } from '@/app/admin/erp-item-actions';
+import { countErpItemClearsAction, importErpItemsAction, readErpItemFileAction, type ErpItemClearsResult, type ErpItemFileResult, type ErpItemImportResult } from '@/app/admin/erp-item-actions';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { FoldCard } from '@/components/admin/sections/SectionLayout';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
@@ -29,7 +29,16 @@ import {
   type ErpImportIssue,
   type ErpImportRow,
 } from '@/lib/admin/erp-item-import';
-import { formatErpSalePrice } from '@/lib/admin/erp-items';
+import { adminConfirm } from '@/lib/admin/confirm';
+import {
+  emptyErpItemClears,
+  erpItemBlankFields,
+  erpItemBlanksUncheckedConfirmation,
+  erpItemClearsConfirmation,
+  formatErpSalePrice,
+  mergeErpItemClears,
+  type ErpItemClears,
+} from '@/lib/admin/erp-items';
 import { erpImportFollowUp, unlinkedPastedCategories, type ErpImportFollowUp } from '@/lib/admin/erp-import-follow-up';
 import { ERP_LINKED_GOODS_SECTION_ID } from '@/lib/admin/erp-linked-goods';
 import { useErpItemsWorkspace } from './ErpItemsWorkspace';
@@ -60,6 +69,21 @@ export function erpItemFileError(file: Pick<File, 'name' | 'size'>): string | nu
   return null;
 }
 
+/**
+ * 칸이 빈 줄 가운데 이미 올려 둔 값이 지워지는 품목을 센다(화면 규칙 7). 서버 액션 본문 상한 때문에 올릴 때처럼 500줄씩 나눠 묻는다.
+ * 비교하지 못하면 null — 올리기를 막지 않고, 지워질 수 있다는 것만 알리고 묻는다.
+ */
+async function countClears(rows: readonly ErpImportRow[]): Promise<ErpItemClears | null> {
+  let clears = emptyErpItemClears();
+  for (const chunk of chunkErpImportRows(rows)) {
+    let result: ErpItemClearsResult;
+    try { result = await countErpItemClearsAction(chunk); } catch { return null; }
+    if (!result.ok) return null;
+    clears = mergeErpItemClears(clears, result.clears);
+  }
+  return clears;
+}
+
 function keptValue(row: ErpImportRow, key: 'category' | 'salePrice' | 'barcode') {
   if (!Object.hasOwn(row, key)) return <span className="text-muted-foreground">기존 값 유지</span>;
   if (key === 'salePrice') return row.salePrice === null ? <span className="text-muted-foreground">비움</span> : formatErpSalePrice(row.salePrice ?? null);
@@ -79,7 +103,7 @@ function IssueTable({ caption, issues }: { caption: string; issues: ErpImportIss
   return <div className={TABLE_REGION} role="region" aria-label={caption} tabIndex={0}>
     <table className={TABLE} data-slot="table">
       <caption className={CAPTION}>{caption}{issues.length > ISSUE_LIST_LIMIT ? ` · 앞 ${ISSUE_LIST_LIMIT}건만 표시` : ''}</caption>
-      <TableHeader><TableRow><TableHead scope="col">행</TableHead><TableHead scope="col">ERP 코드</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
+      <TableHeader><TableRow><TableHead scope="col">줄</TableHead><TableHead scope="col">ERP 코드</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
       <TableBody>{issues.slice(0, ISSUE_LIST_LIMIT).map((issue, index) => <TableRow key={`${issue.row}:${index}`}>
         <TableCell className="tabular-nums">{issue.row.toLocaleString('ko-KR')}</TableCell>
         <TableCell className={CODE}>{issue.code || '-'}</TableCell>
@@ -90,8 +114,9 @@ function IssueTable({ caption, issues }: { caption: string; issues: ErpImportIss
 }
 
 /**
- * ERP '품목 생성' 데이터 반입: 붙여넣기·파일 → 열 짝짓기 미리보기 → 반입 → 결과 요약.
+ * ERP '품목 생성' 데이터 반입: 붙여넣기·파일 → 열 연결 미리보기 → 반입 → 결과 요약.
  * 미리보기와 열 변경은 브라우저에서 하고, 반입 행은 서버 액션이 다시 검증한다.
+ * 이미 올려 둔 값이 지워지는 품목이 있으면(열을 골랐는데 칸이 빈 줄) 올리기 전에 수와 품목을 보이고 한 번 묻는다.
  * 가끔 쓰는 도구라 접어 두어 매일 보는 품목 표가 첫 화면에 들어오게 한다(반입한 품목이 없으면 펼친다).
  */
 export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories = [] }: {
@@ -111,6 +136,8 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
   const [summary, setSummary] = useState<ErpImportSummary | null>(null);
   /* 반입된 행의 ERP 코드·분류. 연결 상품 비교 범위와 '미연결 분류 N건'에 쓴다(1027T-016·1027T-X04). */
   const [followUp, setFollowUp] = useState<ErpImportFollowUp | null>(null);
+  /* 올리기 전에 올려 둔 값과 비교하는 동안. */
+  const [checking, setChecking] = useState(false);
   const [reading, startReading] = useTransition();
   const [importing, startImporting] = useTransition();
   const busy = reading || importing;
@@ -175,15 +202,35 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
 
   const runImport = () => {
     if (!plan || plan.blocking || !plan.rows.length) return;
-    const chunks = chunkErpImportRows(plan.rows);
-    const total = plan.rows.length;
+    const rows = plan.rows;
+    const chunks = chunkErpImportRows(rows);
+    const total = rows.length;
+    /* 열을 골랐는데 칸이 비어 있으면 그 품목의 올려 둔 값이 지워진다. 그런 줄이 있을 때만 올리기 전에 올려 둔 값과 비교한다. */
+    const blankRows = rows.filter((row) => erpItemBlankFields(row).length > 0);
+    const showProgress = () => {
+      setSummary(null);
+      setFollowUp(null);
+      setProgress({ done: 0, total });
+    };
     setError('');
-    setSummary(null);
-    setFollowUp(null);
-    setProgress({ done: 0, total });
-    /* 미리보기에서 걸러진 행도 반입되지 않았으므로 결과의 거부에 함께 센다. */
+    /* 화면에 바로 보일 표시는 transition 밖에서 바꾼다(transition 안의 첫 갱신은 끝날 때까지 미뤄진다). */
+    if (blankRows.length) setChecking(true);
+    else showProgress();
+    /* 미리보기에서 걸러진 행도 반입되지 않았으므로 결과의 올리지 못한 줄에 함께 센다. */
     const previewIssues = [...plan.issues];
     startImporting(async () => {
+      if (blankRows.length) {
+        /* 지워지는 값이 실제로 있을 때만 수와 품목을 보이고 묻는다(새 품목·이미 빈 값은 묻지 않는다). 취소하면 미리보기를 그대로 둔다. */
+        let go = false;
+        try {
+          const clears = await countClears(blankRows);
+          const question = clears === null ? erpItemBlanksUncheckedConfirmation(blankRows.length) : clears.items ? erpItemClearsConfirmation(clears) : null;
+          /* 확인창의 제목·버튼은 누르면 일어나는 일을 말한다 — 본문 끝의 '그대로 올릴까요?'에 답하는 버튼이다. */
+          go = !question || await adminConfirm({ title: clears === null ? '올려 둔 값이 지워질 수 있습니다' : '올려 둔 값이 지워집니다', message: question, confirmLabel: '그대로 올리기' });
+        } finally { setChecking(false); }
+        if (!go) return;
+        showProgress();
+      }
       const merged: ErpImportSummary = { inserted: 0, updated: 0, unchanged: 0, rejected: previewIssues };
       /* 반입된 행만 이어 할 일(연결 상품 비교·미연결 분류)에 넘긴다. 실패한 묶음과 DB가 거부한 행은 뺀다. */
       const imported: ErpImportRow[] = [];
@@ -266,13 +313,14 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
           accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
           onChange={(event) => { const file = event.target.files?.[0]; if (file) readFile(file); }}
         />
-        <p className={HINT} id="erp-item-file-hint">XLSX·CSV {FILE_KB}KB 이하. 제목 행이 있어도 처음 10행 안에서 머리글을 찾습니다. XLS는 XLSX로 다시 저장해 올려주세요.</p>
+        <p className={HINT} id="erp-item-file-hint">XLSX·CSV {FILE_KB}KB 이하. 제목 줄이 있어도 처음 {ERP_ITEM_HEADER_SCAN_ROWS}줄 안에서 머리글을 찾습니다. XLS는 XLSX로 다시 저장해 올려주세요.</p>
         {reading ? <p className={HINT} role="status">파일을 읽는 중입니다.</p> : null}
       </div>
     </div>
 
     <div aria-live="polite" className="flex flex-col gap-1 empty:hidden">
       {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+      {checking ? <p className="text-sm" role="status">올리기 전에 올려 둔 값과 비교하는 중입니다.</p> : null}
       {progress ? <p className="text-sm tabular-nums" role="status">올리는 중 · {progress.done.toLocaleString('ko-KR')} / {progress.total.toLocaleString('ko-KR')}건</p> : null}
     </div>
 
@@ -281,18 +329,17 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
         <AdminStatusBadge tone="success">추가 {summary.inserted.toLocaleString('ko-KR')}</AdminStatusBadge>{' '}
         <AdminStatusBadge tone="success">변경 {summary.updated.toLocaleString('ko-KR')}</AdminStatusBadge>{' '}
         <AdminStatusBadge>같음 {summary.unchanged.toLocaleString('ko-KR')}</AdminStatusBadge>{' '}
-        <AdminStatusBadge tone={summary.rejected.length ? 'danger' : 'neutral'}>거부 {summary.rejected.length.toLocaleString('ko-KR')}</AdminStatusBadge>
+        <AdminStatusBadge tone={summary.rejected.length ? 'danger' : 'neutral'}>올리지 못함 {summary.rejected.length.toLocaleString('ko-KR')}</AdminStatusBadge>
       </p>
-      <p className={HINT}>같은 내용을 다시 올려도 &lsquo;같음&rsquo;으로 세고 아무것도 바꾸지 않습니다. 거부된 줄은 아래 사유를 보고 고친 뒤 다시 올려주세요.</p>
-      {/* 1027T-016: 붙여넣은 품목의 ERP 분류 중 고객 카테고리에 연결되지 않은 분류를 연결 표로 바로 안내한다. */}
-      {unlinkedPasted.length ? <AdminNotice tone="warning" title={`미연결 분류 ${unlinkedPasted.length.toLocaleString('ko-KR')}건`}>
-        <p>붙여넣은 품목의 ERP 분류 중 고객 카테고리에 연결되지 않은 분류가 있습니다. 연결해 두면 상품 옵션에서 ERP 품목을 고를 때 카테고리를 제안합니다.</p>
-        <p className="mt-1 text-xs text-muted-foreground wrap-anywhere">{unlinkedPasted.slice(0, 5).join(' · ')}{unlinkedPasted.length > 5 ? ` 외 ${(unlinkedPasted.length - 5).toLocaleString('ko-KR')}건` : ''}</p>
+      {summary.rejected.length ? <p className={HINT}>올리지 못한 줄은 아래 사유를 보고 고친 뒤 다시 올려주세요.</p> : null}
+      {/* 1027T-016: 붙여넣은 품목의 ERP 분류 중 고객 카테고리에 연결되지 않은 분류를 연결 표로 바로 안내한다. 연결 표의 '연결 필요'와 같은 말을 쓴다. */}
+      {unlinkedPasted.length ? <AdminNotice tone="warning" title={`연결이 필요한 ERP 분류 ${unlinkedPasted.length.toLocaleString('ko-KR')}건`}>
+        <p className="text-xs text-muted-foreground wrap-anywhere">{unlinkedPasted.slice(0, 5).join(' · ')}{unlinkedPasted.length > 5 ? ` 외 ${(unlinkedPasted.length - 5).toLocaleString('ko-KR')}건` : ''}</p>
         <Button className="mt-2" size="sm" variant="outline" type="button" onClick={() => workspace?.showUnlinkedCategories()}>연결하기</Button>
       </AdminNotice> : null}
       {/* 1027T-X04: 반입이 끝나면 연결 상품 반영 패널이 방금 반입한 품목과 비교한다. 바꾸는 일은 그곳에서 확인한 뒤 한다. */}
       {followUp?.codes.length && workspace ? <p className={HINT}>
-        방금 올린 품목과 연결 상품의 판매가·바코드를 비교했습니다. 값이 다르면 아래 연결 상품 반영에서 확인하고 고른 줄만 상품에 반영합니다.{' '}
+        방금 올린 품목과 연결 상품의 판매가·바코드를 비교했습니다.{' '}
         <a className="text-foreground underline underline-offset-4" href={`#${ERP_LINKED_GOODS_SECTION_ID}`}>비교 결과 보기</a>
       </p> : null}
       <IssueTable caption="올리지 못한 줄" issues={summary.rejected} />
@@ -308,17 +355,17 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
       </header>
 
       <div className="flex max-w-[35rem] min-w-0 flex-col gap-2">
-        <label className="text-sm leading-snug font-medium" htmlFor="erp-item-header-row">머리글 행</label>
+        <label className="text-sm leading-snug font-medium" htmlFor="erp-item-header-row">머리글 줄</label>
         <AdminSelect id="erp-item-header-row" value={plan.headerIndex} disabled={busy} wrapperClassName="w-full"
           onChange={(event) => { setHeaderIndex(Number(event.target.value)); setMapping(undefined); }}>
-          <option value={-1}>머리글 없음 · 첫 행부터 품목</option>
+          <option value={-1}>머리글 없음 · 첫 줄부터 품목</option>
           {headerOptions.map((row, index) => <option key={index} value={index}>
-            {index + 1}행 · {row.map((cell) => normalizeErpText(cell, true)).filter(Boolean).slice(0, 4).join(' / ').slice(0, 60) || '빈 행'}
+            {index + 1}번째 줄 · {row.map((cell) => normalizeErpText(cell, true)).filter(Boolean).slice(0, 4).join(' / ').slice(0, 60) || '빈 줄'}
           </option>)}
         </AdminSelect>
       </div>
 
-      <div className={TABLE_REGION} role="region" aria-label="열 짝짓기" tabIndex={0}>
+      <div className={TABLE_REGION} role="region" aria-label="열 연결" tabIndex={0}>
         <table className={TABLE} data-slot="table">
           <caption className={CAPTION}>열마다 가져올 항목을 고릅니다. ERP 분류는 여러 열을 고르면 왼쪽부터 &lsquo; &gt; &rsquo;로 이어 붙입니다.</caption>
           <TableHeader><TableRow><TableHead scope="col">파일의 열</TableHead><TableHead scope="col">첫 값</TableHead><TableHead scope="col">가져올 항목</TableHead></TableRow></TableHeader>
@@ -344,8 +391,8 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
         <table className={`${TABLE} min-w-[640px]`} data-slot="table">
           <caption className={CAPTION}>올릴 품목 · 앞 {Math.min(ERP_ITEM_PREVIEW_ROWS, plan.rows.length).toLocaleString('ko-KR')}건</caption>
           <TableHeader><TableRow>
-            <TableHead scope="col">행</TableHead><TableHead scope="col">ERP 코드</TableHead><TableHead scope="col">ERP 품명</TableHead>
-            <TableHead scope="col">ERP 분류</TableHead><TableHead scope="col" className="text-right">판매가</TableHead><TableHead scope="col">바코드</TableHead>
+            <TableHead scope="col">줄</TableHead><TableHead scope="col">ERP 코드</TableHead><TableHead scope="col">ERP 품명</TableHead>
+            <TableHead scope="col">ERP 분류</TableHead><TableHead scope="col" className="text-right">ERP 판매가</TableHead><TableHead scope="col">바코드</TableHead>
           </TableRow></TableHeader>
           <TableBody>{previewRows.map((row) => <TableRow key={row.code}>
             <TableCell className="tabular-nums">{row.row.toLocaleString('ko-KR')}</TableCell>
@@ -360,10 +407,10 @@ export function ErpItemImportPanel({ defaultOpen = false, unlinkedErpCategories 
 
       <IssueTable caption="올릴 수 없는 줄" issues={plan.issues} />
 
-      <p className={HINT}>ERP 분류·판매가·바코드 중 열을 고르지 않은 항목은 전에 올려 둔 값을 그대로 둡니다. 열을 골랐는데 칸이 비어 있으면 그 품목의 값을 지웁니다.</p>
+      {/* 열을 고르지 않은 항목은 미리보기 칸의 '기존 값 유지'가, 칸이 비어 지워지는 값은 올리기 전 확인창이 말한다(화면 규칙 3·7). */}
       <div className="flex flex-wrap items-center gap-2 print:hidden">
         <Button type="button" disabled={busy || Boolean(plan.blocking) || !plan.rows.length} onClick={runImport}>
-          {importing ? '올리는 중' : `${plan.rows.length.toLocaleString('ko-KR')}건 올리기`}
+          {checking ? '확인하는 중' : importing ? '올리는 중' : `${plan.rows.length.toLocaleString('ko-KR')}건 올리기`}
         </Button>
         <Button variant="ghost" type="button" disabled={busy} onClick={reset}>처음부터 다시</Button>
       </div>

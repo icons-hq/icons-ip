@@ -5,7 +5,7 @@ import type { GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 
 const hooks = vi.hoisted(() => ({ state: [] as unknown[], stateIndex: 0 }));
 
-vi.mock('@/app/admin/erp-item-actions', () => ({ searchErpItemsAction: vi.fn() }));
+vi.mock('@/app/admin/erp-item-picker-actions', () => ({ searchErpItemPickerAction: vi.fn() }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return {
@@ -21,6 +21,7 @@ vi.mock('react', async () => {
 });
 
 const { GoodsOptionEditor } = await import('./GoodsOptionEditor');
+const { ErpItemPickButton } = await import('./ErpItemPicker');
 
 type ErpRowState = { item?: ErpItemMatch; message?: string; warning?: boolean };
 type DetailProps = {
@@ -46,11 +47,9 @@ let rows: GoodsOptionRow[];
 const setRows = vi.fn((next: SetStateAction<GoodsOptionRow[]>) => { rows = typeof next === 'function' ? next(rows) : next; });
 const onErpItemSelect = vi.fn();
 
-/** ErpItemNameInput은 품목을 고르면 품명 onChange를 먼저, 그다음 onSelect를 같은 이벤트에서 부른다. */
+/** 선택창에서 품목을 고르면 그 줄의 onErpSelect만 불린다(ERP 품명 칸은 직접 적는 칸이라 고르기 전에 바뀌지 않는다). */
 function choose(key: string, picked: ErpItemMatch) {
-  const table = detailTable();
-  table.props.onErpChange?.(key, picked.name);
-  table.props.onErpSelect?.(key, picked);
+  detailTable().props.onErpSelect?.(key, picked);
 }
 
 function detailTable() {
@@ -74,7 +73,7 @@ describe('옵션 상세 정보의 ERP 품목 선택', () => {
   it('다른 옵션이 쓰는 ERP 품목은 채우지 않고 경고하며, 카테고리·판매가 제안도 하지 않는다', () => {
     choose(savedRed, item);
     expect(onErpItemSelect).not.toHaveBeenCalled();
-    /* 입력 칸이 먼저 바꾼 품명도 고르기 전 입력으로 되돌려, 품명과 ERP 코드가 서로 다른 품목을 가리키지 않게 한다. */
+    /* 적어 둔 품명도 그대로 둬, 품명과 ERP 코드가 서로 다른 품목을 가리키지 않게 한다. */
     expect(rows[0]).toMatchObject({ erpCode: null, erpName: '아크', barcode: null });
     expect(rows[1]).toMatchObject({ erpCode: '000123', barcode: '0880000000123' });
     const state = detailTable().props.erpRows?.[savedRed];
@@ -104,9 +103,7 @@ describe('ERP 판매가 빈 칸 자동 입력', () => {
     return find(tree, (element) => typeof element.props.onErpSelect === 'function')[0];
   }
   function chooseWith(regularPrice: string, key: string) {
-    const table = tableWith(regularPrice);
-    table.props.onErpChange?.(key, item.name);
-    table.props.onErpSelect?.(key, item);
+    tableWith(regularPrice).props.onErpSelect?.(key, item);
   }
   const single = 'new:[]';
   beforeEach(() => { applyRegular.mockClear(); rows = [{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 1, erpCode: null, erpName: null, barcode: null }]; });
@@ -171,5 +168,126 @@ describe('옵션 상세 정보의 ERP 안내 색', () => {
     expect(lowStock[0].props.className).toContain('text-[var(--wc-warning)]');
     expect(lowStock[0].props.className).toContain('text-[11px]');
     expect(erpMessages()[0].props.className).not.toContain('text-[11px]');
+  });
+});
+
+/*
+ * 2026-11-25 화면 규칙 1(F4): ERP 품명 칸의 제안 목록(2자 이상·최대 8개)을 공용 선택창으로 바꿨다. 줄마다 [ERP 품목 고르기]가 있고,
+ * ERP 코드·바코드·ERP 품명 칸은 ERP 품목에 없는 것을 직접 적는 평범한 입력 칸이다. 고른 줄에만 고른 품목 한 줄이 보인다.
+ */
+describe('옵션 줄의 ERP 품목 고르기', () => {
+  type PickButton = ReactElement<Parameters<typeof ErpItemPickButton>[0]>;
+  type Tagged = ReactElement<DetailProps & { className?: string; 'data-tone'?: string; 'data-good-option-erp-picked'?: string; 'aria-label'?: string; role?: string }>;
+  function detailParts(canSearchErp = true) {
+    hooks.stateIndex = 0;
+    const tree = GoodsOptionEditor({ rows, baseline: [savedRed, savedBlue], basePrice: 10000, onRowsChange: setRows, onErpItemSelect, canSearchErp });
+    const table = find(tree, (element) => typeof element.props.onErpSelect === 'function')[0];
+    return find((table.type as (props: DetailProps) => ReactNode)(table.props), () => true) as Tagged[];
+  }
+  const pickButtons = (canSearchErp = true) => detailParts(canSearchErp).filter((element) => element.type === ErpItemPickButton) as unknown as PickButton[];
+  const summaries = () => detailParts().filter((element) => element.type === 'small' && element.props['data-good-option-erp-picked'] === '');
+
+  it('줄마다 버튼을 두고, 고르면 그 옵션에 ERP 코드·ERP 품명·바코드를 한 번에 넣는다', () => {
+    rows[1] = { ...rows[1], erpCode: '000124', barcode: '0880000000124' };
+    const buttons = pickButtons();
+    expect(buttons.map((button) => [button.props.ariaLabel, button.props.target])).toEqual([
+      ['옵션 1 ERP 품목 고르기', '옵션 1(빨강)'], ['옵션 2 ERP 품목 고르기', '옵션 2(파랑)'],
+    ]);
+    buttons[0].props.onSelect(item);
+    expect(rows[0]).toMatchObject({ erpCode: '000123', erpName: '아크릴 키링', barcode: '0880000000123' });
+    expect(rows[1]).toMatchObject({ erpCode: '000124' });
+    expect(onErpItemSelect).toHaveBeenCalledExactlyOnceWith(item);
+  });
+
+  /* G4: 옵션이 많은 상품에서 줄마다 같은 검색을 되풀이하지 않게, 버튼에 그 줄에 적힌 글과 표 전체를 넘긴다. */
+  it('버튼에 그 줄에 적힌 ERP 품명·ERP 코드와 표의 모든 줄을 넘겨, 선택창이 그 글로 열리고 아래의 빈 옵션으로 이어서 고르게 한다', () => {
+    rows[0] = { ...rows[0], erpName: '', erpCode: null };
+    const [red, blue] = pickButtons();
+    expect(red.props.rowText).toBe('');
+    expect(blue.props.rowText).toBe('아크릴 키링');
+    expect([red.props.queueKey, blue.props.queueKey]).toEqual([savedRed, savedBlue]);
+    expect(red.props.queue).toBe(blue.props.queue);
+    expect(red.props.queue!.map((entry) => [entry.key, entry.target, entry.empty, entry.currentCode])).toEqual([
+      [savedRed, '옵션 1(빨강)', true, null], [savedBlue, '옵션 2(파랑)', false, '000123'],
+    ]);
+    /* 표에서 읽은 줄도 그 줄의 버튼과 같은 일을 한다. */
+    expect(red.props.queue![0].blockedReason?.(item)).toBe('다른 옵션에 넣은 품목');
+    red.props.queue![0].onSelect({ ...item, code: '000999', name: '아크릴 키링 레드', barcode: null });
+    expect(rows[0]).toMatchObject({ erpCode: '000999', erpName: '아크릴 키링 레드' });
+    /* ERP 품명이 없고 ERP 코드만 적은 줄은 그 코드로 찾는다. */
+    rows[1] = { ...rows[1], erpName: ' ', erpCode: ' 000124 ' };
+    expect(pickButtons()[1].props.rowText).toBe('000124');
+    expect(pickButtons()[1].props.queue![1]).toMatchObject({ empty: false, currentCode: '000124' });
+  });
+
+  it('같은 상품의 다른 옵션이 쓰는 품목은 선택창에서 고를 수 없고, 자기 줄의 품목은 다시 고를 수 있다', () => {
+    const [red, blue] = pickButtons();
+    expect(red.props.blockedReason?.(item)).toBe('다른 옵션에 넣은 품목');
+    expect(blue.props.blockedReason?.(item)).toBeNull();
+    expect(red.props.blockedReason?.({ ...item, code: '000999', barcode: null })).toBeNull();
+    /* 코드는 달라도 비어 있는 바코드 칸에 들어갈 바코드를 다른 옵션이 쓰고 있으면 고를 수 없다. */
+    expect(red.props.blockedReason?.({ ...item, code: '000999' })).toBe('다른 옵션에 넣은 품목');
+  });
+
+  /* F1(2026-11-26 QA-B): 다른 상품의 옵션이 쓰는 품목은 선택창 조회가 알려 준 대로 고르기 전에 막는다. 지금 표에 있는 옵션이 쓰는 품목은 표의 값으로 가린다. */
+  it('다른 상품이나 사용 중지한 옵션이 쓰는 품목은 까닭과 함께 고를 수 없다', () => {
+    rows[1] = { ...rows[1], erpCode: '000124', barcode: '0880000000124' };
+    const free = { ...item, code: '000777', barcode: '0880000000777' };
+    const usedElsewhere = (variantId: string, via: 'erpCode' | 'barcode' = 'erpCode') => ({ ...free, usedBy: { variantId, goodName: 'QA 키링', optionName: '기본 옵션', via } });
+    const [red, blue] = pickButtons();
+    expect(red.props.blockedReason?.(free)).toBeNull();
+    expect(red.props.blockedReason?.(usedElsewhere('99999999-9999-4999-8999-999999999999'))).toBe('다른 상품에 넣은 품목 · QA 키링');
+    /* 지금 표에 있는 파랑(저장된 옵션)이 쓰던 품목: 파랑에서 이미 다른 코드로 바꿨으므로 빨강에 넣을 수 있다. */
+    expect(red.props.blockedReason?.(usedElsewhere(savedBlue))).toBeNull();
+    /* 바코드만 겹치는 품목: 빨강은 바코드 칸이 비어 있어 막고, 바코드를 적어 둔 파랑은 막지 않는다. */
+    expect(red.props.blockedReason?.(usedElsewhere('99999999-9999-4999-8999-999999999999', 'barcode'))).toBe('다른 상품에 넣은 바코드 · QA 키링');
+    expect(blue.props.blockedReason?.(usedElsewhere('99999999-9999-4999-8999-999999999999', 'barcode'))).toBeNull();
+  });
+
+  it('ERP 품목을 찾을 권한이 없으면 버튼이 없고, 세 칸은 그대로 직접 적는다', () => {
+    expect(pickButtons(false)).toHaveLength(0);
+    const inputs = detailParts(false).filter((element) => element.type === 'input').map((element) => element.props['aria-label']);
+    for (const label of ['옵션 1 ERP 코드', '옵션 1 바코드', '옵션 1 ERP 품명']) expect(inputs).toContain(label);
+  });
+
+  it('ERP 품명 칸은 제안 목록이 없는 평범한 입력 칸이다', () => {
+    const name = detailParts().find((element) => element.type === 'input' && element.props['aria-label'] === '옵션 1 ERP 품명')!;
+    expect(name.props.role).toBeUndefined();
+    (name.props as { onChange: (event: unknown) => void }).onChange({ target: { value: '직접 적은 품명' } });
+    expect(rows[0]).toMatchObject({ erpCode: null, erpName: '직접 적은 품명', barcode: null });
+    expect(onErpItemSelect).not.toHaveBeenCalled();
+  });
+
+  it('고른 줄에만 고른 품목 한 줄이 보이고, 직접 적은 줄과 고른 뒤 손으로 고친 줄에는 없다', () => {
+    rows[1] = { ...rows[1], erpCode: '000124', barcode: '0880000000124' };
+    /* 파랑은 ERP 코드·품명·바코드가 다 있지만 직접 적은 줄이다. */
+    expect(summaries()).toHaveLength(0);
+    pickButtons()[0].props.onSelect(item);
+    const [picked] = summaries();
+    expect(summaries()).toHaveLength(1);
+    expect(picked.props.children).toBe('ERP 품목에서 가져왔습니다 · 000123 · 바코드 0880000000123');
+    expect(picked.props.className).toContain('text-muted-foreground');
+    expect(picked.props['data-tone']).toBeUndefined();
+
+    /* ERP 코드를 손으로 고치면 더는 그 품목이 아니다. 되돌리면 다시 보인다. */
+    rows[0] = { ...rows[0], erpCode: '000123-A' };
+    expect(summaries()).toHaveLength(0);
+    rows[0] = { ...rows[0], erpCode: '000123' };
+    expect(summaries()).toHaveLength(1);
+    /* ERP 품명을 손으로 고치면 고른 품목 표시와 판매가 제안을 함께 거둔다. */
+    detailTable().props.onErpChange?.(savedRed, '아크릴 키링 (수정)');
+    expect(summaries()).toHaveLength(0);
+    expect(detailTable().props.erpRows?.[savedRed]).toBeUndefined();
+  });
+
+  it('적어 둔 바코드가 고른 품목과 다르면 그대로 두고 경고색으로 알린다', () => {
+    rows[0] = { ...rows[0], barcode: '4900000000011' };
+    rows[1] = { ...rows[1], erpCode: '000124', barcode: '0880000000124' };
+    pickButtons()[0].props.onSelect(item);
+    expect(rows[0]).toMatchObject({ erpCode: '000123', barcode: '4900000000011' });
+    const [picked] = summaries();
+    expect(picked.props.children).toBe('ERP 품목에서 가져왔습니다 · 000123 · 바코드 칸에 있던 값(4900000000011)은 그대로 뒀습니다. 이 품목의 바코드는 0880000000123입니다. 이 품목 것으로 바꾸려면 바코드 칸을 고쳐 주세요.');
+    expect(picked.props['data-tone']).toBe('warning');
+    expect(picked.props.className).toContain('text-[var(--wc-warning)]');
   });
 });
