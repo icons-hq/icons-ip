@@ -102,11 +102,11 @@ function readBirthDate(formData: FormData) {
   return { value };
 }
 
-/* 선택 성별(10/14 회의 S5). 고르지 않으면 아무것도 저장하지 않는다(미선택 유지).
- * 고른 경우에만 별도 수집·이용 동의를 함께 받는다 — 한쪽만 있으면 저장하지 않고 이유를 말한다. */
+/* 가입 화면에서 제공하기로 선택한 성별을 읽는다. 예전 폼은 성별과 별도 동의가 모두 있어야 한다. */
 function readOnboardingGender(formData: FormData): { gender: DemographicGender | null; error?: string } {
-  const value = readString(formData, 'gender');
-  const consent = formData.get('genderConsent') === 'on';
+  const choice = formData.get('consentedGender');
+  const value = choice ?? readString(formData, 'gender');
+  const consent = choice === null ? formData.get('genderConsent') === 'on' : choice !== '';
   if (!value) return consent ? { gender: null, error: '동의하려면 성별을 선택해주세요.' } : { gender: null };
   if (!isDemographicGender(value)) return { gender: null, error: '성별을 다시 선택해주세요.' };
   if (!consent) return { gender: null, error: '성별을 저장하려면 수집·이용에 동의해주세요.' };

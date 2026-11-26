@@ -14,9 +14,10 @@ update public.profiles set nickname='합성회원'||right(id::text,1),onboarded_
   role=case when id=pg_temp.uid(1) then 'admin' else 'user' end::public.user_role where id in (pg_temp.uid(1),pg_temp.uid(2),pg_temp.uid(3));
 update private.operator_access_state set configured=false where id;
 insert into private.operator_legacy_cohort(profile_id,legacy_role) values(pg_temp.uid(1),'admin') on conflict do nothing;
-insert into auth.sessions(id,user_id,aal,created_at,updated_at) values(pg_temp.uid(11),pg_temp.uid(1),'aal2',now(),now());
-insert into auth.mfa_factors(id,user_id,friendly_name,factor_type,status,created_at,updated_at,secret)
-values(pg_temp.uid(12),pg_temp.uid(1),'synthetic','totp','verified',now(),now(),'synthetic');
+insert into auth.sessions(id,user_id,aal,created_at,updated_at) values
+  (pg_temp.uid(11),pg_temp.uid(1),'aal1',now(),now()),
+  (pg_temp.uid(14),pg_temp.uid(1),'aal1',now(),now()),
+  (pg_temp.uid(12),pg_temp.uid(2),'aal1',now(),now());
 insert into public.ips(id,title,vertical_key,published_at) values('overseas-test','검증용','character',now());
 insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active) values(pg_temp.uid(55),'overseas-local','합성 출고지','hanjin',1000,'시험 주소',true);
 insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee,sale_restriction) values
@@ -30,9 +31,26 @@ update private.adult_goods_storefront_settings set enabled=true where singleton;
 select pg_temp.assert(not has_function_privilege('authenticated','public.service_finish_overseas_adult_cleanup(uuid)','execute')
   and not has_function_privilege('anon','public.open_overseas_adult_review(uuid,text)','execute')
   and not has_table_privilege('authenticated','private.overseas_adult_requests','select'),'grants');
-select pg_temp.actor(1,'aal2');
-select public.configure_overseas_adult_review('reviewer',pg_temp.uid(1)::text,true);
-select public.configure_overseas_adult_review('good','overseas-yes',true);
+select pg_temp.actor(2);
+set local role authenticated;
+do $$ begin
+  begin perform public.overseas_review_queue(); raise exception 'customer read review queue'; exception when insufficient_privilege then null; end;
+  begin perform public.overseas_adult_management(); raise exception 'customer read management'; exception when insufficient_privilege then null; end;
+  begin perform public.configure_overseas_adult_review('good','overseas-yes',true); raise exception 'customer configured product'; exception when insufficient_privilege then null; end;
+end $$;
+reset role;
+select pg_temp.actor(1);
+select pg_temp.assert(not exists(select 1 from private.overseas_adult_reviewers where user_id=pg_temp.uid(1))
+  and not exists(select 1 from auth.mfa_factors where user_id=pg_temp.uid(1)), 'unassigned admin without an authenticator');
+set local role authenticated;
+select pg_temp.assert(public.overseas_review_queue() is not null and public.overseas_adult_management()->'operators'='[]'::jsonb,'ordinary admin session');
+select pg_temp.assert(not public.configure_overseas_adult_review('reviewer',pg_temp.uid(2)::text,true),'old reviewer assignment retired');
+select pg_temp.assert(public.configure_overseas_adult_review('good','overseas-yes',true),'admin manages products');
+reset role;
+savepoint global_mfa;
+update private.operator_mfa_policy set required=true where singleton;
+select pg_temp.assert(not private.overseas_reviewer(pg_temp.uid(1)), 'global operator policy still applies');
+rollback to global_mfa;
 update private.overseas_adult_policy set effective_at=now()+interval '1 day' where singleton;
 select pg_temp.assert(not private.overseas_intake_open(),'notice period');
 update private.overseas_adult_policy set effective_at=now()-interval '1 day' where singleton;
@@ -46,12 +64,24 @@ select pg_temp.assert(public.reserve_overseas_adult_upload(:'rid','overseas_manu
 insert into storage.objects(bucket_id,name) values('overseas-adult-evidence',:'rid');
 select pg_temp.assert(public.service_submit_overseas_adult_upload(:'rid',pg_temp.uid(2),repeat('a',64)),'submission');
 select pg_temp.actor(1);
-select pg_temp.assert(not private.overseas_reviewer(pg_temp.uid(1)),'AAL1 closed');
-select pg_temp.actor(1,'aal2');
+select pg_temp.assert(private.overseas_reviewer(pg_temp.uid(1)),'AAL1 admin can review');
 select public.open_overseas_adult_review(:'rid',repeat('b',64));
 select pg_temp.assert(not public.deliver_overseas_adult_review(:'rid',repeat('f',64)),'one-tab ticket');
 select pg_temp.assert(public.deliver_overseas_adult_review(:'rid',repeat('b',64)),'first view');
 select pg_temp.assert(not public.deliver_overseas_adult_review(:'rid',repeat('b',64)),'single delivery');
+select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.uid(1),'role','authenticated','aal','aal1','session_id',pg_temp.uid(14))::text,true);
+select pg_temp.assert(not public.overseas_adult_review_live(:'rid',repeat('b',64)),'another session cannot reuse the review');
+select pg_temp.actor(1);
+savepoint signed_out;
+delete from auth.sessions where id=pg_temp.uid(11);
+select pg_temp.assert(not public.overseas_adult_review_live(:'rid',repeat('b',64)) and
+  not public.decide_overseas_adult_review(:'rid',repeat('b',64),null,false), 'signed-out session cannot read or decide');
+rollback to signed_out;
+savepoint revoked_admin;
+update public.profiles set role='user' where id=pg_temp.uid(1);
+select pg_temp.assert(not public.overseas_adult_review_live(:'rid',repeat('b',64)) and
+  not public.decide_overseas_adult_review(:'rid',repeat('b',64),null,false), 'revoked role cannot read or decide');
+rollback to revoked_admin;
 select pg_temp.assert(public.decide_overseas_adult_review(:'rid',repeat('b',64),make_date(extract(year from now() at time zone 'Asia/Seoul')::int-19,12,31),true),'decision');
 select pg_temp.assert(not public.overseas_adult_review_live(:'rid',repeat('b',64)),'decision closes review');
 select pg_temp.assert((select key_share is null from private.overseas_adult_requests where id=:'rid'),'key destroyed');
@@ -90,7 +120,7 @@ select public.begin_overseas_adult_request() as minor_id \gset
 select pg_temp.assert(public.reserve_overseas_adult_upload(:'minor_id','overseas_manual@2026-11-26'),'minor upload');
 insert into storage.objects(bucket_id,name) values('overseas-adult-evidence',:'minor_id');
 select public.service_submit_overseas_adult_upload(:'minor_id',pg_temp.uid(3),repeat('a',64));
-select pg_temp.actor(1,'aal2');
+select pg_temp.actor(1);
 select public.open_overseas_adult_review(:'minor_id',repeat('b',64));
 select public.deliver_overseas_adult_review(:'minor_id',repeat('b',64));
 select pg_temp.assert(public.decide_overseas_adult_review(:'minor_id',repeat('b',64),make_date(extract(year from now() at time zone 'Asia/Seoul')::int-18,1,1),true),'underage boundary');

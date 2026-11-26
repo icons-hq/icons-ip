@@ -17,8 +17,9 @@
 | 1014-010 카카오 알림톡 주문 안내 | 결제 확인·발송 시작 때 주문한 회원의 인증 휴대폰으로 알림톡(NHN Cloud). 이메일과 나란히 간다 — [카카오 알림톡 런북](./kakao-alimtalk.md) | `ICONS_KAKAO_ALIMTALK_ENABLED` OFF | NHN 가입·발신 프로필·템플릿 심사·처리방침 개정 |
 | 1014-014 카카오톡 채널 | 카카오 로그인 동의 화면 채널 추가(plusfriends 동의항목) + 설정의 [카카오 계정 연결](가입 수단 무관) + 채널 친구 추가 쿠폰 1회 자동 발급 | `ICONS_KAKAO_CHANNEL_ENABLED` OFF | 채널 개설(H5)·콘솔 설정·지정 고객 쿠폰 정의·**manual linking**·처리방침 공지 |
 
-스위치가 꺼져 있으면 로그인·온보딩·설정 화면과 카카오 로그인 요청은 기능을 넣기 전과 한 글자도 같다
-(`components/screens/ContactChannelsSwitchOff.test.tsx`가 도입 전 렌더 기준 `test/fixtures/contact-channels-off/`와 비교한다).
+연락 수단 스위치를 끄면 온보딩의 ‘전체 동의’는 두 필수 약관과 이메일·SMS 수신 동의를 선택한다. 카카오톡 수신 동의가 표시되면 이 수단도 함께 선택한다. 개별 수단은 따로 해제할 수 있다.
+생년월일 아래의 성별 선택란은 ‘제공하지 않음’으로 시작하며, 전체 동의와 독립적으로 회원이 직접 고른 값을 저장한다. ‘처리방침 보기’로 개인정보처리방침 제2조의2의 수집·보관·철회 안내를 열 수 있다.
+스위치가 꺼진 로그인·온보딩·설정 화면은 `components/screens/ContactChannelsSwitchOff.test.tsx`가 `test/fixtures/contact-channels-off/`와 비교한다.
 가입 확인 코드(1014-004)는 스위치가 없어 이 비교 대상이 아니다.
 
 **운영 법적 게이트.** 세 스위치 모두 운영(`VERCEL_ENV=production`)에서는 `lib/auth/contact-channels.ts`의 시행일(KST)이

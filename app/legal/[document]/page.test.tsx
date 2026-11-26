@@ -56,6 +56,16 @@ describe('/legal/[document] 라우트', () => {
     expect(html).toContain('확인 중');
   });
 
+  it('온보딩의 성별 안내 링크는 현행 방침의 수집·보관·철회 조항을 연다', async () => {
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'privacy' }) }));
+    const section = html.split('id="optional-gender">')[1]?.split('</section>')[0];
+    expect(section).toContain('제2조의2 (성별 정보의 선택 수집·이용)');
+    expect(section).toContain('직접 성별을 선택해 가입을 마친 경우에만');
+    expect(section).toContain('직접 선택한 성별');
+    expect(section).toContain('철회 즉시 성별 값을 삭제');
+    expect(html).toContain('회원가입 또는 설정에서 성별 수집·이용에 동의하고 직접 제공한 경우');
+  });
+
   /* 오픈 전 최초 판(2026-11-25)이라 실제 문서에는 사전 공지·개정 안내·이전 본문이 없다.
      오픈 뒤 첫 개정에서 다시 쓰므로 fixture로 지켜 둔다 — 실제 문서에서 사라졌다고
      컴포넌트 분기의 검증까지 함께 잃으면, 다음 공지가 조용히 렌더되지 않는다. */

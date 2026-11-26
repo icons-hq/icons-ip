@@ -11,7 +11,7 @@ import { Settings } from './Settings';
  *
  * test/fixtures/contact-channels-off/*.html은 이 기능을 넣기 전 코드(origin/main 4fee9fd7)에서 같은 props로 뽑은
  * 렌더 결과다. React useId가 만드는 내부 id(_R_…_)는 훅 수에 따라 바뀌는 값이라 비교 전에 지운다.
- * 이 기준을 갱신해야 한다면 스위치와 무관한 의도된 화면 변경일 때뿐이다.
+ * 온보딩의 동의 목록 기준에는 스위치와 독립적으로 적용하는 전체 동의를 반영했다.
  */
 
 vi.mock('@/app/login/actions', () => ({
@@ -90,7 +90,7 @@ describe('연락 수단 스위치 OFF — 화면 불변', () => {
     expect(withoutReactIds(slice(html, '<form aria-labelledby="settings-consent-heading"', '</form>'))).toBe(golden('settings-consent-agreed'));
   });
 
-  it('온보딩의 동의 목록과 안내가 도입 전과 같고 휴대폰 번호 인증 단계가 없다', () => {
+  it('온보딩은 기본 두 수단의 동의 목록과 안내를 쓰고 휴대폰 번호 인증 단계가 없다', () => {
     const html = renderToStaticMarkup(
       <Onboarding
         birthDate=""
@@ -101,7 +101,7 @@ describe('연락 수단 스위치 OFF — 화면 불변', () => {
         next="/"
       />,
     );
-    const consents = slice(html, '<ul class="wc-auth__agree">', '</ul>') + slice(html, '<p class="onboarding-consent-note">', '</p>');
+    const consents = slice(html, '<ul class="wc-auth__agree">', '</ul>') + slice(html, '<details class="wc-auth__consent-details">', '</details>');
 
     expect(withoutReactIds(consents)).toBe(golden('onboarding-consents'));
     expect(html).not.toContain('data-phone-verification');

@@ -7,6 +7,7 @@ import { hrefFor } from '@/lib/routes';
 export type LegalDocumentSlug = 'terms' | 'privacy' | 'shipping';
 
 export const LEGAL_DOCUMENT_SLUGS: LegalDocumentSlug[] = ['terms', 'privacy', 'shipping'];
+export const DEMOGRAPHIC_PRIVACY_ANCHOR = 'optional-gender';
 
 export const LEGAL_DOCUMENT_LABELS: Record<LegalDocumentSlug, string> = {
   terms: '이용약관',

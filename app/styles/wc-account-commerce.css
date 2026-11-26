@@ -380,10 +380,12 @@
   flex: 1 1 auto;
   align-items: center;
   gap: 10px;
+  min-height: 48px;
   cursor: pointer;
 }
 
-.wc-auth__agree-row a {
+.wc-auth__agree-row a,
+.wc-auth__policy-link {
   margin-left: auto;
   flex: none;
   font-size: 13px;
@@ -397,6 +399,29 @@
   height: 18px;
   flex: none;
   accent-color: var(--wc-ink);
+}
+
+.wc-auth__agree-all {
+  padding: 0;
+  background: var(--wc-surface-grey);
+}
+
+.wc-auth__agree-all label {
+  padding: 14px 12px;
+  align-items: flex-start;
+}
+
+.wc-auth__agree-all strong {
+  font-size: 16px;
+  color: var(--wc-ink);
+}
+
+.wc-auth__agree-all-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--wc-ink-sub);
 }
 
 .wc-auth__req,
@@ -459,15 +484,7 @@
   color: var(--wc-ink-tertiary);
 }
 
-/* 마케팅 수신 동의 안내(수단별 선택, 10/14 회의 S4) — 약관 목록 바로 아래 작은 회색 문단. */
-.wc-auth .onboarding-consent-note {
-  margin: -4px 0 0;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--wc-ink-tertiary);
-}
-
-/* 선택 성별(10/14 회의 S5) — 생년월일 fieldset 문법을 그대로 쓰고 셀렉트만 인풋과 같은 40px 필드로 맞춘다. */
+/* 성별 선택과 휴대폰 인증의 국가번호 선택은 같은 입력 규격을 쓴다. */
 .wc-auth .onboarding-gender-fieldset select {
   width: 100%;
   min-height: 0;
@@ -483,38 +500,26 @@
   color: var(--wc-ink);
 }
 
-.wc-auth .onboarding-gender-consent {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
+.wc-auth__consent-details {
   font-size: 13px;
-  line-height: 1.5;
-  color: var(--wc-ink-sub);
-  cursor: pointer;
-}
-
-.wc-auth .onboarding-gender-consent input[type='checkbox'] {
-  width: 18px;
-  height: 18px;
-  flex: none;
-  margin: 0;
-  accent-color: var(--wc-ink);
-}
-
-.wc-auth .onboarding-gender-notice {
-  font-size: 12px;
   line-height: 1.6;
-  color: var(--wc-ink-tertiary);
+  color: var(--wc-ink-sub);
 }
 
-.wc-auth .onboarding-gender-notice > summary {
+.wc-auth__field-heading {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.wc-auth__consent-details > summary {
+  width: fit-content;
+  padding-block: 8px;
   cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 3px;
 }
 
-.wc-auth .onboarding-gender-notice p {
-  margin: 6px 0 0;
+.wc-auth__consent-details p {
+  margin: 0;
 }
 
 /* 단계 제목(휴대폰 번호 인증 등) */

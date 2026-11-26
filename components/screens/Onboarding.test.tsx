@@ -145,9 +145,20 @@ describe('Onboarding form contracts', () => {
 
 /* 10/14 회의 S4·S5 — 수단별 마케팅 수신 동의와 선택 성별. */
 describe('Onboarding optional consents', () => {
+  it('starts with every consent off and identifies the optional channels in the bulk choice', () => {
+    const html = render();
+
+    expect(html).toContain('<strong id="agree-all-label">전체 동의</strong>');
+    expect(html).toContain('이메일·SMS 마케팅 수신(선택)을 포함해요.');
+    expect(html).toContain('필수 항목만 동의해도 가입할 수 있어요.');
+    expect(html).toMatch(/<input aria-checked="false"[^>]+type="checkbox"/);
+    expect(html).not.toContain('checked=""');
+  });
+
   it('asks email and SMS marketing consent separately as optional rows', () => {
     const html = render({ initialMarketing: { email: true, sms: false } });
 
+    expect(html).toMatch(/<input aria-checked="mixed"[^>]+type="checkbox"/);
     expect(html).toContain('마케팅 정보 수신 동의 (이메일) <em class="wc-auth__opt">선택</em>');
     expect(html).toContain('마케팅 정보 수신 동의 (SMS) <em class="wc-auth__opt">선택</em>');
     expect(html).toMatch(/<input[^>]*checked=""[^>]*name="marketingEmail"|<input[^>]*name="marketingEmail"[^>]*checked=""/);
@@ -157,22 +168,25 @@ describe('Onboarding optional consents', () => {
     expect(html).toContain('알림함의 마케팅 소식은 이메일·SMS 중 하나라도 수신에 동의하면 받아요');
   });
 
-  it('offers an unselected optional gender with its own consent and notice', () => {
+  it('shows the optional gender input between birth date and consents, with the collection terms in the privacy policy', () => {
     const html = render();
+    const profileFields = html.slice(html.indexOf('name="birthDay"'), html.indexOf('<ul class="wc-auth__agree">'));
 
-    expect(html).toContain('<legend>성별 <em class="wc-auth__opt">선택</em></legend>');
-    expect(html).toMatch(/<select[^>]*name="gender"[^>]*>[\s\S]*<option value="" selected="">선택 안 함<\/option>/);
-    expect(html).toContain('<option value="female">여성</option>');
-    expect(html).toContain('<input type="checkbox" name="genderConsent"/>');
-    expect(html).not.toMatch(/name="genderConsent"[^>]*checked/);
-    expect(html).toContain('<summary>수집 항목·보관·철회 안내</summary>');
+    expect(profileFields).not.toContain('<details');
+    expect(profileFields).toContain('for="consented-gender">성별 <em class="wc-auth__opt">선택</em>');
+    expect(profileFields).toMatch(/<select[^>]*name="consentedGender"[^>]*><option value="" selected="">제공하지 않음<\/option>/);
+    expect(profileFields).toContain('<optgroup label="성별 제공에 동의"><option value="female">여성</option>');
+    expect(profileFields).toContain('href="/legal/privacy#optional-gender"');
+    expect(html).not.toContain('수집 항목·보관·철회 안내');
+    expect(html).not.toContain('동의 철회 또는 탈퇴 신청까지');
+    expect(html).not.toContain('name="genderConsent"');
   });
 
   it('does not ask gender from accounts whose demographic consent is not stored (staff·admin, like settings)', () => {
     const html = render({ genderEligible: false });
 
-    expect(html).not.toContain('name="gender"');
-    expect(html).not.toContain('name="genderConsent"');
+    expect(html).not.toContain('name="consentedGender"');
+    expect(html).not.toContain('href="/legal/privacy#optional-gender"');
   });
 });
 
@@ -183,6 +197,7 @@ describe('Onboarding kakao marketing channel', () => {
     const html = render({ marketingChannels: ['email', 'sms', 'kakao'], initialMarketing: { email: false, sms: false, kakao: false } });
 
     expect(html).toContain('마케팅 정보 수신 동의 (카카오톡) <em class="wc-auth__opt">선택</em>');
+    expect(html).toContain('이메일·SMS·카카오톡 마케팅 수신(선택)을 포함해요.');
     expect(html).toContain('<input type="hidden" name="marketingKakaoOffered" value="1"/>');
     expect(html).toContain('카카오톡은 엑스스퀘어 카카오톡 채널 메시지로 보내 드려요.');
     expect(html).toContain('알림함의 마케팅 소식은 이메일·SMS·카카오톡 중 하나라도 수신에 동의하면 받아요.');

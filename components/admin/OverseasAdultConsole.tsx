@@ -1,12 +1,12 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { changeOverseasAssignment } from '@/app/admin/(shell)/settings/overseas-adult/actions';
+import { setOverseasReviewGood } from '@/app/admin/(shell)/settings/overseas-adult/actions';
 import { AdminSectionCard } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { adminConfirm } from '@/lib/admin/confirm';
-import type { OverseasAssignment, OverseasManagement, OverseasQueueItem } from '@/lib/identity/overseas-adult';
+import type { OverseasReviewGood, OverseasQueueItem } from '@/lib/identity/overseas-adult';
 
 interface Review {
   id: string;
@@ -28,10 +28,10 @@ function post(id: string, body: Record<string, unknown>, signal?: AbortSignal) {
 }
 export function OverseasAdultConsole({
   queue,
-  management,
+  goods,
 }: {
   queue: OverseasQueueItem[] | null;
-  management: OverseasManagement | null;
+  goods: OverseasReviewGood[] | null;
 }) {
   const router = useRouter();
   const [active, setActive] = useState<Review | null>(null);
@@ -143,11 +143,10 @@ export function OverseasAdultConsole({
       router.refresh();
     }
   }
-  async function assign(kind: 'good' | 'reviewer', item: OverseasAssignment) {
-    const text =
-      kind === 'good' && !item.enabled
-        ? '상품·포장·상세와 IP 계약을 검토해 회사가 자체 제한한 상품이며 해외 수동 확인을 적용할 수 있음을 확인합니다.'
-        : '이 변경은 즉시 적용됩니다.';
+  async function assignGood(item: OverseasReviewGood) {
+    const text = item.enabled
+      ? '지정을 해제하면 해외 신분증으로 인증한 회원은 이 상품을 구매할 수 없습니다.'
+      : '상품·포장·상세와 IP 계약을 검토해 회사가 자체 제한한 상품이며 해외 수동 확인을 적용할 수 있음을 확인합니다.';
     if (
       !(await adminConfirm({
         title: item.name + ' ' + (item.enabled ? '지정 해제' : '지정'),
@@ -158,8 +157,8 @@ export function OverseasAdultConsole({
       return;
     setBusy(true);
     try {
-      const ok = await changeOverseasAssignment(kind, item.id, !item.enabled);
-      setMessage(ok ? '반영했습니다.' : '권한과 담당자의 인증 앱 등록 여부를 확인해 주세요.');
+      const ok = await setOverseasReviewGood(item.id, !item.enabled);
+      setMessage(ok ? '반영했습니다.' : '상품 지정 상태를 새로고침하고 관리자 권한을 확인해 주세요.');
       router.refresh();
     } catch {
       setMessage('설정을 저장하지 못했습니다. 새로고침해 주세요.');
@@ -223,26 +222,21 @@ export function OverseasAdultConsole({
               )}
             </AdminSectionCard>
           )}
-          {management &&
-            (['reviewer', 'good'] as const).map((kind) => (
-              <AdminSectionCard key={kind} title={kind === 'good' ? '수동 인증 적용 상품' : '전담 심사자'}>
-                <p className="mb-3">
-                  {kind === 'good'
-                    ? '회사 자체 제한 상품만 지정해 주세요. 법정·계약상 확인 방법이 따로 있는 상품은 제외합니다.'
-                    : '인증 앱 등록을 마친 회원 관리 담당자를 지정해 주세요.'}
-                </p>
-                <ul className="grid gap-2">
-                  {(kind === 'good' ? management.goods : management.operators).map((item) => (
-                    <li className="flex items-center justify-between gap-2" key={item.id}>
-                      <span>{item.name}</span>
-                      <Button variant="outline" disabled={busy} onClick={() => void assign(kind, item)}>
-                        {item.enabled ? '지정 해제' : '지정'}
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              </AdminSectionCard>
-            ))}
+          {goods && (
+            <AdminSectionCard title="수동 인증 적용 상품">
+              <p className="mb-3">회사 자체 제한 상품만 지정해 주세요. 법정·계약상 확인 방법이 따로 있는 상품은 제외합니다.</p>
+              <ul className="grid gap-2">
+                {goods.map((item) => (
+                  <li className="flex items-center justify-between gap-2" key={item.id}>
+                    <span>{item.name}</span>
+                    <Button variant="outline" disabled={busy} onClick={() => void assignGood(item)}>
+                      {item.enabled ? '지정 해제' : '지정'}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            </AdminSectionCard>
+          )}
         </>
       )}
     </>
