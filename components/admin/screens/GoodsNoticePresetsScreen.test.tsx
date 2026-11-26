@@ -74,9 +74,11 @@ describe('상품정보제공고시 템플릿 관리 화면', () => {
     const html = screen([preset()]);
     expect(html).toContain('제조사 아이콘스 · 소재 아크릴 · KC 유형 틀 포함');
     expect(html).not.toContain('아이콘스 · 대한민국');
-    /* 제조사·소재를 비운 템플릿은 이름만 보인다. */
+    /* 제조사·소재를 비운 템플릿은 적어 둔 첫 칸을 대신 보여 요약이 비지 않는다(2026-11-26 브라우저 확인). 일곱 칸이 다 비면 이름만 보인다. */
     const bare = screen([preset({ kcTemplate: null, notice: { ...preset().notice, maker: '', material: '' } })]);
-    expect(bare).toContain('<strong class="font-medium">아크릴 기본</strong></span>');
+    expect(bare).toContain('<strong class="font-medium">아크릴 기본</strong><span class="text-sm text-muted-foreground">원산지 대한민국</span></span>');
+    const empty = screen([preset({ kcTemplate: null, notice: { maker: '', origin: '', material: '', size: '', madeOn: '', asManager: '', asContact: '' } })]);
+    expect(empty).toContain('<strong class="font-medium">아크릴 기본</strong></span>');
   });
 
   it('삭제는 버튼 하나다(확인은 확인창이 한다). 접힌 링크·체크·삭제 확정은 없다', () => {

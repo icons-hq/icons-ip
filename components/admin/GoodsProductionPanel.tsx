@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react';
 import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope } from '@/components/claim-contact/ClaimContactSession';
 import { readGoodsProductionAction, saveGoodsProductionAction } from '@/app/admin/production-actions';
 import { productionLeadLabel, type GoodsProductionPolicy } from '@/lib/order-production';
-import { GOODS_PRODUCTION_SAVE_UNCERTAIN } from '@/lib/admin/goods-production-messages';
+import { GOODS_PRODUCTION_LEAVE_MESSAGE, GOODS_PRODUCTION_RUNTIME_OFF, GOODS_PRODUCTION_RUNTIME_OFF_ENABLED, GOODS_PRODUCTION_SAVE_UNCERTAIN } from '@/lib/admin/goods-production-messages';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 import { adminConfirm } from '@/lib/admin/confirm';
 import { RELOAD_SAVED_CONFIRM } from '@/lib/admin/goods-template-save';
 import { AdminField, AdminFormGrid } from './console/AdminKit';
@@ -22,14 +23,17 @@ type Draft = ReturnType<typeof draftOf>;
  * 설정 근거·확인 체크는 없다(2026-11-25 결정 — 저장 = 적용). 누가 언제 바꿨는지는 감사 기록이 남긴다.
  * 옛 확인 체크가 말하던 것 가운데 화면에 보이지 않는 결과는 두 곳에 사실로 남겼다: 함께 쓸 수 없는 설정과 출고 순서는 켰을 때 보이는 한 줄에,
  * 제작을 시작한 주문의 취소는 '고객 안내' 칸 아래에 — 그 사실로 운영자가 할 일은 고객에게 알릴지 정하는 것뿐이고, 고객 화면은 발송 예정 기간만 말한다.
+ * `runtimeOff`: 쇼핑몰 설정이 주문 후 제작을 받지 않을 때(DB가 켠 채 저장하는 것을 거절한다). 꺼져 있는 상품은 켜기 전에 막고 이유를 보인다(화면 규칙 5).
+ * 이미 켜져 있으면 끌 수 있게 열어 두고, 켠 채로는 저장되지 않는다고 미리 말한다.
  */
-export function GoodsProductionFields({ draft, onChange, idPrefix = 'production' }: { draft: Draft; onChange: (draft: Draft) => void; idPrefix?: string }) {
+export function GoodsProductionFields({ draft, onChange, idPrefix = 'production', runtimeOff = false }: { draft: Draft; onChange: (draft: Draft) => void; idPrefix?: string; runtimeOff?: boolean }) {
  const days = /^[1-9][0-9]*$/.test(draft.leadDays) && Number(draft.leadDays) <= 365 ? Number(draft.leadDays) : null;
  /* 끄면 닫히는 칸에 규칙에 맞지 않는 기간이 남아 저장이 보이지 않는 칸 때문에 막히지 않게, 그런 값만 비운다. */
  /* 고객 상품 상세(components/shop/GoodsTransactionTerms)가 쓰는 기간 표기와 같다. */
  const lead = days === null ? null : productionLeadLabel({ version: 1, goodId: '', revision: 1, leadDays: days, dayBasis: draft.dayBasis, closedDates: [], publicNote: '' });
  return <>
-   <label className={`${CHECK_LABEL_CLASS} font-medium`}><input type="checkbox" checked={draft.enabled} onChange={e => onChange({ ...draft, enabled: e.target.checked, leadDays: e.target.checked || days !== null || !draft.leadDays ? draft.leadDays : '' })} />이 상품은 주문을 받은 뒤에 제작합니다</label>
+   <label className={`${CHECK_LABEL_CLASS} font-medium has-[:disabled]:cursor-not-allowed has-[:disabled]:opacity-60`}><input type="checkbox" checked={draft.enabled} disabled={runtimeOff && !draft.enabled} onChange={e => onChange({ ...draft, enabled: e.target.checked, leadDays: e.target.checked || days !== null || !draft.leadDays ? draft.leadDays : '' })} />이 상품은 주문을 받은 뒤에 제작합니다</label>
+   {runtimeOff ? <p className="text-sm text-warning" data-good-production-runtime-off="" role="status">{draft.enabled ? GOODS_PRODUCTION_RUNTIME_OFF_ENABLED : GOODS_PRODUCTION_RUNTIME_OFF}</p> : null}
    {draft.enabled ? <>
     <p className="text-xs text-muted-foreground" data-good-production-note="">예약판매와는 함께 쓸 수 없습니다. 제작 시작·완료는 주문 상세에서 기록하고, 완료하기 전에는 출고지시와 발송을 할 수 없습니다.</p>
     <AdminFormGrid><AdminField label="결제 확인 후 발송 예정 기간 (일)" inputId={`${idPrefix}-lead`}><input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" id={`${idPrefix}-lead`} type="number" min="1" max="365" required value={draft.leadDays} onChange={e => onChange({ ...draft, leadDays: e.target.value })} /></AdminField>
@@ -41,12 +45,14 @@ export function GoodsProductionFields({ draft, onChange, idPrefix = 'production'
  </>;
 }
 /** showDisabledReason=false면 잠금 이유 문장을 본문에 그리지 않는다(상품 편집기가 패널 위에 공통 잠금 안내를 보일 때). 잠금은 disabledReason이 맡는다. */
-type Props = { goodId: string; accountId: string; disabledReason?: string; showDisabledReason?: boolean };
+type Props = { goodId: string; accountId: string; disabledReason?: string; showDisabledReason?: boolean; runtimeOff?: boolean };
 export function GoodsProductionPanel(props: Props) { return <ClaimContactSession actorId={props.accountId} pendingMessage="로그인 상태를 확인하고 있습니다.">{(identity, scope) => <Panel {...props} identity={identity} scope={scope} />}</ClaimContactSession>; }
-function Panel({ goodId, disabledReason, showDisabledReason = true, identity, scope }: Props & { identity: ClaimContactIdentity; scope: ClaimContactScope }) {
+function Panel({ goodId, disabledReason, showDisabledReason = true, runtimeOff = false, identity, scope }: Props & { identity: ClaimContactIdentity; scope: ClaimContactScope }) {
  const [policy, setPolicy] = useState<GoodsProductionPolicy | null>(null), [draft, setDraft] = useState<Draft | null>(null), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false), [message, setMessage] = useState('');
  const alive = useRef(true), busy = useRef(false), dispatched = useRef<{ values: unknown; revision: number; operation: string } | null>(null);
  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+ /* 따로 저장하는 영역이다. 고친 내용(또는 결과를 모르는 저장)을 두고 화면을 떠나면 묻는다 — 맨 아래 저장 막대는 이 영역을 저장하지 않는다. */
+ useAdminLeaveGuard({ dirty: Boolean(draft && policy) && (uncertain || JSON.stringify(draft) !== JSON.stringify(draftOf(policy!))), blocked: pending, message: GOODS_PRODUCTION_LEAVE_MESSAGE });
  async function read() { if (busy.current || uncertain) return;
   /* 적은 내용이 저장된 설정과 다르면 사라진다고 먼저 묻는다(화면 규칙 7). */
   if (draft && policy && JSON.stringify(draft) !== JSON.stringify(draftOf(policy)) && !await adminConfirm(RELOAD_SAVED_CONFIRM)) return;
@@ -69,7 +75,7 @@ function Panel({ goodId, disabledReason, showDisabledReason = true, identity, sc
  }
  return <div className="flex min-w-0 flex-col gap-4" data-goods-production=""><button type="button" className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" disabled={pending || uncertain} onClick={() => { void read(); }}>현재 주문제작 설정 불러오기</button>
   {draft ? <form className="flex min-w-0 flex-col gap-4" onSubmit={e => { e.preventDefault(); void save(); }}><fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" disabled={pending || uncertain || Boolean(disabledReason)}><legend className="sr-only">주문 후 제작</legend>
-   <GoodsProductionFields draft={draft} onChange={setDraft} />
+   <GoodsProductionFields draft={draft} onChange={setDraft} runtimeOff={runtimeOff} />
   </fieldset><button type="submit" className={`${buttonVariants()} self-start`} data-slot="button" disabled={pending || Boolean(disabledReason)}>{uncertain ? '저장됐는지 확인' : '주문제작 설정 저장'}</button></form> : null}
   {showDisabledReason && disabledReason ? <p className={GOOD_NOTE_CLASS} role="status">{disabledReason}</p> : null}{message ? <p className="text-sm font-medium" role="status">{message}</p> : null}
  </div>;

@@ -115,7 +115,7 @@ const good: AdminGoodRecord = {
 function renderGoodSection(
   selected: AdminGoodRecord | null,
   state: Parameters<typeof GoodSection>[0]['state'] = {},
-  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'canOpenIp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'|'canManageMedia'|'readiness'|'categories'> = {},
+  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'canOpenIp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'|'canManageMedia'|'readiness'|'categories'|'transactionRuntimeOff'> = {},
 ) {
   return renderToStaticMarkup(
     <GoodsKcTemplateProvider selectionKey={selected ? `good:${selected.id}` : 'create:any'}>
@@ -378,6 +378,13 @@ describe('GoodSection', () => {
    * 10/27 회의 R13·D6① — 등록 화면에서 저장 뒤 나오는 항목을 같은 순서로 보인다. 카드 18장을 없애고 이름 목록 한 장으로 합쳤으므로
    * "자리표시 카드" 계약이 "이름 목록 + 사유 한 번"으로 바뀌었다. KC·예약판매는 기본 입력과 함께 저장한다(D6②).
    */
+  /* 브라우저 확인 F4: 쇼핑몰 설정이 택배 외 수령 방식·주문 후 제작을 받지 않으면 그 저장이 거절된다. 등록 화면과 저장된 상품의 영역이 고르기 전에 막도록 값을 내려 준다. */
+  it('쇼핑몰 설정이 받지 않는 수령 방식·주문 후 제작은 고르기 전에 막도록 영역에 알린다', () => {
+    const props = { accountId: 'operator-1', cloneOperationId: '33333333-3333-4333-8333-333333333333' };
+    const OFF = '지금 쇼핑몰 설정에서는 주문 후 제작을 켤 수 없습니다. 써야 하면 개발 담당자에게 요청해 주세요.';
+    expect(renderGoodSection(null, {}, { ...props, transactionRuntimeOff: true })).toContain(OFF);
+    expect(renderGoodSection(null, {}, props)).not.toContain('지금 쇼핑몰 설정에서는');
+  });
   it('등록 화면은 저장 뒤 항목 이름을 같은 묶음·같은 순서로 나열하고 이유는 한 번만 말하며 KC·예약판매는 함께 입력한다', () => {
     const props = { accountId: 'operator-1', cloneOperationId: '33333333-3333-4333-8333-333333333333', canManageCosts: true };
     const saved = renderGoodSection({ ...good, publishedAt: null }, {}, props);

@@ -7,7 +7,22 @@ import type { AdminCategoryErpMapping, AdminCategoryNode } from './category';
  * 입력할 때 품번·바코드·고객 카테고리·판매가를 제안한다. ERP와 실시간 연동은
  * 하지 않는다. 반입된 값은 제안일 뿐이며 MD가 상품 화면에서 바꿀 수 있다.
  */
+/**
+ * 이 ERP 품목(ERP 코드 또는 바코드)을 이미 쓰고 있는 옵션. ERP 코드와 바코드는 쇼핑몰의 옵션 전체에서 하나뿐이어야 저장된다
+ * (DB의 goods_variant_external_identity 유일 규칙 — 다른 상품·사용 중지한 옵션 포함).
+ */
+export interface ErpItemUsage {
+  /** 쓰고 있는 옵션의 내부 번호. 지금 편집 중인 표에 있는 옵션인지 가릴 때만 쓴다(화면에 보이지 않는다). */
+  variantId: string;
+  goodName: string;
+  optionName: string;
+  /** 무엇이 겹치는가. 바코드만 겹치면 옵션의 바코드 칸이 비어 있을 때만 문제가 된다(바코드는 빈 칸에만 들어간다). */
+  via: 'erpCode' | 'barcode';
+}
+
 export type ErpItemMatch = {
+  /** 옵션의 [ERP 품목 고르기] 선택창만 싣는다: 이 품목을 이미 쓰는 옵션. 없거나 확인하지 못했으면 null·없음. */
+  usedBy?: ErpItemUsage | null;
   /** ERP 품번 */
   code: string;
   /** ERP 품명 */

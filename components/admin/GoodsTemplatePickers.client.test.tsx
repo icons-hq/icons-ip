@@ -8,7 +8,7 @@ vi.mock('@/app/admin/goods-after-sales-actions', () => ({ listGoodsAfterSalesTem
 vi.mock('@/app/admin/goods-benefit-actions', () => ({ listGoodsEventTemplatesAction: actions.events }));
 
 import { AdminPickerDialog, type AdminPickerPanelProps } from './console/AdminPickerDialog';
-import { GoodsAfterSalesTemplatePicker, afterSalesHasInput, afterSalesTemplateRowView, loadAfterSalesTemplates } from './GoodsAfterSalesTemplatePicker';
+import { GoodsAfterSalesTemplatePicker, afterSalesHasInput, afterSalesOverwrittenFields, afterSalesTemplateRowView, loadAfterSalesTemplates } from './GoodsAfterSalesTemplatePicker';
 import { GoodsEventTemplatePicker, eventTemplateRowView, loadEventTemplates } from './GoodsEventTemplatePicker';
 import { GoodsSizeTemplatePicker, loadSizeTemplates, sizeChartHasInput, sizeTemplateRowView } from './GoodsSizeTemplatePicker';
 import { emptyGoodsSizeChart, type GoodsSizeChart, type GoodsSizeTemplate } from '@/lib/goods-size-chart';
@@ -98,12 +98,19 @@ describe('적어 둔 값을 바꾸기 전 확인', () => {
     expect(confirm).toHaveBeenCalledTimes(3); expect(onSelect).not.toHaveBeenCalled();
   });
 
-  it('A/S 안내: 세 칸 가운데 하나라도 적혀 있으면 묻는다', async () => {
+  /* 브라우저 확인 S15: 전화번호만 들어 있는데 "A/S 전화번호·A/S 안내·판매자 특이사항이 바뀝니다"로 빈 칸까지 말했다. 고시 템플릿 확인창처럼 값이 있고 실제로 바뀌는 칸만 말한다. */
+  it('A/S 안내: 적어 둔 칸 가운데 템플릿으로 내용이 바뀌는 칸만 대며 묻고, 그런 칸이 없으면 묻지 않는다', async () => {
     await afterSalesDialog({ phone: '02-123', guide: '', sellerSpecialNotes: '' }).props.onSelect(afterSales);
-    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 A/S 전화번호·A/S 안내·판매자 특이사항이 ‘접수: 고객센터로 전화해 주세요.’ 템플릿 내용으로 바뀝니다.');
+    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 A/S 전화번호 칸이 ‘접수: 고객센터로 전화해 주세요.’ 템플릿 내용으로 바뀝니다.');
     confirm.mockClear();
+    await afterSalesDialog({ phone: '02-123', guide: '택배로 보내 주세요.', sellerSpecialNotes: '수선 불가' }).props.onSelect(afterSales);
+    expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적어 둔 A/S 전화번호, A/S 안내, 판매자 특이사항 칸이 ‘접수: 고객센터로 전화해 주세요.’ 템플릿 내용으로 바뀝니다.');
+    confirm.mockClear();
+    /* 빈 칸과, 템플릿과 같은 값이 든 칸은 사라지는 것이 없으니 묻지 않는다. */
     await afterSalesDialog({ phone: ' ', guide: '', sellerSpecialNotes: '' }).props.onSelect(afterSales);
-    expect(confirm).not.toHaveBeenCalled(); expect(onSelect).toHaveBeenCalledTimes(2);
+    await afterSalesDialog({ phone: ' 1588-0000 ', guide: afterSales.guide, sellerSpecialNotes: '' }).props.onSelect(afterSales);
+    expect(confirm).not.toHaveBeenCalled(); expect(onSelect).toHaveBeenCalledTimes(4);
+    expect(afterSalesOverwrittenFields({ phone: '1588-0000', guide: '다른 안내', sellerSpecialNotes: '' }, afterSales)).toEqual(['A/S 안내']);
   });
 
   it('이벤트 문구: 다른 문구가 적혀 있을 때만 묻는다', async () => {

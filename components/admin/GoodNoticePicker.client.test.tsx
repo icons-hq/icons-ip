@@ -156,8 +156,10 @@ describe('템플릿 선택창', () => {
     expect(noticePresetRowView(preset(), true)).toEqual({ title: '아크릴 키링', meta: '제조사 아이콘스 · 소재 아크릴' });
     expect(noticePresetRowView(preset({ kcTemplate: kc }), true).meta).toBe('제조사 아이콘스 · 소재 아크릴 · KC 유형 틀 포함');
     expect(noticePresetRowView(preset({ kcTemplate: kc }), false).meta).toBe('제조사 아이콘스 · 소재 아크릴');
-    expect(noticePresetRowView(preset({ notice: notice({ maker: '', material: '  ' }), kcTemplate: kc }), true).meta).toBe('KC 유형 틀 포함');
-    expect(noticePresetRowView(preset({ notice: notice({ maker: '', material: '' }) }), true).meta).toBeUndefined();
+    /* 브라우저 확인(헷갈린 곳 6): 제조사·소재를 비운 템플릿은 요약이 비어 이름만 보였다. 적어 둔 첫 칸을 대신 보인다. */
+    expect(noticePresetRowView(preset({ notice: notice({ maker: '', material: '  ' }), kcTemplate: kc }), true).meta).toBe('원산지 대한민국 · KC 유형 틀 포함');
+    expect(noticePresetRowView(preset({ notice: notice({ maker: '', origin: '', material: '', madeOn: '', asManager: '', asContact: '' }) }), true).meta).toBe('크기 · 중량 50mm');
+    expect(noticePresetRowView(preset({ notice: notice({ maker: '', origin: '', material: '', size: '', madeOn: '', asManager: '', asContact: '' }) }), true).meta).toBeUndefined();
     expect(noticePresetRowView(preset({ notice: notice({ maker: '가'.repeat(60) }) }), true).meta).toBe(`제조사 ${'가'.repeat(24)}… · 소재 아크릴`);
   });
 

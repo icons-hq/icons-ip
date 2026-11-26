@@ -33,6 +33,15 @@ export function templateCloseUnknownConfirm(keptInBrowser: boolean, registerLabe
       : `목록에 없으면 같은 템플릿을 다시 열어 [${SAVE_CHECK_LABEL}]을 눌러 주세요.`;
   return { title: '저장됐는지 모르는 채 닫을까요?', message: `닫으면 목록을 다시 불러옵니다. 방금 저장하려던 내용이 목록에 있는지 확인해 주세요. ${next}`, confirmLabel: '닫기' };
 }
+/**
+ * 저장하지 않고 닫았지만 적던 내용이 브라우저에 남아 있을 때(사이즈 템플릿) 목록 위에 보이는 한 줄.
+ * 그 화면은 묻지 않고 닫히므로, 적던 것이 사라지지 않았다는 것과 되찾는 길을 닫히는 순간에 말한다(2026-11-26 브라우저 확인 F5).
+ * `savedName`: 저장돼 있는 템플릿을 고치던 중이면 목록에 보이는 그 이름. 새로 등록하던 중이면 주지 않는다(등록 버튼을 다시 누르라고 말한다).
+ */
+export function templateKeptInBrowserNotice(registerLabel: string, savedName?: string): string {
+  const reopen = savedName ? `‘${savedName}’ 줄의 [수정]` : `[${registerLabel}]`;
+  return `적던 내용은 이 브라우저에 남아 있습니다(최대 7일). ${reopen}을 다시 누른 뒤 [템플릿 복구]를 누르면 이어서 쓸 수 있습니다.`;
+}
 export const TEMPLATE_DISCARD_INPUT_CONFIRM = { title: '내 입력을 버릴까요?', message: '지금 적은 내용이 사라지고, 다른 사람이 저장한 내용이 그대로 남습니다.', confirmLabel: TEMPLATE_DISCARD_INPUT_LABEL } as const;
 /** [보관]·[복원]은 보관 상태만 바꾼다. 고친 내용이 있으면 그것이 사라진다고 먼저 묻는다. */
 export function templateArchiveConfirm(archive: boolean) {
@@ -53,11 +62,11 @@ export function templateSavedKind(wasArchived: boolean, archived: boolean): Temp
   return archived === wasArchived ? 'saved' : archived ? 'archived' : 'restored';
 }
 /**
- * 저장·보관·복원 뒤 목록 위에 보이는 결과 한 줄. 보관·복원한 템플릿은 지금 보는 목록에서 사라지므로 어디서 다시 보는지까지 말한다
- * (사진 보관함과 같은 말이다).
+ * 저장·보관·복원 뒤 목록 위에 보이는 결과 한 줄. 보관·복원한 템플릿은 지금 보는 목록에서 사라지므로 어디서 다시 보는지까지 말한다.
+ * 보관한 템플릿의 줄에는 [수정]뿐이고 [복원]은 그 창 안에 있어, 되살리는 길도 함께 말한다(2026-11-26 브라우저 확인). 사진 보관함은 줄에 [복원]이 있어 앞 문장만 쓴다.
  */
 export function templateSavedNotice(kind: TemplateSavedKind): string {
-  return kind === 'archived' ? "보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있습니다."
+  return kind === 'archived' ? "보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있고, 그 줄의 [수정]을 열어 [복원]을 누르면 되살아납니다."
     : kind === 'restored' ? "복원했습니다. 보관 상태 '사용 중' 목록에서 볼 수 있습니다." : '템플릿을 저장했습니다.';
 }
 

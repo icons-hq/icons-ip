@@ -172,6 +172,8 @@ it('10장을 채우면 창에 남은 자리 0장을 넘기고, 닫은 뒤에는 
   expect(text(render())).not.toContain('상품 이미지는 최대 10장입니다');
   picker()!.props.onClose();
   expect(button('사진 보관함에서 고르기').props.disabled).toBe(true);
+  /* 브라우저 확인 S10: 자리가 다 차서 잠긴 버튼 옆에 까닭과 푸는 방법을 적는다. */
+  expect(all(render()).filter(item => (item.props as Record<string, unknown>)['data-good-image-library-full'] !== undefined).map(item => text(item))).toEqual(['이미지 10자리가 모두 찼습니다. 보관함 사진을 넣으려면 먼저 한 장을 뺍니다.']);
 });
 
 /*

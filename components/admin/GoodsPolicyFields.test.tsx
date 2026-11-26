@@ -143,6 +143,26 @@ describe('주문 후 제작 입력', () => {
   });
 });
 
+/* 브라우저 확인 F4: 쇼핑몰 설정이 주문 후 제작을 받지 않으면 DB가 켠 채 저장하는 것을 거절한다. 켜기 전에 막고 이유를 보인다(화면 규칙 5). */
+describe('주문 후 제작 — 쇼핑몰 설정이 받지 않을 때', () => {
+  const render = (draft: ProductionDraft) => renderToStaticMarkup(<GoodsProductionFields draft={draft} onChange={() => {}} idPrefix="p1" runtimeOff />);
+  it('꺼져 있는 상품은 켜지 못하게 막고, 누구에게 요청하는지 말한다', () => {
+    const off = render(production());
+    expect(off).toMatch(/<input type="checkbox" disabled=""\/>이 상품은 주문을 받은 뒤에 제작합니다/);
+    expect(off).toContain('data-good-production-runtime-off=""');
+    expect(off).toContain('지금 쇼핑몰 설정에서는 주문 후 제작을 켤 수 없습니다. 써야 하면 개발 담당자에게 요청해 주세요.');
+  });
+  it('이미 켜져 있으면 끌 수 있게 열어 두고, 켠 채로는 저장되지 않는다고 미리 말한다', () => {
+    const on = render(production({ enabled: true, leadDays: '5' }));
+    expect(on).toMatch(/<input type="checkbox" checked=""\/>이 상품은 주문을 받은 뒤에 제작합니다/);
+    expect(on).toContain('지금 쇼핑몰 설정에서는 주문 후 제작을 켠 채로 저장할 수 없습니다. 끄고 저장하거나, 써야 하면 개발 담당자에게 요청해 주세요.');
+  });
+  it('쇼핑몰 설정이 받으면 아무 말도 덧붙이지 않는다', () => {
+    const html = renderProduction(production());
+    expect(html).not.toContain('data-good-production-runtime-off'); expect(html).not.toContain('disabled=""');
+  });
+});
+
 describe('정기배송 입력', () => {
   it('사용하지 않으면 주기·안내 칸을 닫고, 사용하면 열면서 신청 버튼 조건을 한 줄로 말한다', () => {
     const off = renderSubscription(subscription());

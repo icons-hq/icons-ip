@@ -53,6 +53,7 @@ import { GoodsAfterSalesPhoneSuggestion, afterSalesPhoneSuggestion } from '../Go
 import { GoodSizeChartPanel } from '../GoodSizeChartPanel';
 import { GoodsTransactionTermsPanel } from '../GoodsTransactionTermsPanel';
 import { GoodsFulfillmentPanel } from '../GoodsFulfillmentPanel';
+import { GOODS_FULFILLMENT_RUNTIME_OFF_SAVED } from '@/lib/admin/goods-fulfillment-messages';
 import { GoodsProductionPanel } from '../GoodsProductionPanel';
 import { GoodsSubscriptionPolicyPanel } from '../GoodsSubscriptionPolicyPanel';
 import { GoodShippingChargeGroupPanel } from '../GoodShippingChargeGroupPanel';
@@ -121,7 +122,7 @@ export function GoodSection({
   initialIpId,
   initialQuery='',
   hideRecordList=false, listHref='/admin/catalog/goods',
-  accountId='', origins=[], returnAddresses, noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canOpenIp=false, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [],
+  accountId='', origins=[], returnAddresses, noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, canOpenIp=false, canManageMedia=false, cloneOperationId, readiness, regionSummaries = [], transactionRuntimeOff=false,
 }: {
   action: (payload: FormData) => void;
   adjustmentId: string; ownership?: GoodsEditorOwnership | null;
@@ -138,6 +139,8 @@ export function GoodSection({
   hideRecordList?: boolean; listHref?: string;
   accountId?: string; origins?: GoodsFulfillmentOrigin[]; returnAddresses?: ReturnAddressOption[]; noticeDefaults?: GoodNoticeDefaults;
   categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; canOpenIp?: boolean; canManageMedia?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
+  /** 쇼핑몰 설정이 택배 외 수령 방식·주문 후 제작을 받지 않는다(page가 읽어 내려준다). 켜져 있으면 DB가 그 저장을 거절하므로 고르기 전에 막는다(화면 규칙 5). */
+  transactionRuntimeOff?: boolean;
 }) {
   const [archiveFilter, setArchiveFilter] = useState<AdminCatalogArchiveFilter>(
     selected?.archivedAt ? 'archived' : 'active',
@@ -165,6 +168,8 @@ export function GoodSection({
     : subscriptionBusy ? '정기배송 저장 결과를 확인한 뒤 할인·배송 설정을 저장해주세요.' : '';
   const chargeOwnReason = transactionBusy || subscriptionBusy ? '할인·배송 또는 정기배송 요청의 결과를 확인한 뒤 배정해주세요.' : '';
   const subscriptionOwnReason = transactionBusy || chargeBusy ? '할인·배송 저장 결과를 확인한 뒤 정기배송 설정을 저장해주세요.' : '';
+  /* 쇼핑몰 설정이 꺼져 있으면 수령 방식 저장은 모두 거절된다. 영역을 잠그고 그 이유를 패널이 직접 보인다(주문 후 제작은 켜는 것만 막혀 입력 부품이 맡는다). */
+  const fulfillmentOwnReason = transactionRuntimeOff ? GOODS_FULFILLMENT_RUNTIME_OFF_SAVED : '';
   const kcTemplate = useGoodsKcTemplate(selected?.id ?? null);
   const normalizedQuery=query.trim().toLocaleLowerCase();
   const visibleRecords = filterAdminCatalogRecords(records, archiveFilter).filter((good)=>!normalizedQuery
@@ -196,8 +201,8 @@ export function GoodSection({
       'shipping-charge-group': <GoodOperationSection key="shipping-charge-group" notice={chargeOwnReason ? undefined : policyNotice} id="shipping-charge-group" title={OPERATION['shipping-charge-group'][0]} description={OPERATION['shipping-charge-group'][1]} help={OPERATION_HELP['shipping-charge-group']}><GoodShippingChargeGroupPanel goodId={selected.id} accountId={accountId} disabledReason={chargeOwnReason || policyDisabled} showDisabledReason={Boolean(chargeOwnReason)} onBusyChange={setChargeBusy} key={`shipping-charge-${accountId}-${selected.id}`} /></GoodOperationSection>,
       'subscription-policy': <GoodOperationSection key="subscription-policy" notice={subscriptionOwnReason ? undefined : policyNotice} id="subscription-policy" title={OPERATION['subscription-policy'][0]} description={OPERATION['subscription-policy'][1]} help={OPERATION_HELP['subscription-policy']}><GoodsSubscriptionPolicyPanel goodId={selected.id} accountId={accountId} disabledReason={subscriptionOwnReason || policyDisabled} showDisabledReason={Boolean(subscriptionOwnReason)} onBusyChange={setSubscriptionBusy} key={`subscription-${accountId}-${selected.id}`} /></GoodOperationSection>,
       ...(accountId ? {
-        fulfillment: <GoodOperationSection key="fulfillment" notice={policyNotice} id="fulfillment" title={OPERATION.fulfillment[0]} description={OPERATION.fulfillment[1]}><GoodsFulfillmentPanel key={`fulfillment-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyDisabled} showDisabledReason={false} /></GoodOperationSection>,
-        production: <GoodOperationSection key="production" notice={policyNotice} id="production" title={OPERATION.production[0]} description={OPERATION.production[1]}><GoodsProductionPanel key={`production-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyDisabled} showDisabledReason={false} /></GoodOperationSection>,
+        fulfillment: <GoodOperationSection key="fulfillment" notice={fulfillmentOwnReason ? undefined : policyNotice} id="fulfillment" title={OPERATION.fulfillment[0]} description={OPERATION.fulfillment[1]}><GoodsFulfillmentPanel key={`fulfillment-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={fulfillmentOwnReason || policyDisabled} showDisabledReason={Boolean(fulfillmentOwnReason)} /></GoodOperationSection>,
+        production: <GoodOperationSection key="production" notice={policyNotice} id="production" title={OPERATION.production[0]} description={OPERATION.production[1]}><GoodsProductionPanel key={`production-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyDisabled} showDisabledReason={false} runtimeOff={transactionRuntimeOff} /></GoodOperationSection>,
       } : {}),
       /* D5② 판매 방식(랜덤 판매): 옵션·가격 저장과 낙관 잠금(goods.updated_at)을 나눠 쓰므로 기본 입력이 잠기면 함께 잠그고,
          상품을 저장해 수정 시각이 바뀌면 다시 읽는다. */
@@ -235,8 +240,8 @@ export function GoodSection({
     ...(accountId ? { 'shipping-charge-group': inline('shipping-charge-group', <GoodWorkspaceShippingChargeGroupSection accountId={accountId} serverError={state.errors?.workspaceShippingChargeGroup} />) } : {}),
     'subscription-policy': inline('subscription-policy', <GoodWorkspaceSubscriptionSection serverError={state.errors?.workspaceSubscriptionPolicy} />),
     ...(accountId ? {
-      fulfillment: inline('fulfillment', <GoodWorkspaceFulfillmentSection accountId={accountId} serverError={state.errors?.workspaceFulfillment} />),
-      production: inline('production', <GoodWorkspaceProductionSection serverError={state.errors?.workspaceProduction} />),
+      fulfillment: inline('fulfillment', <GoodWorkspaceFulfillmentSection accountId={accountId} serverError={state.errors?.workspaceFulfillment} runtimeOff={transactionRuntimeOff} />),
+      production: inline('production', <GoodWorkspaceProductionSection serverError={state.errors?.workspaceProduction} runtimeOff={transactionRuntimeOff} />),
     } : {}),
     'listing-colors': inline('listing-colors', <GoodWorkspaceListingColorsSection serverError={state.errors?.workspaceListingColors} />),
     ...(ownership?.group ? {} : {

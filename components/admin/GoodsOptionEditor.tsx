@@ -21,7 +21,7 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { AdminHelpTip } from './console/AdminHelpTip';
 import { AdminField } from './console/AdminKit';
-import { ErpItemPickButton, ErpItemPickScope, erpItemPickSummary, type ErpItemPickTarget } from './ErpItemPicker';
+import { ErpItemPickButton, ErpItemPickScope, erpItemPickSummary, erpItemTakenReason, type ErpItemPickTarget } from './ErpItemPicker';
 import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TABLE_FRAME_CLASS, GoodAmountField, GoodChoiceCard, GoodChoiceCards, GoodReadback } from './GoodEditorParts';
 import { GoodsOptionImportPicker } from './GoodsOptionImportDialog';
 import { AUTO_CODE_BADGE } from './GoodIdentifierFields';
@@ -136,12 +136,14 @@ function OptionDetailTable({ rows, single, predictedCodes, savedCodes, update, e
     setCodesOpen(false);
   }
   /* [ERP 품목 고르기]가 줄마다 쓰는 것. 옵션이 여럿이면 표 전체를 함께 넘겨, 고른 뒤 아래의 빈 줄로 이어서 고르게 한다(규칙 6). */
+  const rowIds = new Set(rows.flatMap((row) => row.id ? [row.id] : [])), savedIds = new Set(savedCodes?.options.map((option) => option.id) ?? []);
   const pickTargets: ErpItemPickTarget[] = canSearchErp ? rows.map((row, index) => {
     const key = goodsOptionRowKey(row), optionName = row.name.trim(), erpCode = (row.erpCode ?? '').trim(), erpName = (row.erpName ?? '').trim();
     return {
       key, target: `옵션 ${index + 1}${optionName ? `(${optionName})` : ''}`, empty: !erpCode && !erpName, currentCode: erpCode || null,
-      /* 같은 상품의 다른 옵션이 쓰는 품목은 목록에서 고를 수 없게 한다(한 ERP 품목은 옵션 하나에만 연결된다). */
-      blockedReason: (item) => selectErpItemForGoodsOption(rows, key, item).ok ? null : '다른 옵션에 넣은 품목',
+      /* 한 ERP 품목은 옵션 하나에만 연결된다. 이 표의 다른 옵션이 쓰는 품목(표의 지금 값), 다른 상품·사용 중지한 옵션이 쓰는 품목(선택창 조회가 알려 준다)은 고를 수 없다. */
+      blockedReason: (item) => !selectErpItemForGoodsOption(rows, key, item).ok ? '다른 옵션에 넣은 품목'
+        : erpItemTakenReason(item, { rowIds, savedIds, barcodeEmpty: !(row.barcode ?? '').trim() }),
       onSelect: (item) => onErpSelect(key, item),
     };
   }) : [];

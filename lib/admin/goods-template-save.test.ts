@@ -62,7 +62,7 @@ describe('세 화면이 함께 쓰는 말', () => {
   it('저장·보관·복원 뒤의 결과 한 줄', () => {
     expect([templateSavedKind(false, false), templateSavedKind(true, true), templateSavedKind(false, true), templateSavedKind(true, false)]).toEqual(['saved', 'saved', 'archived', 'restored']);
     expect(templateSavedNotice('saved')).toBe('템플릿을 저장했습니다.');
-    expect(templateSavedNotice('archived')).toBe("보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있습니다.");
+    expect(templateSavedNotice('archived')).toBe("보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있고, 그 줄의 [수정]을 열어 [복원]을 누르면 되살아납니다.");
     expect(templateSavedNotice('restored')).toBe("복원했습니다. 보관 상태 '사용 중' 목록에서 볼 수 있습니다.");
   });
 

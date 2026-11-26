@@ -163,9 +163,14 @@ function productionValues(draft: GoodWorkspaceProductionDraft): ProductionValues
     closedDates: draft.dayBasis === 'calendar' ? [] : draft.closedDates.split(/[\s,]+/).map((date) => date.trim()).filter(Boolean),
     publicNote: draft.publicNote };
 }
-function sameFulfillment(left: GoodWorkspaceFulfillmentDraft, right: GoodWorkspaceFulfillmentDraft) {
-  const shape = (draft: GoodWorkspaceFulfillmentDraft) => JSON.stringify([draft.mode, draft.methods, draft.files.map((file) => file.id), draft.publicNote]);
-  return shape(left) === shape(right);
+/**
+ * 수령 방식이 새 상품 기본값(택배만 · 설치비 0원 · 고객 안내 없음)과 같은가. 같으면 상품과 함께 저장할 것이 없다.
+ * 화면 입력이 아니라 '저장될 값'으로 견준다 — 켰다 끈 방식에 남은 금액은 저장 대상이 아니므로, 택배만 다시 남기면 기본값으로 본다
+ * (그래야 택배 외 방식을 받지 않는 쇼핑몰 설정에서 '택배만 남기고 저장'이 실제로 된다).
+ */
+export function isDefaultGoodWorkspaceFulfillment(draft: GoodWorkspaceFulfillmentDraft): boolean {
+  const values = fulfillmentValues(draft);
+  return typeof values !== 'string' && JSON.stringify(values) === JSON.stringify(fulfillmentValues(emptyGoodWorkspaceFulfillment()));
 }
 
 /**
@@ -252,7 +257,7 @@ export function prepareGoodWorkspaceExtraSections(extras: Partial<GoodWorkspaceE
     if (!parsed) return fail('subscriptionPolicy', goodsSubscriptionPolicyError());
     value.subscriptionPolicy = parsed;
   }
-  if (extras.fulfillment && !sameFulfillment(extras.fulfillment, emptyGoodWorkspaceFulfillment())) {
+  if (extras.fulfillment && !isDefaultGoodWorkspaceFulfillment(extras.fulfillment)) {
     const values = fulfillmentValues(extras.fulfillment);
     if (typeof values === 'string') return fail('fulfillment', values);
     value.fulfillment = values;

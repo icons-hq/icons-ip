@@ -42,7 +42,8 @@ export function erpItemRowView(item: ErpItemMatch, currentCode?: string | null):
  * 방금 ERP 품목에서 가져온 값을 그 옵션 줄에서 한 줄로 되읽는다(무엇이 들어갔는지 — ERP 코드와 바코드).
  * 가져온 직후의 결과 안내다. 상품을 저장하거나 화면을 다시 열면 사라진다 — 저장된 값에는 고른 것과 직접 적은 것의 구분이 없다.
  * 가져온 뒤 ERP 코드나 ERP 품명을 손으로 고치면 더는 그 품목이 아니므로 null을 돌려준다.
- * 바코드는 칸이 비어 있을 때만 품목 값이 들어간다 — 적어 둔 바코드가 품목과 다르면 그대로 둔 것을 알린다(warning).
+ * 바코드는 칸이 비어 있을 때만 품목 값이 들어간다 — 칸에 있던 바코드가 품목과 다르면 그대로 둔 것과 고치는 방법을 알린다(warning).
+ * 그 값은 손으로 적은 것일 수도, 앞서 고른 다른 품목이 넣은 것일 수도 있어 '적어 둔 값'이라고 하지 않고 값 자체를 보인다(2026-11-26 브라우저 확인 S14).
  */
 export function erpItemPickSummary(
   row: { erpCode?: string | null; erpName?: string | null; barcode?: string | null },
@@ -55,7 +56,28 @@ export function erpItemPickSummary(
   if (!itemBarcode) return { text: `${head} · 바코드 없는 품목`, warning: false };
   if (written === itemBarcode) return { text: `${head} · 바코드 ${itemBarcode}`, warning: false };
   if (!written) return { text: head, warning: false };
-  return { text: `${head} · 바코드는 적어 둔 값을 그대로 뒀습니다. ERP 품목의 바코드는 ${itemBarcode}입니다.`, warning: true };
+  return { text: `${head} · 바코드 칸에 있던 값(${written})은 그대로 뒀습니다. 이 품목의 바코드는 ${itemBarcode}입니다. 이 품목 것으로 바꾸려면 바코드 칸을 고쳐 주세요.`, warning: true };
+}
+
+/**
+ * 이 품목을 고를 수 없는 까닭(다른 상품이나 사용 중지한 옵션이 이미 쓰는 품목). 고를 수 있으면 null.
+ * ERP 코드·바코드는 옵션 전체에서 하나뿐이어야 저장된다. 예전에는 이런 품목도 [선택]으로 보여, 고른 뒤 상품 저장이 통째로 거절됐다(화면 규칙 2).
+ *   - 지금 표에 있는 옵션이 쓰는 품목은 여기서 가리지 않는다 — 표의 지금 값(저장 전 수정 포함)으로 가린다(selectErpItemForGoodsOption).
+ *   - 바코드만 겹치는 품목은 이 옵션의 바코드 칸이 비어 있을 때만 막는다(바코드는 빈 칸에만 들어간다).
+ */
+export function erpItemTakenReason(item: Pick<ErpItemMatch, 'usedBy'>, context: {
+  /** 지금 표에 있는 옵션의 내부 번호(저장된 옵션). */
+  rowIds: ReadonlySet<string>;
+  /** 이 상품의 저장된 옵션 전체(사용 중지한 옵션 포함). */
+  savedIds: ReadonlySet<string>;
+  /** 고르는 옵션의 바코드 칸이 비어 있는가. */
+  barcodeEmpty: boolean;
+}): string | null {
+  const used = item.usedBy;
+  if (!used || context.rowIds.has(used.variantId)) return null;
+  if (used.via === 'barcode' && !context.barcodeEmpty) return null;
+  const what = used.via === 'barcode' ? '넣은 바코드' : '넣은 품목';
+  return context.savedIds.has(used.variantId) ? `사용 중지한 옵션에 ${what} · ${used.optionName}` : `다른 상품에 ${what} · ${used.goodName}`;
 }
 
 /** 옵션 표의 줄 하나를 선택창이 채울 때 필요한 것. 줄마다 다시 만들어 넘긴다(다른 옵션이 쓰는 품목은 지금 표 기준으로 가려야 한다). */

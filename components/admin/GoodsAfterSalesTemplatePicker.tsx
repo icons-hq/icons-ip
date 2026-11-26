@@ -34,15 +34,25 @@ export function afterSalesHasInput(values: GoodsAfterSalesValues): boolean {
   return Boolean(values.phone.trim() || values.guide.trim() || values.sellerSpecialNotes.trim());
 }
 
+/**
+ * 템플릿을 고르면 내용이 바뀌는 칸 가운데 지금 적어 둔 값이 있는 칸의 이름. 비어 있는 칸과 템플릿과 같은 칸은 뺀다
+ * (상품정보제공고시 템플릿의 확인창과 같은 기준 — 사라지는 것만 말한다).
+ */
+export function afterSalesOverwrittenFields(current: GoodsAfterSalesValues, template: GoodsAfterSalesValues): string[] {
+  const fields: [string, string, string][] = [['A/S 전화번호', current.phone, template.phone], ['A/S 안내', current.guide, template.guide], ['판매자 특이사항', current.sellerSpecialNotes, template.sellerSpecialNotes]];
+  return fields.filter(([, mine, next]) => mine.trim() && mine.trim() !== next.trim()).map(([label]) => label);
+}
+
 export function GoodsAfterSalesTemplatePicker({ onClose, onSelect, current }: {
   onClose: () => void;
   onSelect: (template: GoodsAfterSalesTemplate) => void;
-  /** 지금 적어 둔 A/S 안내. 적어 둔 것이 있으면 바꾸기 전에 묻고, 취소하면 선택창을 그대로 둔다. */
+  /** 지금 적어 둔 A/S 안내. 적어 둔 칸 가운데 템플릿으로 내용이 바뀌는 칸이 있으면 그 칸 이름을 대며 묻고, 취소하면 선택창을 그대로 둔다. */
   current?: GoodsAfterSalesValues;
 }) {
   async function choose(template: GoodsAfterSalesTemplate): Promise<boolean> {
-    if (current && afterSalesHasInput(current)
-      && !await adminConfirm({ title: 'A/S 안내를 바꿀까요?', message: `지금 적어 둔 A/S 전화번호·A/S 안내·판매자 특이사항이 ‘${templateExcerpt(template.guide)}’ 템플릿 내용으로 바뀝니다.`, confirmLabel: '바꾸기' })) return false;
+    const overwritten = current ? afterSalesOverwrittenFields(current, template) : [];
+    if (overwritten.length
+      && !await adminConfirm({ title: 'A/S 안내를 바꿀까요?', message: `지금 적어 둔 ${overwritten.join(', ')} 칸이 ‘${templateExcerpt(template.guide)}’ 템플릿 내용으로 바뀝니다.`, confirmLabel: '바꾸기' })) return false;
     onSelect(template);
     return true;
   }

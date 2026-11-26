@@ -114,6 +114,17 @@ export function goodEditorFingerprint(data: FormData): string {
     typeof value === 'string' && GOOD_LOCAL_DRAFT_FIELDS.includes(name) && !['serverDraftId', 'serverDraftRevision'].includes(name)).sort(([a], [b]) => a.localeCompare(b)));
 }
 
+/**
+ * '출고지·배송비' 접힌 줄 요약에 쓰는 배송 안내 이름. 칸(GoodsShippingNoticeField)에 보이는 이름과 같아야 한다:
+ * 고르지 않았으면 '기본 안내', 목록에 있으면 그 이름, 목록에 없는 예전 안내가 적용 중이면 상품에 저장돼 있는 그 안내의 이름.
+ */
+export function goodShippingNoticeSummaryName(value: string, options: Pick<ShippingNoticeSnapshot, 'code' | 'version' | 'name'>[],
+  saved?: Pick<ShippingNoticeSnapshot, 'code' | 'version' | 'name'> | null): string {
+  if (!value) return '기본 안내';
+  const key = (notice: Pick<ShippingNoticeSnapshot, 'code' | 'version'>) => `${notice.code}@${notice.version}`;
+  return options.find(option => key(option) === value)?.name || (saved && key(saved) === value && saved.name) || '지금 적용 중인 안내';
+}
+
 /** All public projections use the same unsaved values, including delivery and comparison price. */
 export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps, origins, returnAddresses = [], shippingNoticeOptions, priceDraft, now }: {
   values: Record<string, string>; imageUrls: Record<string, string | null>; selected: AdminGoodRecord | null;

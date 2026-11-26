@@ -6,12 +6,13 @@ import { prepareDigitalAssetAction, verifyDigitalAssetAction } from '@/app/admin
 import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope } from '@/components/claim-contact/ClaimContactSession';
 import { createClient } from '@/lib/supabase/client';
 import { DIGITAL_BUCKET, parseDigitalFile, type DigitalFile } from '@/lib/goods-fulfillment';
+import { GOODS_FULFILLMENT_RUNTIME_OFF, GOODS_FULFILLMENT_RUNTIME_OFF_REVERT } from '@/lib/admin/goods-fulfillment-messages';
 import { GOODS_AFTER_SALES_TEMPLATES_PATH } from '@/lib/goods-after-sales';
 import { GOODS_SIZE_TEMPLATES_PATH, parseGoodsSizeChart } from '@/lib/goods-size-chart';
 import { PURCHASE_TAX_BASIS_LABELS, type PurchaseTaxBasis } from '@/lib/admin/goods-purchase-costs';
 import { goodsOptionRowKey } from '@/lib/admin/goods-option-editor';
 import {
-  goodWorkspaceExtraDefault, goodWorkspaceExtraErrorField, type GoodWorkspaceExtraDraft,
+  goodWorkspaceExtraDefault, goodWorkspaceExtraErrorField, isDefaultGoodWorkspaceFulfillment, type GoodWorkspaceExtraDraft,
   type GoodWorkspaceExtraKey, type GoodWorkspacePricePeriodDraft,
 } from '@/lib/admin/good-workspace-extra-sections';
 import { GOOD_PICKERS_B_HELP } from '@/lib/admin/help/good-pickers-b';
@@ -24,7 +25,7 @@ import { AdminLabelWithHelp } from './console/AdminHelpTip';
 import { GOOD_INPUT_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GoodChoiceCard, GoodChoiceCards } from './GoodEditorParts';
 import { GOODS_ADDITIONAL_INTRO, GoodsAdditionalLinks } from './GoodsAdditionalLinks';
 import { GoodsBenefitFields, withGiftImage } from './GoodsBenefitsPanel';
-import { otherGiftImagePaths } from '@/lib/admin/goods-benefits-messages';
+import { GOODS_BENEFIT_PHOTO_WITH_GOOD_NOTE, otherGiftImagePaths } from '@/lib/admin/goods-benefits-messages';
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
 import { GoodsSizeChartFields } from './GoodsSizeChartFields';
 import { GoodsListingColorFields } from './GoodsListingColorsPanel';
@@ -161,7 +162,7 @@ export function GoodWorkspaceBenefitsSection({ serverError }: { serverError?: st
   const [picker, setPicker] = useState<number | null>(null), [templates, setTemplates] = useState(false);
   return <DraftBody testId="benefits">
     <p className="text-muted-foreground">상품 상세에 보이는 안내입니다. 사은품 재고와 출고는 따로 챙겨야 합니다.</p>
-    <GoodsBenefitFields values={value} onChange={set} onPickPhoto={setPicker} onOpenTemplates={() => setTemplates(true)} fieldPrefix="goods-workspace-benefit-image" />
+    <GoodsBenefitFields values={value} onChange={set} onPickPhoto={setPicker} onOpenTemplates={() => setTemplates(true)} fieldPrefix="goods-workspace-benefit-image" unsavedPhotoNote={() => GOODS_BENEFIT_PHOTO_WITH_GOOD_NOTE} />
     <SectionError message={error ?? serverError} />
     {/* 다른 칸에 이미 넣은 사진은 선택창에서 다시 고를 수 없다(저장된 상품의 패널과 같다). */}
     {picker !== null ? <GoodsPhotoPicker pickedPaths={otherGiftImagePaths(value, picker)} onClose={() => setPicker(null)} onSelect={(photo) => { set((current) => withGiftImage(current, picker, photo.imagePath)); setPicker(null); }} /> : null}
@@ -250,14 +251,19 @@ export function GoodWorkspaceSubscriptionSection({ serverError }: { serverError?
   </DraftBody>;
 }
 
-/** 수령 방식·설치비·디지털 파일. 파일은 이 계정·세션으로 전송·확인한 뒤 상품과 함께 연결한다. */
-export function GoodWorkspaceFulfillmentSection({ accountId, serverError }: { accountId: string; serverError?: string }) {
+/**
+ * 수령 방식·설치비·디지털 파일. 파일은 이 계정·세션으로 전송·확인한 뒤 상품과 함께 연결한다.
+ * `runtimeOff`: 쇼핑몰 설정이 택배 외 수령 방식을 받지 않을 때(DB가 이 영역의 저장을 거절해 상품 전체가 등록되지 않는다).
+ * 택배만 고른 처음 상태면 고르기 전에 막고 이유를 보인다(화면 규칙 5). 이미 다른 방식이 들어 있으면(되살린 입력 등) 되돌릴 수 있게 열어 두고 무엇을 남겨야 하는지 말한다.
+ */
+export function GoodWorkspaceFulfillmentSection({ accountId, serverError, runtimeOff }: { accountId: string; serverError?: string; runtimeOff?: boolean }) {
   return <ClaimContactSession actorId={accountId} pendingMessage="로그인 상태를 확인하고 있습니다.">
-    {(identity, scope) => <FulfillmentDraft identity={identity} scope={scope} serverError={serverError} />}
+    {(identity, scope) => <FulfillmentDraft identity={identity} scope={scope} serverError={serverError} runtimeOff={runtimeOff} />}
   </ClaimContactSession>;
 }
-function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimContactIdentity; scope: ClaimContactScope; serverError?: string }) {
+function FulfillmentDraft({ identity, scope, serverError, runtimeOff = false }: { identity: ClaimContactIdentity; scope: ClaimContactScope; serverError?: string; runtimeOff?: boolean }) {
   const { value, set, error } = useExtra('fulfillment');
+  const runtimeBlocked = runtimeOff && isDefaultGoodWorkspaceFulfillment(value);
   const fieldId = useId();
   const [pending, setPending] = useState(false), [message, setMessage] = useState(''), [pendingFile, setPendingFile] = useState<DigitalFile | null>(null);
   const busy = useRef(false);
@@ -286,8 +292,10 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
     else { setMessage(result.error); if (!result.uncertain) setPendingFile(null); }
   }
   return <DraftBody testId="fulfillment">
-    <p className="text-muted-foreground">택배만 쓰면 바꿀 것이 없습니다.</p>
-    <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4" disabled={pending || Boolean(pendingFile)}>
+    {runtimeOff
+      ? <p className="text-warning" data-good-fulfillment-runtime-off="" role="status">{runtimeBlocked ? GOODS_FULFILLMENT_RUNTIME_OFF : GOODS_FULFILLMENT_RUNTIME_OFF_REVERT}</p>
+      : <p className="text-muted-foreground">택배만 쓰면 바꿀 것이 없습니다.</p>}
+    <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4 disabled:opacity-60" disabled={pending || Boolean(pendingFile) || runtimeBlocked}>
       <legend className="sr-only">상품 제공 방식</legend>
       <GoodsFulfillmentDraftFields draft={value} onChange={(draft) => set(draft as GoodWorkspaceExtraDraft['fulfillment'])} onUpload={(file) => { void upload(file); }} fieldId={fieldId} />
     </fieldset>
@@ -297,8 +305,8 @@ function FulfillmentDraft({ identity, scope, serverError }: { identity: ClaimCon
   </DraftBody>;
 }
 
-/** 주문 후 제작. 체크 하나로 켜고, 켜면 필요한 입력만 열린다 — 도입 문장은 두지 않는다. */
-export function GoodWorkspaceProductionSection({ serverError }: { serverError?: string }) {
+/** 주문 후 제작. 체크 하나로 켜고, 켜면 필요한 입력만 열린다 — 도입 문장은 두지 않는다. `runtimeOff`(쇼핑몰 설정이 주문 후 제작을 받지 않음)면 입력 부품이 켜기 전에 막고 이유를 보인다. */
+export function GoodWorkspaceProductionSection({ serverError, runtimeOff }: { serverError?: string; runtimeOff?: boolean }) {
   const { value, set, error } = useExtra('production');
   /* 규칙 5: 예약판매와 주문 후 제작은 함께 쓸 수 없다(DB가 거절). 판매 시기에서 예약판매를 골라 두었으면 여기서 켜지 못하게 막고 이유와 푸는 방법을 적는다.
      반대 방향(주문 후 제작을 켠 뒤 예약판매 고르기)은 판매 시기 카드가 막는다. 이미 켜져 있으면 끌 수 있게 열어 둔다. */
@@ -308,7 +316,7 @@ export function GoodWorkspaceProductionSection({ serverError }: { serverError?: 
       ? <p className="text-warning" data-good-production-blocked="" role="status">판매 시기에서 예약판매를 골라 두어 주문 후 제작을 함께 쓸 수 없습니다. 주문 후 제작을 쓰려면 판매 시기를 ‘바로 판매’나 ‘기간을 정해 판매’로 바꿉니다.</p>
       : null}
     <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4 disabled:opacity-60" disabled={preorderChosen}><legend className="sr-only">주문 후 제작</legend>
-      <GoodsProductionFields draft={value} onChange={(draft) => set(draft)} idPrefix="workspace-production" />
+      <GoodsProductionFields draft={value} onChange={(draft) => set(draft)} idPrefix="workspace-production" runtimeOff={runtimeOff} />
     </fieldset>
     <SectionError message={error ?? serverError} />
   </DraftBody>;

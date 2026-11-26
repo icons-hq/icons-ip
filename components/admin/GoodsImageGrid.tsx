@@ -553,7 +553,11 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
       <summary className="flex w-fit cursor-pointer list-none items-center gap-1 rounded-md outline-none select-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden"><ChevronRight aria-hidden="true" className="size-3.5 shrink-0 transition-transform group-open/image-guide:rotate-90 motion-reduce:transition-none" />이미지 바꾸기·순서·삭제 방법</summary>
       <p className="mt-1.5">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 왼쪽 위 손잡이(⋮⋮)를 끌거나 ←·→ 키로 순서를 바꾸며(마우스는 이미지를 바로 끌어도 됩니다), 이 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시됩니다. {{ draft: '×를 누르면 그 이미지를 뺍니다.', published: '추가 이미지는 ×로 빼고, 공개 중인 상품의 대표 이미지는 교체만 합니다.', archived: '보관 상품은 복원한 뒤 이미지를 고쳐 저장합니다.' }[publication]} 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다. {GOODS_IMAGE_LIBRARY_NOTICE}</p>
     </GoodWorkspaceDetails>
-    <button type="button" className={cn(buttonVariants({ variant: 'outline' }), 'self-start')} data-slot="button" disabled={slots.every(Boolean)} onClick={() => setPhotoPicker(true)}>사진 보관함에서 고르기</button>
+    {/* 자리가 다 차면 버튼이 잠긴다 — 왜 잠겼는지와 푸는 방법을 옆에 적는다(화면 규칙 5). */}
+    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+      <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={slots.every(Boolean)} onClick={() => setPhotoPicker(true)}>사진 보관함에서 고르기</button>
+      {slots.every(Boolean) ? <span className="text-xs text-muted-foreground" data-good-image-library-full="">{`이미지 ${slots.length}자리가 모두 찼습니다. 보관함 사진을 넣으려면 먼저 한 장을 뺍니다.`}</span> : null}
+    </div>
     {/*
       여러 장을 이어서 고른다 — 고른 사진은 그때마다 빈 자리에 들어가고 창은 [완료]로 닫는다(추가 이미지 9장에 창을 9번 열지 않는다).
       이미 넣은 사진과 남은 자리를 창에 넘겨, 고를 수 없는 사진은 창 안에서 [선택]이 없다. 고른 뒤에 닫고 거절하지 않는다.

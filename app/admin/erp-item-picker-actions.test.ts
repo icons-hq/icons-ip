@@ -1,7 +1,8 @@
 const { configuredOperatorAccessFixture, legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), client: vi.fn(), rpc: vi.fn() }));
+/* rpc: ERP 품목 목록 조회. identities·from: 그 품목을 이미 쓰는 옵션을 찾는 조회(옵션의 ERP 코드·바코드, 옵션·상품 이름). */
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), client: vi.fn(), rpc: vi.fn(), identities: vi.fn(), from: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.client }));
 vi.mock('next/navigation', () => ({
@@ -29,7 +30,12 @@ const page = (total: number, codes: string[]) => ({ data: { total, items: codes.
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.auth.mockResolvedValue(staff);
-  mocks.client.mockResolvedValue({ rpc: mocks.rpc });
+  mocks.identities.mockResolvedValue({ data: [], error: null });
+  mocks.from.mockImplementation(() => ({ select: () => ({ in: async () => ({ data: [], error: null }) }) }));
+  mocks.client.mockResolvedValue({
+    rpc: (name: string, args: unknown) => name === 'admin_list_goods_variant_external_identities' ? { in: (column: string, values: string[]) => mocks.identities(column, values, args) } : mocks.rpc(name, args),
+    from: mocks.from,
+  });
 });
 
 describe('ERP 품목 선택창 조회', () => {
@@ -84,5 +90,46 @@ describe('ERP 품목 선택창 조회', () => {
     expect(await searchErpItemPickerAction({ query: '', page: 1 })).toEqual(FAILED);
     mocks.rpc.mockRejectedValueOnce(new Error('network details'));
     expect(await searchErpItemPickerAction({ query: '', page: 1 })).toEqual(FAILED);
+  });
+
+  /*
+   * F1(2026-11-26 QA-B, 화면 규칙 2): ERP 코드·바코드는 옵션 전체에서 하나뿐이어야 저장된다. 다른 상품의 옵션이 쓰는 품목이 [선택]으로 보여
+   * 고른 뒤 상품 전체 저장이 거절됐다. 조회가 줄마다 그 품목을 이미 쓰는 옵션을 싣고, 화면이 고르기 전에 막는다.
+   */
+  it('줄마다 그 품목을 이미 쓰는 옵션을 싣는다 — ERP 코드가 겹치는 옵션이 먼저, 없으면 바코드가 겹치는 옵션', async () => {
+    mocks.rpc.mockResolvedValue({ data: { total: 3, items: [dbRow('ERP-A002', { barcode: '8800000000021' }), dbRow('ERP-A003', { barcode: '8800000000038' }), dbRow('ERP-A004', { barcode: null })] }, error: null });
+    mocks.identities.mockImplementation(async (column: string) => column === 'erp_code'
+      ? { data: [{ variant_id: 'variant-g5', good_id: 'g5', erp_code: 'erp-a002', barcode: null }], error: null }
+      : { data: [{ variant_id: 'variant-g7', good_id: 'g7', erp_code: null, barcode: '8800000000038' }], error: null });
+    mocks.from.mockImplementation((table: string) => ({ select: () => ({ in: async () => ({ error: null, data: table === 'goods'
+      ? [{ id: 'g5', name: 'QA 키링' }, { id: 'g7', name: 'QA 머그' }] : [{ id: 'variant-g5', name: '기본 옵션' }, { id: 'variant-g7', name: '화이트' }] }) }) }));
+    const result = await searchErpItemPickerAction({ query: '키링', page: 1 });
+    expect(result).toMatchObject({ ok: true, data: { rows: [
+      { code: 'ERP-A002', usedBy: { variantId: 'variant-g5', goodName: 'QA 키링', optionName: '기본 옵션', via: 'erpCode' } },
+      { code: 'ERP-A003', usedBy: { variantId: 'variant-g7', goodName: 'QA 머그', optionName: '화이트', via: 'barcode' } },
+      { code: 'ERP-A004' },
+    ] } });
+    expect(result.ok && 'usedBy' in result.data.rows[2]).toBe(false);
+    /* 옵션 편집이 쓰는 조회를 그대로 쓴다. 글자 크기만 다른 값도 찾도록 원문·소문자·대문자를 함께 묻고, 바코드가 없는 품목은 바코드로 묻지 않는다. */
+    expect(mocks.identities.mock.calls).toEqual([
+      ['erp_code', ['ERP-A002', 'erp-a002', 'ERP-A003', 'erp-a003', 'ERP-A004', 'erp-a004'], { target_good_id: null }],
+      ['barcode', ['8800000000021', '8800000000038'], { target_good_id: null }],
+    ]);
+    expect(mocks.from.mock.calls.map(([table]) => table).sort()).toEqual(['goods', 'goods_variants']);
+  });
+
+  it('쓰는 옵션이 없으면 이름 조회를 하지 않고, 확인하지 못하면 막지 않고 품목만 돌려준다(저장할 때의 검사는 그대로다)', async () => {
+    mocks.rpc.mockResolvedValue(page(1, ['000123']));
+    expect(await searchErpItemPickerAction({ query: '', page: 1 })).toMatchObject({ ok: true, data: { rows: [{ code: '000123' }] } });
+    expect(mocks.from).not.toHaveBeenCalled();
+    for (const failure of [async () => ({ data: null, error: { message: 'staff_required' } }), async () => { throw new Error('network'); }]) {
+      mocks.identities.mockImplementation(failure);
+      const result = await searchErpItemPickerAction({ query: '', page: 1 });
+      expect(result).toEqual({ ok: true, data: { rows: [{ code: '000123', name: '품목 000123', category: '문구 > 키링', salePrice: 12000, barcode: '0880000000123', mappedCategoryId: null }], total: 1, page: 1, pageSize: 20 } });
+    }
+    /* 품목이 없는 쪽은 아무것도 묻지 않는다. */
+    mocks.identities.mockClear(); mocks.rpc.mockResolvedValue(page(0, []));
+    await searchErpItemPickerAction({ query: '없는 품목', page: 1 });
+    expect(mocks.identities).not.toHaveBeenCalled();
   });
 });

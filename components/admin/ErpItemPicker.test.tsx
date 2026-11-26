@@ -20,7 +20,7 @@ vi.mock('react', async () => {
   } };
 });
 
-const { ErpItemPickButton, ErpItemPickScope, erpItemPickDescription, erpItemPickSummary, erpItemRowView, loadErpItems, nextEmptyErpPickTarget } = await import('./ErpItemPicker');
+const { ErpItemPickButton, ErpItemPickScope, erpItemPickDescription, erpItemPickSummary, erpItemRowView, erpItemTakenReason, loadErpItems, nextEmptyErpPickTarget } = await import('./ErpItemPicker');
 type PickTarget = import('./ErpItemPicker').ErpItemPickTarget;
 const { AdminPickerDialog } = await import('./console/AdminPickerDialog');
 
@@ -64,6 +64,39 @@ describe('ERP 품목 선택창의 줄', () => {
   });
 });
 
+/*
+ * F1(2026-11-26 QA-B, 화면 규칙 2): 다른 상품이나 사용 중지한 옵션이 쓰는 품목은 고르기 전에 막고 까닭(어느 상품·옵션인지)을 줄에 보인다.
+ * 예전에는 [선택]으로 보여, 고른 뒤 상품 저장이 통째로 거절됐다(ERP 코드·바코드는 옵션 전체에서 하나뿐이어야 저장된다).
+ */
+describe('다른 상품·사용 중지한 옵션이 쓰는 ERP 품목', () => {
+  const usedBy = { variantId: 'variant-other', goodName: 'QA 키링', optionName: '기본 옵션', via: 'erpCode' as const };
+  const context = { rowIds: new Set(['variant-row']), savedIds: new Set(['variant-row', 'variant-stopped']), barcodeEmpty: true };
+
+  it('아무도 쓰지 않는 품목은 막지 않는다', () => {
+    expect(erpItemTakenReason({}, context)).toBeNull();
+    expect(erpItemTakenReason({ usedBy: null }, context)).toBeNull();
+  });
+
+  it('다른 상품의 옵션이 쓰는 품목은 그 상품 이름과 함께 막는다', () => {
+    expect(erpItemTakenReason({ usedBy }, context)).toBe('다른 상품에 넣은 품목 · QA 키링');
+  });
+
+  it('이 상품의 사용 중지한 옵션이 쓰는 품목은 그 옵션 이름과 함께 막는다', () => {
+    expect(erpItemTakenReason({ usedBy: { ...usedBy, variantId: 'variant-stopped', optionName: '단종 색상' } }, context)).toBe('사용 중지한 옵션에 넣은 품목 · 단종 색상');
+  });
+
+  it('지금 표에 있는 옵션이 쓰는 품목은 여기서 가리지 않는다 — 표의 지금 값(저장 전 수정 포함)으로 가린다', () => {
+    expect(erpItemTakenReason({ usedBy: { ...usedBy, variantId: 'variant-row' } }, context)).toBeNull();
+  });
+
+  it('바코드만 겹치는 품목은 옵션의 바코드 칸이 비어 있을 때만 막는다(바코드는 빈 칸에만 들어간다)', () => {
+    const barcode = { usedBy: { ...usedBy, via: 'barcode' as const } };
+    expect(erpItemTakenReason(barcode, context)).toBe('다른 상품에 넣은 바코드 · QA 키링');
+    expect(erpItemTakenReason(barcode, { ...context, barcodeEmpty: false })).toBeNull();
+    expect(erpItemTakenReason({ usedBy }, { ...context, barcodeEmpty: false })).toBe('다른 상품에 넣은 품목 · QA 키링');
+  });
+});
+
 /* 가져온 직후의 결과 안내다. 저장하면 사라지므로 '고른 줄과 적은 줄을 구분한다'는 뜻으로 쓰지 않는다. */
 describe('ERP 품목에서 가져온 값 한 줄', () => {
   const row = { erpCode: '000123', erpName: '아크릴 키링', barcode: '0880000000123' };
@@ -80,7 +113,7 @@ describe('ERP 품목에서 가져온 값 한 줄', () => {
 
   it('적어 둔 바코드가 품목과 달라 그대로 둔 경우는 품목의 바코드와 함께 경고로 알린다', () => {
     expect(erpItemPickSummary({ ...row, barcode: '4900000000011' }, item)).toEqual({
-      text: 'ERP 품목에서 가져왔습니다 · 000123 · 바코드는 적어 둔 값을 그대로 뒀습니다. ERP 품목의 바코드는 0880000000123입니다.', warning: true,
+      text: 'ERP 품목에서 가져왔습니다 · 000123 · 바코드 칸에 있던 값(4900000000011)은 그대로 뒀습니다. 이 품목의 바코드는 0880000000123입니다. 이 품목 것으로 바꾸려면 바코드 칸을 고쳐 주세요.', warning: true,
     });
   });
 

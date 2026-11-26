@@ -53,10 +53,15 @@ const clip = (text: string) => { const chars = [...text.trim()]; return chars.le
 const isBlank = (value: string | null | undefined) => !value?.trim();
 const labels = (fields: readonly GoodsNoticeField[]) => fields.map((field) => field.label).join(', ');
 
-/** 템플릿 한 줄: 이름 아래에 제조사·소재와 KC 유형 틀이 들어 있는지를 보여 이름만으로 고르지 않게 한다. KC 틀은 가져오는 화면에서만 말한다. */
+/**
+ * 템플릿 한 줄: 이름 아래에 제조사·소재와 KC 유형 틀이 들어 있는지를 보여 이름만으로 고르지 않게 한다. KC 틀은 가져오는 화면에서만 말한다.
+ * 제조사·소재를 비운 템플릿(크기만 적은 템플릿 등)은 적어 둔 첫 칸을 대신 보여 요약이 비지 않게 한다.
+ */
 export function noticePresetRowView(preset: Preset, withKcTemplate: boolean): AdminPickerRowView {
   const { maker, material } = preset.notice;
-  const parts = [maker?.trim() ? `제조사 ${clip(maker)}` : '', material?.trim() ? `소재 ${clip(material)}` : '', withKcTemplate && preset.kcTemplate ? 'KC 유형 틀 포함' : ''].filter(Boolean);
+  const main = [maker?.trim() ? `제조사 ${clip(maker)}` : '', material?.trim() ? `소재 ${clip(material)}` : ''].filter(Boolean);
+  const first = main.length ? undefined : GOODS_NOTICE_FIELDS.find((field) => !isBlank(preset.notice[field.key]));
+  const parts = [...main, first ? `${first.label} ${clip(preset.notice[first.key] ?? '')}` : '', withKcTemplate && preset.kcTemplate ? 'KC 유형 틀 포함' : ''].filter(Boolean);
   return { title: preset.name, meta: parts.join(' · ') || undefined };
 }
 

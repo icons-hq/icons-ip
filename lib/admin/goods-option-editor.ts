@@ -458,7 +458,8 @@ const erpIdentityKey = (value: string | null | undefined) => value?.trim().toLow
 /**
  * 옵션의 ERP 품명에서 ERP 품목을 고를 때. ERP 코드·바코드는 저장할 때 옵션 전체에서 하나뿐이어야 하므로
  * (대소문자·앞뒤 공백 무시) 같은 상품의 다른 옵션이 이미 쓰는 값이면 채우지 않고 이유를 돌려준다.
- * 바코드는 비어 있어 ERP 품목 값으로 채울 때만 비교한다. 다른 상품·사용 중지한 옵션과의 충돌은 저장 오류가 알린다.
+ * 바코드는 비어 있어 ERP 품목 값으로 채울 때만 비교한다. 다른 상품·사용 중지한 옵션이 쓰는 품목은 선택창이 조회 결과(`usedBy`)로 막는다
+ * (components/admin/ErpItemPicker의 erpItemTakenReason). 직접 적은 값의 충돌은 저장 오류가 알린다.
  */
 export function selectErpItemForGoodsOption(
   rows: readonly GoodsOptionRow[],

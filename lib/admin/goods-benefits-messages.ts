@@ -25,6 +25,9 @@ export function sameGoodsBenefits(left: GoodsBenefitValues, right: GoodsBenefitV
   return left.eventText === right.eventText && left.giftText === right.giftText && paths(left) === paths(right);
 }
 
+/** 상품 수정 화면의 사은품·이벤트 안내를 고치다 떠날 때 묻는 말(따로 저장하는 영역이라 [안내 저장]을 눌러야 저장된다). */
+export const GOODS_BENEFITS_LEAVE_MESSAGE = '사은품·이벤트 안내를 고친 뒤 [안내 저장]을 누르지 않았습니다. 이 화면을 떠나면 적은 내용이 사라집니다. 이동할까요?';
+
 /** 다른 사은품 칸에 이미 넣은 사진. `index` 칸의 선택창에서 이 사진들은 '선택됨'으로 보여 다시 고를 수 없다(같은 사진은 한 번만 넣는다). */
 export function otherGiftImagePaths(values: Pick<GoodsBenefitValues, 'giftImagePaths'>, index: number | null): string[] {
   return values.giftImagePaths.filter((path, position) => Boolean(path) && position !== index);
@@ -44,3 +47,9 @@ export function goodsBenefitsError(message?: string): string {
   if (message === 'invalid_goods_event_template') return '이벤트 문구를 1~40자로 적어 주세요.';
   return SAVE_FAILED_MESSAGE;
 }
+
+/* 사진 아래 한 줄. 방금 고르거나 올린 사진은 아직 상품에 저장되지 않았다 — '현재 저장된 이미지'라고 말하지 않는다(2026-11-26 브라우저 확인 S16). */
+/** 저장된 상품의 사은품 영역: [안내 저장]을 눌러야 저장된다. */
+export const GOODS_BENEFIT_PHOTO_UNSAVED_NOTE = '고른 사진 · [안내 저장]을 눌러야 적용됩니다';
+/** 등록 화면: 상품과 함께 저장된다. */
+export const GOODS_BENEFIT_PHOTO_WITH_GOOD_NOTE = '고른 사진 · 상품과 함께 저장됩니다';

@@ -6,9 +6,13 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useRef: (initial: unknown) => { const index = hooks.refIndex++; hooks.refs[index] ??= { current: initial }; return hooks.refs[index]; },
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.state)) hooks.state[index] = initial; return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? next(hooks.state[index]) : next; }]; },
 }));
+/* 이탈 경고에 넘긴 값을 본다(경고 자체의 동작은 lib/admin/leave-guard.test.ts가 본다). */
+const guard = vi.hoisted(() => ({ options: null as null | { dirty?: boolean; blocked?: boolean; message?: string } }));
+vi.mock('./useAdminLeaveGuard', () => ({ useAdminLeaveGuard: (options: { dirty?: boolean; blocked?: boolean; message?: string }) => { guard.options = options; return { formRef: () => {}, dirty: Boolean(options.dirty) }; } }));
 vi.mock('@/app/admin/goods-benefit-actions', () => ({ saveGoodsBenefitsAction: mocks.save, loadGoodsBenefitsAction: mocks.load, listGoodsEventTemplatesAction: vi.fn(), saveGoodsEventTemplateAction: vi.fn() }));
 vi.mock('@/lib/media', () => ({ publicMediaUrl: (path: string) => { if (!path) throw new Error('Empty paths must not reach the configured media normalizer'); return `https://cdn.example/${path}`; } }));
 import { GoodsBenefitFields, GoodsBenefitsPanel } from './GoodsBenefitsPanel';
+import { ArtworkUploadField } from './ArtworkUploadField';
 import { GoodsEventTemplatePicker } from './GoodsEventTemplatePicker';
 import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
@@ -104,6 +108,13 @@ it('사은품 사진 선택창은 다른 칸에 이미 넣은 사진을 선택�
   pickButtons()[0].props.onClick?.();
   expect(picker()!.props.pickedPaths).toEqual([photoPath(2), photoPath(3)]);
 });
+/* 브라우저 확인 S16: 보관함에서 방금 고른 사진([안내 저장] 전)인데 사진 아래 글이 '현재 저장된 이미지'였다. */
+it('사진 아래 글은 저장돼 있는 사진과 방금 고른 사진을 가려 말한다', () => {
+  hooks.state = [{ ...snapshot, giftImagePaths: [photoPath(1)] }, { ...values, giftImagePaths: [photoPath(1), photoPath(2)] }];
+  const notes = all(render()).filter(item => item.type === ArtworkUploadField).map(item => (item.props as { savedNote?: string }).savedNote);
+  /* 첫 칸은 저장돼 있는 사진(부품의 기본 글 '현재 저장된 이미지'), 둘째 칸은 방금 고른 사진, 셋째 칸은 비어 있다. */
+  expect(notes).toEqual([undefined, '고른 사진 · [안내 저장]을 눌러야 적용됩니다', undefined]);
+});
 it('저장하기 전에 무엇이 안 되는지 원인 하나만 말한다 — 같은 사진, 설명 없음', () => {
   hooks.state[1] = { ...values, giftImagePaths: [photoPath(1), photoPath(1)] };
   submit();
@@ -125,6 +136,26 @@ it('[저장된 내용으로 다시 불러오기]는 적은 내용이 저장된 �
   button('저장된 내용으로 다시 불러오기').props.onClick?.(); await settle();
   expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적은 내용이 사라집니다.');
   expect(mocks.load).toHaveBeenCalledOnce(); expect(hooks.state[1]).toEqual({ ...values, eventText: '고치던 문구' });
+});
+
+/*
+ * F6(2026-11-26 QA-B): 저장돼 있는 상품의 사은품·이벤트 안내는 따로 저장하는 영역이라, 고치고 [안내 저장]을 누르지 않은 채 떠나면
+ * 묻지 않고 적은 것이 사라졌다. 고친 내용이 있으면 이탈 경고가 뜬다(같은 화면의 정기배송·배송비 규칙 패널과 같은 방식).
+ */
+it('고친 내용이 있으면 화면을 떠날 때 묻고, 저장된 그대로면 묻지 않는다', async () => {
+  render();
+  expect(guard.options).toEqual({ dirty: false, blocked: false, message: '사은품·이벤트 안내를 고친 뒤 [안내 저장]을 누르지 않았습니다. 이 화면을 떠나면 적은 내용이 사라집니다. 이동할까요?' });
+  hooks.state[1] = { ...values, eventText: '고치던 문구' }; render();
+  expect(guard.options?.dirty).toBe(true);
+  /* 사진만 넣어도 고친 것이다. 빈 사진 칸은 고친 것이 아니다. */
+  hooks.state[1] = { ...values, giftImagePaths: [photoPath(1)] }; render(); expect(guard.options?.dirty).toBe(true);
+  hooks.state[1] = { ...values, giftImagePaths: ['', ''] }; render(); expect(guard.options?.dirty).toBe(false);
+  /* 아직 읽지 못한 상품은 묻지 않는다. 저장됐는지 모르는 동안에는 묻는다. */
+  hooks.state = [null, { eventText: '', giftText: '', giftImagePaths: [] }]; render(); expect(guard.options?.dirty).toBe(false);
+  hooks.state = [{ ...snapshot }, { ...values }];
+  mocks.save.mockResolvedValue({ ok: false, uncertain: true, error: '결과 불명' });
+  submit(); await settle(); render();
+  expect(guard.options).toMatchObject({ dirty: true, blocked: false });
 });
 
 it('이벤트 템플릿은 공용 선택창에서 고르고, 지금 적어 둔 문구를 선택창에 알려 바꾸기 전에 묻게 한다', () => {

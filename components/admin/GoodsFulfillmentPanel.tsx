@@ -10,7 +10,8 @@ import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_NUMBER_INPUT_CLASS, GoodChoiceCard, GoodChoiceCards, GoodReadback } from './GoodEditorParts';
 import { AdminField } from './console/AdminKit';
 import { GOOD_FIELDS_B_HELP } from '@/lib/admin/help/good-fields-b';
-import { FULFILLMENT_AMOUNT_INVALID, FULFILLMENT_METHOD_REQUIRED, GOODS_FULFILLMENT_SAVE_UNCERTAIN } from '@/lib/admin/goods-fulfillment-messages';
+import { FULFILLMENT_AMOUNT_INVALID, FULFILLMENT_METHOD_REQUIRED, GOODS_FULFILLMENT_LEAVE_MESSAGE, GOODS_FULFILLMENT_SAVE_UNCERTAIN } from '@/lib/admin/goods-fulfillment-messages';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 import { adminConfirm } from '@/lib/admin/confirm';
 import { RELOAD_SAVED_CONFIRM } from '@/lib/admin/goods-template-save';
 const FIELD_LABEL_CLASS = 'flex min-w-0 flex-col gap-2 text-sm font-medium text-foreground';
@@ -83,6 +84,8 @@ function Panel({ goodId, disabledReason, showDisabledReason = true, identity, sc
  const alive = useRef(true), busy = useRef(false), dispatched = useRef<{ values: unknown; revision: number; operation: string } | null>(null);
  const fieldId = useId();
  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+ /* 따로 저장하는 영역이다. 고친 내용(또는 결과를 모르는 저장·확인 중인 파일)을 두고 화면을 떠나면 묻는다 — 맨 아래 저장 막대는 이 영역을 저장하지 않는다. */
+ useAdminLeaveGuard({ dirty: Boolean(draft && settings) && (uncertain || Boolean(pendingFile) || JSON.stringify(draft) !== JSON.stringify(draftOf(settings!))), blocked: pending, message: GOODS_FULFILLMENT_LEAVE_MESSAGE });
  async function read() {
   if (busy.current || uncertain || pendingFile) return;
   /* 적은 내용이 저장된 설정과 다르면 사라진다고 먼저 묻는다(화면 규칙 7). */

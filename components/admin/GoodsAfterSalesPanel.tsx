@@ -4,11 +4,12 @@ import Link from 'next/link';
 import { loadGoodsAfterSalesAction, saveGoodsAfterSalesAction, type GoodsAfterSalesResult } from '@/app/admin/goods-after-sales-actions';
 import { GOODS_AFTER_SALES_TEMPLATES_PATH, parseGoodsAfterSalesValues, type GoodsAfterSalesSnapshot, type GoodsAfterSalesValues } from '@/lib/goods-after-sales';
 import { adminConfirm } from '@/lib/admin/confirm';
-import { GOODS_AFTER_SALES_CLEAR_CONFIRM, goodsAfterSalesError, goodsAfterSalesProblem, sameGoodsAfterSales } from '@/lib/admin/goods-after-sales-messages';
+import { GOODS_AFTER_SALES_CLEAR_CONFIRM, GOODS_AFTER_SALES_LEAVE_MESSAGE, goodsAfterSalesError, goodsAfterSalesProblem, goodsAfterSalesUnsaved, sameGoodsAfterSales } from '@/lib/admin/goods-after-sales-messages';
 import { RELOAD_SAVED_CONFIRM, SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
 import { GoodsAfterSalesTemplatePicker } from './GoodsAfterSalesTemplatePicker';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { useAdminLeaveGuard } from './useAdminLeaveGuard';
 
 export function GoodsAfterSalesPanel({ goodId }: { goodId: string }) {
   const [snapshot, setSnapshot] = useState<GoodsAfterSalesSnapshot | null>(null), [values, setValues] = useState<GoodsAfterSalesValues>({ phone: '', guide: '', sellerSpecialNotes: '' });
@@ -23,6 +24,8 @@ export function GoodsAfterSalesPanel({ goodId }: { goodId: string }) {
       .catch(() => { if (active && sequence === readSequence.current) { setError(true); setMessage('상품 안내를 불러오지 못했습니다. 다시 조회해주세요.'); } });
     return () => { active = false; mounted.current = false; };
   }, [goodId]);
+  /* 따로 저장하는 영역이다. 고친 내용(또는 결과를 모르는 저장)을 두고 화면을 떠나면 묻는다 — 맨 아래 저장 막대는 이 영역을 저장하지 않는다. */
+  useAdminLeaveGuard({ dirty: Boolean(snapshot) && (uncertain || goodsAfterSalesUnsaved(values, snapshot!)), blocked: pending, message: GOODS_AFTER_SALES_LEAVE_MESSAGE });
   async function reload() {
     if (busy.current || uncertain) return;
     /* 적은 내용이 저장된 것과 다르면 사라진다고 먼저 묻는다(화면 규칙 7). */

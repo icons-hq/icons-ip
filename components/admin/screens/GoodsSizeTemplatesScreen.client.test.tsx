@@ -116,7 +116,7 @@ describe('저장된 템플릿 고치기', () => {
     const shown = () => { hooks.scope = 'screen'; hooks.index = 0; hooks.refIndex = 0; return all(GoodsSizeTemplatesScreen({ accountId: 'operator-a' })).filter(node => (node.props as Record<string, unknown>)['data-goods-template-notice'] !== undefined).map(node => text(node)); };
     mocks.save.mockResolvedValue({ ok: true, value: { ...saved, archived: true, revision: 4 } });
     button('보관').props.onClick?.(); await settle();
-    expect(shown()).toEqual(["보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있습니다."]);
+    expect(shown()).toEqual(["보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있고, 그 줄의 [수정]을 열어 [복원]을 누르면 되살아납니다."]);
     open(saved); mocks.recovery = null;
     mocks.save.mockResolvedValue({ ok: true, value: { ...saved, name: '고친 이름', revision: 4 } });
     nameInput().props.onChange?.({ target: { value: '고친 이름' } });
@@ -175,10 +175,27 @@ describe('저장된 템플릿 고치기', () => {
     nameInput().props.onChange?.({ target: { value: '고치던 이름' } });
     button('닫기').props.onClick?.(); await settle();
     expect(confirm).not.toHaveBeenCalled(); expect(hooks.scopes.screen[6]).toBeNull();
+    /* 브라우저 확인 F5: 묻지 않고 닫히니, 닫히는 순간 목록 위에 남아 있다는 것과 되찾는 길을 말한다(실수로 Esc를 눌러도 날아간 줄 알지 않게). */
+    expect(hooks.scopes.screen[7]).toBe('적던 내용은 이 브라우저에 남아 있습니다(최대 7일). ‘반팔 티셔츠’ 줄의 [수정]을 다시 누른 뒤 [템플릿 복구]를 누르면 이어서 쓸 수 있습니다.');
     open(saved); mocks.unavailable = true; confirm.restore(); confirm = stubAdminConfirm(false);
     nameInput().props.onChange?.({ target: { value: '고치던 이름' } });
     button('닫기').props.onClick?.(); await settle();
     expect(confirm).toHaveBeenCalledExactlyOnceWith('지금 적은 내용이 사라집니다.'); expect(hooks.scopes.screen[6]).toEqual({ template: saved });
+  });
+
+  it('고친 것 없이 닫으면 목록 위에 아무 말도 덧붙이지 않고, ×·Esc로 닫아도 [닫기]와 같다', async () => {
+    button('닫기').props.onClick?.(); await settle();
+    expect(hooks.scopes.screen[6]).toBeNull(); expect(hooks.scopes.screen[7]).toBe('');
+    open(saved);
+    nameInput().props.onChange?.({ target: { value: '고치던 이름' } });
+    dialog().props.onClose?.(); await settle();
+    expect(hooks.scopes.screen[6]).toBeNull(); expect(hooks.scopes.screen[7]).toContain('이 브라우저에 남아 있습니다');
+  });
+  it('새로 등록하다 닫으면 등록 버튼을 다시 누르라고 말한다', async () => {
+    open(null); mocks.recovery = null;
+    nameInput().props.onChange?.({ target: { value: '새 템플릿' } });
+    button('닫기').props.onClick?.(); await settle();
+    expect(hooks.scopes.screen[7]).toBe('적던 내용은 이 브라우저에 남아 있습니다(최대 7일). [사이즈 템플릿 등록]을 다시 누른 뒤 [템플릿 복구]를 누르면 이어서 쓸 수 있습니다.');
   });
 
   it('같은 이름의 다른 템플릿이 있으면 알리기만 하고 저장은 막지 않는다', async () => {

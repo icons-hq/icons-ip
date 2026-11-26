@@ -23,6 +23,16 @@ export function sameGoodsAfterSales(left: GoodsAfterSalesValues, right: GoodsAft
   return left.phone === right.phone && left.guide === right.guide && left.sellerSpecialNotes === right.sellerSpecialNotes;
 }
 
+/**
+ * 저장하지 않고 떠나면 사라지는 입력이 있는가(이탈 경고). 전화번호만 다른 경우는 저장된 전화번호가 있을 때만 센다 —
+ * 저장된 안내가 없는 상품은 상품정보제공고시의 A/S 연락처가 전화번호 칸에 미리 들어가 있어(운영자가 적은 것이 아니다) 그것만으로는 묻지 않는다.
+ */
+export function goodsAfterSalesUnsaved(values: GoodsAfterSalesValues, saved: GoodsAfterSalesValues): boolean {
+  return values.guide !== saved.guide || values.sellerSpecialNotes !== saved.sellerSpecialNotes || (values.phone !== saved.phone && Boolean(saved.phone));
+}
+/* 상품 수정 화면의 따로 저장하는 영역을 고치다 떠날 때 묻는 말. 어느 버튼을 누르지 않았는지까지 말한다(맨 아래 저장 막대가 화면 전체를 저장한다고 여기기 쉽다). */
+export const GOODS_AFTER_SALES_LEAVE_MESSAGE = 'A/S 안내를 고친 뒤 [안내 저장]을 누르지 않았습니다. 이 화면을 떠나면 적은 내용이 사라집니다. 이동할까요?';
+
 /** 운영자 화면 전용 문구(ADR-0014 운영 어휘). 고객 화면은 이 모듈을 쓰지 않는다. */
 export function goodsAfterSalesError(message?: string): string {
   if (message === 'operation_conflict') return SAVE_MISMATCH_MESSAGE;

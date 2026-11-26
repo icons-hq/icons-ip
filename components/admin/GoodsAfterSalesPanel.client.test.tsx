@@ -6,6 +6,9 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useRef: (initial: unknown) => { const index = hooks.refIndex++; hooks.refs[index] ??= { current: initial }; return hooks.refs[index]; },
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.state)) hooks.state[index] = initial; return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? next(hooks.state[index]) : next; }]; },
 }));
+/* 이탈 경고에 넘긴 값을 본다(경고 자체의 동작은 lib/admin/leave-guard.test.ts가 본다). */
+const guard = vi.hoisted(() => ({ options: null as null | { dirty?: boolean; blocked?: boolean; message?: string } }));
+vi.mock('./useAdminLeaveGuard', () => ({ useAdminLeaveGuard: (options: { dirty?: boolean; blocked?: boolean; message?: string }) => { guard.options = options; return { formRef: () => {}, dirty: Boolean(options.dirty) }; } }));
 vi.mock('@/app/admin/goods-after-sales-actions', () => ({ saveGoodsAfterSalesAction: mocks.save, loadGoodsAfterSalesAction: mocks.load, listGoodsAfterSalesTemplatesAction: vi.fn(), saveGoodsAfterSalesTemplateAction: vi.fn() }));
 vi.mock('@/lib/media', () => ({ publicMediaUrl: (path: string) => { if (!path) throw new Error('Empty paths must not reach the configured media normalizer'); return `https://cdn.example/${path}`; } }));
 import { GoodsAfterSalesPanel } from './GoodsAfterSalesPanel';
@@ -123,6 +126,21 @@ it('다른 사람이 먼저 바꾼 뒤에는 칸을 잠그지 않고 읽기 전�
   expect(tree.find(item => item.type === 'fieldset')?.props.disabled).toBe(false);
   expect(tree.filter(item => item.type === 'textarea' || item.type === 'input').map(item => (item.props as { readOnly?: boolean }).readOnly)).toEqual([true, true, true]);
   expect(button('A/S 템플릿 고르기').props.disabled).toBe(true); expect(button('안내 저장').props.disabled).toBe(true);
+});
+
+/* F6(2026-11-26 QA-B): 따로 저장하는 영역이라 고치고 [안내 저장]을 누르지 않은 채 떠나면 적은 것이 사라졌다. 고친 내용이 있으면 이탈 경고가 뜬다. */
+it('고친 내용이 있으면 화면을 떠날 때 묻고, 저장된 그대로면 묻지 않는다', () => {
+  render();
+  expect(guard.options).toEqual({ dirty: false, blocked: false, message: 'A/S 안내를 고친 뒤 [안내 저장]을 누르지 않았습니다. 이 화면을 떠나면 적은 내용이 사라집니다. 이동할까요?' });
+  hooks.state[1] = { ...values, guide: '고치던 안내' }; render(); expect(guard.options?.dirty).toBe(true);
+  hooks.state[1] = { ...values, phone: '1588-0000' }; render(); expect(guard.options?.dirty).toBe(true);
+  hooks.state = [null, { phone: '', guide: '', sellerSpecialNotes: '' }]; render(); expect(guard.options?.dirty).toBe(false);
+});
+it('저장된 안내가 없는 상품에 고시의 A/S 연락처가 미리 들어간 것만으로는 묻지 않는다', () => {
+  const empty = { ...snapshot, phone: '', guide: '', sellerSpecialNotes: '' };
+  /* 전화번호 칸은 운영자가 적지 않아도 고시 연락처로 채워진다. 그것만으로 떠날 때마다 묻지 않는다. */
+  hooks.state = [empty, { phone: '02-123-4567', guide: '', sellerSpecialNotes: '' }]; render(); expect(guard.options?.dirty).toBe(false);
+  hooks.state = [empty, { phone: '02-123-4567', guide: '접수 방법', sellerSpecialNotes: '' }]; render(); expect(guard.options?.dirty).toBe(true);
 });
 
 it('템플릿은 공용 선택창에서 고르고, 지금 적어 둔 안내를 선택창에 알려 바꾸기 전에 묻게 한다', () => {

@@ -24,7 +24,7 @@ const NO_SUGGEST_NAMES: readonly string[] = [];
 import { GoodSaleTiming } from './GoodSaleTiming';
 import { GoodDisplayOrderField } from './GoodDisplayOrderField';
 import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
-import { goodEditorValues, createGoodEditorDraft, goodEditorFingerprint, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS, type GoodNoticeDefaults } from '@/lib/admin/good-editor';
+import { goodEditorValues, createGoodEditorDraft, goodEditorFingerprint, buildGoodEditorPreview, goodShippingNoticeSummaryName, GOOD_LOCAL_DRAFT_FIELDS, GOOD_LOCAL_DRAFT_LINKED_FIELDS, type GoodNoticeDefaults } from '@/lib/admin/good-editor';
 import { goodsOptionStockMissing, goodsOptionStockTotals, inheritRandomOptionLimits, initialGoodsOptionRows, isSingleGoodsOption, restoreGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import { NEW_GOOD_INSTANT_DISCOUNT, formatWon, goodsPriceDraftFromValues, resolveGoodsPrice } from '@/lib/admin/goods-price-editor';
 import { planErpCategorySuggestion, type ErpCategorySuggestion } from '@/lib/admin/goods-erp-suggestion';
@@ -327,6 +327,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     finally { draftOperation.current = false; setDraftBusy(false); }
   }
   const draftSaved = Boolean(localSaveMessage?.ok);
+  /* 안내가 떠 있을 때만 상태를 바꾼다(없으면 아무 일도 예약하지 않는다). 폼의 onInput(버블 단계)에서만 부른다 — 이유는 폼 위 주석. */
+  const clearLocalSaveMessage = () => { if (localSaveMessage) setLocalSaveMessage(null); };
   const [missingAttributes, setMissingAttributes] = useState<readonly string[]>([]);
   const collectedErrors: Record<string, string | undefined> = draftSaved ? {} : { /* 가장 최근 저장 시도가 브라우저 검증에서 멈췄다면 지난 서버 오류는 이미 고친 것이다(요약에 남기지 않는다). */ ...(Object.keys(clientErrors).length ? {} : state.errors), ...clientErrors };
   /* 빠졌던 필수 상품속성을 채우면 다음 저장을 기다리지 않고 오류를 지운다. */
@@ -599,7 +601,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
   const shippingFee = values.shippingFeeType === 'free' ? '무료배송' : values.shippingFeeType === 'individual' ? `개별 배송비 ${won(Number(values.individualFee) || 0)}`
     : origin ? `출고지 정책(기본 ${won(origin.baseFee)}${origin.freeThreshold === null ? '' : ` · ${won(origin.freeThreshold)} 이상 무료`})` : '출고지 정책';
-  const shippingNotice = values.shippingNoticeTemplate ? shippingNoticeOptions.find((option) => `${option.code}@${option.version}` === values.shippingNoticeTemplate)?.name ?? '선택한 안내' : '기본 안내';
+  const shippingNotice = goodShippingNoticeSummaryName(values.shippingNoticeTemplate, shippingNoticeOptions, selected?.shippingNoticeSnapshot);
   const shippingDefault = values.shippingFeeType === 'policy' && !values.shippingNoticeTemplate && values.originId === DEFAULT_FULFILLMENT_ORIGIN_ID && Boolean(origin);
   /* KC를 끝낸 뒤에도 지난 공개 보류 안내가 남지 않게 지금 서버 판정을 함께 본다. */
   const kcBlockedVisible = Boolean(state.kcPublishBlocked && state.message && !published && readiness?.publicReview !== 'current' && !draftSaved);
@@ -637,7 +639,13 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         }}>그룹상품 등록</Link></span></nav> : null}
     <GoodWorkspaceNavigation errors={goodErrorsByCard(errors)} remaining={showCardProgress ? remainingByCard : undefined} remainingTone={selected ? 'warning' : 'neutral'} />
     {/* 키보드로 옮긴 입력칸이 위 고정 섹션 내비·아래 고정 저장 영역에 가리지 않게 위아래 여백을 둔다(섹션 자체는 scroll-mt). */}
-    <form action={action} className="flex min-w-0 flex-col gap-4 [&_:is(input,select,textarea,button,summary,a)]:scroll-my-32" data-good-workspace-form="" onInputCapture={() => setLocalSaveMessage(current => current ? null : current)} onInvalidCapture={showInvalidFields} onPointerDownCapture={(event) => { registerPressed.current = isRegisterButton(event.target); closeSaveInfo(event); }} onKeyDownCapture={(event) => {
+    {/*
+      임시저장 안내는 다음 입력에서 지운다. 반드시 버블 단계(onInput)에서 한다 — 캡처 단계(onInputCapture)에서 상태를 바꾸면 안 된다.
+      캡처 단계의 상태 변경은 같은 input 이벤트의 onChange(버블 단계)보다 먼저 화면에 반영되고, 그때 값을 상태로 들고 있는 칸(옵션의 바코드·ERP 코드·
+      ERP 품명·옵션 이름)이 방금 친 글자가 들어가기 전의 값으로 되돌려져 onChange가 불리지 않는다. 바로 앞 입력이 예약해 둔 렌더(브라우저 자동 보관 등)가
+      남아 있을 때마다 일어나 바코드 스캐너처럼 빠른 입력에서 글자가 빠졌다(2026-11-26 F7). 버블 단계에서는 onChange와 한 번에 반영된다.
+    */}
+    <form action={action} className="flex min-w-0 flex-col gap-4 [&_:is(input,select,textarea,button,summary,a)]:scroll-my-32" data-good-workspace-form="" onInput={clearLocalSaveMessage} onInvalidCapture={showInvalidFields} onPointerDownCapture={(event) => { registerPressed.current = isRegisterButton(event.target); closeSaveInfo(event); }} onKeyDownCapture={(event) => {
       registerPressed.current = (event.key === 'Enter' || event.key === ' ') && isRegisterButton(event.target);
     }} onSubmitCapture={submit} ref={attachForm}>
       <input name="previousId" type="hidden" value={selected?.id ?? ''} />

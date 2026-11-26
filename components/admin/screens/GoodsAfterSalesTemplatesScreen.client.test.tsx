@@ -132,7 +132,7 @@ describe('편집 창', () => {
     expect(stillOpen()).toBe(false); expect(notice()).toEqual(['템플릿을 저장했습니다.']);
     open(active); mocks.save.mockResolvedValue({ ok: true, value: { ...active, archived: true, revision: 2 } });
     button('보관').props.onClick?.(); await settle();
-    expect(notice()).toEqual(["보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있습니다."]);
+    expect(notice()).toEqual(["보관했습니다. 보관 상태에서 '보관됨'을 고르면 다시 볼 수 있고, 그 줄의 [수정]을 열어 [복원]을 누르면 되살아납니다."]);
     open(archived); mocks.save.mockResolvedValue({ ok: true, value: { ...archived, archived: false, revision: 2 } });
     button('복원').props.onClick?.(); await settle();
     expect(notice()).toEqual(["복원했습니다. 보관 상태 '사용 중' 목록에서 볼 수 있습니다."]);
