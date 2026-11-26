@@ -34,6 +34,25 @@ select pg_temp.assert(not has_function_privilege('authenticated','public.service
   and not has_function_privilege('authenticated','public.reserve_overseas_adult_upload(uuid,text)','execute')
   and not has_function_privilege('anon','public.reserve_overseas_adult_document(uuid,text)','execute')
   and not has_table_privilege('authenticated','private.overseas_adult_requests','select'),'grants');
+-- 동일한 가입 정보의 저장은 멱등이며, 가입 완료 후에는 회원이 그 값을 변경하거나 비울 수 없다.
+select pg_temp.actor(2);
+set local role authenticated;
+update public.profiles set birth_date=birth_date where id=pg_temp.uid(2);
+do $$ begin
+  begin
+    update public.profiles set birth_date=date '1990-04-02' where id=pg_temp.uid(2);
+    raise exception 'completed signup date changed';
+  exception when insufficient_privilege then
+    if sqlerrm <> 'onboarded_birth_date_locked' then raise; end if;
+  end;
+  begin
+    update public.profiles set birth_date=null where id=pg_temp.uid(2);
+    raise exception 'completed signup date cleared';
+  exception when insufficient_privilege then
+    if sqlerrm <> 'onboarded_birth_date_locked' then raise; end if;
+  end;
+end $$;
+reset role;
 select pg_temp.actor(2);
 set local role authenticated;
 do $$ begin
