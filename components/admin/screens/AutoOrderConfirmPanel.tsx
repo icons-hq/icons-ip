@@ -60,8 +60,8 @@ export function AutoOrderConfirmPanel({ initial, listHref = AUTO_ORDER_CONFIRMAT
   const changed = enabled !== current.enabled || (enabled && runTime !== current.runTime);
   async function save() {
     if (pending) return;
-    /* 끄는 저장은 시각을 쓰지 않는다. 숨은 칸이 비어 있어도 막지 않고 저장돼 있던 시각을 그대로 보낸다. */
-    const time = isAutoOrderRunTime(runTime) ? runTime : enabled ? null : current.runTime;
+    /* 끄는 저장은 시각을 쓰지 않는다. 숨은 칸에 무엇이 남아 있든(고치다 만 시각·빈 칸) 저장돼 있던 시각을 그대로 보낸다. */
+    const time = !enabled ? current.runTime : isAutoOrderRunTime(runTime) ? runTime : null;
     if (!time) { setMessage('실행 시각을 00:00~23:59 사이로 입력해주세요.'); setError(true); return; }
     request.current ??= { enabled, runTime: time, revision: current.revision, id: crypto.randomUUID() };
     setPending(true); setMessage('');
@@ -73,6 +73,8 @@ export function AutoOrderConfirmPanel({ initial, listHref = AUTO_ORDER_CONFIRMAT
     setState(result.state); setEnabled(result.state.enabled); setRunTime(result.state.runTime); setUncertain(false); setError(false); request.current = null;
     setMessage(result.state.enabled ? `저장했습니다. 매일 ${result.state.runTime}에 자동 발주확인합니다.` : '저장했습니다. 자동 발주확인을 껐습니다. 신규주문은 직접 발주확인합니다.');
   }
+  /* 값을 고치면 앞선 저장 결과 문장은 지운다 — 남겨 두면 위의 '저장하면 …'과 반대되는 두 문장이 함께 보인다. 오류 문구는 다시 저장할 때까지 남긴다. */
+  function edited() { if (message && !error) setMessage(''); }
   const last = current.lastRun;
   /* 날짜·시각은 좁은 화면에서도 한 덩어리로 둔다('2026. / 11. 6.'처럼 갈리지 않게). 글자는 그대로다. */
   const summary = ([`매일 ${current.runTime}`,
@@ -88,11 +90,11 @@ export function AutoOrderConfirmPanel({ initial, listHref = AUTO_ORDER_CONFIRMAT
       <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={pending || uncertain}>
         <legend className="sr-only">자동 발주확인 설정</legend>
         <div className="flex items-center gap-1">
-          <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> 자동 발주확인 사용</label>
+          <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={enabled} onChange={event => { setEnabled(event.target.checked); edited(); }} /> 자동 발주확인 사용</label>
           <AdminHelpTip help={SALES_AUTO_ORDER_CONFIRM_HELP.targets} label="자동 발주확인 대상" />
         </div>
         {enabled ? <AdminField label="매일 실행 시각 (KST)" inputId="auto-order-confirmation-time" hint="오늘 아직 실행 전이면 바꾼 시각에(이미 지난 시각이면 1분 안에) 실행하고, 이미 실행한 날은 다시 실행하지 않습니다.">
-          <Input className="w-36" id="auto-order-confirmation-time" type="time" step={60} required value={runTime} aria-describedby="auto-order-confirmation-time-hint" onChange={event => setRunTime(event.target.value.slice(0, 5))} />
+          <Input className="w-36" id="auto-order-confirmation-time" type="time" step={60} required value={runTime} aria-describedby="auto-order-confirmation-time-hint" onChange={event => { setRunTime(event.target.value.slice(0, 5)); edited(); }} />
         </AdminField> : null}
       </fieldset>
       <div className="flex flex-wrap items-center gap-3">

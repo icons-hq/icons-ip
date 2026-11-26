@@ -172,3 +172,15 @@ it('입력칸만 바꿔도 적은 내용으로 보고, 원래 값으로 되돌�
   all(render()).find(e => isButton(e) && text(e) === '닫기')!.props.onClick?.(); await settle();
   expect(requests).toHaveLength(1); expect(mocks.close).toHaveBeenCalledOnce();
 });
+/* QA-O 고칠 것 4: 배송비 기준 기록이 없는 주문(퀵·방문수령이거나 옛 주문)은 우편번호·기본 주소를 바꿀 수 없다 — 두 칸을 미리 잠그고 이유를 보인다. */
+it('우편번호·기본 주소를 바꿀 수 없는 주문은 두 칸을 잠그고 이유를 말한다. 나머지 칸은 열려 있다', () => {
+  const inputOf = (label: string) => all(all(render()).find(e => e.type === 'label' && text(e).startsWith(label))).find(isInput)!;
+  expect(inputOf('우편번호').props.disabled).toBe(false); expect(inputOf('기본 주소').props.disabled).toBe(false);
+  expect(text(render())).toContain('배송비가 달라지는 주소로는 바꿀 수 없습니다.');
+  /* 창을 새로 연 것처럼 상태를 비우고 잠긴 주문으로 다시 연다. */
+  hooks.state = []; hooks.refs = []; context = { ...baseContext, destinationLocked: true };
+  expect(inputOf('우편번호').props.disabled).toBe(true); expect(inputOf('기본 주소').props.disabled).toBe(true);
+  for (const label of ['수령인', '연락처', '상세 주소', '배송 메모']) expect(inputOf(label).props.disabled, label).toBe(false);
+  expect(text(render())).toContain('배송비 기준을 확인할 수 없는 주문(퀵·방문수령이거나 옛 주문)이라 우편번호·기본 주소는 바꿀 수 없습니다. 수령인·연락처·상세 주소·배송 메모는 바꿀 수 있습니다.');
+  expect(text(render())).not.toContain('배송비가 달라지는 주소로는 바꿀 수 없습니다.');
+});

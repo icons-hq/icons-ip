@@ -56,6 +56,20 @@ beforeEach(() => {
 });
 afterEach(() => { confirm.restore(); vi.useRealTimers(); });
 
+describe('붙여넣은 지역표의 오류', () => {
+  /* 지역표 오류는 한 번에 한 건씩 나오지 않고 틀린 줄을 줄 순서대로 모두 알린다. */
+  it('틀린 줄이 여럿이면 줄 순서대로 모두 보이고, 하나로 줄어들면 그 하나만 보인다', () => {
+    change(render().find((node) => node.type === Textarea)!, ['63000\t63644\t\t제주\t추가배송비 받음\t3,00', '63100\t63200\t\t제주\t추가배송비 받음\t3000', '63300\t63400\t\t제주\t알 수 없음\t0'].join('\n'));
+    const notice = text(render()[0]);
+    expect(notice).toContain('지역표 1번째 줄의 추가배송비(3,00)를 읽지 못했습니다.');
+    expect(notice).toContain('지역표 3번째 줄의 처리(알 수 없음)를 읽지 못했습니다.');
+    expect(notice.indexOf('지역표 1번째 줄')).toBeLessThan(notice.indexOf('지역표 3번째 줄'));
+    expect(notice).not.toContain('지역표 2번째 줄');
+    change(render().find((node) => node.type === Textarea)!, '63000\t63644\t\t제주\t추가배송비 받음\t3,00');
+    expect(text(render()[0]).match(/읽지 못했습니다/g)).toHaveLength(1);
+  });
+});
+
 describe('지역별 추가배송비를 한 번에 저장하고 적용하기', () => {
   it('쓰는 출고지만 고를 수 있고, 택배사는 출고지의 기본 택배사로 정해진다', () => {
     const options = nodes(selects()[0].props.children as ReactNode).filter((node) => node.type === 'option').map((node) => text(node.props.children as ReactNode));
@@ -79,13 +93,14 @@ describe('지역별 추가배송비를 한 번에 저장하고 적용하기', ()
     const applied = saved({ name: '겨울 지역표', startsAt: '2026-11-26T03:01:00Z' });
     mocks.apply.mockResolvedValue({ ok: true, policy: applied, replaced: [], message: '적용했습니다.' });
     fill();
-    expect(text(render()[0])).toContain('‘출고지 정책 따름’ 상품: 기본 배송비 ₩3,000 + 추가배송비 ₩4,000 = ₩7,000');
+    expect(text(render()[0])).toContain('‘출고지 정책 따름’ 상품: 기본 배송비 3,000원 + 추가배송비 4,000원 = 7,000원');
     await press('저장하고 적용');
     expect(confirm).toHaveBeenCalledTimes(1);
     const message = confirm.mock.calls[0][0];
-    for (const line of ['김포 · 한진택배 · 겨울 지역표', '추가배송비: 제주 ₩4,000', '적용 기간: 지금부터', '김포 출고지가 지역별 추가배송비를 쓰기 시작합니다.', '이미 들어온 주문의 배송비는 그대로입니다']) expect(message).toContain(line);
+    for (const line of ['김포 · 한진택배 · 겨울 지역표', '추가배송비: 제주 4,000원', '적용 기간: 지금부터', '김포 출고지가 지역별 추가배송비를 쓰기 시작합니다.', '이미 들어온 주문의 배송비는 그대로입니다']) expect(message).toContain(line);
     expect(mocks.apply).toHaveBeenCalledWith(null, null, { ...defaultShippingRegionPolicy(originId, 'hanjin'), name: '겨울 지역표', rules }, [], true);
-    expect(handlers.onApplied).toHaveBeenCalledWith(applied, [], '적용했습니다.');
+    /* 화면이 시계를 서버의 시작 시각까지 당기도록, 저장하면 바로 눌렀다는 것을 함께 알린다. */
+    expect(handlers.onApplied).toHaveBeenCalledWith(applied, [], '적용했습니다.', true);
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
@@ -98,7 +113,7 @@ describe('지역별 추가배송비를 한 번에 저장하고 적용하기', ()
     await press('저장하고 적용');
     const message = confirm.mock.calls[0][0];
     expect(message).toContain('지금 적용 중인 설정(기본 지역표)을 끝내고 이 내용으로 바꿉니다.');
-    expect(message).toContain('금액이 바뀌는 지역: 제주 ₩3,000 → ₩4,000');
+    expect(message).toContain('금액이 바뀌는 지역: 제주 3,000원 → 4,000원');
     expect(message).not.toContain('쓰기 시작합니다');
     expect(mocks.apply).toHaveBeenCalledWith(null, null, expect.objectContaining({ name: '겨울 지역표', startsAt: null }), [current.id], true);
     /* 그 사이에 목록이 달라졌으면 적어 둔 내용은 그대로 두고 목록만 새로 받는다. */
@@ -119,6 +134,8 @@ describe('지역별 추가배송비를 한 번에 저장하고 적용하기', ()
     expect(confirm.mock.calls[0][0]).toContain('까지 적용하고, 그 뒤로 이 내용을 적용합니다.');
     expect(confirm.mock.calls[0][0]).not.toContain('지금부터 새 주문에 적용됩니다');
     expect(mocks.apply).toHaveBeenCalledWith(null, null, expect.objectContaining({ startsAt: '2026-11-30T15:00:00.000Z' }), [current.id], false);
+    /* 날짜를 정해 둔 설정은 시계를 그 시각까지 당기지 않는다. */
+    expect(handlers.onApplied).toHaveBeenCalledWith(expect.objectContaining({ startsAt: '2026-11-30T15:00:00Z' }), [current], '저장했습니다.', false);
   });
 
   it('확인창에서 돌아가면 아무것도 보내지 않는다', async () => {

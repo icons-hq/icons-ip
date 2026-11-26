@@ -52,6 +52,17 @@ describe('지역별 추가배송비 서버 action', () => {
     expect(later).not.toMatchObject({ message: expect.stringContaining('지금부터') });
     expect(mocks.rpc).toHaveBeenLastCalledWith('admin_apply_shipping_region_policy', expect.objectContaining({ p_policy_id: id, p_expected_revision: 1, p_replace_policy_ids: [], p_start_now: false }));
   });
+  /* '저장하면 바로'의 시작 시각은 DB 시계가 정한다. 이 앱 서버의 시계가 DB보다 느려도(돌려받은 시작 시각이 앱 서버의 지금보다 뒤) '나중에 적용'이라 하지 않는다. */
+  it('저장하면 바로 적용한 설정은 시작 시각이 서버의 지금보다 뒤로 와도 지금부터 적용된다고 말한다', async () => {
+    const ahead = { ...active, startsAt: new Date(Date.now() + 90_000).toISOString() };
+    mocks.rpc.mockResolvedValue({ data: { policy: ahead, replaced: [] }, error: null });
+    const now = await applyShippingRegionPolicyAction(null, null, input, [], true);
+    expect(now).toMatchObject({ ok: true, policy: ahead, message: expect.stringContaining('적용했습니다. 지금부터 새 주문에 적용') });
+    expect(now).not.toMatchObject({ message: expect.stringContaining('부터 들어오는 주문에 적용됩니다') });
+    /* 날짜를 정해 보낸 설정은 같은 시각이어도 그 시각부터 적용된다고 말한다. */
+    const later = await applyShippingRegionPolicyAction(null, null, { ...input, startsAt: ahead.startsAt }, [], false);
+    expect(later).toMatchObject({ ok: true, message: expect.stringContaining('부터 들어오는 주문에 적용됩니다') });
+  });
   it('형식이 틀린 적용은 서버에 보내지 않는다', async () => {
     for (const [target, revision, value, replace, startNow] of [[null, null, {}, [], true], [null, 1, input, [], true], [id, null, input, [], true], ['x', 1, input, [], true],
       [null, null, input, ['x'], true], [null, null, input, null, true], [null, null, input, [], 'yes'], [null, null, input, [], undefined]] as const) {

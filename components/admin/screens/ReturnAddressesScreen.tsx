@@ -40,7 +40,8 @@ function ReturnAddressForm({ entry, canEdit }: { entry?: ReturnAddress; canEdit:
   const [state, action, pending] = useActionState(saveReturnAddressAction, {});
   const { formRef } = useAdminLeaveGuard({ serverState: state });
   const key = entry?.id ?? 'new';
-  return <form action={action} className="flex min-w-0 flex-col gap-4" ref={formRef}>
+  /* noValidate: 빈 칸은 브라우저 기본 말풍선("이 입력란을 작성하세요.") 대신 칸 아래의 앱 문구로 알린다(저장 때 서버가 칸마다 말한다). required는 접근성 표시로 남긴다. */
+  return <form action={action} className="flex min-w-0 flex-col gap-4" noValidate ref={formRef}>
     {entry ? <><input type="hidden" name="id" value={entry.id} /><input type="hidden" name="updatedAt" value={latestStamp(entry.updatedAt, state.updatedAt)} /></> : null}
     <AdminFormGrid>{(Object.keys(RETURN_ADDRESS_FIELD_LABELS) as ReturnAddressField[]).map((field) => {
       const inputId = `return-address-${key}-${field}`;

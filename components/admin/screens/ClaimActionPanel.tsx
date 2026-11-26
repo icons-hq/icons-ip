@@ -61,6 +61,20 @@ import { ReturnClaimWorkspace } from './ReturnClaimWorkspace';
 import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 import { ClaimRejectionReasonField } from './ClaimRejectionReasonField';
 import { adminConfirm, type AdminConfirmRequest } from '@/lib/admin/confirm';
+import {
+  CLAIM_CONFIRM_IRREVERSIBLE as IRREVERSIBLE,
+  claimCancelApprovalConfirm,
+  claimCancelApprovalMoneyConfirm,
+  claimConfirmBody as confirmBody,
+  claimConfirmTitle as confirmTitle,
+  claimPanelConfirmRequest,
+  type ClaimConfirmTarget,
+  type ClaimPanelConfirm,
+} from '@/lib/admin/claim-approval-confirm';
+
+/* 취소 승인 확인창의 문구는 주문 처리 패널과 함께 쓰는 한 곳(lib/admin/claim-approval-confirm)에 있다. 이 화면의 다른 부품·테스트가 쓰던 이름 그대로 다시 내보낸다. */
+export { claimCancelApprovalConfirm, claimCancelApprovalMoneyConfirm, claimPanelConfirmRequest };
+export type { ClaimConfirmTarget, ClaimPanelConfirm };
 
 /* 클레임 액션 패널(#252).
  *
@@ -127,41 +141,6 @@ function PanelActionField({ kind }: { kind: ClaimPanelAction }) {
   return <input name={PANEL_ACTION_FIELD} type="hidden" value={kind} />;
 }
 
-/**
- * 확인창 한 번에 실을 것. 버튼(없으면 양식)의 data-confirm* 속성으로 싣고 `confirmClaimPanelSubmit`이 읽는다.
- * 누르는 시점의 값이 필요한 확인(취소 승인의 금액, 거부 사유)은 속성 대신 제출 처리에서 바로 만든다.
- */
-export interface ClaimPanelConfirm {
-  message: string;
-  /** 무엇을 하는지. 요청번호가 있으면 앞에 붙는다(예: 'C00012 취소 승인'). */
-  title?: string;
-  /** 확인 버튼 이름. 하는 일을 말한다(예: '30,500원 취소'). */
-  confirmLabel?: string;
-  /** 되돌릴 수 없으면 확인 버튼을 위험색으로 그린다. */
-  destructive?: boolean;
-}
-
-/** 확인창이 가리키는 대상. 요청번호(C00012)·주문번호·구매자 — 없는 값은 확인창에서 빠진다. */
-export interface ClaimConfirmTarget {
-  claimReference?: string | null;
-  orderReference?: string | null;
-  buyerName?: string | null;
-}
-
-/** 확인창을 닫고 돌아가는 버튼. '취소'는 처리 이름(주문 취소·결제 취소)과 겹쳐 쓰지 않는다. */
-const CONFIRM_BACK_LABEL = '돌아가기';
-const IRREVERSIBLE = '되돌릴 수 없습니다.';
-
-export function claimPanelConfirmRequest(confirm: ClaimPanelConfirm): AdminConfirmRequest {
-  return {
-    message: confirm.message,
-    ...(confirm.title ? { title: confirm.title } : {}),
-    ...(confirm.confirmLabel ? { confirmLabel: confirm.confirmLabel } : {}),
-    cancelLabel: CONFIRM_BACK_LABEL,
-    ...(confirm.destructive ? { destructive: true } : {}),
-  };
-}
-
 function confirmAttributes(confirm: ClaimPanelConfirm | null | undefined) {
   if (!confirm) return {};
   return {
@@ -170,17 +149,6 @@ function confirmAttributes(confirm: ClaimPanelConfirm | null | undefined) {
     'data-confirm-label': confirm.confirmLabel,
     'data-confirm-tone': confirm.destructive ? 'danger' : undefined,
   };
-}
-
-function confirmTitle(target: ClaimConfirmTarget, action: string) {
-  return target.claimReference ? `${target.claimReference} ${action}` : action;
-}
-
-/** 확인창 본문. 첫 줄은 대상(주문번호·구매자), 그 아래로 한 줄에 한 가지씩 적는다. */
-function confirmBody(target: ClaimConfirmTarget, ...lines: (string | null | false | undefined)[]) {
-  const who = [target.orderReference ? `주문 ${target.orderReference}` : null, target.buyerName ? `구매자 ${target.buyerName}` : null]
-    .filter(Boolean).join(' · ');
-  return [who, ...lines].filter(Boolean).join('\n');
 }
 
 /**
@@ -217,56 +185,6 @@ export async function confirmClaimPanelSubmit(
  * 결제사 전액 취소가 확인 없이 나가지 않도록 버린다. 운영자는 화면이 준비된 뒤 다시 누른다.
  */
 function ignoreUnconfirmedClaimSubmit() {}
-
-/**
- * 취소 승인 확인창. 결제마다 승인 뒤 일어나는 일이 다르다.
- * 결제사 취소가 바로 나가는 결제(토스·나이스페이)는 금액을 누르는 시점에 읽어 `claimCancelApprovalMoneyConfirm`으로 만든다.
- */
-export function claimCancelApprovalConfirm(paymentProvider: string | null, target: ClaimConfirmTarget = {}): ClaimPanelConfirm {
-  const title = confirmTitle(target, '취소 승인');
-  if (paymentProvider === 'korpay') {
-    return { title, confirmLabel: '승인하고 환불 처리 시작', message: confirmBody(target, `취소를 승인할까요? 승인 뒤 ${PAYMENT_PROVIDER_LABELS.korpay} 취소 접수와 환불 완료 확정으로 진행합니다.`) };
-  }
-  if (paymentProvider === 'bank_transfer') {
-    return { title, confirmLabel: '승인하고 환불 처리 시작', message: confirmBody(target, '취소를 승인할까요? 승인 뒤 환불계좌 송금 절차로 진행합니다.') };
-  }
-  if (paymentProvider === null) {
-    return { title, confirmLabel: '승인하고 주문 취소', destructive: true, message: confirmBody(target, `취소를 승인할까요? 결제 전 주문은 바로 주문이 취소되고 ${IRREVERSIBLE}`) };
-  }
-  return { title, confirmLabel: '승인하고 환불 처리 시작', message: confirmBody(target, '취소를 승인할까요? 승인하면 환불 처리 단계로 넘어갑니다.') };
-}
-
-/**
- * 결제사 취소가 바로 나가는 취소 승인의 확인창. 금액은 화면에 내려와 있던 값이 아니라 누르는 시점에 서버가 읽은 값이다 —
- * 승인 전에는 환불 기록이 없어 화면이 가진 금액이 주문 금액뿐이고, 앞서 부분 취소한 주문은 그 금액보다 적게 취소된다.
- */
-export function claimCancelApprovalMoneyConfirm(input: {
-  autoCancelLabel: string;
-  /** 승인하면 결제사에 취소를 요청하는 금액(결제 금액 − 이미 취소한 금액). */
-  amount: number;
-  paidAmount: number | null;
-  target?: ClaimConfirmTarget;
-}): ClaimPanelConfirm {
-  const { autoCancelLabel, amount, paidAmount } = input;
-  const target = input.target ?? {};
-  const title = confirmTitle(target, '취소 승인');
-  if (amount === 0) {
-    return {
-      title, confirmLabel: '승인하고 주문 취소', destructive: true,
-      message: confirmBody(target,
-        `${autoCancelLabel} 결제는 앞서 모두 취소해 더 취소할 금액이 없습니다.`,
-        `승인하면 결제사 취소 없이 주문 취소·재고 복원을 확정합니다. ${IRREVERSIBLE}`),
-    };
-  }
-  return {
-    title, confirmLabel: `${krwAmountWords(amount)} 취소`, destructive: true,
-    message: confirmBody(target,
-      paidAmount !== null && amount < paidAmount
-        ? `${autoCancelLabel} 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 ${krwAmountWords(amount)}을 취소합니다(결제 금액 ${krwAmountWords(paidAmount)}).`
-        : `${autoCancelLabel} 결제 전액 ${krwAmountWords(amount)}을 취소합니다.`,
-      '승인하면 바로 결제사에 취소를 요청합니다. 되돌릴 수 없고, 취소가 확인되면 주문 취소·재고 복원까지 함께 끝납니다.'),
-  };
-}
 
 const APPROVAL_AMOUNT_UNREAD = '취소할 금액을 다시 읽지 못해 승인하지 않았습니다. 새로고침한 뒤 다시 눌러주세요.';
 const APPROVAL_PAYMENT_CHANGED = '결제 정보가 그사이 바뀌어 승인하지 않았습니다. 새로고침해 결제 내역을 확인한 뒤 다시 눌러주세요.';

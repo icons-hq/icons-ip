@@ -1,5 +1,6 @@
 import { formatOrderDateTime } from '@/lib/orders';
 import { isUuid } from '@/lib/uuid';
+import { ADMIN_SALES_ACCESS_DENIED } from './vocabulary';
 
 /**
  * 주문 출고 보류(원장 PAY-050·SHP-093·OPS-074·OPS-065·CLM-051). DB가 보류를 판정하고 출고 경로를 막는다
@@ -205,7 +206,7 @@ function depositReversalGuidance(hold: OrderFulfillmentHold, progress: DepositRe
 
 /** 해제 결과 오류 코드 → 문구. */
 export function fulfillmentHoldReleaseError(code?: string | null, message?: string | null): string {
-  if (code === '42501' || message?.includes('operator_capability_required')) return '이 작업을 할 권한이 없습니다. 주문 처리 권한이 있는 계정으로 로그인했는지 확인해주세요.';
+  if (code === '42501' || message?.includes('operator_capability_required')) return ADMIN_SALES_ACCESS_DENIED;
   if (message?.includes('fulfillment_hold_not_active')) return '이미 해제된 보류입니다. 화면을 새로고침해 지금 상태를 확인해주세요.';
   if (code === 'PT409' || message?.includes('fulfillment_hold_operation_conflict')) return '이미 다른 내용으로 처리됐습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
   if (message?.includes('invalid_fulfillment_hold_release')) return '해제 사유를 5자 이상 500자 이하로 적어주세요.';

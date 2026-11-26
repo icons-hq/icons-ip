@@ -20,6 +20,7 @@ import {
 import {
   ORDER_WITHDRAWAL_REASON_LABELS,
   ORDER_WITHDRAWAL_REASON_TYPES,
+  formatOrderDate,
   type OrderWithdrawalReasonType,
 } from '@/lib/orders';
 
@@ -155,6 +156,28 @@ export const ADMIN_CLAIM_SEARCH_FIELDS = [
   { value: 'item', label: '상품주문번호' },
 ] as const;
 export type AdminClaimSearchField = (typeof ADMIN_CLAIM_SEARCH_FIELDS)[number]['value'];
+/**
+ * 검색어가 화면에 보이는 요청번호('C00021')이면 DB가 받는 값('21')으로 바꾼다. 요청번호를 보여 주는 표시 형식(orderClaimReferenceLabel: 'C' + 5자리 0 채움)의 역이다.
+ * DB는 요청번호를 숫자 글자(reference::text)로 비교해서 'C00021'을 그대로 보내면 0건이고 '21'만 찾아진다(F-10).
+ * 요청번호는 '전체'와 '주문·요청번호' 검색에서만 찾으므로 그 둘에서만 바꾸고, 구매자·이메일·수령인·상품주문번호 검색어는 건드리지 않는다.
+ * 'C' 다음이 숫자뿐이고 0이 아닌 수일 때만 요청번호 모양으로 본다 — 앞의 0은 몇 개든 뗀다. 목록·URL·검색칸에는 운영자가 적은 그대로 남고, DB에 보내는 값만 바뀐다.
+ * DB는 같은 숫자를 부분 일치로 찾으므로 주문번호에 그 숫자가 든 다른 건이 함께 나올 수 있다(DB 검색 함수는 이번에 고치지 않는다).
+ */
+export function adminClaimSearchQuery(query: string, field?: AdminClaimFilters['field']): string {
+  const text = query.trim();
+  if (field !== undefined && field !== 'order') return text;
+  const reference = /^[Cc]0*([1-9][0-9]*)$/.exec(text);
+  return reference ? reference[1] : text;
+}
+
+/**
+ * 실제 입고일(YYYY-MM-DD)을 목록·상세가 날짜를 보이는 형식("2026. 11. 26.")으로 바꿔 글에 쓴다. 날짜 칸의 값은 그대로 두고
+ * 확인창·결과 글·요약에만 쓴다. 날짜로 읽을 수 없으면 받은 글을 그대로 돌려준다.
+ */
+export function adminClaimReceivedOnLabel(receivedOn: string): string {
+  return formatOrderDate(receivedOn) || receivedOn;
+}
+
 /** 기간 기준. 이름은 표의 열 이름과 같다 — 접수일(표 '접수일')·입고완료일(단계 '입고완료')·처리완료일(단계 '○○완료'). */
 export const ADMIN_CLAIM_DATE_FIELDS = [
   { value: 'requested', label: '접수일' },

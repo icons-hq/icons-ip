@@ -92,6 +92,16 @@ describe('등록·수정 창', () => {
     expect(control('shippingNotice').props.value).toBe('결제한 날부터 2~3일 안에 보냅니다.');
   });
 
+  /* S7-1: 금액이 상세에 나오는 것은 지역별 추가배송비를 적용 중인 출고지의 상품뿐이다(`get_good_shipping_region_fees`가 listed일 때). 없거나 안 붙으면 주문서에서 주소를 넣은 뒤 확인한다. */
+  it('도서산간 안내 칸의 도움말은 금액이 언제 상세에 나오는지 사실대로 말한다', () => {
+    const hint = String(editor().find((node) => node.type === AdminField && node.props.label === '도서산간 안내 (선택)')!.props.hint);
+    expect(hint).toContain('추가배송비 금액은 적지 않습니다.');
+    expect(hint).toContain('지역별 추가배송비를 적용 중인 출고지의 상품은 금액이 상품 상세에 따로 나오고');
+    expect(hint).toContain('정확한 금액은 주문서에서 주소를 넣으면 나옵니다');
+    /* 적용 중인 설정이 없는 출고지의 상품에는 금액이 나오지 않으므로 '넣은 금액이 나온다'고 단정하지 않는다. */
+    expect(hint).not.toContain('‘지역별 추가배송비 관리’에 넣은 금액이 상품 상세에 따로 나옵니다');
+  });
+
   it('빠진 칸은 저장을 누를 때 그 칸에서 말하고, 아무것도 보내지 않는다', async () => {
     template = null;
     write('name', '새 안내');

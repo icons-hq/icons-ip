@@ -35,7 +35,7 @@ describe('지역별 추가배송비 관리 화면', () => {
     expect(covered).not.toContain('data-admin-notice');
     /* 적용 중이면 지금 받는 금액을 그대로 보인다. */
     expect(covered).toContain('>적용 중<');
-    expect(covered).toContain('합성 제주 ₩3,000 · 합성 도서 ₩5,000');
+    expect(covered).toContain('합성 제주 3,000원 · 합성 도서 5,000원');
     /* 기간이 끝났거나 아직 시작 전이거나 택배사가 다르면 주문에 쓰이지 않는다 — '적용 중'으로 말하지 않는다. */
     for (const [policy, label, reason] of [[{ ...active, endsAt: '2026-10-01T00:00:00Z' }, '>기간 끝남<', '적용 기간이 끝났거나 끝낸 설정만 있습니다'],
       [{ ...active, startsAt: '2026-12-01T00:00:00Z' }, '>예정<', '합성 출고지: 다음 설정이 2026. 12. 1. 09:00에 시작합니다. 그때까지 막혀 있습니다.'],
@@ -48,6 +48,9 @@ describe('지역별 추가배송비 관리 화면', () => {
     }
     const carrierOff = renderToStaticMarkup(<ShippingRegionsScreen policies={[active as never]} adoptions={[adoption]} origins={[origin]} carriers={[{ code: 'hanjin', label: '한진', active: false }] as never} canEdit now={now} />);
     expect(carrierOff).toContain('합성 출고지: 기본 택배사가 없거나 ‘사용 안 함’입니다.');
+    /* 택배사가 같은데 사용 안 함이어서 쓰이지 않는 설정에는 '택배사 다름'이라 하지 않는다. */
+    expect(carrierOff).toContain('>택배사 사용 안 함<');
+    expect(carrierOff).not.toContain('>택배사 다름<');
   });
   /* 시작 전인 설정에 '적용 중' 배지와 주문 차단 경고가 붙으면 안 된다. 쓰기 시작하는 시각 전에는 지금처럼 주문받는다. */
   it('적용 시작 전이면 예정으로 말하고 경고하지 않는다', () => {
@@ -77,5 +80,24 @@ describe('지역별 추가배송비 관리 화면', () => {
     expect(html).toContain('>안 씀<');
     expect(html).toContain('아직 만든 설정이 없습니다.');
     for (const hidden of ['저장하고 적용', '적용하지 않고 저장', '새로 만들기', '<textarea']) expect(html).not.toContain(hidden);
+  });
+  /* S5-4: 적용 중인 설정이 곧 끝나도 '출고지별 적용 상태'에서 알 수 있게 끝나는 날을 함께 보인다(끝이 없으면 아무것도 덧붙이지 않는다). */
+  it('적용 중인 설정이 끝나는 날을 출고지별 적용 상태에 함께 보인다', () => {
+    const ending = renderToStaticMarkup(<ShippingRegionsScreen policies={[{ ...active, endsAt: '2026-11-11T00:00:00Z' } as never]} adoptions={[adoption]} origins={[origin]} carriers={hanjin} canEdit now={now} />);
+    expect(ending).toContain('>적용 중<');
+    expect(ending).toContain('합성 제주 3,000원 · 합성 도서 5,000원 · 2026. 11. 11. 09:00까지');
+    const open = renderToStaticMarkup(<ShippingRegionsScreen policies={[active as never]} adoptions={[adoption]} origins={[origin]} carriers={hanjin} canEdit now={now} />);
+    expect(open).toContain('합성 제주 3,000원 · 합성 도서 5,000원<');
+  });
+  /* S5-3: 끝낸 설정에 남은 끝은 예정했던 끝일 뿐이다 — 실제로 끝낸 때처럼 읽히지 않게 시작만 보이고, 기간이 끝난 설정은 끝을 그대로 보인다. */
+  it('끝낸 설정은 예정했던 끝을 보이지 않고, 기간이 끝난 설정은 끝을 보인다', () => {
+    const planned = { ...active, id: 'p5', name: '합성 끝냄', status: 'retired', endsAt: '2026-11-27T00:00:00Z' } as never;
+    const expired = { ...active, id: 'p6', name: '합성 기간끝', endsAt: '2026-10-01T00:00:00Z' } as never;
+    const html = renderToStaticMarkup(<ShippingRegionsScreen policies={[planned, expired]} adoptions={[adoption]} origins={[origin]} carriers={hanjin} canEdit now={now} />);
+    const row = (name: string) => html.match(new RegExp(`합성 출고지 · ${name} <span[^>]*>([^<]*)</span>`))?.[1] ?? '';
+    expect(row('합성 끝냄')).toBe('· 2026. 9. 10. 09:00부터');
+    expect(row('합성 기간끝')).toBe('· 2026. 9. 10. 09:00부터 2026. 10. 1. 09:00까지');
+    expect(html).toContain('>끝냄<');
+    expect(html).toContain('>기간 끝남<');
   });
 });

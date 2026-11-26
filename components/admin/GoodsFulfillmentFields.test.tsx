@@ -24,6 +24,9 @@ describe('출고지·배송비', () => {
     const html = render({ originId: origin.id, shippingFeeType: 'policy', individualFee: 0 });
     expect(text(html.slice(html.indexOf('data-good-shipping-policy')))).toContain('배송비 3,000원 · 50,000원 이상 무료');
     expect(html).toContain('/admin/settings/origins');
+    /* W-3: 지역별 추가배송비 화면처럼 '정책'이 아니라 '설정'이라 부른다(‘출고지 정책 따름’은 배송비 유형 이름이라 그대로 쓴다). */
+    expect(text(html)).toContain('출고지 설정 확인 (새 탭)');
+    expect(text(html)).not.toContain('출고지 정책 확인');
   });
 
   it('무료배송과 개별 배송비도 지금 값으로 되읽고, 개별은 수량·옵션과 관계없이 한 번이라고 말한다', () => {

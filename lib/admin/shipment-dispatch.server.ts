@@ -9,6 +9,14 @@ import {deliveryObject,parseShipmentDeliverySummary} from '@/lib/shipment-delive
 import {parseShipmentDelayNotice} from './shipment-delay-notice';
 import {parseShipmentTrackingSummaries} from './shipment-tracking';
 /** 화면 목록 수와 출력 페이지 크기를 같은 필터·정렬로 적용한다. RPC 상한은 1,000건이다. */
+/** 한 번에 메일 작업 상태를 읽는 배송 건 수의 상한. 화면 한 쪽(최대 100줄)은 넉넉히 들어가고, 엑셀용 조회(최대 1,000줄)는 읽지 않는다. */
+const EMAIL_SENDING_READ_LIMIT=200;
+async function readEmailSendingIds(client:Awaited<ReturnType<typeof createClient>>,ids:string[]):Promise<Set<string>>{
+ try{
+  const {data,error}=await client.from('order_shipment_email_jobs').select('shipment_id').in('shipment_id',ids).eq('status','processing').gt('lease_until',new Date().toISOString());
+  return new Set(!error&&Array.isArray(data)?(data as {shipment_id:unknown}[]).map(row=>row.shipment_id).filter((id):id is string=>typeof id==='string'):[]);
+ }catch{return new Set();}
+}
 export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surface:ShipmentConsoleSurface,options:{pageSize?:number}={}):Promise<ShipmentConsoleData>{
  const client=await createClient();const pageSize=Math.min(Math.max(Math.trunc(options.pageSize??filters.pageSize??SHIPMENT_CONSOLE_PAGE_SIZE)||SHIPMENT_CONSOLE_PAGE_SIZE,1),1000);
  const [result,origins,carriers]=await Promise.all([
@@ -38,6 +46,9 @@ export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surf
  // 출고 보류(테스트 결제·결제사 취소) 표시. 발송처리·배송현황 모두 읽는다(배송완료도 막힌다). 배송 건 id만 읽고, 차단은 DB가 한다.
  const holdFlags=ids.length?await client.rpc('admin_shipment_fulfillment_hold_flags',{p_ids:ids}):null;
  const holdIds=new Set<string>(!holdFlags?.error&&Array.isArray(holdFlags?.data)?(holdFlags!.data as unknown[]).filter((id):id is string=>typeof id==='string'):[]);
+ // 배송현황 줄의 [발송 되돌리기] 잠금 표시: 배송 안내 메일을 보내는 중인 배송 건은 DB가 되돌리기를 받지 않는다(admin_revert_shipment_dispatch —
+ // 처리 중이고 lease_until이 지금보다 뒤). 표시 보조라 읽지 못하면 잠그지 않고, 엑셀용 큰 조회에서는 읽지 않는다.
+ const emailSendingIds=surface==='shipping'&&ids.length&&ids.length<=EMAIL_SENDING_READ_LIMIT?await readEmailSendingIds(client,ids):new Set<string>();
  const rows=result.data.rows.map((row:unknown)=>{
   if(!deliveryObject(row))throw new Error('배송 건 목록을 불러오지 못했습니다.');
   const rawPack=packing.data[row.id as string];const pack=rawPack===null?null:parseShipmentPackSummary(rawPack);
@@ -48,7 +59,7 @@ export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surf
   if(!delivery)throw new Error('배송 방식을 확인하지 못했습니다. 목록을 새로고침해주세요.');
   const collectSummary=collect.get(String(row.id).toLowerCase())??null;
   const hold=holdIds.has(row.id as string)?{fulfillmentHold:true}:{};
-  if(surface!=='dispatch')return {...row,delivery,pack,collect:collectSummary,production:productionSummary,...hold,...(tracking?{trackingSummary:tracking.shipments[row.id as string]}:{})};
+  if(surface!=='dispatch')return {...row,delivery,pack,collect:collectSummary,production:productionSummary,...hold,...(emailSendingIds.has(row.id as string)?{emailSending:true}:{}),...(tracking?{trackingSummary:tracking.shipments[row.id as string]}:{})};
   const delayNotice=parseShipmentDelayNotice(row.delayNotice);
   if(!delayNotice)throw new Error('지연 안내 상태를 확인하지 못했습니다. 목록을 새로고침해주세요.');
   return {...row,delivery,delayNotice,pack,collect:collectSummary,production:productionSummary,...hold,...(partialCancelIds.has(row.id as string)?{partialCancelInProgress:true}:{})};

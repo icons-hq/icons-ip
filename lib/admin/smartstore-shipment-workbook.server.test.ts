@@ -76,7 +76,7 @@ describe('엑스스퀘어 표준 양식 출고지시', () => {
     expect(value(sheet, '결제일').value).toBe('2026-10-20 01:35');
     expect(value(sheet, '발주확인일').value).toBe('2026-10-20 02:00');
     expect(value(sheet, '발송 예정일').value).toBe('2026-10-21');
-    expect(value(sheet, '결제수단').value).toBe('카드');
+    expect(value(sheet, '결제수단').value).toBe('결제사 결제(카드·가상계좌·계좌이체)');
     expect(value(sheet, '품목 실결제액(배송비 제외)').value).toBe(24000);
     expect(value(sheet, '품목 실결제액(배송비 제외)').numFmt).toBe('#,##0');
     expect(value(sheet, '상품별 할인액').value).toBe(6000);
@@ -86,7 +86,7 @@ describe('엑스스퀘어 표준 양식 출고지시', () => {
     expect(value(sheet, '상품명').value).toBe('=합성 상품');
     expect(value(sheet, '배송메시지').value).toBe('문 앞\n부탁합니다');
     const bank = await load((await buildShipmentExport({ shipments: [{ ...shipment, lines: [{ ...line, smartstore: { ...detail, paymentMethod: 'bank_transfer' } }] }] }, 'xlsx', 'smartstore')).bytes);
-    expect(value(bank.worksheets[0], '결제수단').value).toBe('무통장 입금');
+    expect(value(bank.worksheets[0], '결제수단').value).toBe('무통장 입금(직접 이체)');
   });
 
   it('옵션의 바코드(앞자리 0 보존)·ERP 품명을 옵션코드 뒤에 싣고 값이 없으면 빈칸으로 둔다(1027T-046)', async () => {

@@ -14,7 +14,7 @@ import { SHIPMENT_REVERT_LABELS, SHIPMENT_REVERT_REASON_MAX, SHIPMENT_REVERT_REA
  * 같은 내용으로 다시 누르면 같은 작업 번호를 보내 한 번만 반영된다. 결과는 표(또는 주문 상세 패널)가 보존하고, 그 밖에서는 버튼 아래에 둔다.
  * 목록·주문 상세는 서버 액션의 revalidatePath가 새로 그린다(옆 패널들과 같다).
  */
-export function ShipmentStatusRevertButton({ shipmentId, reference, kind, expected, packCount, trackingLabel }: {
+export function ShipmentStatusRevertButton({ shipmentId, reference, kind, expected, packCount, trackingLabel, blockedReason = null }: {
   shipmentId: string;
   /** 화면에 보이는 배송건번호(확인창·결과 문구·접근성 이름). */
   reference: string;
@@ -24,6 +24,8 @@ export function ShipmentStatusRevertButton({ shipmentId, reference, kind, expect
   packCount?: number | null;
   /** 발송 되돌리기 확인창에 적을 '택배사 운송장'. */
   trackingLabel?: string | null;
+  /** 지금은 되돌릴 수 없는 이유(목록이 이미 아는 값 — 예: 배송 안내 메일을 보내는 중). 있으면 버튼을 잠그고 이유를 보인다. 최종 판정은 DB가 한다. */
+  blockedReason?: string | null;
 }) {
   const report = useContext(ShipmentConsoleNoticeContext);
   const [pending, startTransition] = useTransition();
@@ -32,10 +34,10 @@ export function ShipmentStatusRevertButton({ shipmentId, reference, kind, expect
   const label = SHIPMENT_REVERT_LABELS[kind];
   function show(next: ShipmentConsoleNotice) { if (report) report(next); else setNotice(next); }
   async function start() {
-    if (pending) return;
+    if (pending || blockedReason) return;
     if (kind === 'delivery' && !expected) { show({ tone: 'danger', message: '배송완료 일시를 읽지 못했습니다. 새로고침해주세요.' }); return; }
     const reason = await adminPrompt({
-      ...shipmentRevertPrompt(kind, { reference, packCount, trackingLabel }), destructive: true, cancelLabel: '닫기',
+      ...shipmentRevertPrompt(kind, { reference, packCount, trackingLabel }), destructive: true, cancelLabel: '돌아가기',
       input: { label: '되돌리는 사유 (감사 기록에 남습니다)', placeholder: kind === 'delivery' ? '예: 다른 주문의 배송 건을 배송완료로 눌렀음' : '예: 다른 주문의 운송장을 이 배송 건에 등록했음',
         minLength: SHIPMENT_REVERT_REASON_MIN, maxLength: SHIPMENT_REVERT_REASON_MAX },
     });
@@ -57,7 +59,9 @@ export function ShipmentStatusRevertButton({ shipmentId, reference, kind, expect
     });
   }
   return <span className="flex flex-col items-start gap-1" data-shipment-revert={kind}>
-    <Button type="button" size="xs" variant="outline" disabled={pending} aria-label={`배송 건 ${reference} ${label}`} onClick={start}>{pending ? '되돌리는 중…' : label}</Button>
+    <Button type="button" size="xs" variant="outline" disabled={pending || Boolean(blockedReason)} aria-label={`배송 건 ${reference} ${label}`} onClick={start}>{pending ? '되돌리는 중…' : label}</Button>
+    {/* 누르고 사유까지 적은 뒤에 거절하지 않게, 목록이 이미 아는 이유로 미리 잠근다. */}
+    {blockedReason ? <small className="text-xs text-muted-foreground" data-shipment-revert-blocked="">{blockedReason}</small> : null}
     {notice ? <AdminNotice role={notice.tone === 'danger' ? 'alert' : 'status'} tone={notice.tone}>{notice.message}</AdminNotice> : null}
   </span>;
 }

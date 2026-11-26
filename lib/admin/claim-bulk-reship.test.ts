@@ -175,34 +175,49 @@ describe('registerClaimReshipments', () => {
 });
 
 /*
- * D-23(일괄): '최종 주소가 같습니다'·'발송 정보를 확인했습니다' 체크 둘을 없애고, [재출고 등록]을 누르면 받는 분·주소와 출고지마다의
- * 택배사·운송장·상품을 되읽는 확인창으로 대신한다. 요청에는 두 확인 값이 처음부터 true로 실려 간다(위 registerClaimReshipments 시험).
+ * D-23(일괄): '최종 주소가 같습니다'·'발송 정보를 확인했습니다' 체크 둘을 없애고, [재출고 등록]을 누르면 출고지마다의 택배사·운송장·상품을
+ * 되읽는 확인창으로 대신한다. 요청에는 두 확인 값이 처음부터 true로 실려 간다(위 registerClaimReshipments 시험).
+ * 받는 분·주소는 확인창에 옮겨 적지 않는다 — 주소는 이 창이 탭을 가리거나 10분이 지나면 지우는데 확인창 본문은 닫을 때까지 남는다(단건과 같은 기준).
  */
 describe('재출고 등록 확인창', () => {
   const summary = (n: number) => ({
-    reference: `C0000${n}`, recipient: '합성 고객', address: '(12345) 합성시 입고일로 1 101호',
+    reference: `C0000${n}`,
     rows: [
       { origin: 'TEST 김포', carrierLabel: '한진택배', trackingNumber: 'GIMPO0001', items: [{ name: '굿즈 1 · 블랙', qty: 1 }, { name: '굿즈 2', qty: 2 }] },
       { origin: 'TEST 남양주', carrierLabel: '한진택배', trackingNumber: 'NAMYANG001', items: [{ name: '굿즈 3', qty: 1 }] },
     ],
   });
 
-  it('요청마다 받는 분·주소와 출고지별 택배사·운송장·상품을 되읽고, 재고가 움직이고 교환이 끝난다는 결과를 말한다', () => {
+  it('요청마다 출고지별 택배사·운송장·상품을 되읽고, 재고가 움직이고 교환이 끝난다는 결과를 말한다', () => {
     const request = claimBulkReshipConfirmation([summary(1), summary(2)]);
     expect(request).toMatchObject({ title: '재출고 2건 · 출고지 4곳 등록', confirmLabel: '재출고 등록', cancelLabel: '돌아가기' });
-    expect(request.message).toContain('C00001 · 합성 고객 · (12345) 합성시 입고일로 1 101호');
+    const lines = request.message.split('\n');
+    expect(lines).toContain('C00001');
+    expect(lines).toContain('C00002');
     expect(request.message).toContain('  TEST 김포 → 한진택배 GIMPO0001 · 굿즈 1 · 블랙 × 1, 굿즈 2 × 2');
     expect(request.message).toContain('  TEST 남양주 → 한진택배 NAMYANG001 · 굿즈 3 × 1');
+    expect(request.message).toContain('택배사·운송장과 보낼 상품이 실제로 보내는 것과 같은지 확인해주세요.');
     expect(request.message).toContain('회수한 상품의 재고를 복원하고 고른 상품으로 재출고합니다.');
     expect(request.message).toContain('모든 출고지를 보내면 교환이 끝납니다.');
     expect(request.message).toContain('등록하면 되돌릴 수 없습니다.');
     expect(request.destructive).toBeUndefined();
   });
 
+  /* 확인창 본문은 셸의 확인창 호스트 상태에 들어가 있어, 주소를 지우는 창과 수명이 다르다. 받는 분·주소는 어디에도 옮겨 적지 않는다. */
+  it('받는 분 이름과 주소 원문을 옮겨 적지 않고, 창에 보이는 그대로 기록한다고만 말한다', () => {
+    /* 요약의 타입에 받는 분·주소 칸이 없다. 그래도 넘어오는 값이 있으면 본문에 새지 않는지 확인한다. */
+    const leaky = { ...summary(1), recipient: '합성 고객', address: '(12345) 합성시 입고일로 1 101호', phone: '01000000000' } as ReturnType<typeof summary>;
+    const request = claimBulkReshipConfirmation([leaky]);
+    for (const personal of ['합성 고객', '합성시 입고일로', '101호', '12345', '01000000000']) expect(request.message, personal).not.toContain(personal);
+    expect(request.message).toContain('받는 분과 주소는 창에 보이는 그대로 함께 기록합니다.');
+    expect(request.message).not.toContain('받는 분·주소와');
+  });
+
   it('앞의 여덟 요청만 풀어 적고 나머지는 건수로 줄인다', () => {
     const request = claimBulkReshipConfirmation(Array.from({ length: 11 }, (_, index) => summary(index)));
-    expect(request.message).toContain('C00007 ·');
-    expect(request.message).not.toContain('C00008 ·');
+    const lines = request.message.split('\n');
+    expect(lines).toContain('C00007');
+    expect(lines).not.toContain('C00008');
     expect(request.message).toContain('그 밖에 3건');
   });
 

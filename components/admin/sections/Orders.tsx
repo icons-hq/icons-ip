@@ -4,7 +4,7 @@ import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import Link from 'next/link';
 import { OrderPreviewLink, OrderPreviewNewTabLink } from '@/components/admin/screens/OrderPreview';
 import { adminOrderPreviewHref } from '@/lib/admin/order-preview';
-import { startTransition, useActionState, useState } from 'react';
+import { startTransition, useActionState, useRef, useState } from 'react';
 import {
   approveAdminOrderCancellationAction,
   bulkConfirmAdminOrdersAction,
@@ -16,6 +16,8 @@ import {
   updateAdminOrderTrackingAction,
   type AdminOrderActionState,
 } from '@/app/admin/order-actions';
+import { readOrderClaimApprovalAmountAction } from '@/app/admin/claim-actions';
+import { readOrderFullCancelAmountAction } from '@/app/admin/order-cancel-amount-actions';
 import {
   ADMIN_CANCELLATION_RECHECK_LABELS,
   ADMIN_ORDER_STATUSES,
@@ -42,6 +44,7 @@ import {
   adminOrdersHref,
   isKorpayManualRecoveryState,
   isLegacyDecidableCancellation,
+  normalizeAdminCancellationDecisionForm,
   normalizeAdminStaffCancellationForm,
   type AdminOrderCancellationRequestRecord,
   type AdminOrderConsoleData,
@@ -74,7 +77,8 @@ import { formatKrwExact } from '../format';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { isParcelShipment, shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { commerceReferenceLabel, isCommerceNumber } from '@/lib/commerce-number';
-import { DELIVERY_METHOD_LABELS, deliveryStatusLabel } from '@/lib/shipment-delivery';
+import { DELIVERY_METHOD_LABELS } from '@/lib/shipment-delivery';
+import { adminDeliveryStatusLabel } from '@/lib/admin/shipment-status-labels';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import { adminListExportHref } from '@/lib/admin/list-export';
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
@@ -90,13 +94,13 @@ import { OrderFulfillmentHoldBadges, OrderFulfillmentHoldList, OrderFulfillmentH
 import { VirtualAccountRefundNotice } from '@/components/admin/VirtualAccountRefundNotice';
 import { VirtualAccountRefundAccountEntry } from '@/components/admin/VirtualAccountRefundAccountEntry';
 import { adminVirtualAccountPartialCancelHint } from '@/lib/admin/virtual-account-refund-account';
-import { WarehouseStopRequirementNote } from '@/components/admin/OrderWarehouseStopPanel';
+import { WarehouseStopRequirementNote, type WarehouseStopRequirementState } from '@/components/admin/OrderWarehouseStopPanel';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
-import { ADMIN_SUPPORT_CODE_LABEL, adminPaymentCancelErrorCopy, splitAdminSupportCode } from '@/lib/admin/payment-cancel-error';
+import { ADMIN_SUPPORT_CODE_LABEL, adminPaymentCancelErrorCopy, adminPaymentCancelPanelNext, splitAdminSupportCode } from '@/lib/admin/payment-cancel-error';
 import {
   ADMIN_CONFIRM_BACK,
   adminBulkOrderConfirmRequest,
@@ -107,6 +111,8 @@ import {
   adminOrderConfirmRequest,
   adminStaffCancelRequest,
   adminTrackingEditRequest,
+  type AdminCancelApprovalRead,
+  type AdminOrderFullCancelAmount,
 } from '@/lib/admin/order-confirmations';
 import { tossBankLabel } from '@/lib/payments/toss-bank-codes';
 import { ShipmentExtraTrackingsPanel } from '@/components/admin/ShipmentExtraTrackingsPanel';
@@ -332,6 +338,12 @@ export async function runOrderCancellationAction(
 
 type CancellationFormValidator = (formData: FormData) => AdminOrderFieldErrors | null;
 
+/**
+ * 취소 처리 확인창의 내용. 결제를 취소하는 두 양식(취소 승인·운영자 전액 취소)은 누르는 시점에 취소 금액을 읽어 만들기 때문에
+ * 함수로 준다 — 화면에 내려와 있던 결제 금액은 앞서 부분 취소한 주문에서 실제 취소 금액과 다르다.
+ */
+export type OrderCancellationConfirmation = AdminConfirmInput | (() => Promise<AdminConfirmInput>);
+
 /*
  * 취소 처리 양식의 React action 자리. 아무것도 보내지 않는다.
  *
@@ -354,9 +366,11 @@ interface OrderCancellationConsole {
   submitted: { intent: OrderCancellationIntent; orderId: string } | null;
   /** 확인 창 전에 잡힌 입력 오류. 서버를 부르지 않았으므로 서버 결과와 따로 둔다. */
   clientErrors: { intent: OrderCancellationIntent; orderId: string; errors: AdminOrderFieldErrors } | null;
+  /** 확인창에 적을 취소 금액을 읽는 중인 양식. 읽는 동안 그 버튼에 '금액 확인 중'을 보이고 다른 취소 처리를 누르지 못하게 한다. */
+  reading: { intent: OrderCancellationIntent; orderId: string } | null;
   submit: (
     event: React.FormEvent<HTMLFormElement>,
-    confirmation: AdminConfirmInput,
+    confirmation: OrderCancellationConfirmation,
     intent: OrderCancellationIntent,
     orderId: string,
     validate?: CancellationFormValidator,
@@ -378,13 +392,45 @@ export type OrderCancellationSubmitPlan =
  */
 export async function planOrderCancellationSubmit(
   formData: FormData,
-  confirmation: AdminConfirmInput,
+  confirmation: OrderCancellationConfirmation,
   confirm: (input: AdminConfirmInput) => boolean | Promise<boolean>,
   validate?: CancellationFormValidator,
 ): Promise<OrderCancellationSubmitPlan> {
   const errors = validate?.(formData) ?? null;
   if (errors && Object.keys(errors).length) return { kind: 'invalid', errors };
-  return (await confirm(confirmation)) ? { kind: 'dispatch' } : { kind: 'dismissed' };
+  /* 금액을 읽어 만드는 확인창은 입력 검사를 통과한 뒤에 읽는다 — 틀린 입력으로는 서버를 부르지 않는다. */
+  const request = typeof confirmation === 'function' ? await confirmation() : confirmation;
+  return (await confirm(request)) ? { kind: 'dispatch' } : { kind: 'dismissed' };
+}
+
+/**
+ * 취소 승인 확인창을 누르는 시점의 금액·결제사로 만든다. 취소·반품·교환 관리의 취소 승인과 같은 읽기(readOrderClaimApprovalAmountAction)이고
+ * 같은 문구 함수다. 읽지 못하면 금액을 지어내지 않고, 읽지 못했다고 말하는 확인창을 돌려준다.
+ */
+export async function orderCancelApprovalConfirmation(
+  order: Parameters<typeof adminCancelApproveRequest>[0],
+  requestId: string,
+  read: typeof readOrderClaimApprovalAmountAction = readOrderClaimApprovalAmountAction,
+): Promise<AdminConfirmInput> {
+  let approval: AdminCancelApprovalRead = null;
+  try {
+    const state = await read(requestId);
+    if (state.ok) approval = { amount: state.amount, paymentProvider: state.paymentProvider };
+  } catch { /* 읽지 못했다 — 아래에서 금액 없는 확인창을 만든다. */ }
+  return adminCancelApproveRequest(order, approval);
+}
+
+/** 운영자 전액 취소 확인창을 누르는 시점의 취소 금액(결제 금액 − 이미 부분 취소한 금액)으로 만든다. 읽지 못하면 금액 없는 확인창이다. */
+export async function orderFullCancelConfirmation(
+  order: Parameters<typeof adminStaffCancelRequest>[0],
+  read: typeof readOrderFullCancelAmountAction = readOrderFullCancelAmountAction,
+): Promise<AdminConfirmInput> {
+  let cancel: AdminOrderFullCancelAmount = null;
+  try {
+    const state = await read(order.id);
+    if (state.ok) cancel = { amount: state.amount, paidAmount: state.paidAmount };
+  } catch { /* 읽지 못했다 — 아래에서 금액 없는 확인창을 만든다. */ }
+  return adminStaffCancelRequest(order, cancel);
 }
 
 /**
@@ -397,18 +443,26 @@ export function staffCancellationClientErrors(formData: FormData): AdminOrderFie
   return normalized.ok ? null : { ...normalized.errors };
 }
 
+/** 취소 거부 입력 검사. 서버 액션과 같은 규칙(normalizeAdminCancellationDecisionForm) — 사유가 빠졌으면 확인창을 띄우기 전에 그 칸에서 알린다. */
+export function rejectCancellationClientErrors(formData: FormData): AdminOrderFieldErrors | null {
+  const normalized = normalizeAdminCancellationDecisionForm(formData, 'reject');
+  return normalized.ok ? null : { ...normalized.errors };
+}
+
 /** 한 양식이 볼 결과 조각. 필드 오류는 그 양식이 보낸 결과일 때만 붙인다. */
 function cancellationFormView(
   cancellation: OrderCancellationConsole,
   intent: OrderCancellationIntent,
   orderId: string,
 ) {
-  const { clientErrors, pending, state, submitted } = cancellation;
+  const { clientErrors, pending, reading, state, submitted } = cancellation;
   const local = clientErrors?.intent === intent && clientErrors.orderId === orderId ? clientErrors.errors : undefined;
   return {
     errors: local ?? (state.intent === intent && state.orderId === orderId ? state.errors : undefined),
-    pending,
+    pending: pending || reading !== null,
     running: pending && submitted?.intent === intent && submitted.orderId === orderId,
+    /** 이 양식의 확인창에 적을 취소 금액을 읽는 중이다. */
+    reading: reading?.intent === intent && reading.orderId === orderId,
   };
 }
 
@@ -581,12 +635,28 @@ function OrderConfirmAction({ order }: { order: AdminOrderRecord }) {
 /** 다른 주문이 쓰는 번호라 운송장 수정이 거절됐을 때의 안내(발송관리 행·운송장 가져오기가 같은 문장을 쓴다). */
 const TRACKING_IN_USE_MESSAGE = shipmentMutationError('tracking_number_in_use');
 
+/** 맞바꾸기·중복 등록으로 풀린 거절: 어느 거절 결과였는지와 끝난 일의 문구. */
+type ResolvedTrackingConflict = { rejection: AdminOrderActionState; message: string };
+
+/**
+ * 운송장 수정 양식 아래에 보일 것. '다른 주문이 쓰는 번호'로 거절된 결과면 두 길을 열고(`inUse`), 그 거절을 맞바꾸기·중복 등록으로
+ * 풀었으면 같은 결과인 동안은 거절 문구와 두 길을 접고 끝난 일을 보인다(`settled`) — 수정이 다시 거절되면 새 결과라 다시 열린다.
+ */
+export function trackingConflictView(state: AdminOrderActionState, resolved: ResolvedTrackingConflict | null) {
+  const settled = resolved?.rejection === state ? resolved : null;
+  return { settled, inUse: !settled && (Boolean(state.trackingInUse) || state.errors?.form === TRACKING_IN_USE_MESSAGE) };
+}
+
 /**
  * 운송장 수정이 '다른 주문이 쓰는 번호'로 거절됐을 때만 그 자리에서 여는 두 길. 두 주문의 운송장이 뒤바뀐 경우는 맞바꾸고,
  * 창고에서 같은 상자로 확인한 경우는 중복 확인 후 등록한다. 드문 사고 처리라 평소에는 보이지 않는다(발송 대기 행과 같다).
  */
-function TrackingConflictOptions({ carriers, reference, shipment }: {
+function TrackingConflictOptions({ carriers, conflict, onResolved, reference, shipment }: {
   carriers: ShippingCarrierRegistry;
+  /** 방금 거절된 택배사·번호. 두 길에 그대로 넘긴다 — 운영자가 같은 번호를 다시 적지 않는다. */
+  conflict: AdminOrderActionState['trackingInUse'];
+  /** 맞바꾸기·중복 등록이 끝났다. 운송장 수정 양식이 거절 문구를 지우고 이 문구를 보인다. */
+  onResolved: (message: string) => void;
   reference: string;
   shipment: ShipmentRecord;
 }) {
@@ -594,12 +664,15 @@ function TrackingConflictOptions({ carriers, reference, shipment }: {
     <div className="flex w-full flex-col gap-2" data-tracking-conflict="">
       {shipment.trackingNumber ? <details className="group rounded-lg border px-3 py-2">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">다른 주문과 운송장 맞바꾸기<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
-        <div className="mt-2"><ShipmentTrackingSwapForm shipmentId={shipment.id} reference={reference} trackingNumber={shipment.trackingNumber} /></div>
+        {/* 선택창은 거절된 번호로 미리 찾아 둔다 — 그 번호를 쓰는 배송 건이 맞바꿀 상대다. */}
+        <div className="mt-2"><ShipmentTrackingSwapForm shipmentId={shipment.id} reference={reference} trackingNumber={shipment.trackingNumber}
+          initialQuery={conflict?.trackingNumber} onDone={onResolved} /></div>
       </details> : null}
       <details className="group rounded-lg border px-3 py-2">
         <summary className="flex cursor-pointer list-none items-center justify-between gap-2 text-sm font-medium [&::-webkit-details-marker]:hidden">중복 확인 후 운송장 등록<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" /></summary>
+        {/* 거절된 택배사·번호를 그대로 넘긴다(발송 대기 줄과 같다). 운영자는 같은 상자로 확인한 사유만 적는다. */}
         <div className="mt-2"><ShipmentTrackingDuplicateForm shipmentId={shipment.id} reference={reference}
-          carriers={carriers.filter(carrier => carrier.active)} defaultCarrier={shipment.carrier} /></div>
+          carriers={carriers.filter(carrier => carrier.active)} defaultCarrier={shipment.carrier} fixed={conflict} onDone={onResolved} /></div>
       </details>
     </div>
   );
@@ -619,15 +692,19 @@ function UpdateTrackingForm({
 }) {
   const [state, action, pending] = useActionState(updateAdminOrderTrackingAction, EMPTY_ACTION_STATE);
   const confirmation = adminTrackingEditRequest(reference);
-  const inUse = state.errors?.form === TRACKING_IN_USE_MESSAGE;
+  /* 맞바꾸기·중복 등록이 끝나면 위의 거절 문구와 두 길을 지우고 끝난 일을 보인다(trackingConflictView). */
+  const [resolved, setResolved] = useState<ResolvedTrackingConflict | null>(null);
+  const { settled, inUse } = trackingConflictView(state, resolved);
 
   return (
     <div className="flex flex-col items-start gap-2">
+      {/* 맞바꾸기·중복 등록은 이 양식을 거치지 않고 운송장을 바꾼다. 번호가 바뀌면 입력 칸을 새 값으로 다시 연다(key). */}
       <form
         action={action}
         noValidate
         className="flex flex-col items-start gap-2"
         data-confirm={confirmation.message}
+        key={`${shipment.carrier ?? ''}:${shipment.trackingNumber ?? ''}`}
         onSubmit={(event) => confirmAction(event, confirmation)}
       >
         <input name="orderId" type="hidden" value={orderId} />
@@ -643,9 +720,10 @@ function UpdateTrackingForm({
         <Button disabled={pending} size="sm" type="submit" variant="outline">
           {pending ? '저장 중' : '운송장 저장'}
         </Button>
-        <ActionFeedback state={state} />
+        {settled ? <div aria-live="polite" className={FEEDBACK_CLASS}><span role="status">{settled.message}</span></div> : <ActionFeedback state={state} />}
       </form>
-      {inUse ? <TrackingConflictOptions carriers={carriers} reference={reference} shipment={shipment} /> : null}
+      {inUse ? <TrackingConflictOptions carriers={carriers} conflict={state.trackingInUse} reference={reference} shipment={shipment}
+        onResolved={(message) => setResolved({ rejection: state, message })} /> : null}
     </div>
   );
 }
@@ -660,26 +738,32 @@ function ApproveCancellationForm({
   requestId: string;
 }) {
   const orderId = order.id;
-  const { pending, running } = cancellationFormView(cancellation, 'approve', orderId);
-  /* 승인하면 결제 취소가 바로 시작되고 재고가 돌아온다. 확인창이 어느 주문인지·얼마인지를 말한다. */
-  const confirmation = adminCancelApproveRequest(order);
+  const { pending, reading, running } = cancellationFormView(cancellation, 'approve', orderId);
+  /*
+   * 승인 뒤의 일은 결제마다 다르다 — 토스·나이스페이는 남은 결제 금액을 바로 취소하고, 결제 전 주문은 바로 취소되고, 코페이·무통장은
+   * 결제사 취소 없이 환불 절차로 넘어간다. 확인창은 누르는 시점에 읽은 금액·결제사로 만든다(취소·반품·교환 관리의 취소 승인과 같은 읽기·같은 문구).
+   */
+  const confirmation = () => orderCancelApprovalConfirmation(order, requestId);
 
   return (
     <form
       action={cancellation.action}
       noValidate
       className="flex flex-wrap items-center gap-2"
-      data-confirm={confirmation.message}
+      data-order-cancel-approve=""
       onSubmit={(event) => cancellation.submit(event, confirmation, 'approve', orderId)}
     >
       <CancellationIntentFields intent="approve" orderId={orderId} />
       <input name="requestId" type="hidden" value={requestId} />
       <Button disabled={pending} size="sm" type="submit">
-        {running ? '승인 중' : '취소 승인'}
+        {running ? '승인 중' : reading ? '금액 확인 중' : '취소 승인'}
       </Button>
     </form>
   );
 }
+
+/** 취소 거부 사유의 최소 글자 수(서버 normalizeAdminCancellationDecisionForm·DB와 같다). */
+const REJECT_REASON_MIN = 10;
 
 function RejectCancellationForm({
   cancellation,
@@ -694,6 +778,9 @@ function RejectCancellationForm({
   const { errors, pending, running } = cancellationFormView(cancellation, 'reject', orderId);
   const confirmation = adminCancelRejectRequest(order);
   const reasonId = `admin-order-reject-reason-${requestId}`;
+  /* 사유는 10~200자여야 거부된다(서버·DB와 같다). 모자란 동안은 버튼을 잠그고 이유를 보인다 — 확인창을 지난 뒤에 오류로 돌려보내지 않는다. */
+  const [reasonLength, setReasonLength] = useState(0);
+  const reasonMissing = reasonLength < REJECT_REASON_MIN;
 
   return (
     <form
@@ -701,7 +788,7 @@ function RejectCancellationForm({
       noValidate
       className="flex flex-col items-start gap-2 rounded-lg border border-destructive/30 bg-muted/40 p-3 sm:col-span-2"
       data-confirm={confirmation.message}
-      onSubmit={(event) => cancellation.submit(event, confirmation, 'reject', orderId)}
+      onSubmit={(event) => cancellation.submit(event, confirmation, 'reject', orderId, rejectCancellationClientErrors)}
     >
       <CancellationIntentFields intent="reject" orderId={orderId} />
       <input name="requestId" type="hidden" value={requestId} />
@@ -712,8 +799,9 @@ function RejectCancellationForm({
         disabled={pending}
         id={reasonId}
         maxLength={200}
-        minLength={10}
+        minLength={REJECT_REASON_MIN}
         name="reason"
+        onChange={(event) => setReasonLength(event.target.value.trim().length)}
         placeholder="예: 배송 준비가 이미 끝나 취소할 수 없습니다. (10자 이상)"
         required
         rows={3}
@@ -721,12 +809,29 @@ function RejectCancellationForm({
       {errors?.reason ? (
         <span className={FIELD_ERROR_CLASS} id={`admin-order-reject-error-${requestId}`} role="alert">{errors.reason}</span>
       ) : null}
-      <Button disabled={pending} size="sm" type="submit" variant="destructive">
-        {running ? '거부 중' : '취소 거부'}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button disabled={pending || reasonMissing} size="sm" type="submit" variant="destructive">
+          {running ? '거부 중' : '취소 거부'}
+        </Button>
+        {reasonMissing && !pending ? <span className="text-xs text-muted-foreground" data-order-reject-lock="">거부 사유를 {REJECT_REASON_MIN}자 이상 적으면 누를 수 있습니다.</span> : null}
+      </div>
     </form>
   );
 }
+
+/** 결제 취소 재확인 버튼의 이름. 요청 단계에 따라 다르다(ADMIN_CANCELLATION_RECHECK_LABELS). */
+function cancellationRecheckLabel(request: Pick<AdminOrderCancellationRequestRecord, 'status'>, preparedKorpay: boolean) {
+  return preparedKorpay
+    ? ADMIN_CANCELLATION_RECHECK_LABELS.preparedKorpay
+    : request.status === 'processing'
+      ? ADMIN_CANCELLATION_RECHECK_LABELS.processing
+      : ADMIN_CANCELLATION_RECHECK_LABELS.needsReview;
+}
+
+/** 코페이 원장에서 전액 취소를 확인한 뒤 반영하는 버튼. */
+const KORPAY_RECOVERY_BUTTON_LABEL = '코페이 전액 취소 반영';
+/** 취소·반품·교환 관리의 요청 상세로 가는 버튼. */
+const CLAIMS_LINK_LABEL = `${ADMIN_VOCABULARY.claims}에서 처리`;
 
 function ReconcileCancellationForm({
   cancellation,
@@ -745,11 +850,7 @@ function ReconcileCancellationForm({
 }) {
   const orderId = order.id;
   const { pending, running } = cancellationFormView(cancellation, 'reconcile', orderId);
-  const label = preparedKorpay
-    ? ADMIN_CANCELLATION_RECHECK_LABELS.preparedKorpay
-    : request.status === 'processing'
-      ? ADMIN_CANCELLATION_RECHECK_LABELS.processing
-      : ADMIN_CANCELLATION_RECHECK_LABELS.needsReview;
+  const label = cancellationRecheckLabel(request, Boolean(preparedKorpay));
   const confirmation: AdminConfirmInput = preparedKorpay
     ? {
         title: '코페이 결제 만료를 확인할까요?',
@@ -787,6 +888,17 @@ function ReconcileCancellationForm({
  */
 const STAFF_CANCEL_OTHER = 'other';
 
+/**
+ * 창고 회신 상태에 따라 [전액 취소 실행]을 잠그는 이유. 잠그지 않으면 null이다.
+ * 회신이 있으면(ready) 열고, 회신 상태를 읽지 못했으면(unknown) 화면이 아는 것이 없어 열어 둔다 — 실행 때 DB가 판정한다.
+ */
+export function staffCancelWarehouseLock(state: WarehouseStopRequirementState): string | null {
+  if (state === 'ready' || state === 'unknown') return null;
+  if (state === 'loading') return '창고 회신 기록을 확인하는 중입니다.';
+  if (state === 'already_shipped') return '창고가 이미 출고했다고 회신한 주문이라 전액 취소할 수 없습니다. 발송 처리 뒤 고객 반품으로 접수해주세요.';
+  return '창고의 출고 중단 회신을 기록해야 누를 수 있습니다.';
+}
+
 function StaffCancellationForm({
   cancellation,
   detailHref,
@@ -799,14 +911,21 @@ function StaffCancellationForm({
   requiresWarehouseStop: boolean;
 }) {
   const orderId = order.id;
-  const { errors, pending, running } = cancellationFormView(cancellation, 'staffCancel', orderId);
-  /* 확인창은 취소되는 주문·금액·결제사를 말한다 — 패널이 고르지 않은 주문을 가리키고 있을 수 있어서다. */
-  const confirmation = adminStaffCancelRequest(order);
+  const { errors, pending, reading, running } = cancellationFormView(cancellation, 'staffCancel', orderId);
+  /* 확인창은 취소되는 주문·금액·결제사를 말한다 — 패널이 고르지 않은 주문을 가리키고 있을 수 있어서다.
+     금액은 누르는 시점에 읽는다(앞서 부분 취소한 주문은 남은 결제 금액만 취소한다). */
+  const confirmation = () => orderFullCancelConfirmation(order);
   const reasonId = `admin-order-staff-cancel-reason-${orderId}`;
   const noteId = `admin-order-staff-cancel-note-${orderId}`;
   /* '기타'는 메모가 있어야 취소된다(서버 검사). 사유를 고르면 메모 칸이 바로 필수로 바뀐다. */
   const [reasonCode, setReasonCode] = useState('');
   const noteRequired = reasonCode === STAFF_CANCEL_OTHER;
+  /*
+   * 출고지시가 나간 배송 건은 창고의 출고 중단 회신이 기록돼 있어야 취소된다(ADR-0046). 회신 상태 줄이 알려 주는 판정으로 버튼을 미리 잠근다 —
+   * '창고 회신 기록 필요'를 보이면서 버튼을 열어 두고 확인창을 지난 뒤에 거절하지 않는다. 회신 상태를 읽지 못했으면 잠그지 않는다(판정은 DB가 한다).
+   */
+  const [stopState, setStopState] = useState<WarehouseStopRequirementState>('loading');
+  const stopLock = requiresWarehouseStop ? staffCancelWarehouseLock(stopState) : null;
   const noteLabel = `메모 (${noteRequired ? '필수' : '선택'} · 구매자에게 보이지 않습니다)`;
 
   return (
@@ -814,7 +933,6 @@ function StaffCancellationForm({
       action={cancellation.action}
       aria-label="운영자 전액 취소"
       className="flex flex-col items-start gap-2 rounded-lg border border-destructive/30 bg-muted/40 p-3 sm:col-span-2"
-      data-confirm={confirmation.message}
       noValidate
       onSubmit={(event) => cancellation.submit(
         event,
@@ -858,13 +976,16 @@ function StaffCancellationForm({
       />
       {errors?.note ? <span className={FIELD_ERROR_CLASS} id={`${noteId}-error`} role="alert">{errors.note}</span> : null}
       {/* 출고지시가 나간 배송 건은 확인란(운영자 진술)이 아니라 창고 회신 기록이 근거다(ADR-0046). */}
-      {requiresWarehouseStop ? <WarehouseStopRequirementNote detailHref={detailHref} orderId={orderId} /> : null}
+      {requiresWarehouseStop ? <WarehouseStopRequirementNote detailHref={detailHref} onState={setStopState} orderId={orderId} /> : null}
       <small className="text-xs text-muted-foreground">
-        발송 전 주문의 결제 금액 전액을 바로 취소합니다.
+        발송 전 주문의 남은 결제 금액을 바로 취소합니다. 취소 금액은 누르면 확인창에 보입니다.
       </small>
-      <Button disabled={pending} size="sm" type="submit" variant="destructive">
-        {running ? '취소 처리 중' : '전액 취소 실행'}
-      </Button>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button disabled={pending || Boolean(stopLock)} size="sm" type="submit" variant="destructive">
+          {running ? '취소 처리 중' : reading ? '금액 확인 중' : '전액 취소 실행'}
+        </Button>
+        {stopLock ? <span className="text-xs text-muted-foreground" data-order-staff-cancel-lock="">{stopLock}</span> : null}
+      </div>
     </form>
   );
 }
@@ -910,7 +1031,7 @@ function ManualKorpayCancellationForm({
         type="submit"
         variant="destructive"
       >
-        {running ? '반영 중' : '코페이 전액 취소 반영'}
+        {running ? '반영 중' : KORPAY_RECOVERY_BUTTON_LABEL}
       </Button>
     </form>
   );
@@ -971,6 +1092,20 @@ function OrderDetail({
     ? isKorpayManualRecoveryState(manualRecoveryAttempt.state)
     : false;
   const staffCancellation = adminStaffCancellationAvailability(order);
+  /*
+   * 이 패널에 실제로 그려지는 취소 처리 버튼. 결제사 확인 오류의 다음 할 일(adminPaymentCancelPanelNext)이 화면에 있는 버튼 이름만
+   * 가리키도록, 아래 버튼을 그리는 조건과 같은 값에서 이름을 정한다.
+   */
+  const showsRecheck = Boolean(cancellationRequest)
+    && (cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review')
+    && !usesKorpayManualRecovery;
+  const showsClaimsLink = Boolean(cancellationRequest)
+    && !isLegacyDecidableCancellation(cancellationRequest)
+    && isOpenOrderClaimStage(cancellationRequest!.stage);
+  const recheckLabel = showsRecheck
+    ? cancellationRecheckLabel(cancellationRequest!, manualRecoveryAttempt?.state === 'prepared')
+    : manualRecoveryAttempt?.manualRecoveryAvailable ? KORPAY_RECOVERY_BUTTON_LABEL : null;
+  const claimsLinkLabel = showsClaimsLink ? CLAIMS_LINK_LABEL : null;
 
   return (
     <article aria-labelledby="admin-order-detail-title" className="flex min-w-0 flex-col gap-4 border-t p-4 sm:p-5" data-order-detail="">
@@ -1100,7 +1235,8 @@ function OrderDetail({
             && (cancellationRequest.status === 'needs_review' || cancellationRequest.status === 'processing') ? (
             <div className="flex flex-col gap-0.5 text-muted-foreground wrap-anywhere" data-order-payment-cancel-error="">
               <p>결제사 확인 오류 · {adminPaymentCancelErrorCopy(cancellationRequest.lastErrorCode).label}</p>
-              <p>{adminPaymentCancelErrorCopy(cancellationRequest.lastErrorCode).next}</p>
+              {/* 코드별 안내는 취소 관리 요청 상세의 [환불 완료 확정]을 가리킨다. 이 패널에 없는 버튼이라, 여기서 누를 수 있는 버튼과 요청 상세로 가는 버튼을 함께 말한다. */}
+              <p>{adminPaymentCancelPanelNext(cancellationRequest.lastErrorCode, { recheckLabel, claimsLinkLabel })}</p>
               <small className="text-xs">{ADMIN_SUPPORT_CODE_LABEL}: <code className="rounded bg-muted px-1 font-mono text-foreground">{cancellationRequest.lastErrorCode}</code></small>
             </div>
           ) : null}
@@ -1164,7 +1300,7 @@ function OrderDetail({
         {order.shipments.filter(shipment=>!isParcelShipment(shipment)).map(shipment=>(
           <section className="flex min-w-0 flex-col items-start gap-2 rounded-lg border p-3" key={shipment.id} aria-label={`${shipment.originName} 인계·수령 확인`}>
             <h4 className="text-sm font-medium text-foreground">{shipment.originName} · {commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</h4>
-            <p className="text-muted-foreground">{shipment.delivery ? deliveryStatusLabel(shipment.delivery.method,shipment.status) : '배송 방식 확인 필요'}</p>
+            <p className="text-muted-foreground">{shipment.delivery ? adminDeliveryStatusLabel(shipment.delivery.method,shipment.status) : '배송 방식 확인 필요'}</p>
             <Link className={LINK_BUTTON} data-slot="button" href={adminOrderDetailHref(order.id,filters)} target="_blank" rel="noopener noreferrer">
               {shipment.delivery ? DELIVERY_METHOD_LABELS[shipment.delivery.method] : '배송 방식'} 인계·수령 확인
             </Link>
@@ -1185,19 +1321,16 @@ function OrderDetail({
             <RejectCancellationForm cancellation={cancellation} order={order} requestId={cancellationRequest.id} />
           </>
         ) : null}
-        {cancellationRequest
-          && !isLegacyDecidableCancellation(cancellationRequest)
-          && isOpenOrderClaimStage(cancellationRequest.stage) ? (
+        {cancellationRequest && showsClaimsLink ? (
           <Link
             className={`${LINK_BUTTON} justify-self-start`}
             data-slot="button"
             href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[cancellationRequest.claimType]}/${cancellationRequest.id}`}
           >
-            {ADMIN_VOCABULARY.claims}에서 처리
+            {CLAIMS_LINK_LABEL}
           </Link>
         ) : null}
-        {(cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review')
-          && !usesKorpayManualRecovery ? (
+        {cancellationRequest && showsRecheck ? (
           <ReconcileCancellationForm
             cancellation={cancellation}
             order={order}
@@ -1305,17 +1438,38 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
   );
   const [submittedCancellation, setSubmittedCancellation] = useState<OrderCancellationConsole['submitted']>(null);
   const [cancellationClientErrors, setCancellationClientErrors] = useState<OrderCancellationConsole['clientErrors']>(null);
+  const [readingCancellation, setReadingCancellation] = useState<OrderCancellationConsole['reading']>(null);
+  /* 금액을 읽고 확인창이 떠 있는 동안의 거듭 누름을 막는다(읽기가 두 번 나가지 않게). */
+  const cancellationBusy = useRef(false);
   const cancellation: OrderCancellationConsole = {
     state: cancellationState,
     action: ignoreUnconfirmedCancellationSubmit,
     pending: cancellationPending,
     submitted: submittedCancellation,
     clientErrors: cancellationClientErrors,
+    reading: readingCancellation,
     submit: async (event, confirmation, intent, orderId, validate) => {
       /* 양식 action으로 보내지 않는다 — 끝나면 입력이 초기화된다(planOrderCancellationSubmit). */
       event.preventDefault();
+      if (cancellationBusy.current) return;
       const formData = new FormData(event.currentTarget);
-      const plan = await planOrderCancellationSubmit(formData, confirmation, adminConfirm, validate);
+      /* 확인창은 전환(startTransition) 밖에서 먼저 받는다. 금액을 읽어 만드는 확인창은 읽는 동안만 버튼에 '금액 확인 중'을 보인다. */
+      const resolved: OrderCancellationConfirmation = typeof confirmation === 'function'
+        ? async () => {
+            setReadingCancellation({ intent, orderId });
+            try { return await confirmation(); } finally { setReadingCancellation(null); }
+          }
+        : confirmation;
+      cancellationBusy.current = true;
+      let plan: OrderCancellationSubmitPlan;
+      try {
+        plan = await planOrderCancellationSubmit(formData, resolved, adminConfirm, validate);
+      } catch {
+        /* 확인창을 띄우지 못했다 — 보내지 않는다. */
+        plan = { kind: 'dismissed' };
+      } finally {
+        cancellationBusy.current = false;
+      }
       if (plan.kind === 'invalid') {
         setCancellationClientErrors({ intent, orderId, errors: plan.errors });
         return;

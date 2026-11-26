@@ -23,7 +23,10 @@ export interface ShippingSettingsTemplate {
   id: string; name: string; revision: number; enabled: boolean; settings: ShippingSettings; createdAt: string; updatedAt: string;
 }
 export interface ShippingSettingsFilters { query: string; state: ShippingSettingsState; page: number }
-/** 이 템플릿을 쓰는 상품 수(보관한 상품 제외). `outdated`는 템플릿을 고친 뒤 다시 적용하지 않아 고치기 전 내용으로 남은 상품 수다. */
+/**
+ * 이 템플릿을 쓰는 상품 수(보관한 상품 제외). `outdated`는 템플릿을 저장한 뒤 다시 적용하지 않은 상품 수다 — 상품에 찍힌 템플릿 번호가
+ * 템플릿의 지금 번호보다 작은 상품이다. 템플릿은 무엇을 저장하든(이름·사용 여부만 고쳐도) 번호가 오르므로 상품 설정이 실제로 달라졌다는 뜻은 아니다.
+ */
 export interface ShippingSettingsUsage { applied: number; outdated: number }
 export interface ShippingSettingsListData {
   rows: ShippingSettingsTemplate[]; total: number; filters: ShippingSettingsFilters;
@@ -112,7 +115,7 @@ export function parseShippingSettingsTemplateForm(form: FormData) {
   let fulfillment: ShippingSettingsFulfillment | undefined;
   if (form.has('fulfillment')) {
     try { fulfillment = parseShippingSettingsFulfillment(JSON.parse(String(form.get('fulfillment')))) ?? undefined; } catch { fulfillment = undefined; }
-    if (!fulfillment) errors.fulfillment = '받을 방식을 하나 이상 고르고, 배송비와 설치비는 0 이상의 숫자(원)로 적어 주세요.';
+    if (!fulfillment) errors.fulfillment = '수령 방식을 하나 이상 고르고, 배송비와 설치비는 0 이상의 숫자(원)로 적어 주세요.';
   }
   if (!claim.value) errors.form = '반품·교환 조건을 다시 확인해 주세요.';
   if (Object.keys(errors).length || !claim.value || !delivery) return { ok: false as const, errors };
@@ -157,7 +160,7 @@ export function shippingSettingsRuntimeOffSaved(names: readonly string[]): strin
 }
 /** 화면이 미리 막지 못한 채 적용이 거절됐을 때(설정을 읽지 못했거나 그사이 꺼진 경우). */
 export const SHIPPING_SETTINGS_RUNTIME_REJECTED = '지금 쇼핑몰 설정에서는 이 템플릿이 함께 바꾸는 수량별·착불 설정, 묶음그룹, 수령 방식을 적용할 수 없습니다. 템플릿에서 그 체크를 끄고 저장한 뒤 다시 적용하거나, 써야 하면 개발 담당자에게 요청해 주세요.';
-/** 미리보기에서 이 상품을 건너뛰는 이유와 푸는 방법. '건너뜀 · ' 뒤와 결과 줄에 붙여 쓰도록 끝의 마침표 없이 적는다. */
+/** 미리보기에서 이 상품을 건너뛰는 이유와 푸는 방법. '건너뜀 · ' 뒤와 결과 줄에 붙여 쓰도록 끝의 마침표 없이 적는다(마침표는 보이는 자리에서 붙인다). */
 export const SHIPPING_SETTINGS_BLOCKER_LABELS: Record<ShippingSettingsBlocker, string> = {
   goods_aggregation_policy_owned_by_source: '원상품에서 나눈 상품이라 원상품에서 바꿔야 합니다',
   checkout_contract_upgrade_required: '지금 쇼핑몰 설정에서는 이 템플릿이 함께 바꾸는 설정을 적용할 수 없습니다',

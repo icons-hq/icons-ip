@@ -59,7 +59,7 @@ describe('가상계좌 환불 계좌 대신 입력 저장', () => {
 
   it('권한이 없으면 저장하지 않는다', async () => {
     mocks.access.mockResolvedValue(null);
-    expect(await saveVirtualAccountRefundAccountAction(entry)).toEqual({ ok: false, error: '주문 관리 권한이 있는 계정만 환불 계좌를 입력할 수 있습니다.' });
+    expect(await saveVirtualAccountRefundAccountAction(entry)).toEqual({ ok: false, error: '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 

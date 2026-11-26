@@ -5,7 +5,7 @@ import { recordOrderClaimOriginCollectionAction } from '@/app/admin/claim-action
 import { retryClaimReturnPickupAction } from '@/app/admin/claim-return-actions';
 import { RETURN_PICKUP_CANCEL_REASON_LABELS, RETURN_PICKUP_STATE_LABELS, returnPickupErrorLabel, returnPickupRetryable, type AdminReturnPickup } from '@/lib/admin/claim-return-pickup';
 import type { AdminClaimCollection, AdminClaimCollectionBundle } from '@/lib/admin/claims.server';
-import { adminClaimTodayKst } from '@/lib/admin/claims';
+import { adminClaimReceivedOnLabel, adminClaimTodayKst } from '@/lib/admin/claims';
 import { confirmAdminSubmit, type AdminConfirmRequest } from '@/lib/admin/confirm';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { adminFormRemountKey, preservedFormValues } from '@/lib/admin/form-state';
@@ -58,7 +58,7 @@ export function originCollectionConfirmRequest({ label, kind, claimType, items, 
   items: readonly { name: string; qty: number }[]; receivedOn: string;
 }): AdminConfirmRequest {
   const goods = items.map((item) => `${item.name} ${item.qty}개`).join(', ');
-  const day = receivedOn || '오늘';
+  const day = receivedOn ? adminClaimReceivedOnLabel(receivedOn) : '오늘';
   const locked = '기록한 뒤에는 고치거나 되돌릴 수 없습니다.';
   if (kind === 'late') {
     return { title: `${label} 늦은 입고를 기록할까요?`, message: `${goods}를 ${day} 입고로 기록합니다.\n재고는 바뀌지 않습니다. 다시 팔 수 있으면 재고 조정에서 반영해 주세요.\n${locked}`, confirmLabel: COLLECTION_ACTION_LABELS.late, cancelLabel: '돌아가기' };
@@ -187,7 +187,7 @@ function ItemList({ items }: { items: AdminClaimCollection['items'] }) {
 function CollectedRecord({ collectedAt, collectorName, evidence, receivedOn }: { collectedAt: string; collectorName: string | null; evidence: string | null; receivedOn?: string | null }) {
   return <>
     <p className="text-xs text-muted-foreground">
-      {receivedOn ? <>실제 입고일 <span className="tabular-nums">{receivedOn}</span> · </> : null}
+      {receivedOn ? <>실제 입고일 <span className="tabular-nums">{adminClaimReceivedOnLabel(receivedOn)}</span> · </> : null}
       확인 {formatOrderDateTime(collectedAt)}{collectorName ? ` · ${collectorName}` : ''}
     </p>
     <p className="break-words whitespace-pre-wrap">{evidence}</p>

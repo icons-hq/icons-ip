@@ -1,12 +1,13 @@
 'use client';
 
+import { ADMIN_DIALOG_CLOSE_DIRTY_CONFIRM } from '@/lib/admin/dialog-close';
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { getShippingChargeGroupAction, listShippingChargeGroupsAction } from '@/app/admin/shipping-charge-group-actions';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { EditableCarrier } from '@/lib/admin/store-settings';
 import { adminConfirm } from '@/lib/admin/confirm';
 import {
-  CHANGED_BY_OTHER, SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE, TEMPLATE_CLOSE_DIRTY_CONFIRM, TEMPLATE_DISCARD_INPUT_CONFIRM, TEMPLATE_DISCARD_INPUT_LABEL,
+  CHANGED_BY_OTHER, SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE, TEMPLATE_DISCARD_INPUT_CONFIRM, TEMPLATE_DISCARD_INPUT_LABEL,
   TEMPLATE_LATEST_UNREAD_MESSAGE, TEMPLATE_SAVE_OVER_LATEST_LABEL, TEMPLATE_SAVE_OVER_LATEST_NOTE, reopenClosedDialog,
 } from '@/lib/admin/goods-template-save';
 import { SHIPPING_REGIONS_HELP } from '@/lib/admin/help/shipping-regions';
@@ -19,7 +20,7 @@ import {
 import {
   REGION_DISPOSITION_LABELS, SHIPPING_REGION_TSV_EXAMPLE, parseShippingRegionRulesTsv, shippingRegionRulesTsv, type ShippingRegionRuleInput,
 } from '@/lib/admin/shipping-regions';
-import { krw } from '@/lib/format';
+import { krwAmountWords } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
 import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { AdminLabelWithHelp } from '@/components/admin/console/AdminHelpTip';
@@ -104,14 +105,14 @@ function RegionFields({ policy, onChange, tsv, onTsvChange, disabled, carriers, 
       <AdminLabelWithHelp help={SHIPPING_REGIONS_HELP.regionTable} label="지역표"><label htmlFor={`${fieldId}-table`}>지역표</label></AdminLabelWithHelp>
       <Textarea className={TSV_TEXTAREA} id={`${fieldId}-table`} maxLength={500000} placeholder={SHIPPING_REGION_TSV_EXAMPLE} rows={7} spellCheck={false} value={tsv} onChange={event => onTsvChange(event.target.value)} />
     </div>}
-    {parsed.error ? <AdminNotice role="alert" title="지역표를 고쳐 주세요" tone="warning">{parsed.error}</AdminNotice> : null}
+    {parsed.error ? <AdminNotice role="alert" title="지역표를 고쳐 주세요" tone="warning">{parsed.errors.length > 1 ? <ul className="flex list-disc flex-col gap-1 pl-5">{parsed.errors.map((problem, index) => <li key={index}>{problem}</li>)}</ul> : parsed.error}</AdminNotice> : null}
     {rules.length ? <section className="flex min-w-0 flex-col gap-2" data-charge-group-region-preview="">
       <h4 className="text-sm font-semibold">지역표 미리보기 · {rules.length}줄</h4>
       <div className={TABLE_BOX}><Table className="min-w-[40rem]"><caption className="sr-only">지역표 미리보기</caption>
         <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead className="w-12 text-right" scope="col">줄</TableHead><TableHead scope="col">우편번호</TableHead><TableHead scope="col">주소 시작문구</TableHead><TableHead scope="col">지역명</TableHead><TableHead scope="col">처리</TableHead><TableHead className="text-right" scope="col">추가배송비</TableHead></TableRow></TableHeader>
         <TableBody>{rules.slice(0, 50).map((row, index) => <TableRow key={row.id ?? index}><TableCell className="text-right tabular-nums text-muted-foreground">{index + 1}</TableCell>
           <TableCell className="tabular-nums">{row.postalFrom || '빈칸'}~{row.postalTo || '빈칸'}</TableCell><TableCell className="whitespace-normal">{row.addressPrefix || '우편번호만 봄'}</TableCell><TableCell>{row.regionLabel || '빈칸'}</TableCell>
-          <TableCell>{row.disposition ? REGION_DISPOSITION_LABELS[row.disposition] : '빈칸'}</TableCell><TableCell className="text-right tabular-nums">{row.amount === null ? row.disposition === 'surcharge' ? '빈칸' : '-' : krw(row.amount)}</TableCell></TableRow>)}</TableBody></Table>
+          <TableCell>{row.disposition ? REGION_DISPOSITION_LABELS[row.disposition] : '빈칸'}</TableCell><TableCell className="text-right tabular-nums">{row.amount === null ? row.disposition === 'surcharge' ? '빈칸' : '-' : krwAmountWords(row.amount)}</TableCell></TableRow>)}</TableBody></Table>
         {rules.length > 50 ? <p className="border-t px-3 py-2 text-xs text-muted-foreground">앞의 50줄만 보입니다. 나머지 {rules.length - 50}줄도 함께 저장합니다.</p> : null}</div>
     </section> : null}
   </fieldset>;
@@ -259,7 +260,7 @@ export function ShippingChargeGroupEditor({ start, identity, scope, origins, car
   }
   async function close() {
     if (pending || unknown) return;
-    if (touched.current && canEdit && !await adminConfirm(TEMPLATE_CLOSE_DIRTY_CONFIRM)) { reopenClosedDialog(root.current); return; }
+    if (touched.current && canEdit && !await adminConfirm(ADMIN_DIALOG_CLOSE_DIRTY_CONFIRM)) { reopenClosedDialog(root.current); return; }
     onClose(conflict);
   }
   /* 사용 안 하는 출고지는 새로 고를 수 없다. 이미 그 출고지에 만든 묶음그룹의 출고지만 목록에 남긴다. */

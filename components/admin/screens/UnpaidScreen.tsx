@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
 import { BankDepositQueue } from '@/components/admin/BankDepositQueue';
-import { UnpaidActionsPanel } from '@/components/admin/UnpaidActionsPanel';
+import { UnpaidSelectedOrder } from '@/components/admin/UnpaidSelectedOrder';
 import {
   ConsoleGrid,
   ConsolePagination,
@@ -14,7 +14,7 @@ import { adminUnpaidAttemptStateLabel, adminUnpaidHref, adminUnpaidStateFilterOp
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { SALES_SORT_OPTIONS } from '@/lib/admin/sales-list';
 import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect } from '@/components/admin/sales/SalesConsole';
-import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { statusTone } from '@/lib/admin/status-tone';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
@@ -127,24 +127,26 @@ export function UnpaidScreen({
       />
       </div>
 
-      {selected ? (
-        /* key: 다른 주문을 고르면 적던 근거·지난 처리 결과가 그 주문으로 넘어가지 않게 패널을 새로 연다. */
-        <UnpaidActionsPanel detailHref={adminOrderDetailHref(selected.id)} key={selected.id} now={now.getTime()} order={selected} />
-      ) : (
+      {filters.selectedOrderId ? (
+        /*
+         * 고른 주문의 자리. 주문이 목록에 있으면 처리 패널, 없으면 안내다 — 입금 확인·즉시 취소로 주문이 목록에서 빠져도 이 부품은 남아
+         * 방금 처리한 결과를 그 자리에 보인다. key: 다른 주문을 고르면 적던 근거·지난 처리 결과가 그 주문으로 넘어가지 않게 새로 연다.
+         */
+        <UnpaidSelectedOrder
+          detailHref={isUuid(filters.selectedOrderId) ? adminOrderDetailHref(filters.selectedOrderId) : null}
+          key={filters.selectedOrderId}
+          listHref={adminUnpaidHref({ ...filters, selectedOrderId: null })}
+          now={now.getTime()}
+          order={selected}
+        />
+      ) : null}
+      {selected ? null : (
         <p className="text-muted-foreground">
           목록에서 주문을 고르면 입금 확인·기한 연장·즉시 취소를 처리할 수 있습니다.
         </p>
       )}
 
       <BankDepositQueue deposits={deposits} />
-
-      {filters.selectedOrderId && !selected && (
-        <AdminNotice role="status" tone="warning">
-          고른 주문이 목록에 없습니다. 이미 처리됐을 수 있어요.{' '}
-          <Link className="font-medium underline underline-offset-4" href={adminUnpaidHref({ ...filters, selectedOrderId: null })}>목록으로</Link>
-          {isUuid(filters.selectedOrderId) ? <>{' · '}<Link className="font-medium underline underline-offset-4" href={adminOrderDetailHref(filters.selectedOrderId)}>주문 상세에서 처리 결과 확인</Link></> : null}
-        </AdminNotice>
-      )}
     </div>
   );
 }

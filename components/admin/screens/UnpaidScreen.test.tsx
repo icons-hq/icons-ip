@@ -140,10 +140,11 @@ describe('UnpaidScreen', () => {
 
     expect(html).toContain('name="memo"');
     expect(html).toContain('입금 확인');
-    expect(html).toContain('기한 24시간 연장');
+    /* 버튼은 '24시간 연장'이 아니라 하는 일 그대로다 — 기한을 누른 시각부터 24시간 뒤로 다시 정한다. */
+    expect(html).toContain('기한을 지금부터 24시간 뒤로'); expect(html).not.toContain('기한 24시간 연장');
     expect(html).toContain('즉시 취소');
     /* kit Button은 type이 없으면 button이 된다 — 세 양식 모두 제출 버튼으로 보낸다. */
-    for (const label of ['입금 확인', '기한 24시간 연장', '즉시 취소']) {
+    for (const label of ['입금 확인', '기한을 지금부터 24시간 뒤로', '즉시 취소']) {
       expect(html).toMatch(new RegExp(`<button[^>]*type="submit"[^>]*>${label}<`));
     }
   });

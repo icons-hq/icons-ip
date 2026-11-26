@@ -57,7 +57,7 @@ export async function revertShipmentDeliveryAction(input: { shipmentId: unknown;
     // 운송장 없이 강제 배송완료한 건은 발송된 적이 없어 발송 대기로(주문은 발주확인으로) 돌아간다.
     if (receipt.shipmentStatus === 'ready') return { ok: true, tone: 'success', message: `배송 건 ${reference}${objectParticle(reference)} 발송 대기로 되돌렸습니다${pack}. `
       + '운송장 없이 강제 배송완료한 건이라 주문은 발주확인으로 돌아갔습니다. 실제로 발송하면 운송장을 등록해 발송 처리해주세요. 사유는 감사 기록에 남았습니다.' };
-    return { ok: true, tone: 'success', message: `배송 건 ${reference}${objectParticle(reference)} 배송 중으로 되돌렸습니다${pack}. `
+    return { ok: true, tone: 'success', message: `배송 건 ${reference}${objectParticle(reference)} 배송중으로 되돌렸습니다${pack}. `
       + '실제 도착을 확인하면 택배사 배송완료 일시를 넣어 다시 배송완료 처리해주세요. 사유는 감사 기록에 남았습니다.' };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: shipmentRevertError() }; }
 }

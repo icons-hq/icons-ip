@@ -5,7 +5,8 @@ import { SalesGuide, kstDayDiff } from '@/components/admin/sales/SalesConsole';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
 import { formatKrwExact } from '@/components/admin/format';
-import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
+import { orderReferenceLabel } from '@/lib/orders';
+import { ClaimDateTimeCell } from './ClaimDateTimeCell';
 import { orderClaimReferenceLabel } from '@/lib/orders/claims';
 import { BANK_REFUND_LABELS } from '@/lib/admin/bank-transfer-refund';
 import { REFUND_TRANSFERS_PATH, refundTransferDetailHref, refundTransferRecordPlace, refundTransferRowKey, refundTransferTypeLabel, refundTransfersHref, type RefundTransferPage } from '@/lib/admin/refund-transfers';
@@ -21,16 +22,17 @@ import { ADMIN_LIST_EXPORT_BUTTON_LABEL, adminListExportHref } from '@/lib/admin
 const LONG_WAIT_DAYS = 3;
 
 /* 번호(주문 + 요청) → 유형 → 돈·사람·행동 순서다. 날짜는 그 뒤다. 부분 환불 줄은 요청번호가 없어 번호 칸에 주문번호만 있고 유형이 차수를 말한다. */
+/* 열 폭 합계는 1366px 화면의 틀(약 1016px) 안에 든다 — 합이 틀보다 크면 '환불 접수일' 시각이 잘리고 '요청자'가 가로로 밀린다(F-09). 날짜는 두 줄(ClaimDateTimeCell)이라 120px대로 줄었다. */
 const columns: ConsoleGridColumn[] = [
-  { key: 'claim', label: '주문 · 요청번호', width: '172px', required: true },
-  { key: 'type', label: '유형', width: '128px' },
-  { key: 'amount', label: '송금할 금액', width: '110px', align: 'end' },
-  { key: 'payer', label: '결제자', width: '112px' },
-  { key: 'waiting', label: '대기', width: '80px' },
-  { key: 'action', label: '송금 기록', width: '140px', required: true },
-  { key: 'confirmed', label: '취소 확정일', width: '144px' },
-  { key: 'filed', label: '환불 접수일', width: '144px' },
-  { key: 'requester', label: '요청자', width: '92px' },
+  { key: 'claim', label: '주문 · 요청번호', width: '152px', required: true },
+  { key: 'type', label: '유형', width: '100px' },
+  { key: 'amount', label: '송금할 금액', width: '100px', align: 'end' },
+  { key: 'payer', label: '결제자', width: '108px' },
+  { key: 'waiting', label: '대기', width: '72px' },
+  { key: 'action', label: '송금 기록', width: '160px', required: true },
+  { key: 'confirmed', label: '취소 확정일', width: '112px' },
+  { key: 'filed', label: '환불 접수일', width: '112px' },
+  { key: 'requester', label: '요청자', width: '88px' },
 ];
 
 /* 한국 달력으로 센다. 어제 밤에 확정된 요청이 '오늘'로 보이면 하루 묵은 송금을 놓친다. */
@@ -72,7 +74,7 @@ export function RefundTransfersScreen({ data, now = new Date() }: {
         const type = refundTransferTypeLabel(row);
         const place = refundTransferRecordPlace(row);
         /* 요청은 [환불 접수 기록]이 남아야 계좌를 보고 송금할 수 있다 — 아직이면 주의로 알린다. 부분 환불 줄은 접수 단계가 따로 없다. */
-        const filed = row.filedAt ? formatOrderDateTime(row.filedAt) : partial ? '-' : <AdminStatusBadge key="filed" tone="warning">접수 전</AdminStatusBadge>;
+        const filed = row.filedAt ? <ClaimDateTimeCell key="filed" value={row.filedAt} /> : partial ? '-' : <AdminStatusBadge key="filed" tone="warning">접수 전</AdminStatusBadge>;
         return { id: refundTransferRowKey(row), href: detailHref,
           cells: [
             <span className="flex flex-col" key="claim"><span className="tabular-nums">{orderLabel}</span>{claimLabel ? <span className="text-xs font-normal text-muted-foreground tabular-nums">요청 {claimLabel}</span> : null}</span>,
@@ -82,7 +84,7 @@ export function RefundTransfersScreen({ data, now = new Date() }: {
             days >= LONG_WAIT_DAYS ? <AdminStatusBadge key="waiting" tone="warning">{waiting}</AdminStatusBadge> : <span className="tabular-nums" key="waiting">{waiting}</span>,
             <Link aria-label={claimLabel ? `요청 ${claimLabel} 상세에서 계좌를 보고 송금을 기록` : `주문 ${orderLabel} 상세의 ${type} 기록에서 계좌를 보고 송금을 기록`}
               className={cn(buttonVariants({ size: 'sm', variant: 'soft' }))} data-slot="button" href={processHref} key="action">{place}에서 기록</Link>,
-            formatOrderDateTime(row.confirmedAt),
+            <ClaimDateTimeCell key="confirmed" value={row.confirmedAt} />,
             filed,
             partial ? <span className="text-muted-foreground" key="requester">운영자 처리</span> : row.requesterName || '-',
           ],

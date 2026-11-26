@@ -67,9 +67,9 @@ describe('창고 회신 기록·취소 뒤 출고 처리 액션', () => {
     /* 물류출고관리는 발견 처리(sales.manage)를 하지 못한다. */
     mocks.rpc.mockReset();
     expect(await resolveCanceledShipmentDispatchAction({ orderId: ORDER_ID, dispatchId: DISPATCH_ID, outcome: 'returned', note: '반송 입고 확인', operationId: OPERATION_ID }))
-      .toEqual({ ok: false, error: '취소 뒤 출고를 처리할 권한이 없습니다. 주문 처리 권한이 있는 계정으로 처리해주세요.' });
+      .toEqual({ ok: false, error: '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.' });
     mocks.adminState.operatorAccess = configuredOperatorAccessFixture('agency');
-    expect(await recordWarehouseStopReplyAction(reply)).toEqual({ ok: false, error: '창고 회신을 기록할 권한이 없습니다. 받은 회신(경로·시각·내용)을 주문 처리 담당에게 전달해 기록을 맡겨주세요.' });
+    expect(await recordWarehouseStopReplyAction(reply)).toEqual({ ok: false, error: '출고 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요. 받은 회신(경로·시각·내용)은 출고 권한이 있는 담당자에게 전달해 기록을 맡겨주세요.' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
@@ -100,7 +100,7 @@ describe('창고 회신 기록·취소 뒤 출고 처리 액션', () => {
     expect(await loadOrderWarehouseStopAction(ORDER_ID)).toMatchObject({ ok: false });
     mocks.adminState.operatorAccess = configuredOperatorAccessFixture('logistics');
     mocks.rpc.mockReset();
-    expect(await loadOrderWarehouseStopAction(ORDER_ID)).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
+    expect(await loadOrderWarehouseStopAction(ORDER_ID)).toEqual({ ok: false, error: '주문 조회 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 

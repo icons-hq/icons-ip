@@ -87,10 +87,10 @@ describe('퀵·방문수령·직접배송·화물배송이거나 이력·기록�
     expect(html).toMatch(/name="occurredAt"[^>]*value="\d{4}-\d{2}-\d{2}T\d{2}:\d{2}"/);
     for (const text of RETIRED) expect(html, text).not.toContain(text);
   });
-  it('방문수령은 수령 기록 칸이고 대리수령이 안 되면 주문자 본인이 처음부터 골라져 있다', () => {
+  it('방문수령은 수령 기록 칸이고 대리수령이 안 되면 구매자 본인이 처음부터 골라져 있다', () => {
     const html = view(deliveryPanelShipment({ canTransition: true, summary: summary('pickup') }));
     for (const text of ['방문수령 완료 기록', '수령을 확인한 담당자', '수령 시각 (KST)', '수령인 구분', '수령 확인 내용', '고객이 보여 준 확인값', '수령 기록 · 배송완료']) expect(html, text).toContain(text);
-    expect(html).toContain('<option value="self" selected="">주문자 본인</option>');
+    expect(html).toContain('<option value="self" selected="">구매자 본인</option>');
     expect(html).not.toContain('수령인을 확인해주세요');
     expect(html).not.toContain('허용된 대리수령인');
     expect(html).toContain('고객이 주문 화면에서 발급한 값입니다(10분 동안 유효). 5번 틀리거나 다시 발급하면 이전 값은 쓸 수 없습니다.');

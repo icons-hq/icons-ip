@@ -28,8 +28,10 @@ it('목록은 템플릿이 정한 배송비와 적용 상품 수를 보이고 �
     }] }} />);
   expect(html).toContain('배송정보 템플릿 관리'); expect(html).toContain('배송 안내 템플릿 관리'); expect(html).toContain('출고지·배송비·반품 조건을 묶어 두고 여러 상품에 한 번에 넣는 설정입니다.');
   expect(html).toContain('출고지 정책 따름 · 3,000원 · 50,000원 이상 무료'); expect(html).toContain('무료배송');
-  /* 적용 상품 수와, 고친 뒤 다시 적용하지 않은 상품을 맞추는 길. 수를 세지 못한 템플릿은 수를 보이지 않는다. */
-  expect(html).toContain('12개'); expect(html).toContain('3개는 고치기 전 내용'); expect(html).toMatch(/<button[^>]*>다시 적용<\/button>/);
+  /* 적용 상품 수와, 템플릿을 저장한 뒤 다시 적용하지 않은 상품을 맞추는 길. 수를 세지 못한 템플릿은 수를 보이지 않는다.
+     저장할 때마다 오르는 번호로 세므로 상품 설정이 달라졌다고(고치기 전 내용이라고) 말하지 않는다. */
+  expect(html).toContain('12개'); expect(html).toContain('템플릿을 저장한 뒤 다시 적용하지 않은 상품 3개'); expect(html).toMatch(/<button[^>]*>다시 적용<\/button>/);
+  expect(html).not.toContain('고치기 전 내용');
   expect(html).toMatch(/data-shipping-template-usage="">—</);
   expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>상품에 적용<\/button>/); expect(html).toContain('바꿔야 적용할 수 있습니다');
   expect(html).toContain('2026.10.12');
@@ -46,12 +48,19 @@ it('쇼핑몰 주문 설정이 꺼져 있으면 적용할 수 없는 템플릿�
   expect(renderToStaticMarkup(<ShippingSettingsTemplatesScreen accountId={shippingIds.actor} origins={[origin({ active: false })]} regions={[]}
     data={{ filters: { query: '', state: 'all', page: 1 }, total: 1, rows: [template] }} />)).toContain('출고지가 사용 안 함이라 적용할 수 없습니다');
 });
+/* S6-2: 빈 채 저장하면 브라우저 기본 말풍선("이 입력란을 작성하세요.") 대신 칸 아래의 앱 문구로 알린다. required는 접근성 표시로 남기고 말풍선만 끈다. */
+it('편집 창은 브라우저 기본 말풍선을 쓰지 않는다(noValidate)', () => {
+  const html = form();
+  expect(tag(html, 'data-shipping-editor')).toMatch(/\snoValidate=""/);
+  expect(tag(html, 'id="shipping-settings-name"')).toContain('required');
+  expect(tag(html, 'id="shipping-settings-originId"')).toContain('required');
+});
 it('편집 창은 고른 것에 필요한 입력만 열고, 체크하지 않은 것은 상품의 설정을 그대로 둔다고 말한다', () => {
   const { template } = shippingFixtures(); const legacy = { ...template, settings: { ...template.settings, delivery: undefined } };
   const html = form({ template: legacy, origins: [origin(), origin({ id: shippingIds.other, name: '안 쓰는 출고지', active: false })] });
   expect(html).toContain('이 템플릿이 함께 바꾸는 것'); expect(html).toContain('체크하지 않은 것은 상품에 있는 설정을 그대로 둡니다.');
   for (const name of ['delivery', 'chargeGroup', 'fulfillment']) expect(tag(html, `data-shipping-extra-toggle="${name}"`)).not.toContain('checked');
-  for (const closed of ['첫 구간을 넘으면 더하는 금액', '그보다 많으면 더하는 금액', '묶음그룹에서 빼기', '상품 제공 방식', '고객 안내 (선택)']) expect(html).not.toContain(closed);
+  for (const closed of ['첫 구간을 넘으면 더하는 금액', '그보다 많으면 더하는 금액', '묶음그룹에서 빼기', '배송 또는 방문수령', '고객 안내 (선택)']) expect(html).not.toContain(closed);
   /* 배송비 유형은 선택 카드, 금액 칸은 '개별 배송비'일 때만 보인다(값은 폼에 남는다). */
   expect(html).toContain('data-good-choice="cards"'); expect(tag(html, 'value="free"')).toContain('checked');
   expect(html).toMatch(/<div class="sm:col-span-2" hidden="">.*name="individualFee"[^>]*value="3500"/);
@@ -86,14 +95,15 @@ it('수량별·착불 설정을 체크한 템플릿은 3구간·선불/착불 �
   const off = form({ template: { ...template, settings: { ...template.settings, delivery: { mode: 'replace', policy: { ...policy, status: 'disabled' } } } } });
   expect(off).toContain('이 템플릿을 쓴 상품 · 배송비 무료'); expect(off).not.toContain('data-shipping-readback="delivery"');
 });
-it('수령 방식을 체크한 템플릿은 적용 근거·확인 체크 없이 받을 방식만 묻고 한 줄로 되읽는다', () => {
+it('수령 방식을 체크한 템플릿은 적용 근거·확인 체크 없이 수령 방식만 묻고 한 줄로 되읽는다', () => {
   const { template } = shippingFixtures();
   /* 예전에 저장된 템플릿에는 근거와 확인 체크가 남아 있다. 화면에는 내보이지 않는다. */
   const fulfillment = { mode: 'replace' as const, policy: { mode: 'shipping' as const, methods: [{ method: 'parcel' as const, feeAmount: null, feeBasis: 'per_order' as const, installationFee: 0 },
     { method: 'quick' as const, feeAmount: 5000, feeBasis: 'per_item' as const, installationFee: 0 }], publicNote: '설치 기사가 방문합니다', evidence: '옛 근거', confirmed: true } };
   const html = form({ template: { ...template, settings: { ...template.settings, fulfillment } } });
   expect(tag(html, 'data-shipping-extra-toggle="fulfillment"')).toContain('checked');
-  for (const label of ['상품 제공 방식', '배송 또는 방문수령', '배송없음 · 직접전달', '선결제 배송비 (원)', '배송비 계산 단위', '수량 1개당 선결제 설치비 (원)', '고객 안내 (선택)']) expect(html).toContain(label);
+  expect(html).toMatch(/<legend[^>]*>수령 방식<\/legend>/);
+  for (const label of ['배송 또는 방문수령', '배송없음 · 직접전달', '선결제 배송비 (원)', '배송비 계산 단위', '수량 1개당 선결제 설치비 (원)', '고객 안내 (선택)']) expect(html).toContain(label);
   expect(html).toContain('고객은 주문서에서 택배, 퀵(배송비 수량 1개마다 5,000원) 중 하나를 고릅니다.');
   expect(html).toContain('택배 외 방식은 <a'); expect(html).toContain('적용하면 상품에 연결해 둔 디지털 파일이 새 주문부터 빠집니다.');
   for (const gone of ['옛 근거', '적용 근거', '확인했습니다', '출고지·배송정보 관리']) expect(html).not.toContain(gone);

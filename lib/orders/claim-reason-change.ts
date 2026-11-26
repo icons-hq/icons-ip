@@ -174,7 +174,11 @@ export function claimReasonReturnFeeNote(context: Pick<ClaimReasonContext, 'reas
     : fee.deductionAmount > 0 ? `지금 사유로는 환불 금액에서 반품배송비 ${krwAmountWords(fee.deductionAmount)}을 뺍니다.`
       : '지금 사유로는 반품배송비를 빼지 않습니다.';
   const policy = fee.oneWayAmount !== null ? `편도 ${krwAmountWords(fee.oneWayAmount)}, 최초 무료배송 주문은 왕복` : '편도, 최초 무료배송 주문은 왕복';
-  return `${current} 하자·오배송으로 정정하면 빼지 않고, 단순 변심으로 정정하면 반품배송비(${policy})를 뺄 수 있습니다. 금액은 저장하면 다시 계산되어 환불 단계에 보입니다.`;
+  const recalculated = '금액은 저장하면 다시 계산되어 환불 단계에 보입니다.';
+  /* 지금 사유로 정정하라는 말은 되풀이하지 않는다. 이미 단순 변심인데 빼지 않는 반품(결제 수단·이미 한 청구 때문일 수 있다)은 '정정하면 뺄 수 있다'와 어긋나 보이므로 정정해도 같다고 말한다. */
+  if (context.reasonType === 'defect') return `${current} 단순 변심으로 정정하면 반품배송비(${policy})를 뺄 수 있습니다. ${recalculated}`;
+  if (fee.deductionAmount === 0) return `${current} 단순 변심이지만 환불 금액에서 빼지 않는 반품이라, 하자·오배송으로 정정해도 반품배송비는 달라지지 않습니다.`;
+  return `${current} 하자·오배송으로 정정하면 빼지 않습니다. 단순 변심의 반품배송비는 ${policy}입니다. ${recalculated}`;
 }
 
 /** 정정 확인창 문구. 저장 순간 한 번 묻는다 — 고객 협의·기존 비용 확인·반품배송비 변화·배송비 청구 취소를 함께 말한다. */

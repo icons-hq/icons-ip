@@ -282,8 +282,12 @@ describe('어드민 가이드 인용·수치 정합', () => {
     /* 추가 이미지 상한 — goods-sales·주간 변경의 "추가 이미지 최대 9장"·"갤러리 1~9". */
     expect(repoFile('lib/admin/catalog.ts')).toContain('GOODS_GALLERY_MAX = 9');
     expect(repoFile('lib/admin/goods-workbook.ts')).toContain("galleryUrl8: '갤러리 9 URL'");
-    /* 무통장 기한 연장 폭 — bank-transfer의 "24시간 연장". */
-    expect(repoFile('app/admin/unpaid-actions.ts')).toContain('입금 기한을 24시간 연장했습니다.');
+    /* 무통장 기한 연장 — bank-transfer의 "[기한을 지금부터 24시간 뒤로]"·"누른 시각부터 24시간 뒤". 버튼 이름·결과 문구는 lib/admin/unpaid-copy 한 곳에서 나오고
+       가이드도 그 상수를 쓴다. DB는 기한을 now() + 24시간으로 놓으므로 '24시간 연장'이라 부르지 않는다. */
+    expect(repoFile('lib/admin/unpaid-copy.ts')).toContain('UNPAID_EXTENSION_HOURS = 24');
+    expect(repoFile('app/admin/unpaid-actions.ts')).toContain('return { message: UNPAID_EXTENDED_MESSAGE };');
+    expect(plainText(ADMIN_GUIDE_TOPICS['bank-transfer'])).toContain('[기한을 지금부터 24시간 뒤로]를 누릅니다. 새 기한은 누른 시각부터 24시간 뒤입니다');
+    expect(plainText(ADMIN_GUIDE_TOPICS['bank-transfer'])).not.toContain('24시간 연장');
   });
 
   /* 출고지시 양식 기본값(10/14 회의 A2·T4) — 화면은 양식을 고르지 않으면 출고지 기본 양식을 쓰고 버튼마다 실제 양식을 적는다.

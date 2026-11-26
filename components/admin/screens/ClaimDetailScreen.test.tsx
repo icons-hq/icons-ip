@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { ClaimContactOperations } from '@/components/admin/ClaimContactOperations';
 import { VirtualAccountRefundAccountEntry } from '@/components/admin/VirtualAccountRefundAccountEntry';
+import { ClaimFeePanel } from '@/components/orders/ClaimFeePanel';
 import { sellerClaimReceiptFixture } from '@/lib/admin/seller-claim-intake.fixture';
 import { orderReferenceLabel } from '@/lib/orders';
 import { ClaimActionPanel } from './ClaimActionPanel';
@@ -443,7 +444,7 @@ describe('ClaimDetailScreen', () => {
     const base = detail();
     const legacy = { ...base.claim, collectionPolicy: 'legacy' as const, collections: [], collectedAt: '2026-09-08T04:00:00Z' };
     const withDate = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...legacy, collectionReceivedOn: '2026-09-07' }} refund={null} />);
-    expect(withDate).toContain('실제 입고일 2026-09-07 · 확인 ');
+    expect(withDate).toContain('실제 입고일 2026. 9. 7. · 확인 ');
     const older = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...legacy, collectionReceivedOn: null }} refund={null} />);
     expect(older).toContain('입고 ');
     expect(older).not.toContain('실제 입고일');
@@ -898,6 +899,32 @@ describe('상세 틀·요약 — 처리 칸 연결', () => {
   it.each(['return', 'exchange'] as const)('%s 상세는 회수지·교환품 받을 곳 부품에 요청 유형을 넘긴다', (claimType) => {
     const [operations] = find(treeOf({ claim: { ...detail().claim, claimType } }, { actorId: ACTOR }), ClaimContactOperations);
     expect(operations.props.claimType).toBe(claimType);
+  });
+
+  /* F-21: 부분 반품 칸이 '반품배송비 3,000원 차감'이라 하는데 배송비 칸이 '환불 금액에서는 빼지 않습니다'라고 하던 어긋남. 배송비 칸 안내는 부분 반품이면 그 칸의 미리보기·원장에서 만든다. */
+  it('배송비 칸에는 부분 반품이면 부분 반품 칸이 읽는 차감을, 주문 전체 반품이면 환불 단계의 차감 판정을 넘긴다', () => {
+    const returned = { claim: { ...detail().claim, claimType: 'return' as const, stage: 'collected' as const } };
+    const note = (overrides: Partial<AdminClaimDetail>, props: Partial<ScreenProps>) => find(treeOf(overrides, { actorId: ACTOR, ...props }), ClaimFeePanel)[0].props.deductionNote;
+    const preview = { provider: 'bank_transfer', balanceBefore: 44000, goodsRefundAmount: 22000, shippingRefundAmount: 0, grossRefundAmount: 22000, returnFeeDeduction: 3000,
+      returnFeeBasis: 'one_way', returnFeeReason: null, refundAmount: 19000, storeCreditRestoreAmount: 0, emptiedShipmentCount: 0 };
+    /* 부분 반품: 환불 예정에서 3,000원을 빼는 요청이라 배송비 칸도 그렇게 말하고 따로 청구하지 말라고 한다. */
+    expect(note(returned, { partialReturn: partialOf(null, { preview }) }))
+      .toBe('이 반품은 반품배송비 3,000원(편도 3,000원)을 환불할 때 환불액에서 뺍니다. 같은 반품배송비를 여기서 다시 청구하지 마세요.');
+    /* 접수한 뒤에는 원장의 차감이다. */
+    expect(note(returned, { partialReturn: partialOf(live({ state: 'awaiting_transfer', returnFeeDeduction: 3000 }), { settlement: 'bank_transfer' }) }))
+      .toBe('이 반품은 반품배송비 3,000원을 환불할 때 환불액에서 뺍니다. 같은 반품배송비를 여기서 다시 청구하지 마세요.');
+    /* 차감이 없는 부분 반품은 기본 문장(null)이다. */
+    expect(note(returned, { partialReturn: partialOf(null, { preview: { ...preview, returnFeeDeduction: 0, returnFeeReason: 'seller_fault' } }) })).toBeNull();
+    /* 주문 전체 반품은 지금처럼 환불 단계의 차감 판정을 읽는다. 읽지 못한 반품(undefined)도 같다. */
+    const plan = { source: 'plan', state: null, applicable: true, reason: null, oneWayAmount: 3000, basis: 'one_way', initialShippingFee: 3000, deductionAmount: 3000, paymentId: 'p', provider: 'toss', paymentAmount: 30000, refundAmount: 27000 };
+    const wholeDeduction = { ...returned, refundDeduction: plan } as unknown as Partial<AdminClaimDetail>;
+    expect(note(wholeDeduction, { partialReturn: null }))
+      .toBe('이 반품은 반품배송비 3,000원(편도 3,000원)을 환불할 때 환불액에서 뺍니다. 같은 반품배송비를 여기서 다시 청구하지 마세요.');
+    expect(note(wholeDeduction, { partialReturn: undefined }))
+      .toBe('이 반품은 반품배송비 3,000원(편도 3,000원)을 환불할 때 환불액에서 뺍니다. 같은 반품배송비를 여기서 다시 청구하지 마세요.');
+    expect(note(returned, { partialReturn: null })).toBeNull();
+    /* 교환 요청은 반품배송비 차감 안내를 넘기지 않는다. */
+    expect(note({ claim: { ...detail().claim, claimType: 'exchange' as const } }, { partialReturn: partialOf(null, { preview }) })).toBeNull();
   });
 
   it('가상계좌 환불 계좌 입력에는 화면에 이미 있는 환불 금액만 넘기고, 모르면 넘기지 않는다', () => {

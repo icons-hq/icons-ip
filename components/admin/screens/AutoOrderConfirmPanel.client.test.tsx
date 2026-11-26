@@ -70,7 +70,29 @@ it('늦게 도착한 이전 설정은 되돌리지 않고, 같은 revision의 �
   const tree = render(ran);
   expect(text(tree.props.summary)).toContain('발주확인 5건 · 제외 1건');
   expect(timeInput(tree).props.value).toBe('18:00');
-  expect(text(result(tree))).toContain('저장했습니다');
+  /* 값을 다시 고치면 앞선 저장 결과 문장은 지운다(QA-O 사소 2) — '저장하면 …'과 '저장했습니다 …'가 함께 보이지 않는다. */
+  expect(result(tree)).toBeUndefined();
+  expect(readback(tree)).toContain('저장하면 매일 18:00에');
+});
+
+it('저장한 뒤 사용 여부를 다시 바꾸면 앞선 저장 결과 문장을 지우고, 오류 문구는 다시 저장할 때까지 남긴다', async () => {
+  mocks.save.mockResolvedValue({ state: { ...base, revision: 4, enabled: false } });
+  checkbox(render(base)).props.onChange?.({ target: { checked: false } });
+  all(render(base)).find(element => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  await settle();
+  expect(text(result(render(base)))).toBe('저장했습니다. 자동 발주확인을 껐습니다. 신규주문은 직접 발주확인합니다.');
+  checkbox(render(base)).props.onChange?.({ target: { checked: true } });
+  const tree = render(base);
+  expect(result(tree)).toBeUndefined();
+  expect(readback(tree)).toContain('저장하면 매일 16:30에');
+
+  /* 잘못된 시각으로 저장을 누른 오류는 값을 고쳐도 남는다(다시 저장하면 지워진다). */
+  timeInput(tree).props.onChange?.({ target: { value: '' } });
+  all(render(base)).find(element => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  await settle();
+  expect(result(render(base))?.props.role).toBe('alert');
+  timeInput(render(base)).props.onChange?.({ target: { value: '17:30' } });
+  expect(text(result(render(base)))).toBe('실행 시각을 00:00~23:59 사이로 입력해주세요.');
 });
 
 it('처음에 설정을 읽지 못했어도 다시 그릴 때 받은 설정으로 패널을 연다', () => {
@@ -113,6 +135,16 @@ it('끄는 저장은 비어 있는 실행 시각에 막히지 않고 저장돼 �
   await settle();
   expect(mocks.save).toHaveBeenCalledExactlyOnceWith(false, '16:30', 3, expect.any(String));
   expect(text(result(render({ ...base, revision: 4, enabled: false, nextRunAt: null })))).toBe('저장했습니다. 자동 발주확인을 껐습니다. 신규주문은 직접 발주확인합니다.');
+});
+
+/* 시각을 고치다가 끄면 숨은 칸에 고친 시각이 남는다. 끄는 저장은 그 값을 함께 저장하지 않는다 — 끈 채로 시각만 바뀌어 있으면 다시 켤 때 놀란다. */
+it('시각을 고친 뒤 끄고 저장해도 저장돼 있던 시각을 보낸다', async () => {
+  timeInput(render(base)).props.onChange?.({ target: { value: '17:00' } });
+  checkbox(render(base)).props.onChange?.({ target: { checked: false } });
+  mocks.save.mockResolvedValue({ state: { ...base, revision: 4, enabled: false, nextRunAt: null } });
+  all(render(base)).find(element => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  await settle();
+  expect(mocks.save).toHaveBeenCalledExactlyOnceWith(false, '16:30', 3, expect.any(String));
 });
 
 it('켠 채로 실행 시각을 비워 저장하면 고칠 방법을 알리고 저장하지 않는다. 비어 있는 동안 되읽는 줄은 시각 자리를 비우지 않는다', async () => {

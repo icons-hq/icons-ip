@@ -170,7 +170,14 @@ export function ShippingChargeGroupAssignmentDialog({ group, task, identity, sco
   }
   const waiting = otherPending || unknown ? '저장됐는지 확인하지 못한 일이 남아 있습니다. 이 창을 닫고 목록 위에서 먼저 확인해 주세요.' : null;
 
+  /*
+   * 'pick'(상품 고르기)과 'target'(옮길 곳 고르기)은 같은 부품(AdminPickerDialog)을 같은 자리에서 단계만 바꿔 그린다. key를 주지 않으면 React가 앞 단계의
+   * 선택창을 그대로 두고 props만 바꿔, 선택창이 들고 있는 조회 결과(상품 줄)에 묶음그룹용 줄 그리기가 불려 화면 전체가 죽는다
+   * (`group.regional.mode`를 읽다가 터진다). 선택창은 첫 조회를 열 때 한 번만 하므로 옮길 곳 목록도 새로 불러오지 못한다.
+   * 단계마다 다른 key를 줘 단계가 바뀌면 선택창이 새로 시작되게 한다. 상품 단계로 돌아올 때도 같다.
+   */
   if (step === 'pick') return <AdminPickerDialog<ShippingChargeGroupGood>
+    key="pick"
     blockedReason={waiting}
     closeLabel={task === 'manage' ? '닫기' : undefined}
     description={task === 'add' ? `‘${group.name}’ 묶음그룹에 넣을 상품을 고릅니다. 한 번에 ${SHIPPING_CHARGE_GROUP_GOOD_LIMIT}개까지 고를 수 있고, [완료]를 누르면 바뀌는 내용을 먼저 보여 줍니다.`
@@ -199,6 +206,7 @@ export function ShippingChargeGroupAssignmentDialog({ group, task, identity, sco
 
   /* 옮길 곳 고르기. 같은 출고지의 '사용' 묶음그룹만 보이고, 지금 묶음그룹은 고를 수 없다. 고르면 바로 미리보기로 넘어간다(선택창이 스스로 닫히지 않게 false를 돌려준다). */
   if (step === 'target') return <AdminPickerDialog<ShippingChargeGroup>
+    key="target"
     description={`고른 상품 ${picked.length}개를 옮길 묶음그룹을 고릅니다. 고르면 바뀌는 내용을 먼저 보여 줍니다.`}
     emptyText={SHIPPING_CHARGE_GROUP_PICKER_EMPTY}
     excludedNote={SHIPPING_CHARGE_GROUP_PICKER_EXCLUDED}
@@ -233,7 +241,7 @@ export function ShippingChargeGroupAssignmentDialog({ group, task, identity, sco
           </TableRow>) : null}
           {skipped.map(item => <TableRow className="text-muted-foreground hover:bg-transparent" data-skipped="true" key={item.id}>
             <TableHead className="h-auto py-3 align-top whitespace-normal [overflow-wrap:anywhere]" scope="row">{item.name}</TableHead>
-            <TableCell className="align-top whitespace-normal" colSpan={2}><span data-charge-group-skip="">건너뜀 · {item.reason}</span></TableCell>
+            <TableCell className="align-top whitespace-normal" colSpan={2}><span data-charge-group-skip="">건너뜀 · {item.reason}.</span></TableCell>
           </TableRow>)}
         </TableBody></Table></div>
       </> : !reading && picked.length ? <p data-charge-group-picked="">고른 상품 {picked.length}개 · {picked.slice(0, 5).map(good => good.name).join(', ')}{picked.length > 5 ? ` 외 ${picked.length - 5}개` : ''}</p> : null}

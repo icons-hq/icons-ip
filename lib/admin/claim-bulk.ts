@@ -2,6 +2,7 @@ import { normalizeClaimTypeAgreement, type ConvertibleClaimType } from '@/lib/or
 import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimStage, type OrderClaimType } from '@/lib/orders/claims';
 import { automatedCancelProviderLabel, paymentProviderValueLabel, providerCancelsAutomatically } from '@/lib/payments/provider-capabilities';
 import { isUuid } from '@/lib/uuid';
+import { CLAIM_CHANGE_BACK_LABEL } from './claim-change-copy';
 import type { AdminConfirmRequest } from './confirm';
 import type { ClaimDefectiveItem } from './defective-stock';
 import { normalizeAdminClaimReceivedOn } from './claims';
@@ -263,6 +264,31 @@ export function adminClaimBulkConversionTarget(fromType: ConvertibleClaimType): 
 /** 처리 막대의 전환 버튼 이름. 반품 목록은 '교환으로 바꾸기', 교환 목록은 '반품으로 바꾸기'다. */
 export function adminClaimBulkConversionLabel(fromType: ConvertibleClaimType) {
   return `${ORDER_CLAIM_TYPE_LABELS[adminClaimBulkConversionTarget(fromType)]}으로 바꾸기`;
+}
+
+/**
+ * 일괄 전환 확인창. 단건 전환 확인창(`claimTypeConfirmMessage`)과 같은 사실을 건수 기준으로 말한다 — 고객마다 앱 알림이 가고,
+ * 요청마다 배송비 청구가 취소되며(입금분은 돌려줄 금액이 된다), 저장해 둔 품목별 재고 처리 선택이 지워지고, 환불·교환품 마무리가 바뀐다.
+ * 요청마다 다른 일(단계·환불계좌)은 지금 바꿀 수 없는 건을 건너뛰고 결과표에 이유를 남기므로 여기서 건별로 풀어 쓰지 않는다.
+ */
+export function adminClaimBulkConversionConfirmation(fromType: ConvertibleClaimType, count: number): AdminConfirmRequest {
+  const from = ORDER_CLAIM_TYPE_LABELS[fromType];
+  const to = ORDER_CLAIM_TYPE_LABELS[adminClaimBulkConversionTarget(fromType)];
+  return {
+    title: `${from} ${count}건 → ${to} 전환`,
+    message: [
+      `선택한 ${count}건을 고객과 합의한 대로 ${from} 요청에서 ${to} 요청으로 바꿉니다.`,
+      fromType === 'return'
+        ? '· 환불 대신 교환품 재출고로 마무리합니다. 주문제작 상품은 입고가 확인되면 교환품 제작이 열립니다.'
+        : '· 교환품 재출고 대신 환불로 마무리합니다. 환불은 승인·회수 확인 뒤에 따로 처리하고, 열려 있던 교환품 제작은 취소됩니다.',
+      '· 요청마다 배송비 청구가 있으면 취소됩니다(입금이 확인된 청구는 돌려줄 금액으로 바뀝니다). 필요하면 배송비 청구에서 다시 발행합니다.',
+      `· 저장해 둔 품목별 재고 처리(반품의 불량 선택, 교환 출고지의 회수품 재고 처리)가 있으면 지워지니 ${to}에서 다시 고릅니다.`,
+      '· 고객마다 앱 알림이 갑니다. 환불·재출고를 시작하기 전에는 다시 바꿀 수 있지만, 이미 간 알림과 취소된 배송비 청구는 돌아오지 않습니다.',
+      '지금 바꿀 수 없는 건은 바뀌지 않고 결과표에 이유가 남습니다.',
+    ].join('\n'),
+    confirmLabel: `${count}건 ${to}으로 바꾸기`,
+    cancelLabel: CLAIM_CHANGE_BACK_LABEL,
+  };
 }
 
 /**
@@ -678,21 +704,28 @@ export function adminClaimBulkRefundTotals(rows: readonly AdminClaimBulkRefundRo
 /* ---- 취소 일괄 승인 -------------------------------------------------------- */
 
 /*
- * 취소 승인은 승인하는 즉시 결제사에 전액 취소를 요청한다(승인 → processing → 결제사 취소). 환불 확정 창과 같은 방식으로
- * 건수·취소 금액 합계·건너뛰는 건과 이유를 서버가 읽어 먼저 보인다. 금액은 환불 확정 창과 같은 읽기 값이다
- * (admin_order_claim_bulk_context의 refundAmount — 환불 기록이 없을 때는 결제 금액에서 이미 부분 취소한 금액을 뺀 남은 금액).
- * 실행은 지금 그대로 `bulkDecideOrderClaimsAction`(승인)이 건마다 단건 경로를 탄다.
+ * 취소 승인 뒤에 일어나는 일은 결제 방식에 따라 셋으로 갈린다(`issueApprovedClaimCancellation`). 확인창은 환불 확정 창과 같은 방식으로
+ * 건수·금액·건너뛰는 건과 이유를 서버가 읽어 먼저 보이되, 결제사로 나가는 돈과 나가지 않는 돈을 한데 더하지 않고 나눠 보인다.
+ * 금액은 환불 확정 창과 같은 읽기 값이다(admin_order_claim_bulk_context의 refundAmount — 환불 기록이 없을 때는 결제 금액에서
+ * 이미 부분 취소한 금액을 뺀 남은 금액). 실행은 지금 그대로 `bulkDecideOrderClaimsAction`(승인)이 건마다 단건 경로를 탄다.
  */
+
+/**
+ * 승인 뒤에 일어나는 일의 종류.
+ * - provider: 토스·나이스페이. 승인하는 즉시 결제사에 전액 취소를 요청하고, 결제사 조회로 확인되면 주문 취소·재고 복원까지 끝난다.
+ * - order: 결제 전 주문(결제 없음). 결제사 취소 없이 승인 직후 주문 취소·재고 복원까지 끝난다.
+ * - manual: 무통장 입금·코페이 등. 승인만 하고 환불은 따로 진행한다(계좌 송금·결제사 접수 양식). 이 금액은 결제사로 나가지 않는다.
+ */
+export type AdminClaimBulkApproveKind = 'provider' | 'manual' | 'order';
 
 /** 승인 확인창의 행. */
 export interface AdminClaimBulkApproveRow {
   claimId: string;
   reference: string;
   providerLabel: string;
-  /** 취소할 금액(남은 결제 금액). 결제가 없는 주문이면 null이다. */
+  /** 환불할 금액(남은 결제 금액). 결제가 없는 주문이면 null이다. kind가 manual이면 이 금액은 결제사로 나가지 않는다. */
   amount: number | null;
-  /** 승인하는 즉시 결제사에 취소를 요청하는지(토스·나이스페이). 무통장·코페이·결제 없음은 승인만 한다. */
-  providerCancel: boolean;
+  kind: AdminClaimBulkApproveKind;
   /** 승인 뒤에 이어지는 일 한 줄(확인창 표의 '처리' 칸). */
   effect: string;
   /** null이면 승인하고, 아니면 건너뛰는 이유. */
@@ -700,35 +733,62 @@ export interface AdminClaimBulkApproveRow {
 }
 
 /** 결제 방식에 따라 승인 뒤에 일어나는 일. 코드가 가르는 그대로다(`issueApprovedClaimCancellation`). */
-export function adminClaimBulkApproveEffect(provider: string | null): { providerCancel: boolean; effect: string } {
-  if (provider === null) return { providerCancel: false, effect: '승인만 합니다(결제 전 주문이라 결제사 취소가 없습니다)' };
-  if (providerCancelsAutomatically(provider)) return { providerCancel: true, effect: `승인하고 ${automatedCancelProviderLabel(provider)} 전액 취소를 요청합니다` };
-  if (provider === 'bank_transfer') return { providerCancel: false, effect: '승인만 합니다(환불은 계좌 송금으로 따로 진행합니다)' };
-  if (provider === 'korpay') return { providerCancel: false, effect: '승인만 합니다(결제사 취소는 접수 양식으로 따로 진행합니다)' };
-  return { providerCancel: false, effect: '승인합니다(결제 처리는 결과표에서 확인합니다)' };
+export function adminClaimBulkApproveEffect(provider: string | null): { kind: AdminClaimBulkApproveKind; effect: string } {
+  if (provider === null) return { kind: 'order', effect: '승인하고 주문을 바로 취소합니다(결제 전 주문이라 결제사 취소는 없습니다)' };
+  if (providerCancelsAutomatically(provider)) return { kind: 'provider', effect: `승인하고 ${automatedCancelProviderLabel(provider)} 전액 취소를 요청합니다` };
+  if (provider === 'bank_transfer') return { kind: 'manual', effect: '승인만 합니다(환불은 계좌 송금으로 따로 진행합니다)' };
+  if (provider === 'korpay') return { kind: 'manual', effect: '승인만 합니다(결제사 취소는 접수 양식으로 따로 진행합니다)' };
+  return { kind: 'manual', effect: '승인합니다(결제 처리는 결과표에서 확인합니다)' };
+}
+
+/** 확인창 합계의 묶음 이름. 어느 묶음이 결제사로 나가는 돈인지가 이름에서 갈린다. */
+export const ADMIN_CLAIM_BULK_APPROVE_GROUP_LABELS: Record<AdminClaimBulkApproveKind, string> = {
+  provider: '결제사로 바로 취소',
+  manual: '승인만 하고 환불은 따로 진행',
+  order: '주문이 바로 취소되는 결제 전 주문',
+};
+
+export interface AdminClaimBulkApproveGroup {
+  kind: AdminClaimBulkApproveKind;
+  count: number;
+  /** 그 묶음의 환불 금액 합. 결제 전 주문(order)은 금액이 없어 0이다. */
+  amount: number;
+  byProvider: { label: string; count: number; amount: number }[];
 }
 
 export interface AdminClaimBulkApproveTotals {
+  /** 승인하는 건 전체. */
   count: number;
+  /** 결제사에 바로 취소를 요청하는 건(provider)의 금액 합 — 확인창의 취소 금액과 승인 버튼의 금액이다. 승인만 하는 건의 환불 금액은 결제사로 나가지 않아 넣지 않는다. */
   amount: number;
-  byProvider: { label: string; count: number; amount: number; providerCancel: boolean }[];
+  /** 건이 있는 묶음만, 결제사 취소 → 승인만 → 결제 전 주문 순서. */
+  groups: AdminClaimBulkApproveGroup[];
 }
 
-/** 승인할 행의 건수·취소 금액 합계(결제 방식별). 건너뛰는 행은 세지 않고, 결제가 없는 주문은 건수만 센다. */
+const APPROVE_GROUP_ORDER: readonly AdminClaimBulkApproveKind[] = ['provider', 'manual', 'order'];
+
+/** 승인할 행의 건수와 금액 합계를 결제 방식(묶음)별로 낸다. 건너뛰는 행은 세지 않고, 결제가 없는 주문은 건수만 센다. */
 export function adminClaimBulkApproveTotals(rows: readonly AdminClaimBulkApproveRow[]): AdminClaimBulkApproveTotals {
-  const byProvider = new Map<string, AdminClaimBulkApproveTotals['byProvider'][number]>();
+  const groups = new Map<AdminClaimBulkApproveKind, { group: AdminClaimBulkApproveGroup; byProvider: Map<string, AdminClaimBulkApproveGroup['byProvider'][number]> }>();
   let count = 0;
-  let amount = 0;
   for (const row of rows) {
     if (row.blocker !== null) continue;
     count += 1;
-    amount += row.amount ?? 0;
-    const entry = byProvider.get(row.providerLabel) ?? { label: row.providerLabel, count: 0, amount: 0, providerCancel: row.providerCancel };
+    const amount = row.kind === 'order' ? 0 : row.amount ?? 0;
+    const bucket = groups.get(row.kind) ?? { group: { kind: row.kind, count: 0, amount: 0, byProvider: [] }, byProvider: new Map() };
+    bucket.group.count += 1;
+    bucket.group.amount += amount;
+    const entry = bucket.byProvider.get(row.providerLabel) ?? { label: row.providerLabel, count: 0, amount: 0 };
     entry.count += 1;
-    entry.amount += row.amount ?? 0;
-    byProvider.set(row.providerLabel, entry);
+    entry.amount += amount;
+    bucket.byProvider.set(row.providerLabel, entry);
+    groups.set(row.kind, bucket);
   }
-  return { count, amount, byProvider: [...byProvider.values()] };
+  const ordered = APPROVE_GROUP_ORDER.flatMap((kind) => {
+    const bucket = groups.get(kind);
+    return bucket ? [{ ...bucket.group, byProvider: [...bucket.byProvider.values()] }] : [];
+  });
+  return { count, amount: ordered.find((group) => group.kind === 'provider')?.amount ?? 0, groups: ordered };
 }
 
 /* ---- 화면과 서버 사이의 계약 ---------------------------------------------- */

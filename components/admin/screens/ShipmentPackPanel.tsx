@@ -6,6 +6,7 @@ import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope 
 import { changeShipmentPackAction, readShipmentPacksAction } from '@/app/admin/shipment-pack-actions';
 import type { ShipmentPackDocument, ShipmentPackRow } from '@/lib/admin/shipment-packs';
 import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
+import { closeAdminDialog } from '@/lib/admin/dialog-close';
 import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { orderReferenceLabel } from '@/lib/orders';
 import { krw } from '@/lib/format';
@@ -101,7 +102,7 @@ function Panel({ ids, onClose, identity, scope }: Props & { identity: ClaimConta
  /* 결과를 모르는 동안에는 조회한 내용이 그대로라, 묶기인지 풀기인지는 조회 결과로 안다. */
  const creating = Boolean(document?.canCreate);
  return <section className="flex min-w-0 flex-col items-start gap-3 rounded-xl border bg-card p-4 text-sm leading-relaxed text-card-foreground sm:p-5" aria-label="합포장 관리">
-  <div className="flex w-full items-center justify-between gap-3"><h3 className="text-base font-medium text-foreground">합포장 관리</h3><Button type="button" size="sm" variant="outline" disabled={pending || uncertain} onClick={onClose}>닫기</Button></div>
+  <div className="flex w-full items-center justify-between gap-3"><h3 className="text-base font-medium text-foreground">합포장 관리</h3><Button type="button" size="sm" variant="outline" disabled={pending || uncertain} onClick={() => closeAdminDialog(reason.trim() !== '', onClose)}>닫기</Button></div>
   <p className="text-muted-foreground">구매자·수령인·주소·출고지가 같은 발송 대기 건을 한 상자로 포장합니다. 주문 금액·배송비·착불 금액은 바뀌지 않습니다.</p>
   {document ? <>
    <ul className="grid w-full gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,16rem),1fr))]">{document.rows.map(row => <li className="rounded-lg border p-3 wrap-anywhere" key={row.id}><strong className="font-medium">주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</strong> · 배송 건 {commerceReferenceLabel(row.id, row.shipmentNumber)}<br />

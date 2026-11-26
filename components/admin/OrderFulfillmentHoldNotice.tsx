@@ -106,7 +106,7 @@ function HeldOrderNotice({ orderId, orderNumber, holds, canManage }: {
             {pending ? '처리 중' : '사유 적고 보류 해제'}
           </Button> : <>
             <Button aria-describedby={`${orderId}-${hold.reason}-release-lock`} disabled size="sm" variant="outline">사유 적고 보류 해제</Button>
-            <span className="text-xs text-muted-foreground" id={`${orderId}-${hold.reason}-release-lock`}>보류 해제는 주문 처리 권한이 있는 운영자만 할 수 있습니다.</span>
+            <span className="text-xs text-muted-foreground" id={`${orderId}-${hold.reason}-release-lock`}>보류 해제는 판매 관리 권한이 있는 운영자만 할 수 있습니다.</span>
           </>}
         </li>)}
       </ul>

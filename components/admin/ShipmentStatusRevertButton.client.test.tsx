@@ -36,7 +36,7 @@ beforeEach(() => {
 afterEach(() => { restore(); vi.unstubAllGlobals(); });
 
 it('확인창에 되돌리는 결과·회수할 수 없는 안내를 보이고 사유 5~500자를 받아 화면이 본 배송완료 일시로 실행한다', async () => {
-  mocks.delivery.mockResolvedValue({ ok: true, tone: 'success', message: '배송 중으로 되돌렸습니다.' });
+  mocks.delivery.mockResolvedValue({ ok: true, tone: 'success', message: '배송중으로 되돌렸습니다.' });
   expect(text(render())).toBe('배송완료 되돌리기');
   await click();
   expect(requests[0]).toMatchObject({ title: '배송완료 되돌리기', destructive: true, input: { minLength: 5, maxLength: 500 } });
@@ -44,7 +44,7 @@ it('확인창에 되돌리는 결과·회수할 수 없는 안내를 보이고 �
   expect(requests[0].message).toContain('이미 본 알림은 회수할 수 없으니');
   expect(mocks.delivery).toHaveBeenCalledWith({ shipmentId, reason: '다른 주문의 배송 건을 배송완료로 눌렀음', operationId: 'c3a00000-0000-4009-8000-000000000001', expectedDeliveredAt: deliveredAt, reference: '2026111930000001' });
   const notice = nodes(render()).find(node => node.type === AdminNotice)!;
-  expect(notice.props.tone).toBe('success'); expect(text(notice.props.children as ReactNode)).toBe('배송 중으로 되돌렸습니다.');
+  expect(notice.props.tone).toBe('success'); expect(text(notice.props.children as ReactNode)).toBe('배송중으로 되돌렸습니다.');
 });
 
 it('닫으면 실행하지 않고, 실패 뒤 같은 사유로 다시 누르면 같은 작업 번호를 보낸다', async () => {
@@ -68,4 +68,17 @@ it('발송 되돌리기는 대표 운송장을 대조값으로 보내고, 표 �
   expect(mocks.dispatch).toHaveBeenCalledWith(expect.objectContaining({ shipmentId, expectedTrackingNumber: '1000000012' }));
   expect(report).toHaveBeenCalledWith({ tone: 'warning', message: '발송 대기로 되돌렸습니다. 배송 안내 메일이 이미 나갔습니다.' });
   expect(nodes(render({ kind: 'dispatch', expected: '1000000012' })).some(node => node.type === AdminNotice)).toBe(false);
+});
+
+/* QA-O 고칠 것 7: 배송 안내 메일을 보내는 중인 배송 건은 DB가 발송 되돌리기를 받지 않는다. 사유를 적게 한 뒤 거절하지 않고, 버튼을 미리 잠그고 이유를 보인다. */
+it('지금 되돌릴 수 없는 이유가 있으면 버튼을 잠그고 이유를 보이며, 눌려도 확인창을 띄우지 않는다', async () => {
+  const blocked = { kind: 'dispatch' as const, expected: '510000000101', blockedReason: '배송 안내 메일을 보내는 중입니다. 몇 분 뒤 다시 시도해주세요.' };
+  const tree = render(blocked);
+  expect(nodes(tree).find(node => node.type === Button)!.props.disabled).toBe(true);
+  expect(text(tree)).toBe('발송 되돌리기배송 안내 메일을 보내는 중입니다. 몇 분 뒤 다시 시도해주세요.');
+  await click(blocked);
+  expect(requests).toEqual([]); expect(mocks.dispatch).not.toHaveBeenCalled();
+  /* 이유가 없으면 열려 있다. */
+  hooks.values = [];
+  expect(nodes(render({ kind: 'dispatch', expected: '510000000101' })).find(node => node.type === Button)!.props.disabled).toBe(false);
 });

@@ -213,7 +213,8 @@ it('조건이 안 맞는 상품은 건너뛰고 나머지만 적용하며, 건�
   mocks.apply.mockImplementationOnce(answering(applied));
   mode = 'apply'; render(); effects(); await flush(); await pickAndFinish([pickerRow(), pickerRow('good-2', '착불 상품')]);
   expect(text(node())).toContain('상품 1개의 배송 설정이 ‘합성 배송 조건’ 템플릿 값으로 바뀝니다. 1개는 건너뜁니다.');
-  expect(text(node())).toContain(`건너뜀 · ${SHIPPING_SETTINGS_BLOCKER_LABELS.collect_contract_not_ready}`);
+  /* S6-1: 건너뜀 이유는 문장이 끝나는 자리에서 마침표로 닫는다. */
+  expect(text(node())).toContain(`건너뜀 · ${SHIPPING_SETTINGS_BLOCKER_LABELS.collect_contract_not_ready}.`);
   click('1개 상품에 적용'); await flush();
   expect(mocks.apply.mock.calls[0][0].goods).toEqual([guard]);
   expect(mocks.receipt).toHaveBeenCalledExactlyOnceWith(1, [{ id: 'good-2', name: '착불 상품', reason: SHIPPING_SETTINGS_BLOCKER_LABELS.collect_contract_not_ready }]);
@@ -230,7 +231,7 @@ it('원상품에서 나눈 상품은 건너뛰고 원상품을 자동으로 넣�
     familyGoodIds: ['child', 'good-1'], editable: false, blocker: 'goods_aggregation_policy_owned_by_source' }] } });
   mode = 'apply'; render(); effects(); await flush(); await pickAndFinish([pickerRow('child', '나눈 상품')]);
   expect(mocks.preview).toHaveBeenCalledExactlyOnceWith(ids.template, ['child'], identity);
-  expect(text(node())).toContain(`건너뜀 · ${SHIPPING_SETTINGS_BLOCKER_LABELS.goods_aggregation_policy_owned_by_source}`); expect(text(node())).toContain('원상품 열기 (새 탭)');
+  expect(text(node())).toContain(`건너뜀 · ${SHIPPING_SETTINGS_BLOCKER_LABELS.goods_aggregation_policy_owned_by_source}.`); expect(text(node())).toContain('원상품 열기 (새 탭)');
   expect(button('0개 상품에 적용').props.disabled).toBe(true);
 });
 it('그사이 상품이 바뀌어 적용되지 않았으면 이유를 보이고 미리보기를 다시 만들게 한다', async () => {
@@ -373,7 +374,7 @@ it('수령 방식을 체크하면 적용 근거·확인 체크 없이 저장한�
   mode = 'form'; render(); effects();
   const toggle = all(node()).find(item => item.type === 'input' && item.props['data-shipping-extra-toggle'] === 'fulfillment')!;
   (toggle.props.onChange as (event: unknown) => void)({ target: { checked: true } });
-  expect(text(node())).toContain('받을 방식은 택배 하나입니다.'); expect(text(node())).toContain('디지털 파일이 새 주문부터 빠집니다.');
+  expect(text(node())).toContain('수령 방식은 택배 하나입니다.'); expect(text(node())).toContain('디지털 파일이 새 주문부터 빠집니다.');
   for (const gone of ['적용 근거', '확인했습니다']) expect(text(node())).not.toContain(gone);
   const form = new NativeFormData(); for (const [key, value] of Object.entries({ id: ids.template, revision: '0', name: '합성 배송 조건', enabled: 'true', originId: ids.origin,
     feeType: 'policy', individualFee: '0', claimReturnAllowed: '', claimExchangeAllowed: '', claimRestrictionReason: '', claimReturnFee: '', claimReturnFreeShippingFee: '', claimExchangeFee: '' })) form.set(key, value);

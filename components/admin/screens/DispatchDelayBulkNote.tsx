@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { saveAdminOrderDispatchDelayAction } from '@/app/admin/order-actions';
+import { closeAdminDialog } from '@/lib/admin/dialog-close';
 import { ADMIN_DISPATCH_DELAY_REASON_MAX } from '@/lib/admin/dispatch';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -65,7 +66,10 @@ export function DispatchDelayBulkNote({ targets, onClose, onDone }: {
     onClose();
   }
 
-  return <CustomerServiceDialog busy={busy} onClose={onClose} title="지연 메모 한 번에 넣기">
+  /* 적은 사유·예정일이 있으면 닫기 전에 묻는다(화면 규칙 7). 넣는 중에는 닫지 못한다. */
+  const close = () => { if (!busy) closeAdminDialog(trimmed !== '' || date !== '', onClose, () => document.querySelector('[data-dispatch-delay-bulk]')); };
+
+  return <CustomerServiceDialog busy={busy} onClose={close} title="지연 메모 한 번에 넣기">
     <form className="flex flex-col gap-3 text-sm leading-relaxed" data-dispatch-delay-bulk="" onSubmit={(event) => { event.preventDefault(); void save(); }}>
       <p>고른 주문 {targets.length.toLocaleString('ko-KR')}건에 같은 메모를 넣습니다. 이미 메모가 있는 주문은 이 내용으로 바뀝니다. 고객에게는 보이지 않습니다.</p>
       <label className={FIELD}><span>지연 사유 (필수)</span>
@@ -75,7 +79,7 @@ export function DispatchDelayBulkNote({ targets, onClose, onDone }: {
       <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
         {busy ? <span className="mr-auto text-muted-foreground tabular-nums" role="status">넣는 중… {progress} / {targets.length}</span>
           : !trimmed ? <span className="mr-auto text-xs text-muted-foreground">지연 사유를 적으면 누를 수 있습니다.</span> : null}
-        <Button disabled={busy} onClick={onClose} type="button" variant="outline">닫기</Button>
+        <Button disabled={busy} onClick={close} type="button" variant="outline">닫기</Button>
         <Button disabled={busy || !trimmed || !targets.length} type="submit">{busy ? '넣는 중…' : `${targets.length.toLocaleString('ko-KR')}건에 메모 넣기`}</Button>
       </div>
     </form>

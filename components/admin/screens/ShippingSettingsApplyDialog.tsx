@@ -157,7 +157,7 @@ export function ShippingSettingsApplyDialog({ template, origins, identity, scope
               <TableHead className="h-auto py-3 align-top whitespace-normal" scope="row">{good.name}<small className={`mt-1 block ${FIELD_HINT}`}>{good.code}</small>
                 {!skip && good.familyGoodIds.length > 1 ? <small className={`mt-1 block ${FIELD_HINT}`}>함께 묶인 상품 {good.familyGoodIds.length - 1}개의 배송비 계산도 같이 바뀝니다. 수령 방식과 반품·교환 조건은 이 상품만 바뀝니다.</small> : null}</TableHead>
               <TableCell className="align-top whitespace-normal"><PolicySummary settings={good.before} effective={good.effectiveBefore} origins={origins} /></TableCell>
-              <TableCell className="align-top whitespace-normal">{skip ? <span data-shipping-apply-skip="">건너뜀 · {skip.reason}{good.ownerGoodId !== good.id ? <> <Link className="font-medium text-foreground underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(good.ownerGoodId)}`} target="_blank">원상품 열기 (새 탭)</Link></> : null}</span>
+              <TableCell className="align-top whitespace-normal">{skip ? <span data-shipping-apply-skip="">건너뜀 · {skip.reason}.{good.ownerGoodId !== good.id ? <> <Link className="font-medium text-foreground underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(good.ownerGoodId)}`} target="_blank">원상품 열기 (새 탭)</Link></> : null}</span>
                 : <PolicySummary settings={good.after} effective={good.effectiveAfter} origins={origins} />}</TableCell>
             </TableRow>;
           })}</TableBody></Table></div>

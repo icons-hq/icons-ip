@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { formatOrderDateTime } from '@/lib/orders';
 import {
+  UNPAID_EXTEND_BUTTON_LABEL,
+  UNPAID_EXTENDED_MESSAGE,
   bankDepositConfirmRequest,
   bankDepositIgnoreRequest,
   unpaidCancelRequest,
@@ -73,19 +75,39 @@ describe('기한 연장 확인창', () => {
       .toContain(`→ ${formatOrderDateTime('2026-11-27T08:30:00.000Z')}`);
   });
 
-  it('기존 기한에 더하는 것이 아니라 연장한 시각부터 24시간이라고 말한다', () => {
-    expect(request.message).toContain('새 기한은 연장한 시각부터 24시간 뒤입니다.');
-    expect(request.message).toContain('주문당 한 번만 연장할 수 있습니다.');
+  it('남은 기한에 더하는 것이 아니라 누른 시각부터 24시간 뒤로 다시 정한다고 말한다', () => {
+    expect(request.message).toContain('남은 기한에 24시간을 더하는 것이 아니라, 누른 시각부터 24시간 뒤로 다시 정합니다.');
+    expect(request.message).toContain('주문당 한 번만 할 수 있습니다.');
     expect(request.message).toContain('재고를 계속 잡아 두고');
+  });
+
+  /* 방금 들어온 주문은 기한이 이미 24시간쯤 남아 있다 — 누르면 한 번뿐인 연장을 쓰고도 기한은 그대로다(QA-O 사소 11). */
+  it('지금 누르면 기한이 1시간도 늘지 않을 때는 그 사실을 한 줄로 말한다', () => {
+    const justOrdered = unpaidExtendDeadlineRequest(ORDER, Date.parse('2026-11-26T05:07:20.000Z')).message;
+    expect(lines(justOrdered)[2]).toBe('지금 바꾸면 입금 기한이 늘어나지 않습니다. 주문당 한 번뿐이니 기한이 가까워졌을 때 눌러주세요.');
+    expect(lines(unpaidExtendDeadlineRequest(ORDER, Date.parse('2026-11-26T05:37:00.000Z')).message)[2])
+      .toBe('지금 바꾸면 입금 기한이 30분만 늘어납니다. 주문당 한 번뿐이니 기한이 가까워졌을 때 눌러주세요.');
+    expect(lines(unpaidExtendDeadlineRequest(ORDER, Date.parse('2026-11-26T04:00:00.000Z')).message)[2])
+      .toBe('지금 바꾸면 입금 기한이 오히려 앞당겨집니다. 주문당 한 번뿐이니 기한이 가까워졌을 때 눌러주세요.');
+  });
+
+  it('기한이 1시간 넘게 늘어나거나 지금 기한을 모르면 그 줄을 붙이지 않는다', () => {
+    expect(request.message).not.toContain('지금 바꾸면');
+    expect(lines(request.message)).toHaveLength(3);
+    expect(unpaidExtendDeadlineRequest(ORDER, Date.parse('2026-11-26T06:07:00.000Z')).message).not.toContain('지금 바꾸면');
+    expect(unpaidExtendDeadlineRequest({ ...ORDER, expiresAt: null }, now).message).not.toContain('지금 바꾸면');
   });
 
   it('기한을 모르는 줄도 새 기한을 말한다', () => {
     expect(unpaidExtendDeadlineRequest({ ...ORDER, expiresAt: null }, now).message).toContain('입금 기한(KST) 기한 정보 없음 → ');
   });
 
-  it('연장 폭을 약속하지 않는다(기존 기한에 24시간을 더하는 것이 아니라서 새 기한을 나란히 보인다)', () => {
-    expect(request).toMatchObject({ title: '입금 기한을 연장할까요?', confirmLabel: '기한 연장', cancelLabel: '돌아가기' });
-    expect(`${request.title}${request.confirmLabel}`).not.toContain('24시간');
+  /* DB는 기한을 now() + 24시간으로 놓는다. 주문 직후에 누르면 몇 시간만 늘어나므로 '24시간 연장'이라 약속하지 않고 하는 일 그대로 부른다. */
+  it('제목·버튼·결과 문구는 "지금부터 24시간 뒤로"라고 하는 일 그대로 말한다(24시간 연장이라 약속하지 않는다)', () => {
+    expect(request).toMatchObject({ title: '입금 기한을 지금부터 24시간 뒤로 바꿀까요?', confirmLabel: '기한을 지금부터 24시간 뒤로', cancelLabel: '돌아가기' });
+    expect(UNPAID_EXTEND_BUTTON_LABEL).toBe('기한을 지금부터 24시간 뒤로');
+    expect(UNPAID_EXTENDED_MESSAGE).toBe('입금 기한을 지금부터 24시간 뒤로 바꿨습니다.');
+    for (const text of [request.title, request.confirmLabel, request.message, UNPAID_EXTEND_BUTTON_LABEL, UNPAID_EXTENDED_MESSAGE]) expect(text).not.toContain('24시간 연장');
   });
 });
 

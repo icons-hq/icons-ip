@@ -6,6 +6,7 @@ import { normalizeForcedDeliveryPickRequest, parseForcedDeliveryOrderRows, type 
 import { ADMIN_PICKER_PAGE_SIZE, type AdminPickerPage } from '@/lib/admin/picker';
 import { piiSearchRecord } from '@/lib/admin/pii-access-log';
 import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
+import { ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 import { createClient } from '@/lib/supabase/server';
 
 /*
@@ -13,7 +14,8 @@ import { createClient } from '@/lib/supabase/server';
  * 20개씩 돌려준다. 강제 배송완료와 같은 권한(sales.manage)이고, DB 조회가 주문 조회 권한을 다시 확인한다.
  * 구매자 이름으로 찾은 결과는 주문 통합검색과 같이 개인정보 접속기록(검색)에 남긴다 — 검색어 원문 없이 이 쪽에 보인 주문 ID만.
  */
-const DENIED = '주문을 찾으려면 주문 관리 권한이 필요합니다.';
+/* 강제 배송완료와 같은 권한(판매 관리)이고 같은 문장이다. */
+const DENIED = ADMIN_SALES_ACCESS_DENIED;
 const FAILED = '주문 목록을 불러오지 못했습니다. 잠시 뒤 다시 검색해주세요.';
 
 export type ForcedDeliveryPickerResult = { ok: true; data: AdminPickerPage<ForcedDeliveryOrderRow> } | { ok: false; error: string };

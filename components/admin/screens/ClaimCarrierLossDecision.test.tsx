@@ -127,7 +127,7 @@ describe('회수 확인 확인창', () => {
   it('반품은 대상 상품·입고일과 환불 기한·고객 알림·되돌릴 수 없음을 말한다', () => {
     const request = originCollectionConfirmRequest({ label: 'TEST 남양주', kind: 'collect', claimType: 'return', items, receivedOn: '2026-11-26' });
     expect(request).toMatchObject({ title: 'TEST 남양주 회수를 확인할까요?', confirmLabel: '회수 확인', cancelLabel: '돌아가기' });
-    expect(request.message).toContain('TEST 굿즈 2개를 2026-11-26 입고로 기록합니다.');
+    expect(request.message).toContain('TEST 굿즈 2개를 2026. 11. 26. 입고로 기록합니다.');
     expect(request.message).toContain('환불 기한은 모든 출고지 가운데 가장 늦은 입고일부터 셉니다.');
     expect(request.message).toContain('고객에게 입고 알림이 가고 환불을 처리할 수 있습니다.');
     expect(request.message).toContain('재고는 환불을 확정할 때 바뀝니다.');
@@ -144,7 +144,7 @@ describe('회수 확인 확인창', () => {
   it('창고 보관 확인과 늦은 입고 확인은 각자의 일을 말한다', () => {
     const stored = originCollectionConfirmRequest({ label: 'TEST 남양주', kind: 'stored', claimType: 'return', items, receivedOn: '2026-11-26' });
     expect(stored).toMatchObject({ title: 'TEST 남양주 창고 보관을 확인할까요?', confirmLabel: '창고 보관 확인' });
-    expect(stored.message).toContain('TEST 굿즈 2개가 2026-11-26에 창고에 그대로 있는 것으로 기록합니다.');
+    expect(stored.message).toContain('TEST 굿즈 2개가 2026. 11. 26.에 창고에 그대로 있는 것으로 기록합니다.');
     const late = originCollectionConfirmRequest({ label: 'TEST 남양주', kind: 'late', claimType: 'exchange', items, receivedOn: '2026-11-26' });
     expect(late).toMatchObject({ title: 'TEST 남양주 늦은 입고를 기록할까요?', confirmLabel: '늦은 입고 확인' });
     expect(late.message).toContain('재고는 바뀌지 않습니다.');

@@ -52,10 +52,10 @@ export async function getAdminOrderDetail(orderId: string, canManage = true): Pr
   if (error) throw new Error('주문 상세를 불러오지 못했습니다.');
   if (!data) return null;
   const {data:jobs,error:jobsError}=canManage ? await supabase.from('order_shipment_email_jobs')
-    .select('shipment_id,status,attempts,last_error_code,updated_at').eq('order_id',orderId) : {data:[],error:null};
+    .select('shipment_id,status,attempts,last_error_code,updated_at,lease_until').eq('order_id',orderId) : {data:[],error:null};
   if(jobsError) throw new Error('배송 메일 상태를 불러오지 못했습니다.');
-  const emailJobs=((jobs??[]) as {shipment_id:string;status:AdminShipmentEmailJob['status'];attempts:number;last_error_code:string|null;updated_at:string}[])
-    .map(job=>({shipmentId:job.shipment_id,status:job.status,attempts:job.attempts,lastErrorCode:job.last_error_code,updatedAt:job.updated_at}));
+  const emailJobs=((jobs??[]) as {shipment_id:string;status:AdminShipmentEmailJob['status'];attempts:number;last_error_code:string|null;updated_at:string;lease_until?:string|null}[])
+    .map(job=>({shipmentId:job.shipment_id,status:job.status,attempts:job.attempts,lastErrorCode:job.last_error_code,updatedAt:job.updated_at,leaseUntil:job.lease_until??null}));
   const detail = data as AdminOrderDetail;
   /* 여러 상자로 나눠 보낸 배송 건의 추가 운송장(QNA-019). 주문 조회 운영자의 RLS 읽기이며, 운송장이 있는 배송 건이 있을 때만 읽는다. */
   const tracked = detail.shipments.some(shipment => shipment.trackingNumber);

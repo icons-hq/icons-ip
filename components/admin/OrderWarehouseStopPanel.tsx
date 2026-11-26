@@ -284,7 +284,16 @@ export function OrderWarehouseStopPanel({ orderId }: { orderId: string }) {
  * 운영자 전액·부분 취소 양식 안의 창고 회신 상태 한 줄. 확인란 대신 이 줄이 근거를 보인다 — 회신이 없으면 주문 상세의
  * 창고 회신 기록으로 잇는다. 판정의 진실원은 DB다(양식을 연 뒤 회신이 바뀌면 실행 때 DB가 다시 거절한다).
  */
-export function WarehouseStopRequirementNote({ orderId, shipmentIds, detailHref }: { orderId: string; shipmentIds?: readonly string[]; detailHref: string }) {
+export type WarehouseStopRequirementState = 'loading' | 'unknown' | ReturnType<typeof warehouseStopRequirement>['state'];
+
+export function WarehouseStopRequirementNote({ orderId, shipmentIds, detailHref, onState }: {
+  orderId: string; shipmentIds?: readonly string[]; detailHref: string;
+  /**
+   * 이 줄이 지금 보이는 판정을 양식에 알린다(읽는 중 loading · 읽지 못함 unknown · 그 밖은 판정). 양식은 회신이 필요한 동안 실행 버튼을
+   * 미리 잠근다 — 누른 뒤에 DB가 거절하게 두지 않는다. 판정의 진실원은 여전히 DB다.
+   */
+  onState?: (state: WarehouseStopRequirementState) => void;
+}) {
   const [context, setContext] = useState<OrderWarehouseStopContext | null>(null);
   const [failed, setFailed] = useState(false);
   const key = shipmentIds?.join(',') ?? '';
@@ -296,6 +305,8 @@ export function WarehouseStopRequirementNote({ orderId, shipmentIds, detailHref 
     }, () => { if (active) setFailed(true); });
     return () => { active = false; };
   }, [orderId, key]);
+  const state: WarehouseStopRequirementState = context ? warehouseStopRequirement(context, shipmentIds).state : failed ? 'unknown' : 'loading';
+  useEffect(() => { onState?.(state); }, [onState, state]);
   const href = `${detailHref}#${WAREHOUSE_STOP_ANCHOR}`;
   if (!context) {
     return <p className="text-sm" data-warehouse-stop-requirement={failed ? 'unknown' : 'loading'}>

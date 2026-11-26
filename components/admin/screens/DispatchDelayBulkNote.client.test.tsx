@@ -57,6 +57,23 @@ it('고른 주문마다 같은 사유·발송 예정일로 저장하고, 모두 
   expect(onClose).toHaveBeenCalledOnce();
 });
 
+/* 화면 규칙 7: 적은 사유·예정일이 있으면 [닫기]가 닫기 전에 한 번 묻는다. 적은 것이 없으면 바로 닫는다. */
+it('적은 내용이 없으면 바로 닫고, 사유를 적었으면 닫기 전에 묻는다', async () => {
+  const { setAdminConfirmHandler } = await import('@/lib/admin/confirm');
+  const asked: { title?: string }[] = [];
+  const restore = setAdminConfirmHandler(async request => { asked.push(request); return true; });
+  try {
+    const close = () => (nodes(render()).find(node => node.type === Button && text(node.props.children as ReactNode) === '닫기')!.props.onClick as () => void)();
+    close();
+    expect(onClose).toHaveBeenCalledOnce(); expect(asked).toEqual([]);
+    onClose.mockClear();
+    type('reason', '제조사 입고 지연');
+    close(); await settle();
+    expect(asked.map(request => request.title)).toEqual(['적은 내용을 저장하지 않고 닫을까요?']);
+    expect(onClose).toHaveBeenCalledOnce();
+  } finally { restore(); }
+});
+
 it('넣지 못한 주문은 건너뛰고 주문번호와 다음 할 일을 알린다', async () => {
   mocks.save.mockResolvedValueOnce({ message: '지연 메모를 저장했습니다.' })
     .mockResolvedValueOnce({ errors: { form: '지연 메모를 저장하지 못했습니다. 최신 상태를 확인해주세요.' } })

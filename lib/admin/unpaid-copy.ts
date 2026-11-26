@@ -19,6 +19,14 @@ import type { AdminBankDepositRow, AdminUnpaidOrderRow } from './unpaid';
 /** 기한 연장이 늘리는 시간. DB는 연장을 누른 시각부터 24시간 뒤로 새 기한을 정한다(기존 기한에 더하지 않는다). */
 export const UNPAID_EXTENSION_HOURS = 24;
 
+/**
+ * [기한 연장] 버튼과 확인창 버튼의 이름. 남은 기한에 24시간을 더하는 것이 아니라 누른 시각부터 24시간 뒤로 기한을 다시 정하므로
+ * (DB: now() + 24시간) '24시간 연장'이라 부르지 않고 하는 일 그대로 부른다 — 주문 직후에 누르면 몇 시간만 늘어난다.
+ */
+export const UNPAID_EXTEND_BUTTON_LABEL = `기한을 지금부터 ${UNPAID_EXTENSION_HOURS}시간 뒤로`;
+/** 기한 연장 결과 문구(app/admin/unpaid-actions). 버튼과 같은 말이다. */
+export const UNPAID_EXTENDED_MESSAGE = `입금 기한을 지금부터 ${UNPAID_EXTENSION_HOURS}시간 뒤로 바꿨습니다.`;
+
 type OrderReference = Pick<AdminUnpaidOrderRow, 'orderNumber' | 'depositCode'>;
 
 /**
@@ -27,6 +35,14 @@ type OrderReference = Pick<AdminUnpaidOrderRow, 'orderNumber' | 'depositCode'>;
  */
 export function unpaidOrderLabel(order: OrderReference) {
   return order.orderNumber ? `주문 ${order.orderNumber}` : `입금확인코드 ${order.depositCode} 주문`;
+}
+
+/**
+ * 입금 확인·즉시 취소 뒤 그 주문 자리에 남기는 결과 한 줄. 처리가 끝난 주문은 바로 이 목록에서 빠지므로, 다른 사람이 먼저 처리한 것으로
+ * 읽히지 않게 방금 한 일을 주문과 함께 말한다. `message`는 서버 액션이 돌려준 결과 문구(마침표로 끝난다)다.
+ */
+export function unpaidProcessedNotice(order: OrderReference, message: string) {
+  return `${unpaidOrderLabel(order)} · ${message} 처리가 끝나 이 목록에서 빠졌습니다.`;
 }
 
 /** 입금 기한(KST). 기한을 모르는 줄은 그렇게 말한다. */
@@ -55,22 +71,40 @@ export function unpaidConfirmDepositRequest(order: AdminUnpaidOrderRow): AdminCo
 }
 
 /**
+ * 지금 누르면 기한이 얼마 늘지 않을 때 덧붙이는 한 줄. 방금 들어온 주문은 기한이 이미 24시간쯤 남아 있어, 누르면 한 번뿐인 연장을
+ * 써 버리고도 기한은 그대로다. 새 기한이 지금 기한보다 1시간도 늦지 않으면 그 사실을 말한다. 기한을 모르는 줄은 말하지 않는다.
+ */
+function unpaidExtensionGainNote(expiresAt: string | null, nextAt: number): string | null {
+  const current = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  if (Number.isNaN(current)) return null;
+  const minutes = Math.floor((nextAt - current) / 60_000);
+  if (minutes >= 60) return null;
+  const when = '주문당 한 번뿐이니 기한이 가까워졌을 때 눌러주세요.';
+  if (minutes < 0) return `지금 바꾸면 입금 기한이 오히려 앞당겨집니다. ${when}`;
+  if (minutes === 0) return `지금 바꾸면 입금 기한이 늘어나지 않습니다. ${when}`;
+  return `지금 바꾸면 입금 기한이 ${minutes}분만 늘어납니다. ${when}`;
+}
+
+/**
  * 기한 연장: 새 기한은 연장을 누른 시각부터 24시간 뒤다. 확인창을 연 시각을 기준으로 미리 보여 주고, 실제 시각은 처리한 순간에 정해진다.
  * `now`는 확인창을 여는 시각(ms)이다.
  *
- * 기존 기한에 24시간을 더하는 것이 아니라서(주문한 지 얼마 안 된 주문은 몇 시간만 늘어난다) 제목과 버튼은 '24시간 연장'이라 약속하지 않고,
- * 지금 기한과 새 기한을 나란히 보인다.
+ * 기존 기한에 24시간을 더하는 것이 아니라서(주문한 지 얼마 안 된 주문은 몇 시간만 늘어난다) 제목과 버튼은 '24시간 연장'이라 약속하지 않고
+ * '지금부터 24시간 뒤로'라고 하는 일 그대로 말하며, 지금 기한과 새 기한을 나란히 보인다.
  */
 export function unpaidExtendDeadlineRequest(order: AdminUnpaidOrderRow, now: number): AdminConfirmRequest {
-  const next = formatOrderDateTime(new Date(now + UNPAID_EXTENSION_HOURS * 3_600_000).toISOString());
+  const nextAt = now + UNPAID_EXTENSION_HOURS * 3_600_000;
+  const next = formatOrderDateTime(new Date(nextAt).toISOString());
+  const gain = unpaidExtensionGainNote(order.expiresAt, nextAt);
   return {
-    title: '입금 기한을 연장할까요?',
+    title: `입금 기한을 지금부터 ${UNPAID_EXTENSION_HOURS}시간 뒤로 바꿀까요?`,
     message: [
       [unpaidOrderLabel(order), order.buyerName].join(' · '),
       `입금 기한(KST) ${unpaidDeadlineText(order.expiresAt)} → ${next}`,
-      `새 기한은 연장한 시각부터 ${UNPAID_EXTENSION_HOURS}시간 뒤입니다. 그동안 재고를 계속 잡아 두고, 주문당 한 번만 연장할 수 있습니다.`,
+      ...(gain ? [gain] : []),
+      `남은 기한에 ${UNPAID_EXTENSION_HOURS}시간을 더하는 것이 아니라, 누른 시각부터 ${UNPAID_EXTENSION_HOURS}시간 뒤로 다시 정합니다. 그동안 재고를 계속 잡아 두고, 주문당 한 번만 할 수 있습니다.`,
     ].join('\n'),
-    confirmLabel: '기한 연장',
+    confirmLabel: UNPAID_EXTEND_BUTTON_LABEL,
     cancelLabel: '돌아가기',
   };
 }

@@ -27,7 +27,8 @@ export function ClaimKitBulkResult({ previewHrefBase, state }: { previewHrefBase
     <p className="text-sm" role="status">{state.summary}</p>
     <div className="overflow-hidden rounded-lg border">
       <Table>
-        <TableCaption>일괄 처리 결과</TableCaption>
+        {/* 표 제목은 화면 낭독용이다. 보이게 두면 kit 표의 제목 자리(표 아래)에 떠 있는 글자로 보인다(F-02). */}
+        <TableCaption className="sr-only">일괄 처리 결과</TableCaption>
         <TableHeader><TableRow><TableHead scope="col">요청번호</TableHead><TableHead scope="col">결과</TableHead><TableHead scope="col">내용</TableHead></TableRow></TableHeader>
         <TableBody>
           {state.results.map((result) => <TableRow data-outcome={result.outcome} key={`${result.claimId}:${result.scope ?? ''}`}>

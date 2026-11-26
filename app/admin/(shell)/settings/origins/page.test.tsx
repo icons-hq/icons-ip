@@ -1,17 +1,18 @@
 import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, expect, it, vi } from 'vitest';
 import Page from './page';
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), origins: vi.fn(), options: vi.fn(), carriers: vi.fn(), history: vi.fn(), impact: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), origins: vi.fn(), options: vi.fn(), carriers: vi.fn(), history: vi.fn(), impact: vi.fn(), regions: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
 vi.mock('@/lib/admin/fulfillment-origins.server', () => ({ loadAdminFulfillmentOrigins: mocks.origins, loadGoodsFulfillmentOptions: mocks.options }));
 vi.mock('@/lib/admin/store-settings.server', () => ({ loadAdminShippingCarriers: mocks.carriers, loadAdminStoreSettingsHistory: mocks.history }));
 vi.mock('@/lib/admin/shipping-impact.server', () => ({ loadOriginSaveImpact: mocks.impact }));
+vi.mock('@/lib/admin/shipping-regions.server', () => ({ loadAdminShippingRegionPolicies: mocks.regions }));
 vi.mock('@/components/admin/screens/FulfillmentOriginsScreen', () => ({ FulfillmentOriginsScreen: () => null, GoodsOriginSummaryScreen: () => null }));
 vi.mock('@/components/admin/screens/ShippingChargeGroupsPanel', () => ({ ShippingChargeGroupsPanel: () => null }));
 const IMPACT = { goods: { publicGoods: 12, policyFeeGoods: 7 }, regionalFee: { managed: false, inEffectCarrierCodes: [], scheduledCarrierCodes: [] } };
 beforeEach(() => {
   vi.resetAllMocks(); mocks.guard.mockResolvedValue({ role: 'staff', user: { id: '91000000-0000-4000-8000-000000000001' }, operatorAccess: legacyOperatorAccessFixture('staff') });
-  mocks.origins.mockResolvedValue([]); mocks.options.mockResolvedValue([]); mocks.carriers.mockResolvedValue([]); mocks.history.mockResolvedValue([]); mocks.impact.mockResolvedValue(IMPACT);
+  mocks.origins.mockResolvedValue([]); mocks.options.mockResolvedValue([]); mocks.carriers.mockResolvedValue([]); mocks.history.mockResolvedValue([]); mocks.impact.mockResolvedValue(IMPACT); mocks.regions.mockResolvedValue({ policies: [], adoptions: [] });
 });
 it('checks route access before any settings read', async () => {
   mocks.guard.mockRejectedValue(new Error('denied'));
@@ -58,4 +59,40 @@ it('configured deputy loads shipping options without warehouse settings or audit
   expect(mocks.carriers).toHaveBeenCalledOnce(); expect(mocks.history).not.toHaveBeenCalled();
   expect(result.props.children[1].props.canManageRegional).toBe(false);
   expect(mocks.impact).not.toHaveBeenCalled();
+});
+
+/* S5-1: 지역별 추가배송비 때문에 새 주문이 막힌 출고지는 배송정보 관리의 그 출고지에서도 보인다(지역별 추가배송비 화면과 같은 판정). */
+const GIMPO = { id: '00000000-0000-4000-8000-000000042201', code: 'gimpo', name: '김포', defaultCarrier: 'hanjin', active: true };
+const endedPolicy = { id: 'policy-1', originId: GIMPO.id, carrierCode: 'hanjin', status: 'retired', startsAt: '2026-01-01T00:00:00Z', endsAt: null };
+const blockedCase = (extra: { origins?: unknown[]; carriers?: unknown[] } = {}) => {
+  mocks.guard.mockResolvedValue({ role: 'admin', user: { id: '91000000-0000-4000-8000-000000000001' }, operatorAccess: legacyOperatorAccessFixture('admin') });
+  mocks.origins.mockResolvedValue(extra.origins ?? [GIMPO, { ...GIMPO, id: 'origin-2', code: 'old', name: '옛 출고지', active: false }]);
+  mocks.carriers.mockResolvedValue(extra.carriers ?? [{ code: 'hanjin', active: true }]);
+  mocks.regions.mockResolvedValue({ policies: [endedPolicy], adoptions: [{ originId: GIMPO.id, managedFrom: '2026-01-01T00:00:00Z' }, { originId: 'origin-2', managedFrom: '2026-01-01T00:00:00Z' }] });
+};
+it('끝났거나 끝낸 설정만 있는 사용 중 출고지를 막힘으로 넘기고, 사용 안 함인 출고지는 넘기지 않는다', async () => {
+  blockedCase();
+  const result = await Page({ searchParams: Promise.resolve({ origin: 'gimpo' }) });
+  expect(result.props.children[0].props.regionBlocks).toEqual([{ originId: GIMPO.id, originName: '김포', reason: 'ended' }]);
+});
+it('택배사가 사용 안 함이면 설정이 적용 기간 안이어도 막힘으로 넘긴다', async () => {
+  blockedCase({ carriers: [{ code: 'hanjin', active: false }] });
+  mocks.regions.mockResolvedValue({ policies: [{ ...endedPolicy, status: 'active' }], adoptions: [{ originId: GIMPO.id, managedFrom: '2026-01-01T00:00:00Z' }] });
+  const result = await Page({ searchParams: Promise.resolve({ origin: 'gimpo' }) });
+  expect(result.props.children[0].props.regionBlocks).toEqual([{ originId: GIMPO.id, originName: '김포', reason: 'carrier_off' }]);
+});
+it('지역별 추가배송비 설정을 읽지 못하면 막혔다고 말하지 않고 화면은 그대로 연다', async () => {
+  blockedCase();
+  mocks.regions.mockRejectedValue(new Error('denied'));
+  const result = await Page({ searchParams: Promise.resolve({ origin: 'gimpo' }) });
+  expect(result.props.children[0].props.regionBlocks).toBeUndefined();
+  expect(result.props.children[0].props.origins).toHaveLength(2);
+});
+it('직원용 요약 화면에도 같은 안내를 넘긴다', async () => {
+  mocks.guard.mockResolvedValue({ role: 'staff', user: { id: '91000000-0000-4000-8000-000000000002' }, operatorAccess: configuredOperatorAccessFixture('deputy') });
+  mocks.options.mockResolvedValue([GIMPO]);
+  mocks.carriers.mockResolvedValue([{ code: 'hanjin', active: true }]);
+  mocks.regions.mockResolvedValue({ policies: [endedPolicy], adoptions: [{ originId: GIMPO.id, managedFrom: '2026-01-01T00:00:00Z' }] });
+  const result = await Page();
+  expect(result.props.children[0].props.regionBlocks).toEqual([{ originId: GIMPO.id, originName: '김포', reason: 'ended' }]);
 });

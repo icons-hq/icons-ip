@@ -163,7 +163,7 @@ describe('화면별 로더 재사용', () => {
     expect(filters).toMatchObject({ status: 'paid', query: '홍', field: 'recipient', page: 1, orderId: null });
     expect(includeRecovery).toBe(false);
     expect(options).toEqual({ pageSize: 50, includeCounts: false });
-    expect(sheet.rows[0][sheet.columns.findIndex((column) => column.header === '결제수단')]).toBe('토스 결제(카드·가상계좌·계좌이체)');
+    expect(sheet.rows[0][sheet.columns.findIndex((column) => column.header === '결제수단')]).toBe('결제사 결제(카드·가상계좌·계좌이체)');
   });
 
   it('미입금 확인은 입금 큐를 읽지 않는다', async () => {
@@ -189,8 +189,8 @@ describe('화면별 로더 재사용', () => {
     expect(at('배송메시지')).toBe('문 앞에 놓아주세요');
     expect(at('출고지')).toBe('김포');
     expect(at('주문일시')).toBe('2026-10-07 09:00');
-    /* 스마트스토어 양식 파일은 밖으로 나가는 양식이라 결제수단 값을 예전 그대로('카드') 둔다. */
-    expect(at('결제수단')).toBe('카드');
+    /* 열 이름은 양식 그대로지만 결제수단 값은 화면·주문 목록 엑셀과 같은 이름이다 — card에는 가상계좌·계좌이체도 들어 있어 '카드'라고 적지 않는다. */
+    expect(at('결제수단')).toBe('결제사 결제(카드·가상계좌·계좌이체)');
     expect(at('상품주문번호')).toBe(line.productOrderNumber);
     expect(mocks.rpc).toHaveBeenCalledWith('admin_delivery_list_export_lines', { p_ids: [line.shipmentId] });
     expect(mocks.inCalls.some((call) => call.table === 'orders' && call.ids.includes(ORDER_ID))).toBe(true);
@@ -211,7 +211,7 @@ describe('화면별 로더 재사용', () => {
     const at = (header: string) => sheet.rows[0][sheet.columns.findIndex((column) => column.header === header)];
     expect(at('상품명')).toBe('키링');
     expect(at('수량')).toBe(3);
-    expect(at('수취인')).toBe('수령');
+    expect(at('수령인')).toBe('수령');
   });
 
   it.each([['recipient', '수령인명'], ['item', '상품주문번호']] as const)(

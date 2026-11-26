@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { FulfillmentOriginsScreen, selectedFulfillmentOriginTab } from './FulfillmentOriginsScreen';
+import { FulfillmentOriginsScreen, GoodsOriginSummaryScreen, selectedFulfillmentOriginTab } from './FulfillmentOriginsScreen';
 import { GoodsFulfillmentFields } from '../GoodsFulfillmentFields';
 import type { FulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 vi.mock('@/app/admin/fulfillment-actions', () => ({ saveFulfillmentOriginAction: vi.fn() }));
@@ -73,6 +73,29 @@ describe('origin settings workspace', () => {
     /* 사용 안 함인 출고지에 영향 안내가 새지 않는 것은 폼 시험이 본다. 여기서는 화면이 영향을 받아도 그리는 데 문제가 없는지만 본다. */
     expect(renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin]} carriers={carriers} history={[]} canEdit impact={impact} />)).toContain('출고지 저장');
     expect(renderToStaticMarkup(<FulfillmentOriginsScreen origins={[inactive]} carriers={carriers} history={[]} canEdit={false} impact={impact} />)).not.toContain('출고지 저장');
+  });
+  it('지역별 추가배송비 때문에 새 주문이 막힌 출고지는 탭과 카드에서 까닭과 고치러 가는 링크로 알린다 (S5-1)', () => {
+    const namyangju: FulfillmentOrigin = { ...origin, id: '00000000-0000-4000-8000-000000042202', code: 'namyangju', name: '남양주' };
+    const regionBlocks = [{ originId: origin.id, originName: '김포', reason: 'ended' as const }];
+    const gimpo = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin, namyangju]} carriers={carriers} history={[]} canEdit selected="gimpo" regionBlocks={regionBlocks} />);
+    expect(gimpo).toMatch(/김포 · 새 주문 막힘<\/a>/);
+    expect(gimpo).toMatch(/>남양주<\/a>/);
+    expect(gimpo).toContain('지역별 추가배송비 설정이 끝나 새 주문이 막혀 있습니다.');
+    expect(gimpo).toMatch(/<a [^>]*href="\/admin\/settings\/shipping-regions"[^>]*>지역별 추가배송비 관리<\/a>에서 확인해 주세요/);
+    /* 막히지 않은 출고지 카드에는 안내가 없다. */
+    const other = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin, namyangju]} carriers={carriers} history={[]} canEdit selected="namyangju" regionBlocks={regionBlocks} />);
+    expect(other).toMatch(/김포 · 새 주문 막힘<\/a>/);
+    expect(other).not.toContain('새 주문이 막혀 있습니다');
+    /* 읽지 못했거나 막힌 곳이 없으면 아무 표시도 없다. */
+    for (const blocks of [undefined, []]) {
+      const none = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin]} carriers={carriers} history={[]} canEdit regionBlocks={blocks} />);
+      expect(none).not.toContain('새 주문 막힘');
+      expect(none).not.toContain('새 주문이 막혀 있습니다');
+    }
+    /* 직원용 요약 화면의 카드도 같은 안내를 보인다. */
+    const summary = renderToStaticMarkup(<GoodsOriginSummaryScreen origins={[{ id: origin.id, name: '김포', defaultCarrier: 'hanjin', baseFee: 4700, freeThreshold: null, returnAddress: '주소', active: true }]} regionBlocks={[{ originId: origin.id, originName: '김포', reason: 'carrier_off' }]} />);
+    expect(summary).toContain('기본 택배사가 없거나 ‘사용 안 함’이라');
+    expect(summary).toContain('href="/admin/settings/shipping-regions"');
   });
   it('변경 이력은 폼의 칸 이름으로 보이고 빈 값은 없음이다 (O-16)', () => {
     const history = [{ id: 'h1', createdAt: '2026-10-01T00:00:00Z', actorName: '운영자', action: 'admin.fulfillment_origin.saved', target: 'fulfillment_origins:42201',

@@ -1,4 +1,5 @@
 import { ADMIN_UNPAID_MEMO_MAX, ADMIN_UNPAID_MEMO_MIN } from '@/lib/admin/unpaid';
+import { UNPAID_EXTEND_BUTTON_LABEL, UNPAID_EXTENSION_HOURS } from '@/lib/admin/unpaid-copy';
 import { BANK_TRANSFER_HOLD_HOURS } from '@/lib/payments/bank-transfer';
 import type { AdminGuideTopic } from '../types';
 
@@ -15,7 +16,7 @@ export const BANK_TRANSFER_TOPIC: AdminGuideTopic = {
       heading: '무통장 주문이 흘러가는 방식',
       paragraphs: [
         '무통장 입금 주문은 고객이 법인계좌로 직접 이체하는 결제입니다. 이체가 들어와도 주문이 저절로 결제완료로 바뀌지 않습니다. 운영자가 미결제 확인 화면에서 입금을 확인해야 결제완료가 됩니다.',
-        `입금을 기다리는 동안 그 주문의 재고는 다른 고객이 사지 못하게 잡아 둡니다(기본 ${BANK_TRANSFER_HOLD_HOURS}시간, 기한을 연장하면 연장한 시각부터 24시간). 기한 안에 입금이 확인되지 않으면 주문은 자동으로 취소됩니다.`,
+        `입금을 기다리는 동안 그 주문의 재고는 다른 고객이 사지 못하게 잡아 둡니다(기본 ${BANK_TRANSFER_HOLD_HOURS}시간, 기한을 연장하면 누른 시각부터 ${UNPAID_EXTENSION_HOURS}시간). 기한 안에 입금이 확인되지 않으면 주문은 자동으로 취소됩니다.`,
         `입금 확인·기한 연장·즉시 취소 모두 근거(입금 근거·기한 연장 사유·취소 사유, ${MEMO_RANGE})를 적어야 처리됩니다. 근거가 비어 있거나 글자 수가 맞지 않으면 처리되지 않고 안내가 나옵니다. 세 버튼 모두 누르면 어느 주문인지(주문번호·구매자·금액)와 결과를 알려 주는 확인창이 한 번 뜹니다.`,
       ],
       screens: [{ href: '/admin/sales/unpaid' }],
@@ -60,7 +61,7 @@ export const BANK_TRANSFER_TOPIC: AdminGuideTopic = {
       id: 'extend',
       heading: '기한 연장',
       paragraphs: [
-        `고객이 조금 늦게 입금하겠다고 알려 오면 [기한 24시간 연장]을 누릅니다. 새 기한은 연장한 시각부터 24시간 뒤입니다(기존 기한에 24시간을 더하지 않습니다). 확인창이 지금 입금 기한 (KST)과 새 기한을 나란히 보여 줍니다. 재고를 하루 더 잡아 두는 판단이라 "기한 연장 사유 (필수)"(${MEMO_RANGE})를 꼭 적습니다.`,
+        `고객이 조금 늦게 입금하겠다고 알려 오면 [${UNPAID_EXTEND_BUTTON_LABEL}]를 누릅니다. 새 기한은 누른 시각부터 ${UNPAID_EXTENSION_HOURS}시간 뒤입니다(남은 기한에 ${UNPAID_EXTENSION_HOURS}시간을 더하지 않습니다 — 주문 직후에 누르면 몇 시간만 늘어납니다). 확인창이 지금 입금 기한 (KST)과 새 기한을 나란히 보여 줍니다. 재고를 하루 더 잡아 두는 판단이라 "기한 연장 사유 (필수)"(${MEMO_RANGE})를 꼭 적습니다.`,
         '연장은 주문당 한 번만 됩니다. 한 번 연장한 주문은 버튼이 "이미 한 번 연장함"으로 바뀌어 다시 연장할 수 없으니, 더 기다릴 수 없으면 취소합니다.',
       ],
     },

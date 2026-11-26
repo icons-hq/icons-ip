@@ -56,7 +56,7 @@ export function ClaimCollectionPlan(props: Props) {
 function CollectionPanel({ claimId, operator = false, carriers = [], shipmentLabels, identity, scope }: Props & { identity: ClaimContactIdentity; scope: ClaimContactScope }) {
   const router = useRouter();
   const [document, setDocument] = useState<ClaimCollectionDocument | null>(null), [selected, setSelected] = useState<ClaimCollectionRow | null>(null);
-  const [method, setMethod] = useState<CollectionMethod>('not_requested'), [carrier, setCarrier] = useState(''), [tracking, setTracking] = useState(''), [evidence, setEvidence] = useState(''), [confirmed, setConfirmed] = useState(false);
+  const [method, setMethod] = useState<CollectionMethod>('not_requested'), [carrier, setCarrier] = useState(''), [tracking, setTracking] = useState(''), [evidence, setEvidence] = useState('');
   const [pending, setPending] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState(''), [uncertain, setUncertain] = useState(false);
   const alive = useRef(true), busy = useRef(false), dispatched = useRef<Request | null>(null);
   useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
@@ -73,13 +73,13 @@ function CollectionPanel({ claimId, operator = false, carriers = [], shipmentLab
   }
   function edit(row: ClaimCollectionRow) {
     if (busy.current || uncertain) return;
-    setSelected(row); setMethod(row.method); setCarrier(row.carrier ?? ''); setTracking(row.trackingNumber ?? ''); setEvidence(''); setConfirmed(false); setMessage(''); setError('');
+    setSelected(row); setMethod(row.method); setCarrier(row.carrier ?? ''); setTracking(row.trackingNumber ?? ''); setEvidence(''); setMessage(''); setError('');
   }
   async function save() {
     if (busy.current || !document || !selected) return;
-    const values = normalizeClaimCollectionValues({ method, carrier: carrier || null, trackingNumber: tracking || null, evidence, confirmed });
+    const values = normalizeClaimCollectionValues({ method, carrier: carrier || null, trackingNumber: tracking || null, evidence, confirmed: true });
     const request = dispatched.current ?? (values ? { shipmentId: selected.shipmentId, revision: selected.revision, claimRevision: document.claimRevision, values, operationId: crypto.randomUUID() } : null);
-    if (!request) { setError('회수 정보·정정 근거·확인 항목을 입력해주세요.'); return; }
+    if (!request) { setError(`수거 택배사와 송장번호는 함께 적어주세요. 송장번호는 영문·숫자 8~40자이고, '${COLLECTION_METHODS.customer_sent}'이면 반드시 적습니다.`); return; }
     const ticket = scope.capture(); if (!ticket) return;
     busy.current = true; dispatched.current = request; setPending(true); setError(''); setMessage('');
     try { const result = await saveClaimCollectionAction(claimId, request.shipmentId, request.revision, request.claimRevision, request.values, request.operationId, identity);
@@ -111,7 +111,6 @@ function CollectionPanel({ claimId, operator = false, carriers = [], shipmentLab
         {method !== 'not_requested' ? <><label>수거 택배사<select value={carrier} onChange={event => setCarrier(event.target.value)}><option value="">선택 안 함</option>{carriers.filter(c => c.active).map(c => <option key={c.code} value={c.code}>{c.label}</option>)}</select></label>
           <label>수거 송장번호<input maxLength={40} value={tracking} onChange={event => setTracking(event.target.value)} placeholder="영문·숫자 8~40자" /></label></> : null}
         <label>정정 근거<textarea required minLength={2} maxLength={500} rows={2} value={evidence} onChange={event => setEvidence(event.target.value)} placeholder="택배사 확인 내용·상담 참조번호. 개인정보는 입력하지 마세요." /></label>
-        <label className="claim-collection-plan__check"><input type="checkbox" checked={confirmed} onChange={event => setConfirmed(event.target.checked)} />실제 회수 정보를 확인했습니다.</label>
       </fieldset>
       <button className="btn btn-sm" disabled={pending} type="submit">{uncertain ? '같은 요청으로 저장 결과 확인' : '회수 정보 정정 저장'}</button>
     </form> : null}

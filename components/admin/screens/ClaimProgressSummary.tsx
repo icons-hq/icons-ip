@@ -1,5 +1,5 @@
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
-import { adminClaimStageLabel } from '@/lib/admin/claims';
+import { adminClaimReceivedOnLabel, adminClaimStageLabel } from '@/lib/admin/claims';
 import { orderClaimEffectiveStage } from '@/lib/orders/claims';
 import { Check } from 'lucide-react';
 import { formatOrderDateTime, refundStatusLabel } from '@/lib/orders';
@@ -75,7 +75,7 @@ export function ClaimProgressSummary({ claim, refund }: Props) {
       collection.value = claim.collectedAt ? '입고 확인함' : '입고 확인 전';
       /* 환불 기한은 실제 입고일부터 센다(1027T-033). 입고일이 있으면 확인 시각과 나눠 보인다(출고지별 회수 칸과 같은 형식). */
       collection.detail = !claim.collectedAt ? ''
-        : claim.collectionReceivedOn ? `실제 입고일 ${claim.collectionReceivedOn} · 확인 ${formatOrderDateTime(claim.collectedAt)}`
+        : claim.collectionReceivedOn ? `실제 입고일 ${adminClaimReceivedOnLabel(claim.collectionReceivedOn)} · 확인 ${formatOrderDateTime(claim.collectedAt)}`
           : `입고 ${formatOrderDateTime(claim.collectedAt)}`;
     }
   }

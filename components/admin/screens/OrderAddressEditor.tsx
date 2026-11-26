@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation';
 import { changeOrderAddressAction, loadOrderAddressContextAction, readOrderAddressChangeAction } from '@/app/admin/order-address-actions';
 import {
   normalizeOrderAddressRequest, orderAddressBlockerMessage, orderAddressChangeLines, orderAddressConfirmMessage, orderAddressError, orderAddressReceiptMatches,
-  ORDER_ADDRESS_RELOAD_LABEL, ORDER_ADDRESS_RESEND_LABEL, type OrderAddressContext, type OrderAddressReceipt, type OrderAddressRequest,
+  ORDER_ADDRESS_DESTINATION_FIELDS, ORDER_ADDRESS_DESTINATION_LOCKED_MESSAGE, ORDER_ADDRESS_RELOAD_LABEL, ORDER_ADDRESS_RESEND_LABEL, type OrderAddressContext, type OrderAddressReceipt, type OrderAddressRequest,
 } from '@/lib/admin/order-address';
 import { reopenClosedDialog, SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE, TEMPLATE_CLOSE_DIRTY_CONFIRM } from '@/lib/admin/goods-template-save';
 import { adminConfirm } from '@/lib/admin/confirm';
@@ -118,11 +118,13 @@ export function OrderAddressEditor({ initial, onClose }: { initial: OrderAddress
         : <form className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
           <fieldset className="m-0 flex min-w-0 flex-col gap-3.5 border-0 p-0" disabled={locked}>
             <legend className="mb-3 font-medium">바꿀 내용</legend>
+            {/* 우편번호·기본 주소를 바꿀 수 없는 주문은 두 칸을 미리 잠그고 이유를 말한다 — 적고 확인창까지 지난 뒤에 거절하지 않는다. */}
             <div className="grid gap-3 sm:grid-cols-2">{fields.map(field => <label className={LABEL_CLASS} key={field.key}><span>{field.label}</span>
               <Input required={!field.optional} maxLength={field.max} value={address[field.key] ?? ''} inputMode={field.key === 'phone' || field.key === 'postalCode' ? 'numeric' : undefined}
+                disabled={Boolean(context.destinationLocked) && ORDER_ADDRESS_DESTINATION_FIELDS.includes(field.key)}
                 onChange={event => { if (canEdit()) setAddress(previous => ({ ...previous, [field.key]: event.target.value })); }} />
             </label>)}</div>
-            <p className={HINT_CLASS}>배송비가 달라지는 주소로는 바꿀 수 없습니다.</p>
+            <p className={HINT_CLASS} data-order-address-destination={context.destinationLocked ? 'locked' : undefined}>{context.destinationLocked ? ORDER_ADDRESS_DESTINATION_LOCKED_MESSAGE : '배송비가 달라지는 주소로는 바꿀 수 없습니다.'}</p>
             <div className="flex min-w-0 flex-col gap-1.5">
               <label className={LABEL_CLASS}><span>변경 사유 (필수)</span>
                 <Input aria-describedby={REASON_HINT_ID} required maxLength={500} value={reason} onChange={event => { if (canEdit()) setReason(event.target.value); }}

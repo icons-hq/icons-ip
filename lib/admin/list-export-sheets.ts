@@ -81,14 +81,11 @@ const nullable = (value: string) => (value ? value : null);
 export const listExportPaymentMethodLabel = adminOrderPaymentMethodLabel;
 
 /**
- * 스마트스토어 양식 파일(출고지시·배송 목록)의 결제수단 값. 밖으로 나가는 양식이라 화면 이름을 따라 바꾸지 않고 예전 값을 그대로 둔다
- * (docs/admin-copy-guide.md 원칙 9).
+ * 엑스스퀘어 표준 양식 파일(출고지시·발송관리·배송현황 목록)의 결제수단 값. 열 이름은 양식이라 그대로 두지만(docs/admin-copy-guide.md 원칙 9),
+ * 값은 화면·주문 목록 엑셀과 같은 이름을 쓴다 — `card`에는 가상계좌·계좌이체도 들어 있어 '카드'라고 적으면 사실과 다르고, 같은 주문이
+ * 파일마다 다른 결제수단으로 보인다. 운송장 올리기는 이 열을 읽지 않는다.
  */
-export function externalFormatPaymentMethodLabel(method: string | null | undefined) {
-  if (method === 'card') return '카드';
-  if (method === 'bank_transfer') return '무통장 입금';
-  return method ?? '';
-}
+export const externalFormatPaymentMethodLabel = adminOrderPaymentMethodLabel;
 
 /** 주문 배송지에서 목록에 필요한 칸만 꺼낸다. 형식이 낯설어도 있는 문자열은 보존한다. */
 export interface ListExportContact {
@@ -168,7 +165,7 @@ export function ordersListExportSheet(input: {
     column('주문 상태', 'text', 12, ({ order }) => ADMIN_ORDER_STATUS_LABELS[order.status]),
     column('구매자', 'text', 16, ({ order }) => order.buyerName),
     column('이메일', 'text', 36, ({ order }) => blank(order.buyerEmail)),
-    column('수취인', 'text', 12, ({ order }) => blank(order.address?.recipientName)),
+    column('수령인', 'text', 12, ({ order }) => blank(order.address?.recipientName)),
     column('결제수단', 'text', 30, ({ paymentMethod }) => nullable(listExportPaymentMethodLabel(paymentMethod))),
     column('결제 상태', 'text', 12, ({ order }) => nullable(order.payments.map((payment) => paymentStatusLabel(payment.status)).join(', '))),
     column('결제금액', 'amount', 12, ({ order }) => order.total),
@@ -213,7 +210,7 @@ export function ordersListExportSheet(input: {
       ...(filters.sort ? [['정렬', SALES_SORT_OPTIONS.find(option => option.value === filters.sort)!.label] as [string, string]] : []),
     ],
     notes: [
-      `한 행은 주문의 ${V.goods} 한 줄입니다. 결제금액과 (주문) 열은 같은 주문의 행마다 반복되므로 주문번호별로 한 번만 합산해주세요.`,
+      `한 줄에 주문의 ${V.goods} 하나를 적습니다. 결제금액과 (주문) 열은 같은 주문의 줄마다 반복되므로 주문번호별로 한 번만 합산해주세요.`,
       `${V.goods} 금액은 복수구매·쿠폰·적립금 차감 전 품목 소계입니다. 품목 실결제액은 해당 할인과 적립금을 차감하며 배송비를 제외합니다. 주문 당시 배분 기록을 쓰고, 배분 기록이 없는 주문은 주문 당시 쿠폰 기록을 거래확정 엑셀과 같은 규칙(대상 품목 금액 비례)으로 나눈 값을 씁니다. 기록이 없거나 합계가 맞지 않으면 빈칸입니다.`,
       '착불 배송비는 온라인 결제금액·결제사 매출·결제사 환불액에 들어가지 않습니다. 이 금액만 보고 실제로 받았다고 판단하지 마세요.',
       '선물 주문은 내부 운영용 주소를 포함합니다. 수령인에게 가격·결제정보가 있는 이 파일을 동봉하지 마세요.',
@@ -257,7 +254,7 @@ export function unpaidListExportSheet(input: {
     recordCount: input.rows.length,
     conditions: [['검색어', queryText(input.filters.query)],
       ...(input.filters.state ? [['결제상태', input.filters.state === 'missing' ? '결제 기록 없음' : adminUnpaidAttemptStateLabel(input.filters.state)] as [string, string]] : [])],
-    notes: ['한 행은 입금을 기다리는 무통장 입금 주문 한 건입니다. 입금 대조에 필요하지 않은 주소·연락처는 담지 않습니다.'],
+    notes: ['한 줄은 입금을 기다리는 무통장 입금 주문 한 건입니다. 입금 대조에 필요하지 않은 주소·연락처는 담지 않습니다.'],
     filters: { query: input.filters.query || null, ...(input.filters.state ? { state: input.filters.state } : {}), ...(input.filters.sort ? { sort: input.filters.sort } : {}) },
   };
 }
@@ -294,7 +291,7 @@ export function shipmentsListExportSheet(input: {
       ...(filters.paymentMethod ? [['결제수단', listExportPaymentMethodLabel(filters.paymentMethod)] as [string, string]] : []),
     ],
     notes: [
-      `한 행은 배송 건의 ${V.goods} 한 줄입니다. 배송비는 같은 배송건번호의 첫 행에 한 번만 기록합니다. 기록되지 않은 금액·날짜는 빈칸입니다.`,
+      `한 줄에 배송 건의 ${V.goods} 하나를 적습니다. 배송비는 같은 배송건번호의 첫 줄에 한 번만 기록합니다. 기록되지 않은 금액·날짜는 빈칸입니다.`,
       '운송장 회신은 택배사와 운송장번호를 채운 뒤 이 XLSX를 발주·발송 관리의 "운송장 올리기"에 올립니다. 비밀번호를 건 XLSX는 풀지 않고 그대로 올리고 "파일 비밀번호" 칸에 비밀번호를 적습니다. 상품주문번호는 전체 번호를 그대로 둬주세요.',
       ...(isDispatch ? ['창고에 보내는 출고지시 파일과 다른 확인용 목록입니다. 이 파일을 내려받아도 "출고지시 보냄"으로 바뀌지 않습니다.'] : []),
     ],
@@ -385,7 +382,7 @@ export function claimsListExportSheet(input: {
     column('수량', 'count', 8, ({ item }) => item?.qty ?? null),
     ...(withDelivery
       ? [
-          column<ClaimLine>('수취인', 'text', 12, ({ contact }) => blank(contact?.recipientName)),
+          column<ClaimLine>('수령인', 'text', 12, ({ contact }) => blank(contact?.recipientName)),
           column<ClaimLine>('연락처', 'code', 14, ({ contact }) => blank(contact?.phone)),
           column<ClaimLine>('우편번호', 'code', 8, ({ contact }) => blank(contact?.postalCode)),
           column<ClaimLine>('주소', 'text', 48, ({ contact }) => blank(contact?.address)),
@@ -412,7 +409,7 @@ export function claimsListExportSheet(input: {
       ...(filters.field ? [['검색 대상', ADMIN_CLAIM_SEARCH_FIELDS.find(option => option.value === filters.field)!.label] as [string, string]] : []),
     ],
     notes: [
-      `한 행은 요청 주문의 ${V.goods} 한 줄입니다. ${V.claimRequest}은 주문 단위로 처리되며 결제금액은 같은 요청의 행마다 반복됩니다.`,
+      `한 줄에 요청 주문의 ${V.goods} 하나를 적습니다. ${V.claimRequest}은 주문 단위로 처리되며 결제금액은 같은 요청의 줄마다 반복됩니다.`,
       ...(withDelivery ? ['배송지와 운송장은 원래 주문의 출고 정보입니다. 회수 주소는 요청 상세에서 확인합니다.'] : []),
       `${deadlineLabel}은 내려받은 시각 기준입니다.`,
     ],
@@ -504,8 +501,8 @@ export function refundTransfersListExportSheet(input: {
     recordCount: input.rows.length,
     conditions: [['대상', '송금 대기 중인 무통장 환불 전체']],
     notes: [
-      '한 행은 송금을 기다리는 무통장 환불 요청 한 건입니다. 결제자에게 송금할 금액을 보낸 뒤 요청 상세에서 송금 완료를 기록해야 이 목록에서 빠집니다.',
-      ...(input.rows.some(row => row.kind === 'partial_cancellation') ? ['유형이 "부분 취소"인 행은 재고 부족 부분 취소의 환불입니다. 송금 완료는 주문 상세의 부분 취소 기록에서 적습니다.'] : []),
+      '한 줄은 송금을 기다리는 무통장 환불 요청 한 건입니다. 결제자에게 송금할 금액을 보낸 뒤 요청 상세에서 송금 완료를 기록해야 이 목록에서 빠집니다.',
+      ...(input.rows.some(row => row.kind === 'partial_cancellation') ? ['유형이 "부분 취소"인 줄은 재고 부족 부분 취소의 환불입니다. 송금 완료는 주문 상세의 부분 취소 기록에서 적습니다.'] : []),
       ...(includeAccount ? [
         '은행·계좌번호·예금주는 고객이 환불받을 계좌로 등록한 그대로입니다. 계좌 상태가 "확인됨"이 아닌 요청은 계좌 칸이 비어 있으니 요청 상세에서 확인한 뒤 송금하세요.',
         '이 파일을 내려받을 때 요청마다 누가 언제 계좌를 봤는지 기록이 남았습니다. 송금에만 쓰고, 송금이 끝나면 파일을 지워주세요.',

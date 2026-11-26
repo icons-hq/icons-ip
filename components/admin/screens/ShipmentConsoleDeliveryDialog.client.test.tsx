@@ -125,6 +125,48 @@ it('모두 처리되면 팝업을 닫고 목록을 새로 읽는다', async () =
   expect(onClose).toHaveBeenCalledOnce(); expect(mocks.refresh).toHaveBeenCalledOnce();
 });
 
+/* QA-O 고칠 것 3: 출고지에 켠 택배 외 수령 방식이 없으면 '택배' 하나뿐인 목록과 [0건 방식 바꾸기] 대신 이유와 켜는 곳을 보인다. */
+it('바꿀 방식이 없으면 이유와 켜는 곳을 말하고, 방식 목록·처리 버튼을 보이지 않는다', async () => {
+  mocks.read.mockResolvedValue({ ok: true, options: { shipments: [shipment({})], policies: [] } });
+  const renderMethod = () => { mocks.index = 0; mocks.refIndex = 0; return ShipmentConsoleDeliveryDialog({ shipmentIds: [FIRST], mode: 'method', onClose, onDone }) as Element; };
+  renderMethod(); mocks.effects.splice(0).forEach(effect => effect()); await new Promise(resolve => setTimeout(resolve, 0));
+  const tree = renderMethod();
+  expect(text(tree)).toContain('이 출고지에는 사용 중인 택배 외 수령 방식이 없어 바꿀 방식이 없습니다.');
+  expect(text(tree)).toContain('배송정보 관리에서 그 출고지의 ‘택배 외 수령 방식’을 켜면 여기서 고를 수 있습니다.');
+  expect(nodes(tree).find(node => node.type === 'a')!.props).toMatchObject({ href: '/admin/settings/origins', target: '_blank' });
+  expect(nodes(tree).some(node => node.type === NativeSelect)).toBe(false);
+  expect(nodes(tree).filter(node => node.type === Button).map(node => text(node.props.children as ReactNode))).toEqual(['닫기']);
+  expect(text(tree)).not.toContain('0건 방식 바꾸기');
+  /* 지금 방식이 택배가 아닌 건은 택배로 되돌릴 수 있으므로 목록을 그대로 보인다. */
+  mocks.states = []; mocks.refs = []; mocks.effects = [];
+  mocks.read.mockResolvedValue({ ok: true, options: { shipments: [shipment({ method: 'quick', customerMethod: 'quick' })], policies: [] } });
+  renderMethod(); mocks.effects.splice(0).forEach(effect => effect()); await new Promise(resolve => setTimeout(resolve, 0));
+  expect(nodes(renderMethod()).some(node => node.type === NativeSelect)).toBe(true);
+});
+
+/* 화면 규칙 7: 인계 칸 다섯과 바꾸는 이유는 닫으면 다시 적어야 한다 — 적은 내용이 있으면 [닫기]·X·Esc가 닫기 전에 한 번 묻는다. */
+it('적은 내용이 없으면 바로 닫고, 인계 칸에 적은 내용이 있으면 닫기 전에 묻는다', async () => {
+  const { setAdminConfirmHandler } = await import('@/lib/admin/confirm');
+  const asked: { title?: string; confirmLabel?: string; cancelLabel?: string }[] = []; let answer = false;
+  const restore = setAdminConfirmHandler(async request => { asked.push(request); return answer; });
+  vi.stubGlobal('document', { querySelector: () => null });
+  try {
+    mocks.read.mockResolvedValue({ ok: true, options: { ...options, shipments: [shipment({ method: 'quick', customerMethod: 'quick' })] } });
+    await open();
+    (button('닫기').props.onClick as () => void)();
+    expect(onClose).toHaveBeenCalledOnce(); expect(asked).toEqual([]);
+    onClose.mockClear();
+    fillHandoff();
+    /* [닫기]와 창의 X·Esc(CustomerServiceDialog의 onClose)가 같은 길을 지난다. */
+    const dialogClose = () => (render().props.onClose as () => void)();
+    (button('닫기').props.onClick as () => void)(); await new Promise(resolve => setTimeout(resolve, 0));
+    expect(asked).toEqual([{ title: '적은 내용을 저장하지 않고 닫을까요?', message: '지금 적은 내용이 사라집니다.', confirmLabel: '저장하지 않고 닫기', cancelLabel: '돌아가기' }]);
+    expect(onClose).not.toHaveBeenCalled();
+    answer = true; dialogClose(); await new Promise(resolve => setTimeout(resolve, 0));
+    expect(asked).toHaveLength(2); expect(onClose).toHaveBeenCalledOnce();
+  } finally { restore(); vi.unstubAllGlobals(); }
+});
+
 it('결과를 모른 채 끊긴 요청은 같은 내용이면 같은 요청 번호로 다시 보낸다', async () => {
   mocks.read.mockResolvedValue({ ok: true, options: { ...options, shipments: [shipment({ method: 'quick', customerMethod: 'quick' })] } });
   await open();

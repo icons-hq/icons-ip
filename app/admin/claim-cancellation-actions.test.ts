@@ -169,7 +169,7 @@ describe('decideOrderClaimAction — 취소 승인', () => {
 
     expect(mocks.loadAdminClaimDetail).not.toHaveBeenCalled();
     expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
-    expect(state.message).toBe('클레임을 승인하고 수거를 시작했습니다.');
+    expect(state.message).toBe('반품 요청을 승인하고 수거를 시작했습니다.');
   });
 });
 

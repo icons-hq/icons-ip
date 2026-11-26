@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BANK_REFUND_FIELDS, BANK_REFUND_KINDS, BANK_REFUND_LABELS, bankRefundConfirm, bankRefundError, bankRefundFields, bankRefundMetadata, bankRefundNotBefore, bankRefundOccurredAt,
+import { BANK_REFUND_ACCOUNT_MISSING_AFTER_PARTIAL, BANK_REFUND_FIELDS, BANK_REFUND_KINDS, BANK_REFUND_LABELS, bankRefundBlockedMessage, bankRefundConfirm, bankRefundError, bankRefundFields, bankRefundMetadata, bankRefundNotBefore, bankRefundOccurredAt,
   bankRefundReceiptMatches, bankRefundRecordedMessage, bankRefundRecoveryKey, bankRefundSteps, bankRefundTimeInputMin,
   bankRefundTransferAmount, bankRefundWithoutTransfer, normalizeBankRefundRequest, parseBankRefundAccountView, parseBankRefundContext, parseBankRefundReceipt, parseBankRefundRecovery,
   type BankRefundContext, type BankRefundRequest, type BankRefundReceipt } from './bank-transfer-refund';
@@ -184,5 +184,39 @@ describe('무통장 환불 화면의 말', () => {
     expect(bankRefundError('23514', 'bank_refund_filing_required').error).toBe('먼저 [환불 접수 기록]을 남겨주세요.');
     expect(bankRefundError('23514', 'claim_refund_account_missing').error).toContain('환불계좌를 등록해 달라고 안내해주세요');
     expect(bankRefundError('22023', 'invalid_bank_refund_operation').error).not.toContain('체크');
+  });
+});
+
+/*
+ * F-05: 환불계좌가 없는 취소·반품이 막힐 때의 안내. 일반 주문은 '결제한 분에게 등록을 안내'가 맞지만, 앞선 재고 부족 부분 취소로 일부를 환불한 주문은 승인으로 열린
+ * 환불 기록의 금액이 결제 금액과 달라 고객 화면이 계좌 추가를 막는다(DB refund_account_finance_started). 운영자가 대신 넣는 길도 토스 가상계좌 주문만이라 화면으로 풀 길이 없다.
+ */
+describe('단계를 누를 수 없을 때의 이유(bankRefundBlockedMessage)', () => {
+  const missing: BankRefundContext = { ...context, phase: 'not_confirmed', confirmedAt: null, filedAt: null, maskedAccount: null, maskedHolder: null,
+    confirmBlocker: 'claim_refund_account_missing', fileBlocker: 'claim_refund_account_missing', completeBlocker: 'claim_refund_account_missing' };
+
+  it('환불계좌가 없는 일반 주문은 결제한 분에게 등록을 안내하라고 말한다', () => {
+    expect(bankRefundBlockedMessage(missing)).toBe('환불계좌가 없습니다. 결제한 분에게 주문 상세(선물 주문은 선물 요청 화면)에서 환불계좌를 등록해 달라고 안내해주세요.');
+  });
+
+  it('앞선 부분 취소가 있었던 주문은 고객도 운영자도 계좌를 넣을 수 없어 지금은 진행할 수 없다고 사실대로 말한다', () => {
+    const message = bankRefundBlockedMessage({ ...missing, partialRefund: { refundedAmount: 15000, refundAmount: 33000 } });
+    expect(message).toBe(BANK_REFUND_ACCOUNT_MISSING_AFTER_PARTIAL);
+    expect(message).toContain('앞서 부분 취소로 환불한 주문은');
+    expect(message).toContain('고객이 계좌를 추가할 수 없고');
+    expect(message).toContain('운영자가 대신 넣을 방법도 아직 없습니다');
+    expect(message).toContain('개발 요청이 필요합니다');
+    /* 못 하는 일을 시키지 않는다. */
+    expect(message).not.toContain('안내해주세요');
+  });
+
+  it('부분 취소가 있어도 환불계좌 문제가 아닌 이유는 서버 코드의 운영자 문구 그대로다', () => {
+    const blocked = { ...missing, partialRefund: { refundedAmount: 15000, refundAmount: 33000 }, confirmBlocker: 'bank_refund_approval_required', fileBlocker: 'bank_refund_confirmation_required', completeBlocker: 'bank_refund_confirmation_required' };
+    expect(bankRefundBlockedMessage(blocked)).toBe(bankRefundError(undefined, 'bank_refund_approval_required').error);
+  });
+
+  it('끝난 환불이거나 막힌 이유가 없으면 null이다', () => {
+    expect(bankRefundBlockedMessage({ ...missing, phase: 'completed' })).toBeNull();
+    expect(bankRefundBlockedMessage({ ...missing, confirmBlocker: null, fileBlocker: null, completeBlocker: null })).toBeNull();
   });
 });

@@ -417,6 +417,13 @@ describe('주문 상세 — 이름과 눈에 보이는 값', () => {
     const later = OrderDetailScreen({ noteOperationId: 'operation', actorId: 'actor-1', now: new Date('2026-09-08T01:00:00Z'), detail: { ...detail, shipments: [shipment],
       emailJobs: [{ shipmentId: shipment.id, status: 'processing', attempts: 1, lastErrorCode: null, updatedAt: '2026-09-08T00:05:00Z' }] } });
     expect((elements(later).find(node => typeof node.type === 'function' && node.type.name === 'ShipmentStatusRevertPanel')?.props.targets as { blockedReason: string | null }[])[0].blockedReason).toBeNull();
+    /* 메일 작업을 잡고 있는 시각(lease_until)을 읽었으면 DB와 같은 조건으로 본다 — 처리 중이고 그 시각이 지금보다 뒤면 잠근다(작업을 잡은 지 오래됐어도). */
+    const lease = (leaseUntil: string | null) => (elements(OrderDetailScreen({ noteOperationId: 'operation', actorId: 'actor-1', now: new Date('2026-09-08T01:00:00Z'), detail: { ...detail, shipments: [shipment],
+      emailJobs: [{ shipmentId: shipment.id, status: 'processing', attempts: 1, lastErrorCode: null, updatedAt: '2026-09-08T00:05:00Z', leaseUntil }] } }))
+      .find(node => typeof node.type === 'function' && node.type.name === 'ShipmentStatusRevertPanel')?.props.targets as { blockedReason: string | null }[])[0].blockedReason;
+    expect(lease('2026-09-08T01:05:00Z')).toBe('배송 안내 메일을 보내는 중입니다. 몇 분 뒤 다시 시도해주세요.');
+    expect(lease('2026-09-08T00:59:00Z')).toBeNull();
+    expect(lease(null)).toBeNull();
   });
   it('운영자 메모 칸은 어디에 남고 누가 보는지 말하고 쓸 내용의 예를 보인다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);

@@ -139,7 +139,7 @@ export function bankRefundConfirm(context: BankRefundContext, kind: BankRefundKi
   const withoutTransfer = bankRefundWithoutTransfer(context);
   const deduction = context.refundDeduction?.applicable && context.refundDeduction.refundAmount !== null ? context.refundDeduction : null;
   const amountDetail = deduction ? ` (결제 ${krwAmountWords(deduction.paymentAmount ?? context.amount)} − 반품배송비 ${krwAmountWords(deduction.deductionAmount)})`
-    : context.partialRefund ? ` (앞선 부분 취소로 ${krwAmountWords(context.partialRefund.refundedAmount)}은 이미 환불)` : '';
+    : context.partialRefund ? ` (앞선 부분 취소분 ${krwAmountWords(context.partialRefund.refundedAmount)}은 이 요청과 따로 환불)` : '';
   const account = context.maskedAccount ? `받는 계좌: ${context.maskedAccount}${context.maskedHolder ? ` (예금주 ${context.maskedHolder})` : ''}` : null;
   const gift = context.gift ? '선물 주문입니다. 선물 받은 분이 아니라 결제한 분에게 환불합니다.' : null;
   const time = formatOrderDateTime(occurredAt);
@@ -148,7 +148,7 @@ export function bankRefundConfirm(context: BankRefundContext, kind: BankRefundKi
     return {
       title: '취소를 확정할까요?', confirmLabel: '취소 확정', cancelLabel: '돌아가기', destructive: true,
       message: withoutTransfer
-        ? lines(`앞선 부분 취소로 결제 ${krwAmountWords(context.amount)}을 이미 모두 환불했습니다.`, `취소 확정 시각: ${time}`, gift, '',
+        ? lines(`앞선 부분 취소로 결제 ${krwAmountWords(context.amount)}을 모두 따로 환불합니다.`, `취소 확정 시각: ${time}`, gift, '',
           '주문이 취소되고 재고가 복원됩니다. 더 보낼 돈이 없어 송금 없이 환불 0원으로 끝납니다. 되돌릴 수 없습니다.')
         : lines(`송금할 금액: ${krwAmountWords(amount)}${amountDetail}`, account, `취소 확정 시각: ${time}`, gift, '',
           '주문이 취소되고 재고가 복원됩니다. 되돌릴 수 없습니다.', '환불금은 아직 보내지 않았으므로 환불 송금 대기에 남습니다.'),
@@ -249,6 +249,23 @@ export function parseBankRefundAccountView(value: unknown): BankRefundAccountVie
     || typeof value.accountHolder !== 'string' || !value.accountHolder || [...value.accountHolder].length > 40
     || typeof value.accountNumber !== 'string' || !/^(?=.*[0-9])[0-9-]{8,30}$/.test(value.accountNumber)) return null;
   return value as unknown as BankRefundAccountView;
+}
+/**
+ * 환불계좌가 없는데 앞선 재고 부족 부분 취소로 이미 일부를 환불한 주문의 안내. 일반 안내('결제한 분에게 주문 상세에서 등록해 달라고 안내')는 이 주문에는 맞지 않다 —
+ * 승인으로 열린 환불 기록의 금액이 결제 금액과 달라져 고객 화면이 '계좌를 추가할 수 없습니다'로 막히고(DB private.order_claim_refund_account_blocker의
+ * refund_account_finance_started), 운영자가 대신 넣는 길(admin_set_order_claim_refund_account)은 토스 가상계좌 주문만 받는다. 지금은 화면으로 풀 길이 없다.
+ */
+export const BANK_REFUND_ACCOUNT_MISSING_AFTER_PARTIAL = '환불계좌가 없습니다. 앞서 부분 취소로 환불한 주문은 환불이 시작된 뒤에는 고객이 계좌를 추가할 수 없고, 운영자가 대신 넣을 방법도 아직 없습니다. 지금은 이 요청을 진행할 수 없습니다. 개발 요청이 필요합니다.';
+/**
+ * 지금 누를 단계가 없을 때 칸 머리 아래에 보이는 이유. 서버가 준 막힘 코드를 운영자 말로 바꾸고, 부분 취소가 있었던 주문의 환불계좌 없음만 위 안내로 말한다.
+ * 끝난 환불이거나 누를 수 있는 단계가 있으면 null.
+ */
+export function bankRefundBlockedMessage(context: BankRefundContext): string | null {
+  if (context.phase === 'completed') return null;
+  const code = context.confirmBlocker ?? context.completeBlocker ?? context.fileBlocker;
+  if (!code) return null;
+  if (code === 'claim_refund_account_missing' && context.partialRefund) return BANK_REFUND_ACCOUNT_MISSING_AFTER_PARTIAL;
+  return bankRefundError(undefined, code).error;
 }
 export function bankRefundError(code?: string, message?: string): BankRefundFailure {
   if (code === '42501' || code === '28000') return { error: '로그인 상태나 결제 처리 권한이 바뀌었습니다. 새로고침해 현재 계정으로 요청을 다시 열어주세요.', authChanged: true };

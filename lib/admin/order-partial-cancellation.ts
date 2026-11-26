@@ -2,6 +2,9 @@
  * 재고 부족 부분 취소(ADR-0032)의 운영 화면 문구. DB 판정 코드를 운영팀 어휘(상품·옵션)로 옮긴다. 원문 코드는 노출하지 않는다.
  */
 import { krwAmountWords } from '@/lib/format';
+import { BANK_REFUND_LABELS } from './bank-transfer-refund';
+import type { AdminConfirmRequest } from './confirm';
+import { ADMIN_SALES_ACCESS_DENIED } from './vocabulary';
 import type { OrderPartialCancellationPlan, OrderPartialCancellationState } from '@/lib/orders/partial-cancellation';
 
 export const ORDER_PARTIAL_CANCELLATION_STATE_LABELS: Record<OrderPartialCancellationState, string> = {
@@ -88,7 +91,7 @@ const START_ERRORS: Record<string, string> = {
   partial_cancel_refund_account_missing: '저장해 둔 환불 계좌가 없습니다(보관 기간이 지나 지웠습니다). 고객에게 계좌를 다시 받아 담당자에게 넘겨주세요.',
   bank_refund_permission_required: '송금 담당 권한이 필요합니다. 송금 권한이 있는 관리자 계정으로 로그인했는지 확인해주세요.',
   refund_account_auth_changed: '로그인 상태나 송금 담당 권한이 바뀌었습니다. 새로고침 뒤 다시 시도해주세요.',
-  operator_capability_required: '이 작업을 할 권한이 없습니다. 로그인 계정의 주문 처리 권한을 계정 주매니저에게 확인해주세요.',
+  operator_capability_required: ADMIN_SALES_ACCESS_DENIED,
 };
 
 /** 결제사 확인 결과 사유(오케스트레이터 코드). */
@@ -207,5 +210,38 @@ export function orderPartialCancellationConfirmCopy(plan: Pick<OrderPartialCance
     title: zero ? '이 상품만 취소할까요? (환불 0원)' : `이 상품만 취소하고 ${krwAmountWords(plan.refundAmount)}을 환불할까요?`,
     description: `되돌릴 수 없습니다. ${outcome} 적용되면 구매자에게 알림이 갑니다.`,
     confirmLabel: zero ? '부분 취소 확정 (환불 0원)' : bank ? '부분 취소 확정 (송금 대기)' : '부분 취소 확정',
+  };
+}
+
+/**
+ * 무통장 부분 취소·부분 반품 환불의 [송금 완료 기록] 확인창. 기록하면 그 환불이 끝나고 고객에게 알림이 가며 되돌릴 수 없다
+ * (DB: admin_record_order_partial_cancellation_transfer). 무통장 환불 칸의 같은 버튼(bankRefundConfirm의 송금 완료 기록)과 같은 말을 쓴다.
+ *
+ * 값은 화면에 이미 보이는 것만 쓴다 — 주문번호, 송금할 환불액, 가린 계좌(은행·계좌번호 뒷자리)와 가린 예금주.
+ * [계좌번호 전체 보기]로 전체 번호를 봤어도 확인창에는 가린 값만 적는다. 고객 알림 제목은 DB가 보내는 그대로다
+ * (private.notify_order_partial_cancellation · notify_order_partial_return의 'transferred').
+ */
+export function orderPartialCancellationTransferConfirm(input: {
+  orderNumber?: string | null;
+  refundAmount: number;
+  refundAccount?: { maskedAccount: string; maskedHolder: string } | null;
+  /** 부분 반품 환불 줄이면 true. 재고 부족 부분 취소와 이름·고객 알림 제목이 다르다. */
+  partialReturn?: boolean;
+}): AdminConfirmRequest {
+  const account = input.refundAccount?.maskedAccount
+    ? `받는 계좌: ${input.refundAccount.maskedAccount}${input.refundAccount.maskedHolder ? ` (예금주 ${input.refundAccount.maskedHolder})` : ''}` : null;
+  const done = input.partialReturn
+    ? "기록하면 이 부분 반품 환불이 끝나고 고객에게 '반품 환불을 송금했어요' 알림이 갑니다. 되돌릴 수 없습니다."
+    : "기록하면 이 부분 취소 환불이 끝나고 고객에게 '부분 취소 환불을 송금했어요' 알림이 갑니다. 되돌릴 수 없습니다.";
+  return {
+    title: '송금을 마쳤다고 기록할까요?', confirmLabel: BANK_REFUND_LABELS.complete_transfer, cancelLabel: '돌아가기', destructive: true,
+    message: [
+      input.orderNumber ? `주문 ${input.orderNumber}` : null,
+      `보낸 금액: ${krwAmountWords(input.refundAmount)}`,
+      account,
+      '',
+      '은행에서 송금을 마친 뒤에만 누릅니다. 이 버튼은 돈을 보내지 않고 기록만 남깁니다.',
+      done,
+    ].filter((line): line is string => typeof line === 'string').join('\n'),
   };
 }

@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { orderClaimReferenceLabel } from '@/lib/orders/claims';
 import {
   adminClaimBackHref,
   adminClaimBasePath,
@@ -10,7 +11,9 @@ import {
   adminClaimPreviewId,
   adminClaimReasonOptions,
   adminClaimReasonText,
+  adminClaimReceivedOnLabel,
   adminClaimRejectionPresets,
+  adminClaimSearchQuery,
   adminClaimStageLabel,
   adminClaimTodayKst,
   ADMIN_CLAIM_DATE_FIELDS,
@@ -358,5 +361,45 @@ describe('콘솔 폼 정규화', () => {
     expect(normalizeAdminClaimDecisionForm(
       formData({ claimId: 'not-a-uuid', decision: 'approve' }),
     )).toMatchObject({ ok: false });
+  });
+});
+
+/* F-10: 목록에 보이는 요청번호 'C00021'을 그대로 붙여 넣어도 찾아져야 한다. DB는 숫자 글자로 비교하므로 DB가 받는 값('21')으로 바꿔 보낸다. */
+describe('요청번호 검색어', () => {
+  it('화면에 보이는 요청번호는 앞의 C와 0을 떼어 DB가 받는 숫자로 바꾼다 — 표시 형식(orderClaimReferenceLabel)의 역이다', () => {
+    expect(adminClaimSearchQuery('C00021')).toBe('21');
+    expect(adminClaimSearchQuery('c00021')).toBe('21');
+    expect(adminClaimSearchQuery('  C00021  ')).toBe('21');
+    expect(adminClaimSearchQuery('C21')).toBe('21');
+    expect(adminClaimSearchQuery('C00100')).toBe('100');
+    expect(adminClaimSearchQuery('C123456')).toBe('123456');
+    /* 화면이 만드는 모든 번호가 되돌아온다. */
+    for (const reference of [1, 9, 21, 100, 99999, 100000, 1234567]) expect(adminClaimSearchQuery(orderClaimReferenceLabel(reference))).toBe(String(reference));
+  });
+
+  it("요청번호를 찾는 '전체'·'주문·요청번호' 검색에서만 바꾸고, 그 밖의 검색 항목은 적은 그대로 보낸다", () => {
+    expect(adminClaimSearchQuery('C00021', undefined)).toBe('21');
+    expect(adminClaimSearchQuery('C00021', 'order')).toBe('21');
+    for (const field of ['buyer', 'email', 'recipient', 'item'] as const) expect(adminClaimSearchQuery('C00021', field)).toBe('C00021');
+  });
+
+  it('요청번호 모양이 아니면 그대로 둔다 — 숫자만, 번호가 아닌 글, 0, 다른 글자가 섞인 값', () => {
+    for (const query of ['21', '00021', '', 'C', 'C0', 'C00', 'C-21', 'C00021A', 'CC00021', 'C 00021', 'X00021', '20261126-0000012', 'abc']) {
+      expect(adminClaimSearchQuery(query), query).toBe(query.trim());
+    }
+  });
+});
+
+/* F-14: 회수 확인 창·결과 글의 입고일도 목록·상세와 같은 날짜 표기("2026. 11. 26.")로 보인다. */
+describe('입고일 표기', () => {
+  it('날짜 칸의 값(YYYY-MM-DD)을 목록·상세가 쓰는 표기로 바꾼다 — 월·일의 앞자리 0은 붙이지 않는다', () => {
+    expect(adminClaimReceivedOnLabel('2026-11-26')).toBe('2026. 11. 26.');
+    expect(adminClaimReceivedOnLabel('2026-01-02')).toBe('2026. 1. 2.');
+    expect(adminClaimReceivedOnLabel('2026-12-31')).toBe('2026. 12. 31.');
+  });
+
+  it('날짜로 읽을 수 없는 값은 받은 그대로 둔다', () => {
+    expect(adminClaimReceivedOnLabel('')).toBe('');
+    expect(adminClaimReceivedOnLabel('오늘')).toBe('오늘');
   });
 });

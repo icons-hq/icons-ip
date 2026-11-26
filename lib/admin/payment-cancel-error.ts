@@ -1,3 +1,5 @@
+import { directionParticle, subjectParticle } from '@/lib/korean-particle';
+
 /**
  * 결제 취소 확정 실패 코드를 운영자 말로 옮긴다. 문장은 무슨 일이 있었고 다음에 무엇을 하는지만 말한다.
  * 코드는 DB·가이드 계약이라 지우지 않되 문장에 섞지 않고, '문의할 때 알려 줄 코드'로 한 번만 붙인다.
@@ -75,6 +77,26 @@ const UNKNOWN: PaymentCancelErrorCopy = {
 
 export function adminPaymentCancelErrorCopy(code: string): PaymentCancelErrorCopy {
   return COPY[code] ?? UNKNOWN;
+}
+
+/** 코드별 안내가 가리키는 버튼. 취소·반품·교환 관리의 요청 상세에 있다. */
+const CLAIM_DETAIL_FINALIZE_BUTTON = '[환불 완료 확정]';
+
+/**
+ * 주문통합검색의 주문 처리 패널이 보일 다음 할 일. 코드별 안내는 취소·반품·교환 관리의 요청 상세에 있는 [환불 완료 확정]을 가리키는데
+ * 주문 패널에는 그 버튼이 없다 — 그 버튼이 어디에 있는지와, 이 패널에서 같은 일을 하는 버튼(`recheckLabel`)·요청 상세로 가는 버튼
+ * (`claimsLinkLabel`)의 이름을 화면에 적힌 그대로 덧붙인다. 그 버튼이 화면에 없으면 null을 넘긴다.
+ */
+export function adminPaymentCancelPanelNext(code: string, panel: { recheckLabel: string | null; claimsLinkLabel: string | null }): string {
+  const { next } = adminPaymentCancelErrorCopy(code);
+  if (!next.includes(CLAIM_DETAIL_FINALIZE_BUTTON)) return next;
+  const { recheckLabel, claimsLinkLabel } = panel;
+  const where = claimsLinkLabel
+    ? `${CLAIM_DETAIL_FINALIZE_BUTTON}은 아래 [${claimsLinkLabel}]${directionParticle(claimsLinkLabel)} 여는 요청 상세에 있습니다.`
+    : `${CLAIM_DETAIL_FINALIZE_BUTTON}은 취소·반품·교환 관리의 요청 상세에 있습니다.`;
+  return recheckLabel
+    ? `${next} 이 주문 패널에서는 아래 [${recheckLabel}]${subjectParticle(recheckLabel)} 같은 일을 합니다. ${where}`
+    : `${next} ${where}`;
 }
 
 const SUPPORT_CODE_MARK = ` ${ADMIN_SUPPORT_CODE_LABEL}: `;

@@ -2,7 +2,7 @@
 
 import { Subscribe, type ColumnDef, type RowSelectionState, type SortingState, type Table as CoreTable } from '@tanstack/react-table';
 import { unstable_rethrow, useRouter } from 'next/navigation';
-import { startTransition, useActionState, useId, useMemo, useState, useTransition, type FormEvent } from 'react';
+import { startTransition, useActionState, useId, useMemo, useRef, useState, useTransition, type FormEvent } from 'react';
 import { bulkDecideOrderClaimsAction } from '@/app/admin/claim-actions';
 import { bulkConvertClaimTypesAction } from '@/app/admin/claim-type-conversion-actions';
 import { DataTable } from '@/components/admin/kit/data-table/data-table';
@@ -30,6 +30,7 @@ import {
   ADMIN_CLAIM_BULK_LIMIT,
   ADMIN_CLAIM_BULK_RESHIP_LIMIT,
   ADMIN_CLAIM_BULK_STEP_LABELS,
+  adminClaimBulkConversionConfirmation,
   adminClaimBulkConversionLabel,
   adminClaimBulkConversionTarget,
   adminClaimBulkDecisionBlocker,
@@ -456,6 +457,14 @@ export function ClaimQueueKitTable({
   const [stepSession, setStepSession] = useState<ClaimBulkStepSession | null>(null);
   const [stepResult, setStepResult] = useState<AdminClaimBulkState | null>(null);
   const [preSkipped, setPreSkipped] = useState<PreSkipped>(NO_PRE_SKIPPED);
+  /* 확인창을 기다리는 동안인지. 화면에 그리는 값이 아니라 닫힘 이벤트를 걸러 내는 표시라 상태가 아니라 ref로 들고 있는다(바로 읽혀야 한다). */
+  const confirming = useRef(false);
+  /* 확인창이 뜨면 포커스가 그리로 넘어가 거부·전환 팝오버와 처리 막대가 닫히고(선택이 풀린다), 돌아가기를 눌러도 적던 사유로 돌아올 수 없었다(F-13).
+     확인창을 기다리는 동안에는 이 닫힘을 무시한다 — 돌아가면 팝오버가 그대로 열려 있고, 확인하면 아래 처리가 닫는다. */
+  async function whileConfirming<T>(work: () => Promise<T>): Promise<T> {
+    confirming.current = true;
+    try { return await work(); } finally { confirming.current = false; }
+  }
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const convertFrom = claimType === 'cancel' ? null : claimType;
   const convertTo = convertFrom ? adminClaimBulkConversionTarget(convertFrom) : null;
@@ -529,7 +538,7 @@ export function ClaimQueueKitTable({
       openStep('approve');
       return;
     }
-    const plan = await planAdminClaimBulkSubmit({ claimType, picks, decision, note, autoPickup: autoPickupEnabled }, adminConfirm);
+    const plan = await whileConfirming(() => planAdminClaimBulkSubmit({ claimType, picks, decision, note, autoPickup: autoPickupEnabled }, adminConfirm));
     if (plan.kind === 'invalid') { setClientError(plan.error); return; }
     setClientError('');
     if (plan.kind === 'dismissed') return;
@@ -543,7 +552,7 @@ export function ClaimQueueKitTable({
     startTransition(() => run(formData));
   }
 
-  function convert() {
+  async function convert() {
     if (deciding || !convertFrom) return;
     const formData = new FormData();
     formData.set('claimType', convertFrom);
@@ -553,6 +562,9 @@ export function ClaimQueueKitTable({
     const checked = normalizeAdminClaimBulkConversionForm(formData);
     if (!checked.ok) { setClientError(checked.error); return; }
     setClientError('');
+    /* 고객 알림이 가고 배송비 청구가 취소되는 일이라 건수와 함께 확인창으로 한 번 묻는다. 확인창은 전환 밖에서 먼저 받는다 —
+       전환(startTransition) 안에서 띄우면 확인창이 뜨지 않고 멈춘다. 돌아가면 팝오버와 적은 합의 근거를 그대로 둔다(거부와 같은 순서). */
+    if (!await whileConfirming(() => adminConfirm(adminClaimBulkConversionConfirmation(convertFrom, selectedIds.length)))) return;
     setConvertOpen(false);
     setPreSkipped(NO_PRE_SKIPPED);
     startTransition(() => run(formData));
@@ -678,7 +690,7 @@ export function ClaimQueueKitTable({
     <ActionBar
       aria-label="선택 건 일괄 처리"
       className="w-max max-w-[calc(100vw-1rem)] flex-wrap justify-center"
-      onOpenChange={(open) => { if (!open && !deciding) setSelection({}); }}
+      onOpenChange={(open) => { if (!open && !deciding && !confirming.current) setSelection({}); }}
       open={selectedIds.length > 0}
     >
       <ActionBarSelection>
@@ -703,7 +715,7 @@ export function ClaimQueueKitTable({
           onSelect={(event) => { event.preventDefault(); openStep(step); }}
           variant="secondary"
         >{ADMIN_CLAIM_BULK_STEP_LABELS[step]}</ActionBarItem>)}
-        {convertFrom && convertTo ? <Popover onOpenChange={(open) => { setClientError(''); setConvertOpen(open); }} open={convertOpen}>
+        {convertFrom && convertTo ? <Popover onOpenChange={(open) => { if (!open && confirming.current) return; setClientError(''); setConvertOpen(open); }} open={convertOpen}>
           <PopoverTrigger render={<ActionBarItem disabled={deciding || overLimit} onSelect={(event) => event.preventDefault()} variant="secondary" />}>
             {adminClaimBulkConversionLabel(convertFrom)}
           </PopoverTrigger>
@@ -717,7 +729,7 @@ export function ClaimQueueKitTable({
             <Button disabled={deciding} onClick={convert}>{selectedIds.length}건 {ORDER_CLAIM_TYPE_LABELS[convertTo]}으로 바꾸기</Button>
           </PopoverContent>
         </Popover> : null}
-        <Popover onOpenChange={(open) => { setClientError(''); setRejectOpen(open); }} open={rejectOpen}>
+        <Popover onOpenChange={(open) => { if (!open && confirming.current) return; setClientError(''); setRejectOpen(open); }} open={rejectOpen}>
           <PopoverTrigger render={<ActionBarItem disabled={deciding || overLimit || unavailable('reject') !== null} onSelect={(event) => event.preventDefault()} title={unavailable('reject') ?? undefined} variant="destructive" />}>
             {ADMIN_CLAIM_BULK_ACTION_LABELS.reject}
           </PopoverTrigger>

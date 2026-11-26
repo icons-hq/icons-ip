@@ -6,6 +6,7 @@ import { isUuid } from '@/lib/uuid';
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 import { createClient } from '@/lib/supabase/server';
 import { isGoodsShipDate } from '@/lib/goods-preorders';
 
@@ -50,7 +51,7 @@ export async function readShipmentPreorderPromiseAction(shipmentId: unknown, ord
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 발송 일정을 불러오지 못했습니다. [예약 발송 일정 새로고침]을 눌러주세요.' }; }
 }
 export async function changeShipmentPreorderDateAction(formData: FormData): Promise<{ ok: true; message: string } | Failure> {
-  if (!await requireAdminActionAccess(adminOrderActionHref(formData.get('orderId')), { capability: 'sales.manage' })) return { ok: false, error: '예약 발송 일정을 바꿀 권한이 없습니다. 주문 관리 권한이 있는 계정으로 로그인해주세요.' };
+  if (!await requireAdminActionAccess(adminOrderActionHref(formData.get('orderId')), { capability: 'sales.manage' })) return { ok: false, error: ADMIN_SALES_ACCESS_DENIED };
   const shipmentId = formData.get('shipmentId');
   const date = formData.get('expectedShipDate');
   const expectedVersion = formData.get('updatedAt');

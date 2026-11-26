@@ -264,6 +264,22 @@ describe('bulkDecideOrderClaimsAction', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/sales/claims/returns');
   });
 
+  it('결과 글은 처리한 요청의 유형으로 말한다 — 반품을 거부하면 반품 요청이라고 쓴다', async () => {
+    const note = '회수한 상품에 사용 흔적이 있어 반품할 수 없습니다.';
+    claimRows([{ id: ID(1), reference: 1, claim_type: 'return' }]);
+    mocks.rpc.mockResolvedValue({ data: 'rejected', error: null });
+    expect((await bulkDecideOrderClaimsAction({}, bulkForm([ID(1)], 'reject', 'return', note))).results?.[0].message).toBe('반품 요청을 거부했습니다.');
+
+    claimRows([{ id: ID(2), reference: 2, claim_type: 'exchange' }]);
+    mocks.rpc.mockResolvedValue({ data: 'collecting', error: null });
+    expect((await bulkDecideOrderClaimsAction({}, bulkForm([ID(2)], 'approve', 'exchange'))).results?.[0].message)
+      .toBe('교환 요청을 승인하고 수거를 시작했습니다.');
+
+    claimRows([{ id: ID(3), reference: 3, claim_type: 'cancel' }]);
+    mocks.rpc.mockResolvedValue({ data: 'rejected', error: null });
+    expect((await bulkDecideOrderClaimsAction({}, bulkForm([ID(3)], 'reject', 'cancel', note))).results?.[0].message).toBe('취소 요청을 거부했습니다.');
+  });
+
   it('DB가 거부 사유를 거절하면 운영자 문구로 옮긴다', async () => {
     claimRows([{ id: ID(1), reference: 1 }]);
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'invalid rejection reason' } });
@@ -433,14 +449,14 @@ describe('취소 승인 확인창(previewOrderClaimBulkApprovalAction)', () => {
     ]);
     expect(state.preview.totals).toEqual({
       count: 2, amount: 30000,
-      byProvider: [{ label: '토스 결제', count: 1, amount: 10000, providerCancel: true }, { label: '나이스페이', count: 1, amount: 20000, providerCancel: true }],
+      groups: [{ kind: 'provider', count: 2, amount: 30000, byProvider: [{ label: '토스 결제', count: 1, amount: 10000 }, { label: '나이스페이', count: 1, amount: 20000 }] }],
     });
     /* 읽기만 한다: 사실을 읽는 RPC 하나뿐이고 결정·결제사 취소는 부르지 않는다. */
     expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_order_claim_bulk_context']);
     expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
   });
 
-  it('금액은 환불 확정 확인창과 같은 값(refundAmount)이고, 무통장·코페이·결제 없음은 승인만 한다고 알린다', async () => {
+  it('금액은 환불 확정 확인창과 같은 값(refundAmount)이고, 결제사로 나가는 금액은 무통장·코페이 같은 승인만 하는 건과 나눠 센다', async () => {
     stepRpc(new Map([
       [ID(1), cancelFact(1, { refundAmount: 25000 })],
       [ID(2), cancelFact(2, { paymentProvider: 'bank_transfer' })],
@@ -449,12 +465,21 @@ describe('취소 승인 확인창(previewOrderClaimBulkApprovalAction)', () => {
     ]));
     const state = await previewOrderClaimBulkApprovalAction({ claimType: 'cancel', claimIds: [1, 2, 3, 4].map(ID) });
     if (state.preview?.step !== 'approve') throw new Error('approve preview expected');
-    expect(state.preview.rows.map((row) => [row.amount, row.providerCancel, row.blocker])).toEqual([[25000, true, null], [20000, false, null], [30000, false, null], [null, false, null]]);
+    expect(state.preview.rows.map((row) => [row.amount, row.kind, row.blocker])).toEqual([[25000, 'provider', null], [20000, 'manual', null], [30000, 'manual', null], [null, 'order', null]]);
     expect(state.preview.rows[0].effect).toBe('승인하고 토스 전액 취소를 요청합니다');
     expect(state.preview.rows[1].effect).toContain('계좌 송금');
-    expect(state.preview.rows[3].effect).toContain('결제 전 주문');
-    /* 결제가 없는 주문은 금액 없이 건수만 센다. */
-    expect(state.preview.totals).toMatchObject({ count: 4, amount: 75000 });
+    /* 결제 전 주문은 승인만 하는 것이 아니라 승인 즉시 주문이 취소된다(issueApprovedClaimCancellation이 주문 취소·재고 복원까지 끝낸다). */
+    expect(state.preview.rows[3].effect).toContain('주문을 바로 취소');
+    expect(state.preview.rows[3].effect).not.toContain('승인만');
+    /* 결제사로 나가는 금액은 토스 25,000원뿐이다. 무통장 20,000·코페이 30,000은 승인만 하고 따로 환불하므로 합계에 넣지 않고, 결제 전 주문은 건수만 센다. */
+    expect(state.preview.totals).toEqual({
+      count: 4, amount: 25000,
+      groups: [
+        { kind: 'provider', count: 1, amount: 25000, byProvider: [{ label: '토스 결제', count: 1, amount: 25000 }] },
+        { kind: 'manual', count: 2, amount: 50000, byProvider: [{ label: '무통장 입금', count: 1, amount: 20000 }, { label: '코페이', count: 1, amount: 30000 }] },
+        { kind: 'order', count: 1, amount: 0, byProvider: [{ label: '결제 없음', count: 1, amount: 0 }] },
+      ],
+    });
   });
 
   it('취소 목록 밖·권한 없음·잘못된 선택은 사실을 읽지 않는다', async () => {
@@ -583,8 +608,8 @@ describe('일괄 회수 확인(runOrderClaimBulkCollectionsAction)', () => {
       ['admin_record_order_claim_collection', { p_claim_id: ID(2), p_stage: 'collected', p_received_on: '2026-11-10', p_evidence: '창고 회신 R-1 대조' }],
     ]);
     expect(state.results?.map((result) => [result.reference, result.outcome, result.message])).toEqual([
-      ['C00001', 'done', 'TEST 김포 회수를 확인했습니다(실제 입고일 2026-11-10). 남은 출고지 1곳은 따로 확인해주세요.'],
-      ['C00002', 'done', '입고를 확인했습니다(실제 입고일 2026-11-10).'],
+      ['C00001', 'done', 'TEST 김포 회수를 확인했습니다(실제 입고일 2026. 11. 10.). 남은 출고지 1곳은 따로 확인해주세요.'],
+      ['C00002', 'done', '입고를 확인했습니다(실제 입고일 2026. 11. 10.).'],
     ]);
   });
 
@@ -605,7 +630,7 @@ describe('일괄 회수 확인(runOrderClaimBulkCollectionsAction)', () => {
     expect(mocks.rpc.mock.calls.filter(([name]) => name !== 'admin_order_claim_bulk_context')).toEqual([
       ['admin_record_order_claim_collection_bundle', { p_claim_id: ID(1), p_bundle_id: SHIP(82), p_evidence: '서울 반품지 대조', p_received_on: '2026-11-10' }],
     ]);
-    expect(state.results?.[0]).toMatchObject({ outcome: 'done', message: 'TEST 김포 · 서울 반품지 회수를 확인했습니다(실제 입고일 2026-11-10). 남은 출고지 1곳은 따로 확인해주세요.' });
+    expect(state.results?.[0]).toMatchObject({ outcome: 'done', message: 'TEST 김포 · 서울 반품지 회수를 확인했습니다(실제 입고일 2026. 11. 10.). 남은 출고지 1곳은 따로 확인해주세요.' });
   });
 
   it('미래 입고일·빈 근거·취소 목록은 RPC 전에 거절한다', async () => {

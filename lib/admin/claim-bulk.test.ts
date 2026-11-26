@@ -11,7 +11,9 @@ import {
   ADMIN_CLAIM_BULK_CONVERT_ITEM_RESERVE_MS,
   adminClaimBulkApproveEffect,
   adminClaimBulkApproveTotals,
+  type AdminClaimBulkApproveKind,
   adminClaimBulkConfirmation,
+  adminClaimBulkConversionConfirmation,
   adminClaimBulkConversionLabel,
   adminClaimBulkConversionTarget,
   adminClaimBulkDecisionBlocker,
@@ -42,6 +44,7 @@ import {
   type AdminClaimBulkContext,
 } from './claim-bulk';
 import { mergeClaimBulkResults, runClaimBulkInChunks } from '@/components/admin/screens/ClaimBulkStepDialog';
+import { claimTypeConfirmMessage } from '@/lib/orders/claim-type-conversion';
 
 const ID = (n: number) => `abcdef${String(n).padStart(2, '0')}-1234-4123-8123-123456789abc`;
 
@@ -89,6 +92,44 @@ describe('normalizeAdminClaimBulkConversionForm', () => {
 
   it('전환 한 건은 DB 호출이 둘이라 결정 한 건의 두 배 시간을 예약한다', () => {
     expect(ADMIN_CLAIM_BULK_CONVERT_ITEM_RESERVE_MS).toBe(ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS * 2);
+  });
+});
+
+/*
+ * 일괄 전환 확인창. 단건 전환 확인창(claimTypeConfirmMessage)과 같은 사실을 건수 기준으로 말한다 — 고객 알림, 배송비 청구 취소(입금분은 돌려줄 금액),
+ * 저장해 둔 재고 처리 선택 삭제. 같은 사실을 두 곳이 다른 말로 하지 않게, 공유하는 문장은 단건 확인창에도 글자 그대로 있어야 한다.
+ */
+describe('adminClaimBulkConversionConfirmation', () => {
+  const single = (fromType: 'return' | 'exchange') => claimTypeConfirmMessage({ claimType: fromType, savedAccount: null }, { toType: fromType === 'return' ? 'exchange' : 'return', refundAccount: null }, '접수');
+
+  it('건수와 바뀌는 방향을 제목·본문·버튼에 적고, 돌아가기로 그만둔다', () => {
+    const request = adminClaimBulkConversionConfirmation('return', 3);
+    expect(request).toMatchObject({ title: '반품 3건 → 교환 전환', confirmLabel: '3건 교환으로 바꾸기', cancelLabel: '돌아가기' });
+    expect(request.message).toContain('선택한 3건을 고객과 합의한 대로 반품 요청에서 교환 요청으로 바꿉니다.');
+    expect(adminClaimBulkConversionConfirmation('exchange', 1)).toMatchObject({ title: '교환 1건 → 반품 전환', confirmLabel: '1건 반품으로 바꾸기' });
+    /* 버튼 이름은 처리 막대의 전환 버튼 이름(N건 + 교환으로 바꾸기)과 같은 말이다. */
+    expect(request.confirmLabel).toBe(`3건 ${adminClaimBulkConversionLabel('return')}`);
+    expect(request.destructive).toBeUndefined();
+  });
+
+  it.each(['return', 'exchange'] as const)('%s에서 바꿀 때 고객 알림·배송비 청구 취소·재고 처리 선택 삭제를 단건 확인창과 같은 문장으로 말한다', (fromType) => {
+    const bulk = adminClaimBulkConversionConfirmation(fromType, 4).message;
+    const one = single(fromType);
+    const to = fromType === 'return' ? '교환' : '반품';
+    const shared = [
+      '배송비 청구가 있으면 취소됩니다(입금이 확인된 청구는 돌려줄 금액으로 바뀝니다). 필요하면 배송비 청구에서 다시 발행합니다.',
+      `저장해 둔 품목별 재고 처리(반품의 불량 선택, 교환 출고지의 회수품 재고 처리)가 있으면 지워지니 ${to}에서 다시 고릅니다.`,
+      '환불·재출고를 시작하기 전에는 다시 바꿀 수 있지만, 이미 간 알림과 취소된 배송비 청구는 돌아오지 않습니다.',
+      fromType === 'return' ? '환불 대신 교환품 재출고로 마무리합니다. 주문제작 상품은 입고가 확인되면 교환품 제작이 열립니다.'
+        : '교환품 재출고 대신 환불로 마무리합니다. 환불은 승인·회수 확인 뒤에 따로 처리하고, 열려 있던 교환품 제작은 취소됩니다.',
+    ];
+    for (const sentence of shared) {
+      expect(one, `단건 확인창에 없는 문장: ${sentence}`).toContain(sentence);
+      expect(bulk, `일괄 확인창에 없는 문장: ${sentence}`).toContain(sentence);
+    }
+    /* 고객마다 알림이 가고, 지금 바꿀 수 없는 건은 바뀌지 않고 결과표에 남는다는 것은 일괄에서만 말한다. */
+    expect(bulk).toContain('고객마다 앱 알림이 갑니다.');
+    expect(bulk).toContain('지금 바꿀 수 없는 건은 바뀌지 않고 결과표에 이유가 남습니다.');
   });
 });
 
@@ -286,8 +327,8 @@ describe('일괄 처리 문구', () => {
   /* 이전 문구는 나이스페이 결제에도 '토스 전액 취소'라고 말했다. 결제사 이름은 이름표에서 읽는다. */
   it('결제사 이름을 문장에 직접 적지 않고 이름표에서 읽는다', () => {
     expect(adminClaimBulkConfirmation('cancel', 'approve', { count: 1 }).message).toContain('토스·나이스페이');
-    expect(adminClaimBulkApproveEffect('toss')).toEqual({ providerCancel: true, effect: '승인하고 토스 전액 취소를 요청합니다' });
-    expect(adminClaimBulkApproveEffect('nicepay')).toEqual({ providerCancel: true, effect: '승인하고 나이스페이 전액 취소를 요청합니다' });
+    expect(adminClaimBulkApproveEffect('toss')).toEqual({ kind: 'provider', effect: '승인하고 토스 전액 취소를 요청합니다' });
+    expect(adminClaimBulkApproveEffect('nicepay')).toEqual({ kind: 'provider', effect: '승인하고 나이스페이 전액 취소를 요청합니다' });
     expect(adminClaimBulkProviderLabel('nicepay')).toBe('나이스페이');
     expect(adminClaimBulkProviderLabel('some_future_pg')).toBe('그 밖의 결제');
     expect(adminClaimBulkProviderLabel(null)).toBe('결제 없음');
@@ -327,32 +368,50 @@ describe('일괄 승인·거부·검토중이 지금 단계에서 되는지(L-07
 });
 
 describe('취소 일괄 승인 확인창 값(L-08)', () => {
-  const row = (claimId: string, amount: number | null, providerLabel: string, providerCancel: boolean, blocker: string | null = null) =>
-    ({ claimId, reference: `C0000${claimId.slice(-1)}`, providerLabel, amount, providerCancel, effect: '', blocker });
+  const row = (claimId: string, amount: number | null, providerLabel: string, kind: AdminClaimBulkApproveKind, blocker: string | null = null) =>
+    ({ claimId, reference: `C0000${claimId.slice(-1)}`, providerLabel, amount, kind, effect: '', blocker });
 
-  it('승인할 건만 세어 취소 금액 합계를 결제 방식별로 내고, 결제가 없는 주문은 건수만 센다', () => {
+  it('승인할 건만 세어 결제사로 나가는 금액과 나가지 않는 금액을 묶음으로 나눠 낸다 — 합계 금액은 결제사로 바로 취소되는 건만이다', () => {
     expect(adminClaimBulkApproveTotals([
-      row(ID(1), 30000, '토스 결제', true),
-      row(ID(2), 20000, '나이스페이', true),
-      row(ID(3), 5000, '토스 결제', true),
-      row(ID(4), 7000, '무통장 입금', false),
-      row(ID(5), null, '결제 없음', false),
-      row(ID(6), 9999, '토스 결제', true, '이미 승인한 요청입니다.'),
+      row(ID(1), 30000, '토스 결제', 'provider'),
+      row(ID(2), 20000, '나이스페이', 'provider'),
+      row(ID(3), 5000, '토스 결제', 'provider'),
+      row(ID(4), 7000, '무통장 입금', 'manual'),
+      row(ID(5), 40000, '코페이', 'manual'),
+      row(ID(6), null, '결제 없음', 'order'),
+      row(ID(7), 9999, '토스 결제', 'provider', '이미 승인한 요청입니다.'),
     ])).toEqual({
-      count: 5, amount: 62000,
-      byProvider: [
-        { label: '토스 결제', count: 2, amount: 35000, providerCancel: true },
-        { label: '나이스페이', count: 1, amount: 20000, providerCancel: true },
-        { label: '무통장 입금', count: 1, amount: 7000, providerCancel: false },
-        { label: '결제 없음', count: 1, amount: 0, providerCancel: false },
+      /* 승인 6건 가운데 결제사로 나가는 돈은 토스·나이스페이 55,000원뿐이다. 무통장·코페이의 47,000원은 합계에 넣지 않는다. */
+      count: 6, amount: 55000,
+      groups: [
+        { kind: 'provider', count: 3, amount: 55000, byProvider: [{ label: '토스 결제', count: 2, amount: 35000 }, { label: '나이스페이', count: 1, amount: 20000 }] },
+        { kind: 'manual', count: 2, amount: 47000, byProvider: [{ label: '무통장 입금', count: 1, amount: 7000 }, { label: '코페이', count: 1, amount: 40000 }] },
+        { kind: 'order', count: 1, amount: 0, byProvider: [{ label: '결제 없음', count: 1, amount: 0 }] },
       ],
     });
   });
 
-  it('승인 뒤에 일어나는 일은 코드가 가르는 대로다 — 무통장·코페이·결제 없음은 승인만 한다', () => {
-    expect(adminClaimBulkApproveEffect('bank_transfer')).toMatchObject({ providerCancel: false, effect: expect.stringContaining('계좌 송금') });
-    expect(adminClaimBulkApproveEffect('korpay')).toMatchObject({ providerCancel: false, effect: expect.stringContaining('접수 양식') });
-    expect(adminClaimBulkApproveEffect(null)).toMatchObject({ providerCancel: false, effect: expect.stringContaining('결제 전 주문') });
+  it('건이 없는 묶음은 내지 않고, 결제사 취소 건이 없으면 합계 금액은 0원이다', () => {
+    expect(adminClaimBulkApproveTotals([row(ID(1), 7000, '무통장 입금', 'manual'), row(ID(2), null, '결제 없음', 'order')]))
+      .toEqual({ count: 2, amount: 0, groups: [
+        { kind: 'manual', count: 1, amount: 7000, byProvider: [{ label: '무통장 입금', count: 1, amount: 7000 }] },
+        { kind: 'order', count: 1, amount: 0, byProvider: [{ label: '결제 없음', count: 1, amount: 0 }] },
+      ] });
+    expect(adminClaimBulkApproveTotals([row(ID(1), 9000, '토스 결제', 'provider', '이미 승인한 요청입니다.')])).toEqual({ count: 0, amount: 0, groups: [] });
+    /* 결제 전 주문에 금액이 잘못 실려 와도 합계에는 넣지 않는다 — 결제사로 나갈 돈이 없다. */
+    expect(adminClaimBulkApproveTotals([row(ID(1), 3000, '결제 없음', 'order')]).groups[0]).toMatchObject({ kind: 'order', amount: 0 });
+  });
+
+  /* 단건 승인 확인창(ClaimActionPanel)과 같은 사실이다 — 결제 전 주문은 승인하면 바로 주문이 취소되고, 승인만 하는 것은 무통장·코페이다. */
+  it('승인 뒤에 일어나는 일은 코드가 가르는 대로다 — 결제 전 주문은 주문이 바로 취소되고, 무통장·코페이만 승인만 한다', () => {
+    expect(adminClaimBulkApproveEffect('bank_transfer')).toMatchObject({ kind: 'manual', effect: expect.stringContaining('계좌 송금') });
+    expect(adminClaimBulkApproveEffect('korpay')).toMatchObject({ kind: 'manual', effect: expect.stringContaining('접수 양식') });
+    const noPayment = adminClaimBulkApproveEffect(null);
+    expect(noPayment.kind).toBe('order');
+    expect(noPayment.effect).toContain('주문을 바로 취소');
+    expect(noPayment.effect).toContain('결제 전 주문');
+    expect(noPayment.effect).not.toContain('승인만');
+    for (const provider of ['bank_transfer', 'korpay']) expect(adminClaimBulkApproveEffect(provider).effect).toContain('승인만');
   });
 
   it('열기 요청은 취소 목록의 50건 안 선택만 받는다', () => {

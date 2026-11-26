@@ -42,6 +42,8 @@ export interface ShipmentConsoleRow {
  /** 출고 보류(테스트 결제·결제사 취소) 주문의 배송 건. 발송 전(ready)이면 발주확인·출고지시·발송이 막히고, 이미 나간 건이면 경고다.
   *  사유·금액은 담지 않는다(출고 전용 권한도 읽는다). */
  fulfillmentHold?:boolean;
+ /** 배송현황만: 배송 안내 메일을 보내는 중인 배송 건(발송 직후 몇 분). DB가 발송 되돌리기를 받지 않으므로 줄의 [발송 되돌리기]를 미리 잠근다. */
+ emailSending?:boolean;
  /** 배송현황만: 추가 운송장(QNA-019)과 스위치가 켜진 때의 자동 배송완료 표시(QNA-028). */
  trackingSummary?:import('./shipment-tracking').ShipmentTrackingSummary;
 }

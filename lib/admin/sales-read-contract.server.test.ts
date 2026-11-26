@@ -27,6 +27,29 @@ describe('판매 목록 조회 계약 연결', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('admin_order_claim_stage_counts_console', expect.objectContaining(shared));
   });
 
+  /* F-10: 목록에 보이는 요청번호(C00021) 그대로 찾아지게, 요청번호 모양이면 DB가 받는 숫자(21)로 바꿔 보낸다. 목록과 단계별 건수가 같은 값을 쓴다. */
+  it.each([[undefined, 'all'], ['order', 'order']] as const)('클레임 요청번호 모양 검색어(%s)는 DB가 받는 숫자로 바꿔 목록과 단계별 건수에 같은 값으로 보낸다', async (field, sent) => {
+    const filters = normalizeAdminClaimFilters({ ...(field ? { field } : {}), query: ' C00021 ' });
+    expect(filters.query).toBe('C00021');
+    await getAdminClaimConsoleData('return', filters);
+    const shared = { p_claim_type: 'return', p_field: sent, p_query: '21' };
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_order_claims_console', expect.objectContaining(shared));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_order_claim_stage_counts_console', expect.objectContaining(shared));
+  });
+
+  it('요청번호 모양이라도 구매자·수령인 검색에는 적은 그대로 보낸다', async () => {
+    await getAdminClaimConsoleData('return', normalizeAdminClaimFilters({ field: 'buyer', query: 'C00021' }));
+    const shared = { p_field: 'buyer', p_query: 'C00021' };
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_order_claims_console', expect.objectContaining(shared));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_order_claim_stage_counts_console', expect.objectContaining(shared));
+  });
+
+  it('검색어가 비면 DB에는 null을 보낸다', async () => {
+    await getAdminClaimConsoleData('return', normalizeAdminClaimFilters({}));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_search_order_claims_console', expect.objectContaining({ p_query: null }));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_order_claim_stage_counts_console', expect.objectContaining({ p_query: null }));
+  });
+
   it('결제일 기준과 범위를 클레임 조회와 단계 집계에 동일하게 보낸다', async () => {
     const filters = normalizeAdminClaimFilters({ dateField: 'paid', from: '2026-10-02', to: '2026-10-02', sort: 'oldest', page: '2' });
     await getAdminClaimConsoleData('return', filters);

@@ -15,6 +15,7 @@ import {ShipmentPackPanel} from './ShipmentPackPanel';
 import {OrderDelayNoticePanel} from './OrderDelayNoticePanel';
 import {DispatchDelayBulkNote,type DispatchDelayBulkTarget} from './DispatchDelayBulkNote';
 import {CustomerServiceDialog} from './CustomerServiceDialog';
+import {closeAdminDialog} from '@/lib/admin/dialog-close';
 import {commerceReferenceLabel} from '@/lib/commerce-number';
 import {orderReferenceLabel} from '@/lib/orders';
 import {ADMIN_VOCABULARY} from '@/lib/admin/vocabulary';
@@ -240,6 +241,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    <Button type="button" size="xs" variant="ghost" onClick={()=>setFailures([])}>닫기</Button></span></AdminNotice>:null}
  </div>:null;
  const exportNeedsPassword=exportRequest?needsExportPassword(exportRequest):false;
+ /* 배송완료 창에 적은 '늦게 처리한 사유'가 있으면 닫기 전에 묻는다(화면 규칙 7). 처리 중에는 닫지 못한다. */
+ const closeCompletion=()=>{if(!pending)closeAdminDialog(Boolean(completion?.mode==='carrier'&&completion.reason.trim()),()=>setCompletion(null),()=>document.querySelector('[data-completion-dialog]'));};
  return <ShipmentConsoleActionsContext.Provider value={consoleActions}><ShipmentConsoleNoticeContext.Provider value={report}><div className="flex min-w-0 flex-col gap-3" data-shipment-console-grid="">
   {notices}
   <ConsoleGrid caption="출고지별 배송 건 목록" preferencesKey={`sales-${tab==='transit'||tab==='delivered'?'shipping':'dispatch'}`} columns={columns} rows={gridRows} emptyLabel="조건에 맞는 배송 건이 없습니다."
@@ -280,7 +283,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
   {actorId&&packSelection!==null?<ShipmentPackPanel key={packSelection.join(',')} actorId={actorId} ids={packSelection} onClose={()=>setPackSelection(null)}/>:null}
   {noticeSelection!==null?<OrderDelayNoticePanel key={noticeSelection.join(',')} shipmentIds={noticeSelection} onClose={()=>setNoticeSelection(null)}/>:null}
   {delayNoteTargets?<DispatchDelayBulkNote key={delayNoteTargets.map(target=>target.orderId).join(',')} targets={delayNoteTargets} onClose={()=>setDelayNoteTargets(null)} onDone={report}/>:null}
-  {completion?<CustomerServiceDialog title="배송완료 처리" busy={pending} onClose={()=>setCompletion(null)}>
+  {completion?<CustomerServiceDialog title="배송완료 처리" busy={pending} onClose={closeCompletion}>
    <div className="flex flex-col gap-3 text-sm leading-relaxed" data-completion-dialog="">
     <p>선택한 {completion.ids.length}건{completion.total>completion.ids.length?`과 같은 합포장에 묶인 배송 건을 합쳐 총 ${completion.total}건`:''}을 배송완료로 바꿉니다.</p>
     {/* H-01: 일시 칸의 '처음 값을 그대로 두면 처리 시각'이라는 규칙을 설명하지 않고, 둘 중 하나를 고르게 한다. 고르면 필요한 칸만 열린다. */}
@@ -296,7 +299,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     {completionError?<p role="alert" className="text-destructive">{completionError}</p>:null}
     <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
      {completionArrivalMissing?<span className={`${NOTE} mr-auto`}>도착 일시를 넣으면 누를 수 있습니다.</span>:null}
-     <Button type="button" variant="outline" disabled={pending} onClick={()=>setCompletion(null)}>돌아가기</Button>
+     <Button type="button" variant="outline" disabled={pending} onClick={closeCompletion}>돌아가기</Button>
      <Button type="button" disabled={pending||completionArrivalMissing||Boolean(completionError)} onClick={()=>run('complete')}>{pending?'처리 중…':`${completion.total}건 배송완료 처리`}</Button>
     </div>
    </div>

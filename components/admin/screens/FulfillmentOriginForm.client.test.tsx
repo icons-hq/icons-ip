@@ -35,6 +35,8 @@ const carriers = [
   { code: 'old', label: '옛 택배', active: false, trackingUrlTemplate: 'https://example.test/{trackingNumber}', updatedAt: '2026-09-01T00:00:00Z' },
 ];
 const impact: OriginSaveImpact = { goods: { publicGoods: 12, policyFeeGoods: 7 }, regionalFee: { managed: true, inEffectCarrierCodes: ['hanjin'], scheduledCarrierCodes: [] } };
+/* 지역별 추가배송비는 쓰지 않고, 자체 지역표를 쓰는 묶음그룹만 있는 출고지. */
+const groupImpact: OriginSaveImpact = { ...impact, regionalFee: { managed: false, inEffectCarrierCodes: [], scheduledCarrierCodes: [] }, chargeGroups: [{ carrierCode: 'hanjin', groups: 2, goods: 15 }] };
 const conflictState = (): { conflict: FulfillmentOriginConflict } => ({ conflict: { updatedAt: '2026-09-03T00:00:00Z',
   values: { ...fulfillmentOriginFormValues(origin), baseFee: '5000', active: 'false' } } });
 const plain = (html: string) => html.replaceAll('&#x27;', "'").replaceAll('&quot;', '"');
@@ -144,7 +146,45 @@ describe('저장 전에 알리는 영향', () => {
   });
 });
 
+describe('저장 전에 알리는 영향 — 자체 지역표를 쓰는 묶음그룹', () => {
+  it('묶음그룹의 지역표 택배사와 달라지는 택배사를 고르면 칸 아래에서 알리고 묶음그룹 목록으로 가는 링크를 둔다', () => {
+    hooks.indexed = true; hooks.index = 0; hooks.values = { 2: draftOf({ defaultCarrier: 'cj' }) };
+    const element = FulfillmentOriginForm({ canEdit: true, carriers, origin, impact: groupImpact }) as ReactElement; hooks.indexed = false;
+    const html = plain(renderToStaticMarkup(element));
+    expect(html).toContain('바꾸면 묶음그룹 상품의 새 주문이 막힙니다');
+    expect(html).toContain('자체 지역표를 쓰는 묶음그룹 2개(넣은 상품 15개)는 지역표가 한진택배 기준이라 CJ대한통운에는 맞지 않습니다.');
+    expect(html).toContain('배송비 묶음그룹 목록의 [수정]에서 지역표의 택배사를 CJ대한통운 기준으로 맞출 때까지 그 묶음그룹 상품의 새 주문이 막힙니다.');
+    /* 같은 화면 아래의 목록으로 간다(새 탭이 아니다). 지역별 추가배송비는 쓰지 않으니 그쪽 경고는 없다. */
+    expect(html).toMatch(/<a [^>]*href="#shipping-charge-groups"[^>]*>배송비 묶음그룹 목록으로 가기<\/a>/);
+    expect(html).not.toMatch(/<a [^>]*href="#shipping-charge-groups"[^>]*target=/);
+    expect(html).not.toContain('지역별 추가배송비가 한진택배 기준으로');
+    /* 택배사가 그대로이거나 영향받는 묶음그룹이 없으면 경고가 없다. */
+    expect(markup({ impact: groupImpact })).not.toContain('묶음그룹 상품의 새 주문이 막힙니다');
+    hooks.indexed = true; hooks.index = 0; hooks.values = { 2: draftOf({ defaultCarrier: 'cj' }) };
+    const none = FulfillmentOriginForm({ canEdit: true, carriers, origin, impact: { ...groupImpact, chargeGroups: [] } }) as ReactElement; hooks.indexed = false;
+    expect(plain(renderToStaticMarkup(none))).not.toContain('묶음그룹 상품의 새 주문이 막힙니다');
+  });
+  it('묶음그룹을 읽지 못했으면 확인하지 못했다고 말한다', () => {
+    hooks.indexed = true; hooks.index = 0; hooks.values = { 2: draftOf({ defaultCarrier: 'cj' }) };
+    const element = FulfillmentOriginForm({ canEdit: true, carriers, origin, impact: { ...groupImpact, chargeGroups: null } }) as ReactElement; hooks.indexed = false;
+    const html = plain(renderToStaticMarkup(element));
+    expect(html).toContain('묶음그룹 상품의 새 주문이 막히는지 확인하지 못했습니다');
+    expect(html).toContain('배송비 묶음그룹을 읽지 못했습니다.');
+  });
+});
+
 describe('저장 전 확인창', () => {
+  it('자체 지역표를 쓰는 묶음그룹이 막히는 택배사로 바꾸는 저장은 그 묶음그룹도 확인창에서 보인 뒤에만 제출한다', async () => {
+    confirm = stubAdminConfirm(true);
+    const { target, submitter } = await submit(formElement({ 2: draftOf({ defaultCarrier: 'cj' }) }, { impact: groupImpact }));
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(confirm.mock.calls[0][0]).toContain('기본 택배사: 한진택배 → CJ대한통운');
+    expect(confirm.mock.calls[0][0]).toContain('자체 지역표를 쓰는 묶음그룹 2개(넣은 상품 15개)');
+    expect(target.requestSubmit).toHaveBeenCalledWith(submitter);
+    confirm.restore(); confirm = stubAdminConfirm(false);
+    const stopped = await submit(formElement({ 2: draftOf({ defaultCarrier: 'cj' }) }, { impact: groupImpact }));
+    expect(stopped.target.requestSubmit).not.toHaveBeenCalled();
+  });
   it('사용 안 함으로 바꾸는 저장은 대상·공개 상품 수·남는 제한을 보인 뒤에만 제출한다', async () => {
     confirm = stubAdminConfirm(true);
     const { target, submitter, preventDefault } = await submit(formElement({ 2: draftOf({ active: 'false' }) }));

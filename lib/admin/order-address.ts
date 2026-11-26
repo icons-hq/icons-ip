@@ -7,6 +7,12 @@ import { ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 export interface OrderAddressContext {
   orderNumber?: string;
   isGift?: boolean;
+  /**
+   * 우편번호·기본 주소를 바꿀 수 없는 주문인가. 배송비 기준 기록이 없는 주문(퀵·방문수령 배송 건이 있거나 옛 주문)은 수령인·연락처·상세 주소·
+   * 배송 메모만 바꿀 수 있다 — DB(admin_change_order_address)가 그 두 칸의 변경을 거절한다. 화면이 두 칸을 미리 잠근다.
+   * 값이 없으면 알 수 없는 것이고 잠그지 않는다(판정은 DB가 한다).
+   */
+  destinationLocked?: boolean;
   orderId: string; address: CheckoutAddress; revision: number; allowed: boolean; blocker: string | null; shipmentCount: number;
   history: { id: string; changedAt: string; actorName: string; before: CheckoutAddress; after: CheckoutAddress; reason: string }[];
 }
@@ -82,13 +88,35 @@ export function orderAddressBlockerMessage(blocker: string | null | undefined): 
   return (blocker ? ORDER_ADDRESS_BLOCKERS[blocker] : undefined) ?? '지금은 배송지를 바꿀 수 없습니다.';
 }
 
+/** 우편번호·기본 주소를 바꿀 수 없는 주문의 안내. 저장 때 DB가 거절하는 문구이자, 두 칸을 미리 잠근 이유다. */
+export const ORDER_ADDRESS_DESTINATION_LOCKED_MESSAGE = '배송비 기준을 확인할 수 없는 주문(퀵·방문수령이거나 옛 주문)이라 우편번호·기본 주소는 바꿀 수 없습니다. 수령인·연락처·상세 주소·배송 메모는 바꿀 수 있습니다.';
+/** 배송비를 다시 따져야 바꿀 수 있는 칸(받는 곳). */
+export const ORDER_ADDRESS_DESTINATION_FIELDS: readonly (keyof CheckoutAddress)[] = ['postalCode', 'address1'];
+
+const SHIPPING_FEE_SNAPSHOT_KEYS = ['policySubtotal', 'baseFee', 'freeThreshold', 'policyFee', 'individualFee', 'totalFee'] as const;
+
+/**
+ * 우편번호·기본 주소를 바꿀 수 없는 주문인가 — DB(admin_change_order_address)가 `order_address_quote_unavailable`로 거절하는 조건과 같다.
+ * 계산 방식 2 주문은 새 주소로 배송비를 다시 계산해 보므로 해당하지 않는다. 그 밖의 주문은 배송 건마다 택배이고 주문 때의 배송비 기준
+ * (출고지·기준 금액 여섯 값·합계)이 배송 건의 배송비와 맞게 남아 있어야 한다.
+ */
+export function orderAddressDestinationLocked(calculationVersion: unknown, shipments: readonly { origin_id?: unknown; delivery_method?: unknown; shipping_fee?: unknown; shipping_fee_snapshot?: unknown }[]): boolean {
+  if (calculationVersion === 2) return false;
+  return shipments.some((shipment) => {
+    const snapshot = shipment.shipping_fee_snapshot;
+    if (shipment.delivery_method !== 'parcel' || !record(snapshot)) return true;
+    return snapshot.originId !== shipment.origin_id || SHIPPING_FEE_SNAPSHOT_KEYS.some(key => !(key in snapshot))
+      || typeof snapshot.totalFee !== 'number' || snapshot.totalFee !== Number(shipment.shipping_fee);
+  });
+}
+
 export function orderAddressError(code: string | undefined, message: string | undefined): string {
   if (code === '42501') return ORDER_ADDRESS_PERMISSION_MESSAGE;
   if (code === 'PT409') return `${CHANGED_BY_OTHER} 적은 내용은 그대로 있습니다. [${ORDER_ADDRESS_RELOAD_LABEL}]를 누르면 지금 배송지를 다시 불러옵니다.`;
   if (code === '23505') return SAVE_MISMATCH_MESSAGE;
   const messages: Record<string, string> = {
     ...ORDER_ADDRESS_BLOCKERS,
-    order_address_quote_unavailable: '배송비 기준을 확인할 수 없는 주문(퀵·방문수령이거나 옛 주문)이라 우편번호·기본 주소는 바꿀 수 없습니다. 수령인·연락처·상세 주소·배송 메모는 바꿀 수 있습니다.',
+    order_address_quote_unavailable: ORDER_ADDRESS_DESTINATION_LOCKED_MESSAGE,
     order_address_region_unavailable: '바꾸려는 지역으로 배송할 수 있는지 확인되지 않았습니다. 배송 설정과 지역별 추가배송비를 확인해 주세요.',
     order_address_shipping_fee_changed: '바꾸려는 지역은 배송비가 달라져서 바꿀 수 없습니다. 결제한 배송비 그대로 보낼 수 있는 지역으로만 바꿀 수 있습니다.',
     order_address_unchanged: '바뀐 내용이 없습니다. 고칠 칸을 고친 뒤 저장해 주세요.',

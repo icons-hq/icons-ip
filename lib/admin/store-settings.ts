@@ -19,6 +19,9 @@ export type EditableCarrier = { code:string;label:string;trackingUrlTemplate:str
   /** 운송장번호 형식(정규식)·안내 문구(SHP-032). 비어 있으면 공통 형식(8~30자 영숫자)만 본다. */
   trackingNumberPattern?:string;trackingNumberRule?:string };
 
+/** 확인용 운송장번호가 비어 있을 때의 안내 — 화면은 이 칸을 '(필수)'로 적고, 비운 채 저장하면 칸 아래에 이 문장을 보인다. */
+export const CARRIER_SAMPLE_REQUIRED='확인용 운송장번호를 넣어 주세요. 실제 번호 하나로 새 형식에 맞는지 확인합니다.';
+
 /**
  * 택배사 운송장 형식 입력(택배사 관리 화면). 형식과 안내 문구는 함께 두거나 함께 비운다. 형식은 전체 일치(^…$) 정규식이고,
  * 확인용 번호(하이픈·공백을 뺀 대문자)가 공통 형식과 새 형식에 맞아야 한다 — 잘못된 식으로 그 택배사의 모든 발송이 막히지 않게.
@@ -36,7 +39,7 @@ export function parseCarrierFormatInput(input:{pattern:string;rule:string;sample
   if (!rule) errors.trackingNumberRule='형식과 함께 안내 문구(예: 숫자 10~14자리)를 입력해주세요.';
   else if (rule.length>60) errors.trackingNumberRule='안내 문구는 60자 이내로 입력해주세요.';
   if (compiled) {
-    if (!sample) errors.trackingNumberSample='확인용 운송장번호를 넣어 주세요. 실제 번호 하나로 새 형식에 맞는지 확인합니다.';
+    if (!sample) errors.trackingNumberSample=CARRIER_SAMPLE_REQUIRED;
     else if (!CARRIER_COMMON_FORMAT.test(sample)) errors.trackingNumberSample='확인용 운송장번호는 영문·숫자 8~30자로 넣어 주세요.';
     else if (!compiled.test(sample)) errors.trackingNumberSample='확인용 운송장번호가 새 형식에 맞지 않습니다. 번호나 형식을 확인해 주세요.';
   }
@@ -72,6 +75,19 @@ export function readCarrierFormatLength(min:string,max:string):{min:number;max:n
 }
 
 /**
+ * 자리 수 두 칸을 읽을 수 없을 때 칸 아래에 바로 보이는 까닭(저장하기 전). 두 칸이 모두 적혀 있을 때만 말한다 — 적는 도중(한 칸이 비어 있을 때)에는 말하지 않는다.
+ * 읽을 수 있거나 아직 다 적지 않았으면 null. 저장 때 서버가 하는 검사(`CARRIER_FORMAT_LENGTH_ERROR`)와 같은 기준이다.
+ */
+export function carrierFormatLengthProblem(min:string,max:string):string|null {
+  const low=min.trim(), high=max.trim();
+  if (!low || !high || readCarrierFormatLength(low,high)) return null;
+  if (!/^\d{1,3}$/.test(low) || !/^\d{1,3}$/.test(high)) return '자리 수는 숫자로 적어 주세요.';
+  const range=`${CARRIER_FORMAT_LENGTH_MIN}~${CARRIER_FORMAT_LENGTH_MAX}`;
+  if ([Number(low),Number(high)].some(value=>value<CARRIER_FORMAT_LENGTH_MIN||value>CARRIER_FORMAT_LENGTH_MAX)) return `자리 수는 ${range} 사이로 적어 주세요.`;
+  return '최소 자리 수가 최대보다 큽니다. 최소를 최대보다 작거나 같게 적어 주세요.';
+}
+
+/**
  * 저장된 식을 종류·자리 수로 읽는다. 비었으면 '정하지 않음'이고, 이 화면이 만드는 모양이 아니면(예전에 직접 적은 식) null이다 —
  * 화면은 그 식을 종류·자리 수로 바꿔 보이지 않고 안내 문구만 보인다.
  */
@@ -99,7 +115,8 @@ export function parseCarrierFormatChoice(input:{kind:string;min:string;max:strin
   if (input.kind!=='none' && input.kind!=='digits' && input.kind!=='alnum') return {ok:false,errors:{form:CARRIER_FORMAT_STALE}};
   if (input.kind==='none') return {ok:true,value:{pattern:'',rule:'',sample:''}};
   const length=readCarrierFormatLength(input.min,input.max);
-  if (!length) return {ok:false,errors:{trackingNumberLength:CARRIER_FORMAT_LENGTH_ERROR}};
+  /* 자리 수가 틀려도 확인용 번호가 비어 있으면 함께 말한다 — 한 번에 한 칸씩 고치게 하지 않는다. */
+  if (!length) return {ok:false,errors:{trackingNumberLength:CARRIER_FORMAT_LENGTH_ERROR,...(input.sample.replace(/[\s-]/g,'')?{}:{trackingNumberSample:CARRIER_SAMPLE_REQUIRED})}};
   const spec=carrierFormatSpec(input.kind,length.min,length.max);
   const parsed=parseCarrierFormatInput({pattern:spec.pattern,rule:spec.rule,sample:input.sample});
   if (parsed.ok) return parsed;

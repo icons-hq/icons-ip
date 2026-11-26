@@ -5,6 +5,7 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { SHIPMENT_EXTRA_TRACKING_REASON_LIMIT } from '@/lib/admin/shipment-tracking';
+import { ADMIN_DISPATCH_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 import { createClient } from '@/lib/supabase/server';
 import { carrierTrackingNumberIssue, findShippingCarrier, isSelectableShippingCarrier, isTrackingNumber, normalizeTrackingNumber } from '@/lib/orders/shipment';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
@@ -21,7 +22,7 @@ export type ShipmentExtraTrackingResult = { ok: true; message: string } | { ok: 
 
 const SHIPPING_PATH = '/admin/sales/shipping';
 const access = () => requireAdminActionAccess(SHIPPING_PATH, { capability: 'sales.dispatch' });
-const DENIED: ShipmentExtraTrackingResult = { ok: false, error: '출고 처리 권한이 있는 운영자만 추가 운송장을 바꿀 수 있습니다.' };
+const DENIED: ShipmentExtraTrackingResult = { ok: false, error: ADMIN_DISPATCH_ACCESS_DENIED };
 
 function refresh() {
   for (const path of ['/admin/sales/shipping', '/admin/sales/orders', '/orders']) revalidatePath(path);
@@ -90,7 +91,7 @@ export async function removeShipmentExtraTrackingAction(form: FormData): Promise
  * 바꾸므로 같은 요청을 다시 보내도 되돌아가지 않는다. 출고 권한·사유 필수, 두 배송 건 모두 감사 기록에 남는다.
  */
 export async function swapShipmentTrackingAction(form: FormData): Promise<ShipmentExtraTrackingResult> {
-  if (!await access()) return { ok: false, error: '출고 처리 권한이 있는 운영자만 운송장을 맞바꿀 수 있습니다.' };
+  if (!await access()) return { ok: false, error: ADMIN_DISPATCH_ACCESS_DENIED };
   const shipmentId = String(form.get('shipmentId') ?? '');
   const expected = normalizeTrackingNumber(String(form.get('expectedTrackingNumber') ?? ''));
   // 화면의 배송건번호(16자리)는 띄어 써도 받는다. 전체 UUID는 그대로 넘긴다.
@@ -125,7 +126,7 @@ export async function swapShipmentTrackingAction(form: FormData): Promise<Shipme
  * 발송 대기 건은 발송처리(배송 메일 대기열), 발송된 건은 운송장 정정과 같다. DB가 승인·감사 기록을 남긴다.
  */
 export async function registerDuplicateShipmentTrackingAction(form: FormData): Promise<ShipmentExtraTrackingResult> {
-  if (!await access()) return { ok: false, error: '출고 처리 권한이 있는 운영자만 중복 확인 후 등록할 수 있습니다.' };
+  if (!await access()) return { ok: false, error: ADMIN_DISPATCH_ACCESS_DENIED };
   const shipmentId = String(form.get('shipmentId') ?? '');
   const carrier = String(form.get('carrier') ?? '').trim(), trackingNumber = normalizeTrackingNumber(String(form.get('trackingNumber') ?? ''));
   if (!isUuid(shipmentId)) return { ok: false, error: shipmentMutationError('invalid_tracking_duplicate') };

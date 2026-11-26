@@ -8,6 +8,8 @@ import {
   dispatchMethodLabel, type DispatchDeliveryOptions, type DispatchDeliveryReceipt, type DispatchMethod,
 } from '@/lib/admin/dispatch-delivery';
 import { commerceReferenceLabel } from '@/lib/commerce-number';
+import { closeAdminDialog } from '@/lib/admin/dialog-close';
+import { DELIVERY_RECORD_FORM_COPY as RECORD_COPY, deliveryNowLocal, deliveryRecordFormCopy } from '@/lib/admin/shipment-delivery-panel';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -30,8 +32,10 @@ const FIELD = 'flex min-w-0 flex-col gap-1.5';
 /** 목록에서 넘겨받는 배송 건 요약(수령인·상품). 고른 건이 맞는지 팝업 안에서 확인하는 용도다(QA 라운드 1 m5). */
 export interface DispatchTargetSummary { recipient: string | null; items: string[] }
 const NOTE = 'text-xs text-muted-foreground';
-/** 지금 시각의 KST datetime-local 값(분 단위). 인계 시각 칸의 처음 값이다 — 대부분 넘긴 자리에서 바로 기록한다. */
-const kstNow = () => new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 16);
+/** 택배 외 수령 방식을 켜는 곳(배송정보 관리 → 출고지 → 택배 외 수령 방식). */
+const DELIVERY_SETTINGS_HREF = '/admin/settings/origins';
+/* 인계 칸의 이름·예시 글은 주문 상세·발송관리 줄의 인계 기록과 한 곳에서 나온다(lib/admin/shipment-delivery-panel). */
+const HANDOFF_COPY = deliveryRecordFormCopy('quick_handoff');
 
 export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDone, summaries = {}, canReadOrders = true }: {
   /** 주문 조회 권한. 없으면 주문 상세를 열 수 없어 방문수령 안내가 목록 행의 인계·수령 확인을 가리킨다. */
@@ -50,7 +54,7 @@ export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDo
   const [method, setMethod] = useState<DispatchMethod | ''>('');
   const [handoff, setHandoff] = useState(mode === 'dispatch');
   const [reason, setReason] = useState('');
-  const [evidence, setEvidence] = useState(() => ({ operatorName: '', providerName: '', providerPhone: '', handoffReference: '', occurredAt: kstNow() }));
+  const [evidence, setEvidence] = useState(() => ({ operatorName: '', providerName: '', providerPhone: '', handoffReference: '', occurredAt: deliveryNowLocal() }));
   const [error, setError] = useState('');
   const [receipt, setReceipt] = useState<DispatchDeliveryReceipt | null>(null);
   const [pending, startTransition] = useTransition();
@@ -80,6 +84,12 @@ export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDo
   const reference = (shipment: DispatchDeliveryOptions['shipments'][number]) => commerceReferenceLabel(shipment.id, shipment.shipmentNumber);
   const policiesFor = options && method && method !== 'parcel' ? options.policies.filter((policy) => policy.method === method) : [];
   const title = mode === 'dispatch' ? '택배 외 발송처리' : '배송 방식 바꾸기';
+  /*
+   * 바꿀 방식이 없다: 이 출고지에 사용으로 켠 택배 외 수령 방식이 없어 고를 수 있는 것이 지금 방식(택배)뿐이다.
+   * '택배' 하나만 있는 목록과 [0건 방식 바꾸기]를 보이지 않고, 이유와 켜는 곳을 말한다.
+   */
+  const nothingToChoose = Boolean(options) && (methods.length === 0
+    || (methods.every((candidate) => candidate === 'parcel') && options!.shipments.every((shipment) => shipment.method === 'parcel')));
 
   /* 누를 수 없는 버튼이 고장처럼 보이지 않게 이유를 말한다. */
   const lockNote = !options || !method || pending ? null
@@ -117,12 +127,24 @@ export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDo
     });
   }
 
-  return <CustomerServiceDialog busy={pending} onClose={onClose} title={title} wide>
+  /*
+   * 적은 내용이 있으면 닫기 전에 묻는다(화면 규칙 7). 인계 칸 다섯(담당자·업체·연락처·확인 내용·시각)과 바꾸는 이유는 닫으면 다시 적어야 한다.
+   * 화면에 보이는 칸에 적은 글만 본다 — 시각은 처음 값(지금)이 있어 세지 않는다. 처리가 끝나 결과를 보이는 중이면 묻지 않는다.
+   */
+  const dirty = !receipt && ((needsReason && reason.trim() !== '')
+    || (withHandoff && [evidence.operatorName, evidence.providerName, evidence.providerPhone, evidence.handoffReference].some((value) => value.trim() !== '')));
+  const close = () => { if (!pending) closeAdminDialog(dirty, onClose, () => document.querySelector('[data-dispatch-delivery-dialog]')); };
+
+  return <CustomerServiceDialog busy={pending} onClose={close} title={title} wide>
     <div className="flex min-w-0 flex-col gap-4 text-sm leading-relaxed" data-dispatch-delivery-dialog="">
       {!loaded ? <p className="text-muted-foreground" role="status">배송 방식 정보를 불러오는 중입니다…</p>
         : loaded.error ? <AdminNotice role="alert" tone="danger">{loaded.error}</AdminNotice>
         : receipt ? <DispatchReceipt options={options!} receipt={receipt} /> : options ? <>
-          {methods.length ? <div className={FIELD}>
+          {nothingToChoose ? <AdminNotice role="status" tone="warning" data-dispatch-no-method="">
+            {options.shipments.length > 1 ? '고른 배송 건의 출고지에는' : '이 출고지에는'} 사용 중인 택배 외 수령 방식이 없어 {mode === 'dispatch' ? '택배 외 발송처리를 할 수 없습니다.' : '바꿀 방식이 없습니다.'}
+            배송정보 관리에서 그 출고지의 &lsquo;택배 외 수령 방식&rsquo;을 켜면 여기서 고를 수 있습니다.{' '}
+            <a className="font-medium underline underline-offset-4" href={DELIVERY_SETTINGS_HREF} rel="noopener noreferrer" target="_blank">배송정보 관리 열기 (새 탭)</a>
+          </AdminNotice> : methods.length ? <div className={FIELD}>
             <Label htmlFor={`${fieldId}-method`}>배송 방식</Label>
             <NativeSelect className="w-full max-w-xs" disabled={pending} id={`${fieldId}-method`} onChange={(event) => { setMethod(event.target.value as DispatchMethod); setError(''); }} value={method}>
               {methods.map((candidate) => <option key={candidate} value={candidate}>{dispatchMethodLabel(candidate)}</option>)}
@@ -133,7 +155,8 @@ export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDo
             </li>)}</ul> : null}
             {/* 방문수령은 인계 기록이 없다 — 고를 때만 어디서 끝내는지 말한다. */}
             {method === 'pickup' ? <span className={NOTE}>방문수령은 방식만 바꿉니다. 고객이 와서 수령 확인값을 보여 주면 {canReadOrders ? '주문 상세에서' : "발송관리 줄의 '인계·수령 확인'에서"} 완료합니다.</span> : null}
-          </div> : <AdminNotice role="status" tone="warning">고른 배송 건의 출고지에는 사용 중인 택배 외 배송 방식이 없습니다. 배송정보 관리에서 그 출고지의 택배 외 배송 방식을 먼저 켜주세요.</AdminNotice>}
+          </div> : null}
+          {nothingToChoose ? null : <>
           {handoffMethod ? <label className="flex items-start gap-2"><input checked={handoff} className="mt-1" disabled={pending} onChange={(event) => setHandoff(event.target.checked)} type="checkbox" />
             <span>업체에 넘긴 것까지 지금 기록합니다. 배송중으로 바뀌고 고객 주문 화면에 배송 업체가 보입니다.</span></label> : null}
           {plan.length ? <div className="min-w-0 overflow-x-auto rounded-lg border">
@@ -164,21 +187,22 @@ export function ShipmentConsoleDeliveryDialog({ shipmentIds, mode, onClose, onDo
           {withHandoff ? <fieldset className="m-0 flex min-w-0 flex-col gap-2.5 border-0 p-0" disabled={pending}>
             <legend className="mb-1 font-medium">인계 기록</legend>
             <div className="grid min-w-0 gap-2.5 sm:grid-cols-2">
-              <label className={FIELD}><span>인계한 담당자</span><Input maxLength={100} onChange={(event) => setEvidence({ ...evidence, operatorName: event.target.value })} placeholder="물건을 넘긴 우리 담당자" required value={evidence.operatorName} /></label>
-              <label className={FIELD}><span>배송 업체·기사</span><Input maxLength={100} onChange={(event) => setEvidence({ ...evidence, providerName: event.target.value })} placeholder="고객 주문 화면에 보입니다" required value={evidence.providerName} /></label>
-              <label className={FIELD}><span>업체 연락처</span><Input maxLength={40} onChange={(event) => setEvidence({ ...evidence, providerPhone: event.target.value })} required type="tel" value={evidence.providerPhone} /></label>
-              <div className={FIELD}><Label htmlFor={`${fieldId}-occurred`}>인계 시각 (KST)</Label>
+              <label className={FIELD}><span>{HANDOFF_COPY.operator}</span><Input maxLength={100} onChange={(event) => setEvidence({ ...evidence, operatorName: event.target.value })} placeholder={HANDOFF_COPY.operatorPlaceholder} required value={evidence.operatorName} /></label>
+              <label className={FIELD}><span>{RECORD_COPY.providerName}</span><Input maxLength={100} onChange={(event) => setEvidence({ ...evidence, providerName: event.target.value })} placeholder={RECORD_COPY.providerNamePlaceholder} required value={evidence.providerName} /></label>
+              <label className={FIELD}><span>{RECORD_COPY.providerPhone}</span><Input maxLength={40} onChange={(event) => setEvidence({ ...evidence, providerPhone: event.target.value })} required type="tel" value={evidence.providerPhone} /></label>
+              <div className={FIELD}><Label htmlFor={`${fieldId}-occurred`}>{HANDOFF_COPY.occurredAt}</Label>
                 <Input className="w-auto self-start" id={`${fieldId}-occurred`} onChange={(event) => setEvidence({ ...evidence, occurredAt: event.target.value })} required type="datetime-local" value={evidence.occurredAt} /></div>
             </div>
-            <label className={FIELD}><span>인계 확인 내용</span><Textarea maxLength={2000} onChange={(event) => setEvidence({ ...evidence, handoffReference: event.target.value })} placeholder="예: 퀵 접수번호 12345, 기사에게 직접 전달" required rows={2} value={evidence.handoffReference} /></label>
+            <label className={FIELD}><span>{RECORD_COPY.handoffReference}</span><Textarea maxLength={2000} onChange={(event) => setEvidence({ ...evidence, handoffReference: event.target.value })} placeholder={RECORD_COPY.handoffReferencePlaceholder} required rows={2} value={evidence.handoffReference} /></label>
             <span className={NOTE}>고른 배송 건 모두에 같은 내용으로 남습니다. 업체나 시각이 다른 건은 따로 처리해주세요.</span>
           </fieldset> : null}
+          </>}
         </> : null}
       {error ? <p className="text-destructive" role="alert">{error}</p> : null}
       <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
-        {!receipt && lockNote ? <span className={`${NOTE} mr-auto`} data-dispatch-lock-note="">{lockNote}</span> : null}
-        <Button disabled={pending} onClick={onClose} type="button" variant="outline">닫기</Button>
-        {!receipt && options ? <Button disabled={pending || !applying.length || (needsReason && !reason.trim())} onClick={submit} type="button">
+        {!receipt && lockNote && !nothingToChoose ? <span className={`${NOTE} mr-auto`} data-dispatch-lock-note="">{lockNote}</span> : null}
+        <Button disabled={pending} onClick={close} type="button" variant="outline">닫기</Button>
+        {!receipt && options && !nothingToChoose ? <Button disabled={pending || !applying.length || (needsReason && !reason.trim())} onClick={submit} type="button">
           {pending ? '처리 중…' : withHandoff ? `${applying.length}건 발송처리` : `${applying.length}건 방식 바꾸기`}
         </Button> : null}
       </div>

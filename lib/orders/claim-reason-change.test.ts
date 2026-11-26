@@ -69,6 +69,15 @@ it('반품배송비 안내와 저장 결과 문장', () => {
   expect(claimReasonReturnFeeNote({ ...returnReasonContext, returnFee: { ...returnReasonContext.returnFee!, deductionAmount: null } })).toContain('환불 접수 때 정해집니다');
   expect(claimReasonReturnFeeNote({ ...returnReasonContext, returnFee: { ...returnReasonContext.returnFee!, enabled: false } })).toContain('설정이 꺼져 있어');
   expect(claimReasonReturnFeeNote(context)).toBeNull();
+  /* F-16: 지금 사유가 이미 단순 변심이면 '단순 변심으로 정정하면 뺄 수 있다'를 되풀이하지 않는다. 빼지 않는 단순 변심 반품은 정정해도 같다고 말한다. */
+  const changeOfMind = claimReasonReturnFeeNote({ ...returnReasonContext, reasonType: 'change_of_mind' });
+  expect(changeOfMind).toContain('하자·오배송으로 정정하면 빼지 않습니다.'); expect(changeOfMind).not.toContain('단순 변심으로 정정하면');
+  const noDeduction = claimReasonReturnFeeNote({ ...returnReasonContext, reasonType: 'change_of_mind', returnFee: { ...returnReasonContext.returnFee!, deductionAmount: 0 } })!;
+  expect(noDeduction).toContain('지금 사유로는 반품배송비를 빼지 않습니다.'); expect(noDeduction).toContain('단순 변심이지만 환불 금액에서 빼지 않는 반품이라');
+  expect(noDeduction).not.toContain('단순 변심으로 정정하면'); expect(noDeduction).not.toContain('하자·오배송으로 정정하면 빼지 않');
+  const defect = claimReasonReturnFeeNote({ ...returnReasonContext, reasonType: 'defect', returnFee: { ...returnReasonContext.returnFee!, deductionAmount: 0 } })!;
+  expect(defect).toContain('지금 사유로는 반품배송비를 빼지 않습니다. 단순 변심으로 정정하면 반품배송비(편도 3,000원, 최초 무료배송 주문은 왕복)를 뺄 수 있습니다.');
+  expect(defect).not.toContain('하자·오배송으로 정정하면');
   expect(claimReasonSavedMessage(returnReasonReceipt)).toBe('반품 사유를 정정하고 고객에게 앱 알림을 남겼습니다. 반품배송비 차감이 3,000원에서 0원으로 바뀌었습니다.');
   expect(claimReasonSavedMessage(receipt)).toBe('교환 사유를 정정하고 고객에게 앱 알림을 남겼습니다.');
   expect(claimReasonSavedMessage({ ...receipt, changed: false })).toContain('고객 알림을 추가하지 않았습니다');

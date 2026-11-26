@@ -13,7 +13,7 @@ import { ShippingCollectContractPanel } from '@/components/admin/ShippingCollect
 import { StockDigestOriginRecipientsPanel } from '@/components/admin/StockDigestOriginRecipientsPanel';
 import { NEW_FULFILLMENT_ORIGIN_TAB, fulfillmentOriginTabHref, selectedFulfillmentOriginTab } from '@/lib/admin/fulfillment-origin-tabs';
 import { StoreSettingsRelatedLinks } from './StoreSettingsRelatedLinks';
-import { SHIPPING_REGIONS_PATH } from '@/lib/admin/shipping-regions';
+import { SHIPPING_REGIONS_PATH, shippingRegionBlockedSentence, type ShippingRegionBlockedOrigin } from '@/lib/admin/shipping-regions';
 export { selectedFulfillmentOriginTab };
 
 /* 출고지 탭(셸의 콘솔 전환과 같은 링크 탭, ADR-0028). */
@@ -25,6 +25,16 @@ const ADD_ORIGIN = `${buttonVariants({ variant: 'outline', size: 'sm' })} before
 /** 출고지 카드 머리의 사용 상태. */
 function OriginStatus({ active }: { active: boolean }) {
   return <AdminStatusBadge tone={statusTone('setting', active ? 'active' : 'inactive')}>{active ? '사용' : '사용 안 함'}</AdminStatusBadge>;
+}
+
+/**
+ * 지역별 추가배송비 때문에 새 주문이 막힌 출고지의 안내. 지역별 추가배송비 화면이 '새 주문이 막혀 있는 출고지가 있습니다'로 말하는 것과 같은 판정이다
+ * (`shippingRegionOriginOverview`) — 설정이 끝났거나 끝낸 설정만 있어도, 택배사가 달라도 출고지 설정 화면만 봐서는 알 수 없어 여기서도 알린다.
+ */
+function RegionalFeeBlockNotice({ block }: { block?: ShippingRegionBlockedOrigin }) {
+  if (!block) return null;
+  return <AdminNotice tone="warning">{shippingRegionBlockedSentence(block, formatOrderDateTime)}{' '}
+    <Link className="font-medium underline underline-offset-4" href={SHIPPING_REGIONS_PATH}>지역별 추가배송비 관리</Link>에서 확인해 주세요.</AdminNotice>;
 }
 
 /* 변경 이력의 항목 이름. 저장소의 공용 이름 표는 택배사 화면 이름('새 발송 사용'·'코드')이 섞여 있어, 출고지 이력은 폼의 칸 이름으로 바꿔 보인다. */
@@ -46,23 +56,27 @@ function OriginFacts({ origin }: { origin: FulfillmentOrigin }) {
  * 배송정보 관리. 출고지마다 링크형 탭(R22, `?origin=<코드>`)으로 한 번에 한 출고지만 보인다 — 새로고침·주소 공유에도 유지되고
  * Tab 키로 탭을 오간다. 출고지 추가는 편집 권한이 있을 때만 마지막 탭이다. 최근 변경 이력은 탭 아래 공통이다.
  */
-export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, accountId = '', selected, impact }: {
+export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, accountId = '', selected, impact, regionBlocks }: {
   origins: FulfillmentOrigin[]; carriers: EditableCarrier[]; history: StoreSettingsAudit[]; canEdit: boolean; accountId?: string; selected?: string | null;
   /** 고른 출고지를 저장하기 전에 알릴 영향(영향받는 공개 상품 수·지역별 추가배송비). 편집 권한이 있을 때만 읽어 넘긴다. */
   impact?: OriginSaveImpact;
+  /** 지역별 추가배송비 때문에 지금 새 주문이 막힌 출고지(사용 중인 출고지만). 읽지 못했거나 없으면 비운다. */
+  regionBlocks?: ShippingRegionBlockedOrigin[];
 }) {
   const tab = selected === undefined ? selectedFulfillmentOriginTab(origins, undefined, canEdit) : selected;
   const origin = origins.find(item => item.code === tab);
+  const blockOf = (id: string) => regionBlocks?.find(block => block.originId === id);
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="fulfillment-origins">
     <AdminPageHeader title="배송정보 관리" description="출고지마다 기본 배송비와 택배사를 정합니다." />
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
       {origins.length || canEdit ? <nav aria-label="출고지" className="flex min-w-0 flex-wrap items-center gap-2">
-        {origins.length ? <span className={ORIGIN_TABS}>{origins.map(item => <Link key={item.id} aria-current={tab === item.code ? 'page' : undefined} className={ORIGIN_TAB} href={fulfillmentOriginTabHref(item.code)}>{item.name}{item.active ? '' : ' · 사용 안 함'}</Link>)}</span> : null}
+        {origins.length ? <span className={ORIGIN_TABS}>{origins.map(item => <Link key={item.id} aria-current={tab === item.code ? 'page' : undefined} className={ORIGIN_TAB} href={fulfillmentOriginTabHref(item.code)}>{item.name}{item.active ? '' : ' · 사용 안 함'}{blockOf(item.id) ? ' · 새 주문 막힘' : ''}</Link>)}</span> : null}
         {canEdit ? <Link aria-current={tab === NEW_FULFILLMENT_ORIGIN_TAB ? 'page' : undefined} className={ADD_ORIGIN} data-slot="button" href={fulfillmentOriginTabHref(NEW_FULFILLMENT_ORIGIN_TAB)}>출고지 추가</Link> : null}
       </nav> : <span />}
       <StoreSettingsRelatedLinks label="설정 항목" links={[{ href: STORE_SETTINGS_PATH, label: '사업자·결제 표시 설정' }, { href: CARRIER_SETTINGS_PATH, label: '택배사' }, { href: SHIPPING_REGIONS_PATH, label: '지역별 추가배송비' }]} />
     </div>
     {origin ? <AdminSectionCard key={origin.id} summary={<OriginFacts origin={origin} />} title={origin.name}>
+      <RegionalFeeBlockNotice block={blockOf(origin.id)} />
       <FulfillmentOriginForm origin={origin} carriers={carriers} canEdit={canEdit} impact={canEdit ? impact : undefined} />
       <ShipmentExportColumnsEditor origin={origin} canEdit={canEdit} />
       {/* 사용 안 함인 출고지에서는 수령 방식·착불 조건을 켤 수 없다 — 두 패널이 누르기 전에 잠그고 이유를 보인다. */}
@@ -80,10 +94,11 @@ export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, 
   </div>;
 }
 
-export function GoodsOriginSummaryScreen({ origins }: { origins: GoodsFulfillmentOrigin[] }) {
+export function GoodsOriginSummaryScreen({ origins, regionBlocks }: { origins: GoodsFulfillmentOrigin[]; regionBlocks?: ShippingRegionBlockedOrigin[] }) {
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-origins">
     <AdminPageHeader title="배송정보 관리" description="상품에 적용할 출고지와 고객 배송 정보를 확인합니다." />
     {origins.map(origin => <AdminSectionCard key={origin.id} summary={<OriginStatus active={origin.active} />} title={origin.name}>
+      <RegionalFeeBlockNotice block={regionBlocks?.find(block => block.originId === origin.id)} />
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2"><div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">기본 배송비</dt><dd className="tabular-nums">{origin.baseFee.toLocaleString('ko-KR')}원</dd></div>
         <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">무료배송 기준</dt><dd className="tabular-nums">{origin.freeThreshold === null ? '무료 기준 없음' : `${origin.freeThreshold.toLocaleString('ko-KR')}원 이상`}</dd></div>
         <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">기본 택배사</dt><dd>{origin.defaultCarrier ?? '지정 안 됨'}</dd></div><div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">반품 주소</dt><dd className="[overflow-wrap:anywhere]">{origin.returnAddress || '등록 안 함'}</dd></div></dl>

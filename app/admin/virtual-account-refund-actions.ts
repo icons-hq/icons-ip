@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
 import { adminRefundAccountEntryProblem, normalizeAdminRefundAccountEntry, VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS, virtualAccountRefundAccountEntryMessage } from '@/lib/admin/virtual-account-refund-account';
 import { retryVirtualAccountRefund } from '@/lib/orders/virtual-account-refund-retry.server';
@@ -15,7 +16,7 @@ const ERRORS: Record<string, string> = {
   invalid_refund_resolution: '처리 내용을 2자 이상 200자 이하로 적어주세요.',
   refund_watch_not_found: '이 주문에는 확인할 환불 송금 기록이 없습니다. 주문 화면을 새로고침해 다시 확인해주세요.',
   refund_watch_not_failed: '환불 송금이 실패한 상태가 아닙니다(송금 확인 중이거나 이미 끝났습니다). 주문 화면을 새로고침해 다시 확인해주세요.',
-  operator_capability_required: '주문 관리 권한이 있는 계정만 처리할 수 있습니다.',
+  operator_capability_required: ADMIN_SALES_ACCESS_DENIED,
 };
 
 /**

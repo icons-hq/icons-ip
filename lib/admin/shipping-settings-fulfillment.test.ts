@@ -63,14 +63,14 @@ it('수정한 수령 방식은 근거 없이 저장할 모양이 되고, 숫자�
   expect(prepareShippingFulfillment(blank)).toBeNull(); expect(shippingFulfillmentProblem(blank)).toBe('선결제 배송비와 설치비는 0 이상의 숫자(원)로 적어 주세요.');
   expect(prepareShippingFulfillment(negative)).toBeNull(); expect(shippingFulfillmentProblem(negative)).toBe('선결제 배송비와 설치비는 0 이상의 숫자(원)로 적어 주세요.');
   const none = { ...d, methods: d.methods.map(m => ({ ...m, enabled: false })) };
-  expect(prepareShippingFulfillment(none)).toBeNull(); expect(shippingFulfillmentProblem(none)).toBe('받을 방식을 하나 이상 골라 주세요.');
+  expect(prepareShippingFulfillment(none)).toBeNull(); expect(shippingFulfillmentProblem(none)).toBe('수령 방식을 하나 이상 골라 주세요.');
   expect(prepareShippingFulfillment({ ...d, action: 'preserve' })).toEqual({ mode: 'preserve' });
 });
-it('받을 방식을 상품의 수령 방식 패널과 같은 문장으로 되읽는다', () => {
+it('수령 방식을 상품의 수령 방식 패널과 같은 문장으로 되읽는다', () => {
   if (replacement.mode !== 'replace') throw Error('fixture');
   expect(shippingFulfillmentReadback({ mode: 'shipping', methods: [replacement.policy.methods[1], replacement.policy.methods[0]] }))
     .toBe('고객은 주문서에서 방문수령, 직접배송(배송비 수량 1개마다 2,500원 · 설치비 개당 1,000원) 중 하나를 고릅니다.');
-  expect(shippingFulfillmentReadback({ mode: 'shipping', methods: [{ method: 'parcel', feeAmount: null, feeBasis: 'per_order', installationFee: 0 }] })).toBe('받을 방식은 택배 하나입니다.');
+  expect(shippingFulfillmentReadback({ mode: 'shipping', methods: [{ method: 'parcel', feeAmount: null, feeBasis: 'per_order', installationFee: 0 }] })).toBe('수령 방식은 택배 하나입니다.');
   expect(shippingFulfillmentReadback({ mode: 'no_delivery', methods: [{ method: 'none', feeAmount: 0, feeBasis: 'per_order', installationFee: 0 }] })).toBe('배송비 없이 주문받고 직접 전달합니다.');
 });
 it('미리보기의 상품·버전·파일 해제·금액 변조를 거절한다', () => {

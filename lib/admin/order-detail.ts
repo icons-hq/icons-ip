@@ -39,6 +39,8 @@ export interface AdminShipmentEmailJob {
   attempts: number;
   lastErrorCode: string | null;
   updatedAt: string;
+  /** 메일 작업을 잡고 있는 시각의 끝. 처리 중이고 이 시각이 지금보다 뒤면 DB가 발송 되돌리기를 받지 않는다. 읽지 않았으면 없다. */
+  leaseUntil?: string | null;
 }
 /** Explicit staff projection from admin_order_detail; no provider secrets or raw ledger/audit payloads. */
 export interface AdminOrderDetail {

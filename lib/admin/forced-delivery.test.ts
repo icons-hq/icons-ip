@@ -30,7 +30,7 @@ describe('운영 강제 배송완료 값 (1014-083)', () => {
     expect(forcedDeliveryError('PT409', 'shipment_pack_changed')).toContain('[강제 배송완료]를 다시 눌러');
     /* 화면에 없는 '요청 번호'·'(예외)' 같은 안쪽 말은 쓰지 않는다. */
     for (const message of [...FORCED_DELIVERY_BLOCKERS.map(forcedDeliveryBlockerLabel), forcedDeliveryError('23505', 'operation_conflict'), forcedDeliveryError(undefined, 'shipment_pack_changed')]) expect(message).not.toMatch(/요청 번호|\(예외\)/);
-    expect(forcedDeliveryError('42501')).toContain('배송 처리 권한');
+    expect(forcedDeliveryError('42501')).toBe('판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.');
     expect(forcedDeliveryError(undefined, 'order cancellation in progress')).toContain('취소·반품·교환 관리');
     /* QA1 S-T04-05: 이미 배송완료·취소된 주문은 '먼저 발주확인'이 아니라 처리할 배송 건이 없다고 알린다. */
     expect(forcedDeliveryError('23514', 'forced_delivery_nothing_to_deliver')).toContain('이미 배송완료됐거나 취소된 주문');
@@ -67,7 +67,7 @@ describe('운영 강제 배송완료 값 (1014-083)', () => {
         { orderCount: 2, itemCount: 3 }), '배송중');
       expect(message).toContain('상품: 시험 상품 외 2건'); expect(message).toContain('배송 건: 택배 발송 대기 1건, 직접배송 발송 대기 1건');
       expect(message).toContain(`합포장으로 묶인 주문 2개가 함께 배송완료됩니다(다른 주문: ${other}).`);
-      expect(message).toContain('출고지시를 이미 전달한 배송 건 1건이 있습니다. 창고 출고는 멈추지 않으니');
+      expect(message).toContain('출고지시를 이미 보낸 배송 건 1건이 있습니다. 창고 출고는 멈추지 않으니');
       expect(message).toContain('디지털 파일 배송 건 1건은 구매자가 내려받을 때 완료되므로 뺍니다');
       expect(message).not.toContain('"배송이 완료됐어요"가 갑니다'); expect(message).toContain('"배송이 시작됐어요" 앱 알림이 갈 수 있습니다');
     });

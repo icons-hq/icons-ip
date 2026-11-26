@@ -24,6 +24,9 @@ const orderActions = vi.hoisted(() => ({
 }));
 
 vi.mock('@/app/admin/order-actions', () => orderActions);
+/* 취소 승인·전액 취소 확인창은 누르는 시점에 금액을 읽는다. 서버 렌더에는 읽기가 없어 이름만 둔다. */
+vi.mock('@/app/admin/claim-actions', () => ({ readOrderClaimApprovalAmountAction: vi.fn() }));
+vi.mock('@/app/admin/order-cancel-amount-actions', () => ({ readOrderFullCancelAmountAction: vi.fn() }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/app/admin/virtual-account-refund-actions', () => ({ resolveVirtualAccountRefundAction: vi.fn() }));
 vi.mock('@/app/admin/shipment-tracking-actions', () => ({ addShipmentExtraTrackingAction: vi.fn(), removeShipmentExtraTrackingAction: vi.fn(), swapShipmentTrackingAction: vi.fn(), registerDuplicateShipmentTrackingAction: vi.fn() }));
@@ -164,32 +167,42 @@ describe('OrdersSection', () => {
       expect(html).toMatch(/<button[^>]*type="submit"[^>]*>전액 취소 실행</);
       expect(html).toMatch(/<button[^>]*type="submit"[^>]*>발주확인</);
       expect(html).toMatch(/<button[^>]*type="submit"[^>]*>선택 주문 발주확인</);
-      /* 확인창이 어느 주문인지(번호·구매자)와 금액을 말한다 — 전액 취소는 취소되는 금액과 결제사, 부분 취소로 금액이 줄 수 있다는 사실까지. */
+      /* 확인창이 어느 주문인지(번호·구매자)와 금액을 말한다. */
       const who = `주문 ${ORDER_ID.replaceAll('-', '').slice(-8).toUpperCase()} · maple_fan · ₩32,000`;
       expect(dataConfirms(html)).toContain(`${who}\n발주확인 뒤에는 고객이 직접 취소할 수 없습니다.`);
-      expect(dataConfirms(html)).toContain(`${who}\n토스 결제를 전액 취소합니다. 되돌릴 수 없고, 재고·쿠폰·적립금이 돌아가며 구매자에게 취소 알림이 갑니다.\n재고 부족 부분 취소로 이미 환불한 금액이 있으면 그만큼 뺀 나머지만 취소합니다.`);
+      /* 전액 취소의 금액은 화면에 내려와 있던 결제 금액이 아니라 누르는 시점에 읽는다 — 서버 렌더에는 금액이 적힌 확인창이 없고, 양식이 그 사실을 말한다. */
+      expect(dataConfirms(html).join('\n')).not.toContain('전액 취소합니다');
+      expect(html).toContain('발송 전 주문의 남은 결제 금액을 바로 취소합니다. 취소 금액은 누르면 확인창에 보입니다.');
     });
 
-    it('전액 취소 확인창의 금액은 결제완료 결제의 합이고, 결제사 이름을 말한다', () => {
-      const html = renderToStaticMarkup(<OrdersSection data={orderData({
-        shipments: [readyShipment(null)], total: 50000,
-        payments: [
-          { id: 'p1', provider: 'nicepay', amount: 18000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' },
-          { id: 'p2', provider: 'nicepay', amount: 12000, status: 'paid', createdAt: '2026-07-14T06:02:00.000Z' },
-          { id: 'p3', provider: 'toss', amount: 99000, status: 'failed', createdAt: '2026-07-14T06:00:00.000Z' },
-        ],
-      })} />);
-      expect(dataConfirms(html).find(text => text.includes('결제를 전액 취소합니다'))).toContain('· ₩30,000\n나이스페이 결제를 전액 취소합니다.');
+    /* 앞서 재고 부족 부분 취소가 있었던 주문(40,000 결제 · 9,500 부분 취소)은 30,500만 취소한다 — 확인창이 그 금액과 결제 금액을 함께 말한다. */
+    it('전액 취소 확인창은 누르는 시점에 읽은 취소 금액으로 만든다', async () => {
+      const { orderFullCancelConfirmation } = await import('./Orders');
+      const order = orderData({ total: 40000, payments: [{ id: 'p1', provider: 'toss', amount: 40000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' }] }).items[0];
+      const read = vi.fn(async () => ({ ok: true as const, amount: 30500, paidAmount: 40000 }));
+      const who = `주문 ${ORDER_ID.replaceAll('-', '').slice(-8).toUpperCase()} · maple_fan`;
+
+      expect(await orderFullCancelConfirmation(order, read)).toMatchObject({
+        title: '이 주문을 전액 취소할까요?', confirmLabel: '전액 취소', cancelLabel: '돌아가기', destructive: true,
+        message: `${who} · ₩30,500\n토스 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 ₩30,500을 취소합니다(결제 금액 ₩40,000). 되돌릴 수 없고, 재고·쿠폰·적립금이 돌아가며 구매자에게 취소 알림이 갑니다.`,
+      });
+      expect(read).toHaveBeenCalledExactlyOnceWith(ORDER_ID);
     });
 
-    /* 가상계좌는 입금 뒤 환불이 고객 환불 계좌로만 나가 계좌가 없으면 취소가 멈춘다 — 그대로 되지 않을 수 있는 경우를 확인창이 말한다. */
-    it('가상계좌 결제의 전액 취소 확인창은 결제수단과 환불 계좌 조건을 말한다', () => {
-      const virtualAccount = { bankCode: '20', accountNumber: 'X1234567890', dueAt: '2026-11-25T01:00:00.000Z', amount: 32000, useEscrow: false, state: 'deposited' as const, escrow: null, refund: null };
-      const html = renderToStaticMarkup(<OrdersSection data={orderData({ shipments: [readyShipment(null)], virtualAccount })} />);
-      const text = dataConfirms(html).find(item => item.includes('결제를 전액 취소합니다'));
-      expect(text).toContain('토스 가상계좌 결제를 전액 취소합니다.');
-      expect(text).toContain('가상계좌 결제는 고객의 환불 계좌로 환불합니다. 환불 계좌가 아직 없으면 취소가 멈추고 고객에게 계좌를 묻는 알림이 갑니다.');
-      expect(dataConfirms(renderToStaticMarkup(<OrdersSection data={orderData({ shipments: [readyShipment(null)] })} />)).join('\n')).not.toContain('환불 계좌');
+    it.each([
+      ['읽기 실패', async () => ({ ok: false as const })],
+      ['읽는 중 오류', async () => { throw new Error('network'); }],
+    ])('전액 취소 금액을 읽지 못하면(%s) 금액을 지어내지 않고 읽지 못했다고 말한 뒤 묻는다', async (_label, read) => {
+      const { orderFullCancelConfirmation } = await import('./Orders');
+      const request = await orderFullCancelConfirmation(orderData().items[0], read as never);
+
+      expect(request).toMatchObject({ confirmLabel: '금액 확인 없이 전액 취소', cancelLabel: '돌아가기', destructive: true });
+      expect((request as { message: string }).message).toBe([
+        `주문 ${ORDER_ID.replaceAll('-', '').slice(-8).toUpperCase()} · maple_fan`,
+        '지금 취소 금액을 읽지 못했습니다. 그대로 진행하면 토스 결제에 남아 있는 금액을 모두 취소합니다. 되돌릴 수 없고, 재고·쿠폰·적립금이 돌아가며 구매자에게 취소 알림이 갑니다.',
+        '금액을 확인하려면 돌아가서 새로고침한 뒤 다시 눌러주세요.',
+      ].join('\n'));
+      expect((request as { message: string }).message).not.toContain('₩');
     });
 
     it('메모 칸 이름은 선택 여부를 말하고, 기타를 고르면 필수 표시가 바뀐다', () => {
@@ -209,6 +222,24 @@ describe('OrdersSection', () => {
       expect(html).toContain('창고의 출고 중단 회신 기록이 있어야 취소됩니다.');
       expect(html).toContain(`/admin/sales/orders/${ORDER_ID}`);
       expect(html).toContain('#warehouse-stop');
+      /* 회신 상태를 읽는 동안에는 [전액 취소 실행]을 잠근다 — 회신이 필요한데 버튼을 열어 두고 확인창을 지난 뒤에 거절하지 않는다. */
+      expect(html).toMatch(/<button[^>]*disabled=""[^>]*>전액 취소 실행</);
+      expect(html).toContain('<span class="text-xs text-muted-foreground" data-order-staff-cancel-lock="">창고 회신 기록을 확인하는 중입니다.</span>');
+      /* 출고지시가 나가지 않은 주문은 잠그지 않는다. */
+      const open = renderToStaticMarkup(<OrdersSection data={orderData({ shipments: [readyShipment(null)] })} />);
+      expect(open).not.toContain('data-order-staff-cancel-lock');
+      expect(open).not.toMatch(/<button[^>]*disabled=""[^>]*>전액 취소 실행</);
+    });
+
+    /* '창고 회신 기록 필요'·'이미 출고 회신'·'다른 취소에 쓴 회신'이 보이는 동안은 누를 수 없다. 회신이 있거나 상태를 읽지 못했으면 연다(판정은 DB). */
+    it('창고 회신 상태에 따라 전액 취소를 미리 잠그고 이유를 말한다', async () => {
+      const { staffCancelWarehouseLock } = await import('./Orders');
+      expect(staffCancelWarehouseLock('ready')).toBeNull();
+      expect(staffCancelWarehouseLock('unknown')).toBeNull();
+      expect(staffCancelWarehouseLock('loading')).toBe('창고 회신 기록을 확인하는 중입니다.');
+      expect(staffCancelWarehouseLock('required')).toBe('창고의 출고 중단 회신을 기록해야 누를 수 있습니다.');
+      expect(staffCancelWarehouseLock('used')).toBe('창고의 출고 중단 회신을 기록해야 누를 수 있습니다.');
+      expect(staffCancelWarehouseLock('already_shipped')).toBe('창고가 이미 출고했다고 회신한 주문이라 전액 취소할 수 없습니다. 발송 처리 뒤 고객 반품으로 접수해주세요.');
     });
 
     it('발송된 배송 건이 있거나 진행 중인 요청이 있으면 그리지 않는다', () => {
@@ -679,9 +710,52 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('취소 승인');
     expect(html).toContain('취소 거부');
-    /* 발송 뒤 주문에도 같은 확인창이다 — '반품 물건 입고' 확인은 물건이 나간 주문의 취소 요청을 승인할 수 있는 길이 없어 지웠다(디지털 상품은 해당 없음). */
+    /* 발송 뒤 주문에도 같은 승인 양식이다 — '반품 물건 입고' 확인은 물건이 나간 주문의 취소 요청을 승인할 수 있는 길이 없어 지웠다(디지털 상품은 해당 없음). */
     expect(html).not.toContain('반품 물건 입고');
-    expect(dataConfirms(html)).toContain(`주문 ${ORDER_ID.replaceAll('-', '').slice(-8).toUpperCase()} · maple_fan · ₩32,000\n승인하면 결제 취소를 시작합니다. 결제 취소가 확인되면 주문이 취소되고 재고가 돌아갑니다.\n재고 부족 부분 취소로 이미 환불한 금액이 있으면 그만큼 뺀 나머지만 취소합니다.`);
+    /* 승인 확인창은 누르는 시점에 금액·결제사를 읽어 만든다 — 서버 렌더에는 양식의 표시만 있다. */
+    expect(html).toContain('data-order-cancel-approve=""');
+    expect(dataConfirms(html).join('\n')).not.toContain('승인하면');
+  });
+
+  /*
+   * 주문 처리 패널의 [취소 승인]은 취소·반품·교환 관리의 취소 승인과 같은 읽기로 누르는 시점의 금액·결제사를 읽는다.
+   * 40,000 결제 · 9,500 부분 취소 주문은 30,500을 취소한다 — 화면에 내려와 있던 40,000을 말하지 않는다.
+   */
+  describe('취소 승인 확인창', () => {
+    const REQUEST_ID = '33333333-3333-4333-8333-333333333333';
+    const partial = () => orderData({ total: 40000, cancellationRequest: cancellationRequest(),
+      payments: [{ id: 'p1', provider: 'toss', amount: 40000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' }] }).items[0];
+    const who = `주문 ${ORDER_ID.replaceAll('-', '').slice(-8).toUpperCase()} · 구매자 maple_fan`;
+
+    it('누르는 시점에 읽은 취소 금액을 말한다', async () => {
+      const { orderCancelApprovalConfirmation } = await import('./Orders');
+      const read = vi.fn(async () => ({ ok: true as const, amount: 30500, paymentProvider: 'toss' }));
+
+      expect(await orderCancelApprovalConfirmation(partial(), REQUEST_ID, read)).toEqual({
+        title: '취소 승인', confirmLabel: '30,500원 취소', cancelLabel: '돌아가기', destructive: true,
+        message: `${who}\n토스 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 30,500원을 취소합니다(결제 금액 40,000원).\n승인하면 바로 결제사에 취소를 요청합니다. 되돌릴 수 없고, 취소가 확인되면 주문 취소·재고 복원까지 함께 끝납니다.`,
+      });
+      expect(read).toHaveBeenCalledExactlyOnceWith(REQUEST_ID);
+    });
+
+    it('무통장 결제는 결제 취소를 말하지 않고 환불 절차와 이 화면에서 승인하면 생기는 일을 말한다', async () => {
+      const { orderCancelApprovalConfirmation } = await import('./Orders');
+      const request = await orderCancelApprovalConfirmation(partial(), REQUEST_ID, async () => ({ ok: true as const, amount: 40000, paymentProvider: 'bank_transfer' }));
+
+      expect((request as { message: string }).message).toBe(`${who}\n취소를 승인할까요? 승인 뒤 환불계좌 송금 절차로 진행합니다.\n이 화면에서 승인하면 요청이 '결제확인필요'로 바뀝니다. 승인만으로는 주문이 취소되지 않고 재고도 그대로입니다. 환불은 취소·반품·교환 관리에서 이 요청을 열어 이어서 합니다.`);
+      expect(request).toMatchObject({ confirmLabel: '승인하고 환불 처리 시작' });
+    });
+
+    it.each([
+      ['읽기 실패', async () => ({ ok: false as const, error: '취소할 금액을 다시 읽지 못해 승인하지 않았습니다. 새로고침한 뒤 다시 눌러주세요.' })],
+      ['읽는 중 오류', async () => { throw new Error('network'); }],
+    ])('금액을 읽지 못하면(%s) 금액을 지어내지 않고 읽지 못했다고 말한 뒤 묻는다', async (_label, read) => {
+      const { orderCancelApprovalConfirmation } = await import('./Orders');
+      const request = await orderCancelApprovalConfirmation(partial(), REQUEST_ID, read as never);
+
+      expect((request as { message: string }).message).toBe(`${who}\n지금 취소 금액을 읽지 못했습니다. 그대로 승인하면 토스 결제는 남은 결제 금액을 모두 바로 취소하고 되돌릴 수 없습니다.\n금액을 확인하려면 돌아가서 새로고침한 뒤 다시 눌러주세요.`);
+      expect(request).toMatchObject({ confirmLabel: '금액 확인 없이 승인', cancelLabel: '돌아가기', destructive: true });
+    });
   });
 
   /* 사유는 기한(7일 vs 3개월)과 반송비 부담 주체를 가른다. 운영자가 승인·거절을
@@ -745,10 +819,13 @@ describe('OrdersSection', () => {
       }),
     })} />);
 
-    /* 이름 + 다음 할 일 + 문의용 코드(작게). 코드만 있고 할 일이 없던 화면을 고쳤다. */
-    expect(html).toMatch(/결제사 확인 오류 · 결제사 응답을 받지 못했습니다<\/p><p>잠시 뒤 \[환불 완료 확정\]을 다시 눌러주세요\.<\/p><small[^>]*>문의할 때 알려 줄 코드: <code[^>]*>provider_unavailable<\/code><\/small>/);
+    /* 이름 + 다음 할 일 + 문의용 코드(작게). 코드만 있고 할 일이 없던 화면을 고쳤다.
+       코드별 안내가 가리키는 [환불 완료 확정]은 이 패널에 없다 — 이 패널에서 같은 일을 하는 버튼과 그 버튼이 있는 요청 상세로 가는 버튼을 화면에 적힌 이름으로 말한다. */
+    expect(html).toMatch(/결제사 확인 오류 · 결제사 응답을 받지 못했습니다<\/p><p>잠시 뒤 \[환불 완료 확정\]을 다시 눌러주세요\. 이 주문 패널에서는 아래 \[상태 다시 확인\]이 같은 일을 합니다\. \[환불 완료 확정\]은 아래 \[취소·반품·교환 관리에서 처리\]로 여는 요청 상세에 있습니다\.<\/p><small[^>]*>문의할 때 알려 줄 코드: <code[^>]*>provider_unavailable<\/code><\/small>/);
     expect(html).not.toContain('코드별 조치는 어드민 가이드');
-    expect(html).toContain('상태 다시 확인');
+    /* 안내가 가리키는 두 버튼이 실제로 이 패널에 있다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>상태 다시 확인</);
+    expect(html).toMatch(/<a[^>]*href="\/admin\/sales\/claims\/cancels\/33333333-3333-4333-8333-333333333333"[^>]*>취소·반품·교환 관리에서 처리</);
   });
 
   it('종결된 요청에는 지난 결제사 확인 오류 코드를 다시 띄우지 않는다', () => {
@@ -833,7 +910,9 @@ describe('OrdersSection', () => {
       return {
         ...actual,
         useActionState: (fn: unknown, initial: unknown) => [
-          fn === orderActions.updateAdminOrderTrackingAction ? { errors: { form: shipmentMutationError('tracking_number_in_use') } } : initial,
+          fn === orderActions.updateAdminOrderTrackingAction
+            ? { errors: { form: shipmentMutationError('tracking_number_in_use') }, trackingInUse: { carrier: 'hanjin', trackingNumber: '999888777666' } }
+            : initial,
           () => {},
           false,
         ],
@@ -850,6 +929,10 @@ describe('OrdersSection', () => {
       /* 폼 안에 폼을 넣지 않는다 — 두 길은 운송장 수정 양식 밖(아래)에 놓인다. */
       const edit = html.slice(html.indexOf('data-tracking-edit'));
       expect(edit.indexOf('</form>')).toBeLessThan(edit.indexOf('data-tracking-conflict'));
+      /* 방금 거절된 택배사·번호가 [중복 확인 후 운송장 등록]에 채워져 넘어간다 — 운영자는 같은 번호를 다시 적지 않고 사유만 적는다. */
+      const duplicate = html.slice(html.indexOf('data-shipment-tracking-duplicate'));
+      expect(duplicate).toContain('한진택배 999888777666은 다른 주문이 쓰는 번호입니다. 창고에 같은 상자로 확인했으면 사유를 적고 등록합니다.');
+      expect(duplicate).not.toContain('placeholder="다른 주문과 같은 상자의 운송장번호"');
       /* 다른 오류에는 열지 않는다. */
     } finally {
       vi.doUnmock('react');
@@ -857,6 +940,21 @@ describe('OrdersSection', () => {
     }
     const other = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'shipping', shipments: [shipmentFixture()] })} />);
     expect(other).not.toContain('data-tracking-conflict');
+  });
+
+  /* 맞바꾸기·중복 등록은 운송장 수정 양식을 거치지 않고 끝난다. 끝나면 위의 거절 문구(빨간 글)와 두 길을 남기지 않는다. */
+  it('맞바꾸기·중복 등록이 끝나면 거절 문구와 두 길을 접고, 수정이 다시 거절되면 다시 연다', async () => {
+    const { trackingConflictView } = await import('./Orders');
+    const rejection = { errors: { form: shipmentMutationError('tracking_number_in_use') }, trackingInUse: { carrier: 'hanjin', trackingNumber: '999888777666' } };
+    expect(trackingConflictView(rejection, null)).toEqual({ settled: null, inUse: true });
+    const resolved = { rejection, message: '운송장을 맞바꿨습니다.' };
+    expect(trackingConflictView(rejection, resolved)).toEqual({ settled: resolved, inUse: false });
+    /* 같은 번호로 다시 거절돼도 새 결과다 — 앞의 해결이 새 거절을 가리지 않는다. */
+    expect(trackingConflictView({ ...rejection }, resolved)).toEqual({ settled: null, inUse: true });
+    /* 옛 응답(번호 없이 문구만)도 두 길을 연다. 다른 오류·성공에는 열지 않는다. */
+    expect(trackingConflictView({ errors: { form: shipmentMutationError('tracking_number_in_use') } }, null).inUse).toBe(true);
+    expect(trackingConflictView({ errors: { form: '운송장을 저장하지 못했습니다.' } }, null).inUse).toBe(false);
+    expect(trackingConflictView({ message: '운송장 정보를 저장했습니다.' }, null).inUse).toBe(false);
   });
 
   it('운송장 수정 아래에서 배송 건의 추가 운송장을 보고 고친다(QNA-019)', () => {
@@ -881,7 +979,8 @@ describe('OrdersSection', () => {
       status: 'shipping', carrier: null, carrierLabel: null, trackingNumber: null, trackingUrl: null,
       delivery: shipmentDeliveryFixture({ method: 'quick', providerName: '실제 퀵 업체' }),
     })] })} />);
-    expect(html).toContain('퀵 배송 중'); expect(html).toContain('퀵 인계·수령 확인');
+    /* 배송 건 상태 이름은 발송관리·주문 상세와 같은 어드민 이름이다('퀵 배송중' — 고객 화면의 '퀵 배송 중'이 아니다). */
+    expect(html).toContain('퀵 배송중'); expect(html).not.toContain('퀵 배송 중'); expect(html).toContain('퀵 인계·수령 확인');
     expect(html).toContain(`/admin/sales/orders/${ORDER_ID}?back=`);
     expect(html).not.toContain('name="carrier"'); expect(html).not.toContain('name="trackingNumber"');
     expect(html).not.toContain('운송장 수정'); expect(html).not.toContain('배송 건별 배송완료 처리');
@@ -904,12 +1003,14 @@ describe('OrdersSection', () => {
     })} />);
 
     const who = `주문 ${ORDER_ID.replaceAll('-', '').slice(-8).toUpperCase()} · maple_fan`;
-    expect(dataConfirms(html)).toContain(`${who} · ₩32,000\n승인하면 결제 취소를 시작합니다. 결제 취소가 확인되면 주문이 취소되고 재고가 돌아갑니다.\n재고 부족 부분 취소로 이미 환불한 금액이 있으면 그만큼 뺀 나머지만 취소합니다.`);
+    expect(html).toContain('data-order-cancel-approve=""');
     expect(dataConfirms(html)).toContain(`${who} · ₩32,000\n구매자의 취소 요청을 거부합니다. 입력한 사유가 구매자 화면에 그대로 보입니다.`);
     /* 거부 사유는 구매자 화면에 그대로 보이는 필수 칸이다 — 이름이 그 사실을 말한다. */
     expect(html).toContain(`for="admin-order-reject-reason-${requestId}">거부 사유 (필수 · 구매자 화면에 그대로 보입니다)`);
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>취소 승인</);
-    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>취소 거부</);
+    /* 사유가 10자에 못 미치는 동안은 [취소 거부]를 잠그고 이유를 보인다 — 확인창을 지난 뒤에 오류로 돌려보내지 않는다. */
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*type="submit"[^>]*>취소 거부<|<button[^>]*type="submit"[^>]*disabled=""[^>]*>취소 거부</);
+    expect(html).toContain('<span class="text-xs text-muted-foreground" data-order-reject-lock="">거부 사유를 10자 이상 적으면 누를 수 있습니다.</span>');
     expect(html).toContain('minLength="10"');
     expect(html).toContain('maxLength="200"');
     expect(html).toContain('aria-live="polite"');
@@ -1241,6 +1342,36 @@ describe('운영자 전액 취소 제출 순서', () => {
     expect(confirm).toHaveBeenCalledOnce();
   });
 
+  /* 취소 거부도 같다 — 사유가 비었거나 10자에 못 미치면 확인창("입력한 사유가 구매자 화면에 그대로 보입니다")을 띄우지 않고 칸에서 알린다. */
+  it('취소 거부는 사유가 10~200자가 아니면 확인 창을 띄우지 않고 사유 오류를 돌려준다', async () => {
+    const { planOrderCancellationSubmit, rejectCancellationClientErrors } = await import('./Orders');
+    const rejectForm = (reason: string) => { const form = new FormData(); form.set('requestId', '33333333-3333-4333-8333-333333333333'); form.set('reason', reason); return form; };
+    const confirm = vi.fn(() => true);
+
+    for (const reason of ['', '짧은 사유', 'ㄱ'.repeat(201)]) {
+      expect(await planOrderCancellationSubmit(rejectForm(reason), confirmation, confirm, rejectCancellationClientErrors))
+        .toEqual({ kind: 'invalid', errors: { reason: '거부 사유를 10자 이상 200자 이하로 적어주세요.' } });
+    }
+    expect(confirm).not.toHaveBeenCalled();
+    expect(await planOrderCancellationSubmit(rejectForm('배송 준비가 이미 끝나 취소할 수 없습니다.'), confirmation, confirm, rejectCancellationClientErrors)).toEqual({ kind: 'dispatch' });
+    expect(confirm).toHaveBeenCalledOnce();
+  });
+
+  /* 결제를 취소하는 확인창은 누르는 시점에 금액을 읽어 만든다. 입력이 틀리면 읽지도 않고, 읽은 내용 그대로 확인창에 넘긴다. */
+  it('금액을 읽어 만드는 확인창은 입력 검사 뒤에 읽고, 읽은 내용으로 묻는다', async () => {
+    const { planOrderCancellationSubmit, staffCancellationClientErrors } = await import('./Orders');
+    const resolve = vi.fn(async () => ({ title: '이 주문을 전액 취소할까요?', message: '주문 A · ₩30,500' }));
+    const confirm = vi.fn(() => true);
+
+    expect(await planOrderCancellationSubmit(staffForm({ reasonCode: 'other', note: '짧음' }), resolve, confirm, staffCancellationClientErrors))
+      .toMatchObject({ kind: 'invalid' });
+    expect(resolve).not.toHaveBeenCalled();
+
+    expect(await planOrderCancellationSubmit(staffForm({ reasonCode: 'out_of_stock' }), resolve, confirm, staffCancellationClientErrors)).toEqual({ kind: 'dispatch' });
+    expect(resolve).toHaveBeenCalledOnce();
+    expect(confirm).toHaveBeenCalledExactlyOnceWith({ title: '이 주문을 전액 취소할까요?', message: '주문 A · ₩30,500' });
+  });
+
   it('양식은 브라우저 기본 검사 대신 같은 화면 오류로 사유·메모를 알린다', async () => {
     vi.resetModules();
     vi.doMock('react', async () => {
@@ -1401,7 +1532,7 @@ describe('고른 주문의 처리 패널', () => {
 
   it('결제수단 조건은 카드로 뭉뚱그리지 않고 사실대로 부른다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
-    expect(html).toContain('<option value="card">토스 결제(카드·가상계좌·계좌이체)</option>');
+    expect(html).toContain('<option value="card">결제사 결제(카드·가상계좌·계좌이체)</option>');
     expect(html).toContain('<option value="bank_transfer">무통장 입금(직접 이체)</option>');
     expect(html).not.toContain('>카드</option>');
   });

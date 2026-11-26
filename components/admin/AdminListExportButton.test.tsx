@@ -10,7 +10,7 @@ describe('목록 엑셀 다운로드 버튼', () => {
     expect(html).toContain('목록 엑셀 다운로드');
     expect(html).toContain('type="button"');
     expect(html).toContain('data-export-href="/api/admin/list-export?screen=orders&amp;status=paid"');
-    expect(html).toContain('현재 검색 조건의 전체 1,234건을 받습니다(최대 10,000건). 한 행은 상품 한 줄이며 한 파일은 최대 10,000행입니다.');
+    expect(html).toContain('현재 검색 조건의 전체 1,234건을 받습니다(최대 10,000건). 한 줄에 상품 하나씩 적으며 한 파일은 최대 10,000줄입니다.');
     expect(html).toContain('내려받은 기록이 남습니다');
     expect(html).not.toContain('disabled=""');
   });

@@ -4,7 +4,7 @@ import { shipmentArrivalError, shipmentArrivalNeedsReason, shipmentCompletionFai
 const NOW = new Date('2026-11-19T03:00:00Z');
 
 describe('배송 상태 정정·택배사 도착 일시 (ADR-0045)', () => {
-  it('택배 배송 건만 한 단계 되돌린다: 배송완료 → 배송 중, 배송 중 → 발송 대기', () => {
+  it('택배 배송 건만 한 단계 되돌린다: 배송완료 → 배송중, 배송중 → 발송 대기', () => {
     expect(shipmentRevertKind('delivered', true)).toBe('delivery');
     expect(shipmentRevertKind('shipping', true)).toBe('dispatch');
     expect(shipmentRevertKind('ready', true)).toBeNull();
@@ -15,7 +15,7 @@ describe('배송 상태 정정·택배사 도착 일시 (ADR-0045)', () => {
   it('확인창은 되돌리는 결과와 회수할 수 없는 고객 안내를 함께 적는다', () => {
     const delivery = shipmentRevertPrompt('delivery', { reference: '2026111930000001', packCount: 2 });
     expect(delivery.title).toBe('배송완료 되돌리기');
-    expect(delivery.message).toContain('배송 건 2026111930000001을 배송 중으로 되돌립니다. 합포장 묶음 2건이 함께 되돌아갑니다.');
+    expect(delivery.message).toContain('배송 건 2026111930000001을 배송중으로 되돌립니다. 합포장 묶음 2건이 함께 되돌아갑니다.');
     expect(delivery.message).toContain('거래확정 기한이 지워지고');
     expect(delivery.message).toContain('이미 본 알림은 회수할 수 없으니');
     expect(delivery.message).toContain('운송장 없이 강제 배송완료한 배송 건은 발송된 적이 없어 발송 대기로');

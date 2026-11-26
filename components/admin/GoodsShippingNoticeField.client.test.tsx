@@ -18,10 +18,10 @@ vi.mock('@/app/admin/shipping-notice-template-actions', () => ({ listShippingNot
 
 import { AdminPickedBox } from './AdminPickedValue';
 import { AdminPickerDialog, type AdminPickerPanelProps } from './console/AdminPickerDialog';
-import { GoodsShippingNoticeField, type GoodsShippingNoticeOption } from './GoodsShippingNoticeField';
+import { GoodsShippingNoticeField, shippingNoticeStaleValues, type GoodsShippingNoticeOption } from './GoodsShippingNoticeField';
 
 type Fn = (...args: unknown[]) => unknown;
-type Props = { children?: ReactNode; type?: string; onClick?: Fn; 'data-goods-shipping-notice-unlisted'?: string; 'data-goods-shipping-notice-replaced'?: string; 'data-goods-shipping-notice-outdated'?: string };
+type Props = { children?: ReactNode; type?: string; onClick?: Fn; 'data-goods-shipping-notice-unlisted'?: string; 'data-goods-shipping-notice-replaced'?: string; 'data-goods-shipping-notice-outdated'?: string; 'data-goods-shipping-notice-edited'?: string };
 type BoxProps = Parameters<typeof AdminPickedBox>[0];
 type DialogProps = AdminPickerPanelProps<GoodsShippingNoticeOption> & { title: string };
 
@@ -51,6 +51,7 @@ const open = () => { box().props.onOpen(); return dialog()!.props; };
 const restore = () => render().find((item) => item.type === 'button' && texts(item).join('') === '원래 안내로');
 const replaced = () => render().find((item) => item.props['data-goods-shipping-notice-replaced'] !== undefined);
 const outdated = () => render().find((item) => item.props['data-goods-shipping-notice-outdated'] !== undefined);
+const edited = () => render().find((item) => item.props['data-goods-shipping-notice-edited'] !== undefined);
 const firstPage = { query: '', field: '', filter: '', page: 1 };
 
 beforeEach(() => {
@@ -189,6 +190,88 @@ describe('같은 템플릿의 고치기 전 내용', () => {
     open().onSelect(latestOnly[1]);
     expect(box().props).toMatchObject({ value: 'figure@2', text: '피규어 안내' });
     expect(outdated()).toBeUndefined();
+  });
+});
+
+/*
+ * 템플릿을 고치면 그 템플릿을 쓰는 상품이 그 자리에서 따라간다(DB). 그래서 옛 내용이 남아 있는 경우가 둘이고 말이 다르다.
+ * (a) 화면을 열 때부터 상품이 옛 내용을 들고 있다 — 위 describe. 상품을 저장하면 지금 내용으로 바뀐다.
+ * (b) 화면을 연 뒤 다른 곳에서 템플릿이 고쳐졌다 — 상품에는 이미 새 내용이 적용돼 있고, 이 화면의 저장은 다른 사람이 먼저 바꿨다고 막힌다.
+ * 둘은 선택창이 목록을 다시 읽을 때 읽기 전 목록과 견줘 가른다. (c) 방금 고른 템플릿이 열어 둔 사이 고쳐진 경우도 따로 말한다.
+ */
+describe('화면을 연 뒤 템플릿이 고쳐진 경우', () => {
+  const before = [option('basic', 2, '기본 배송'), option('figure', 1, '피규어 안내')];
+  const after = [option('basic', 2, '기본 배송'), option('figure', 2, '피규어 안내 (고침)')];
+  const EDITED_AFTER_OPEN = '이 템플릿이 방금 고쳐졌습니다. 이 상품에는 이미 새 내용이 적용됐습니다. 화면을 새로고침한 뒤 이어서 고쳐 주세요.';
+  const BEHIND_AT_OPEN = '이 상품에는 템플릿을 고치기 전 내용이 적용돼 있습니다. 상품을 저장하면 지금 내용으로 바뀝니다.';
+
+  it('(b) 상품이 쓰던 템플릿이 열어 둔 사이 고쳐지면 이미 새 내용이 적용됐다고 말하고, 저장하면 바뀐다고 하지 않는다', async () => {
+    props = { options: before, value: 'figure@1', currentName: '피규어 안내' };
+    mocks.list.mockResolvedValue({ ok: true, options: after, pendingCount: 0 });
+    /* 선택창을 열기 전에는 알릴 것이 없다. */
+    expect(edited()).toBeUndefined(); expect(outdated()).toBeUndefined(); expect(unlisted()).toBeUndefined();
+    await open().load(firstPage);
+    expect(texts(edited()!).join('')).toBe(EDITED_AFTER_OPEN);
+    expect(outdated()).toBeUndefined(); expect(unlisted()).toBeUndefined();
+    /* 값은 상품에 저장된 그대로 두고, 상자에는 상품이 쓰던 안내의 이름이 보인다. */
+    expect(box().props).toMatchObject({ value: 'figure@1', text: '피규어 안내' });
+  });
+
+  it('(b) 편집기가 다시 읽은 목록을 그대로 돌려주고 선택창을 다시 열어도 같은 말이 이어진다', async () => {
+    props = { options: before, value: 'figure@1', currentName: '피규어 안내' };
+    mocks.list.mockResolvedValue({ ok: true, options: after, pendingCount: 0 });
+    await open().load(firstPage);
+    /* 편집기는 onOptionsChange로 받은 목록을 options로 돌려준다. */
+    props = { ...props, options: after };
+    expect(texts(edited()!).join('')).toBe(EDITED_AFTER_OPEN);
+    dialog()!.props.onClose();
+    await open().load(firstPage);
+    expect(texts(edited()!).join('')).toBe(EDITED_AFTER_OPEN);
+    expect(outdated()).toBeUndefined();
+  });
+
+  it('(a) 화면을 열 때부터 옛 내용을 들고 있던 상품은 목록을 다시 읽어도 처음 그대로 말한다', async () => {
+    props = { options: after, value: 'figure@1', currentName: '피규어 안내' };
+    mocks.list.mockResolvedValue({ ok: true, options: after, pendingCount: 0 });
+    expect(texts(outdated()!).join('')).toBe(BEHIND_AT_OPEN);
+    await open().load(firstPage);
+    expect(texts(outdated()!).join('')).toBe(BEHIND_AT_OPEN);
+    expect(edited()).toBeUndefined();
+  });
+
+  it('목록을 다시 읽어도 고쳐진 템플릿이 없으면 알리지 않는다', async () => {
+    props = { options: before, value: 'figure@1', currentName: '피규어 안내' };
+    mocks.list.mockResolvedValue({ ok: true, options: [...before, option('n-new', 1, '새 안내')], pendingCount: 0 });
+    await open().load(firstPage);
+    expect(edited()).toBeUndefined(); expect(outdated()).toBeUndefined(); expect(unlisted()).toBeUndefined();
+    expect(box().props).toMatchObject({ value: 'figure@1', text: '피규어 안내' });
+  });
+
+  it('(c) 방금 고른 템플릿이 열어 둔 사이 고쳐지면 상품에 적용된 것이 아니라 저장하면 지금 내용이 적용된다고 말한다', async () => {
+    props = { options: before, value: '' };
+    mocks.list.mockResolvedValue({ ok: true, options: before, pendingCount: 0 });
+    await open().load(firstPage);
+    dialog()!.props.onSelect(before[1]);
+    expect(box().props).toMatchObject({ value: 'figure@1', text: '피규어 안내' });
+    dialog()!.props.onClose();
+    mocks.list.mockResolvedValue({ ok: true, options: after, pendingCount: 0 });
+    await open().load(firstPage);
+    expect(texts(edited()!).join('')).toBe('고른 템플릿이 방금 고쳐졌습니다. 상품을 저장하면 지금 내용이 적용됩니다.');
+    expect(outdated()).toBeUndefined();
+    /* 값은 고른 그대로 두고, 상자에는 상품에 들어갈 지금 내용의 이름을 보인다. */
+    expect(box().props).toMatchObject({ value: 'figure@1', text: '피규어 안내 (고침)' });
+    /* 지금 내용을 고르면 알림이 사라진다. */
+    dialog()!.props.onSelect(after[1]);
+    expect(edited()).toBeUndefined();
+    expect(box().props).toMatchObject({ value: 'figure@2', text: '피규어 안내 (고침)' });
+  });
+
+  it('고쳐진 템플릿의 줄은 읽기 전 목록에서 사라지고 같은 코드의 다른 버전이 대신 있는 줄이다', () => {
+    expect(shippingNoticeStaleValues(before, after)).toEqual(['figure@1']);
+    expect(shippingNoticeStaleValues(before, before)).toEqual([]);
+    /* 목록에서 빠진 템플릿(끈 템플릿)과 새로 생긴 템플릿은 고쳐진 것이 아니다. */
+    expect(shippingNoticeStaleValues(before, [before[0]])).toEqual([]);
+    expect(shippingNoticeStaleValues(before, [...before, option('n-new', 1, '새 안내')])).toEqual([]);
   });
 });
 

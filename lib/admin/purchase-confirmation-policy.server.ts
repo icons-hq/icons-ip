@@ -1,4 +1,5 @@
 import 'server-only';
+import { unstable_rethrow } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { parsePurchaseConfirmationPolicy, type PurchaseConfirmationPolicy } from '@/lib/purchase-confirmation';
 
@@ -7,5 +8,9 @@ export async function getPurchaseConfirmationPolicy(): Promise<PurchaseConfirmat
   try {
     const { data, error } = await (await createClient()).rpc('admin_get_purchase_confirmation_policy');
     return error ? null : parsePurchaseConfirmationPolicy(data);
-  } catch { return null; }
+  } catch (error) {
+    /* 로그인 이동 같은 Next 내부 신호는 삼키지 않는다. */
+    unstable_rethrow(error);
+    return null;
+  }
 }

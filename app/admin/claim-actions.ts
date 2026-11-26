@@ -16,6 +16,7 @@ import {
 } from '@/lib/admin/claim-bulk';
 import {
   adminClaimBasePath,
+  adminClaimReceivedOnLabel,
   normalizeAdminClaimCollectionForm,
   normalizeAdminClaimOriginCollectionForm,
   normalizeAdminClaimOperationalFeeForm,
@@ -112,11 +113,17 @@ function partialCancelProviderLabel(provider: string | null) {
   return paymentProviderLabel(provider) ?? '결제사';
 }
 
-const DECISION_MESSAGES: Record<string, string> = {
-  review: '검토중으로 표시했습니다.',
-  approve: '클레임을 승인하고 수거를 시작했습니다.',
-  reject: '클레임을 거부했습니다.',
-};
+/**
+ * 결정을 마친 뒤 운영자에게 보이는 한 줄. 요청의 유형을 알면 그 유형으로 말한다 — 목록에서 여러 건을 한꺼번에 처리한 결과가
+ * 반품을 거부했는데도 '취소·반품·교환 요청을 거부했습니다.'로 뭉뚱그려 보이지 않게 한다. 유형을 모르면 옛 말('클레임')을 쓴다.
+ */
+function decisionMessage(decision: string, claimType?: OrderClaimType): string {
+  if (decision === 'review') return '검토중으로 표시했습니다.';
+  const subject = claimType ? `${ORDER_CLAIM_TYPE_LABELS[claimType]} 요청` : '클레임';
+  if (decision === 'approve') return `${subject}을 승인하고 수거를 시작했습니다.`;
+  if (decision === 'reject') return `${subject}을 거부했습니다.`;
+  return `${subject}을 처리했습니다.`;
+}
 
 /** 결제사가 부분 취소를 받지 않은 부분 반품을 계좌 송금으로 바꾸는 사유 길이(DB와 같다). */
 const PARTIAL_RETURN_TRANSFER_REASON_MIN = 5;
@@ -329,7 +336,7 @@ async function issueApprovedClaimCancellation(
 async function decideOneOrderClaim(
   supabase: Awaited<ReturnType<typeof createClient>>,
   actorId: string,
-  input: { claimId: string; decision: string; note: string | null },
+  input: { claimId: string; decision: string; note: string | null; claimType?: OrderClaimType },
 ): Promise<{ decided: boolean; state: AdminClaimActionState }> {
   const { data, error } = await supabase.rpc('admin_decide_order_claim', {
     p_claim_id: input.claimId,
@@ -340,7 +347,7 @@ async function decideOneOrderClaim(
   if (input.decision === 'approve' && data === 'processing') {
     return { decided: true, state: await issueApprovedClaimCancellation(input.claimId, actorId) };
   }
-  return { decided: true, state: { message: DECISION_MESSAGES[input.decision] ?? '클레임을 처리했습니다.' } };
+  return { decided: true, state: { message: decisionMessage(input.decision, input.claimType) } };
 }
 
 export async function decideOrderClaimAction(
@@ -357,8 +364,9 @@ export async function decideOrderClaimAction(
   }
 
   const supabase = await createClient();
-  const { decided, state } = await decideOneOrderClaim(supabase, access.userId, normalized.value);
-  if (decided) revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
+  const claimType = readClaimType(formData);
+  const { decided, state } = await decideOneOrderClaim(supabase, access.userId, { ...normalized.value, claimType });
+  if (decided) revalidateClaimSurfaces(normalized.value.claimId, claimType);
   return state;
 }
 
@@ -460,11 +468,11 @@ export async function bulkDecideOrderClaimsAction(
     if (latest.claim_type !== claimType) {
       return { ok: false, message: `${ORDER_CLAIM_TYPE_LABELS[claimType]} 요청이 아닙니다. 이 요청의 유형에 맞는 목록에서 처리해주세요.` };
     }
-    const { decided, state } = await decideOneOrderClaim(supabase, actorId, { claimId, decision, note });
+    const { decided, state } = await decideOneOrderClaim(supabase, actorId, { claimId, decision, note, claimType });
     if (decided) revalidateClaimSurfaces(claimId, claimType);
     return state.error
       ? { ok: false, message: state.error }
-      : { ok: true, message: state.message ?? DECISION_MESSAGES[decision] ?? '클레임을 처리했습니다.' };
+      : { ok: true, message: state.message ?? decisionMessage(decision, claimType) };
   }, { startedAt, reserveMs, clock: () => Date.now() });
 
   return {
@@ -502,7 +510,7 @@ export async function recordOrderClaimCollectionAction(
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return {
     message: normalized.value.stage === 'collected'
-      ? adminGoodsCopy(`반송 상품 입고를 확인했습니다. 환불 기한은 실제 입고일(${normalized.value.receivedOn ?? '오늘'})부터 셉니다.`)
+      ? adminGoodsCopy(`반송 상품 입고를 확인했습니다. 환불 기한은 실제 입고일(${normalized.value.receivedOn ? adminClaimReceivedOnLabel(normalized.value.receivedOn) : '오늘'})부터 셉니다.`)
       : '수거중으로 표시했습니다.',
   };
 }

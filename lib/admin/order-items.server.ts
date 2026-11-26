@@ -1,4 +1,5 @@
 import 'server-only';
+import { unstable_rethrow } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { parseAdminOrderItemData, type AdminOrderItemFilters } from './order-items';
 import { loadOrderItemAllocations, loadOrderItemAllocationsForScreen } from './item-allocation.server';
@@ -30,7 +31,11 @@ async function loadHeldOrderIds(client: Awaited<ReturnType<typeof createClient>>
   try {
     const holds = await loadOrderFulfillmentHolds(ids, client);
     return new Set([...holds].filter(([, list]) => list.length > 0).map(([orderId]) => orderId));
-  } catch { return null; }
+  } catch (error) {
+    /* 로그인 이동 같은 Next 내부 신호는 삼키지 않는다. */
+    unstable_rethrow(error);
+    return null;
+  }
 }
 
 export async function getAdminOrderItemData(filters: AdminOrderItemFilters, limit = filters.pageSize ?? 20, options: { strictAllocations?: boolean } = {}) {

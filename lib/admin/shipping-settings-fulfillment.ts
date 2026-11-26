@@ -40,7 +40,7 @@ export function shippingFulfillmentDraft(value?: ShippingSettingsFulfillment): S
       return { method, enabled: policy ? Boolean(m) : method === 'parcel', feeAmount: String(m?.feeAmount ?? 0), feeBasis: m?.feeBasis ?? 'per_order', installationFee: String(m?.installationFee ?? 0) };
     }) };
 }
-/** 적은 수령 방식을 저장할 모양으로 바꾼다. 받을 방식이 없거나 금액이 숫자가 아니면 null이다(무엇이 틀렸는지는 `shippingFulfillmentProblem`). */
+/** 적은 수령 방식을 저장할 모양으로 바꾼다. 수령 방식이 없거나 금액이 숫자가 아니면 null이다(무엇이 틀렸는지는 `shippingFulfillmentProblem`). */
 export function prepareShippingFulfillment(draft: ShippingFulfillmentDraft): ShippingSettingsFulfillment | null {
   if (draft.action === 'preserve') return { mode: 'preserve' };
   const integer = (v: string) => /^\d+$/.test(v) ? Number(v) : NaN;
@@ -59,7 +59,7 @@ export function shippingFulfillmentProblem(draft: ShippingFulfillmentDraft): str
   return '배송비와 설치비는 1,000,000원 이하로, 고객 안내는 1,000자 이내 한 줄로 적어 주세요.';
 }
 /**
- * 받을 방식을 한 줄로 되읽는다('글보다 화면' 3단계). 상품의 수령 방식 패널(GoodsFulfillmentPanel)과 같은 문장이다.
+ * 수령 방식을 한 줄로 되읽는다('글보다 화면' 3단계). 상품의 수령 방식 패널(GoodsFulfillmentPanel)과 같은 문장이다.
  * 템플릿은 상품의 방식을 이 값으로 바꾸므로, 택배 하나뿐이어도 그렇다고 말한다.
  */
 export function shippingFulfillmentReadback(policy: Pick<ShippingFulfillmentPolicy, 'mode' | 'methods'>): string {
@@ -69,5 +69,5 @@ export function shippingFulfillmentReadback(policy: Pick<ShippingFulfillmentPoli
       m.installationFee ? `설치비 개당 ${krwAmountWords(m.installationFee)}` : ''].filter(Boolean);
     return `${FULFILLMENT_METHOD_LABELS[m.method]}${costs.length ? `(${costs.join(' · ')})` : ''}`;
   });
-  return items.length === 1 ? `받을 방식은 ${items[0]} 하나입니다.` : `고객은 주문서에서 ${items.join(', ')} 중 하나를 고릅니다.`;
+  return items.length === 1 ? `수령 방식은 ${items[0]} 하나입니다.` : `고객은 주문서에서 ${items.join(', ')} 중 하나를 고릅니다.`;
 }

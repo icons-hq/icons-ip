@@ -49,8 +49,9 @@ import { ClaimKitBulkResult } from './ClaimKitBulkResult';
  * 다시 받아, 처음 확인한 주소와 같을 때만 이어서 보낸다(첫 재출고 뒤 재배송지 정정은 막혀 있다). 확인한 지 10분이 지나면
  * 보내지 않는다.
  *
- * '주소가 같습니다'·'발송 정보를 확인했습니다' 체크는 두지 않는다 — [재출고 등록]을 누르면 받는 분·주소와 출고지마다의 택배사·운송장·상품을
- * 되읽어 주는 확인창이 같은 확인을 하고, 재고가 움직이고 교환이 끝난다는 결과도 거기서 말한다(`claimBulkReshipConfirmation`).
+ * '주소가 같습니다'·'발송 정보를 확인했습니다' 체크는 두지 않는다 — [재출고 등록]을 누르면 출고지마다의 택배사·운송장·상품을 되읽어 주는
+ * 확인창이 같은 확인을 하고, 재고가 움직이고 교환이 끝난다는 결과도 거기서 말한다(`claimBulkReshipConfirmation`). 받는 분·주소는 이 창에
+ * 보이는 그대로 기록하고 확인창에는 옮겨 적지 않는다(주소는 탭을 가리거나 10분이 지나면 지워지는데 확인창 본문은 남는다).
  *
  * 요청번호(작업 id)는 상세 화면과 같은 탭 저장소 키에 남긴다. 응답을 잃으면 같은 작업 id로 결과를 읽고, 저장되지 않았으면
  * 그 작업을 종료(seal)한다 — 늦게 도착한 요청이 다른 재출고와 겹치지 않는다. 결과를 끝내 읽지 못하면 요청번호를 남겨
@@ -89,6 +90,20 @@ function excludedResults(load: Extract<AdminClaimBulkReshipLoad, { actorId: stri
       claimId: claim.claimId, reference: claim.reference, scope: entry.originName, outcome: 'excluded' as const, message: entry.reason,
     }))),
   ];
+}
+
+/**
+ * 불러올 때 표에 넣지 않은 요청과 그 이유. 등록을 눌러야 결과표에 나오던 것을 첫 화면에서 보인다 — 선택 3건인데 2건만 보일 때
+ * 나머지 1건이 왜 빠졌는지 말한다(회수 확인·환불 확정 창의 '건너뜀'과 같은 역할).
+ */
+export function ClaimBulkReshipExcluded({ excluded }: { excluded: readonly { claimId: string; reference: string | null; reason: string }[] }) {
+  if (excluded.length === 0) return null;
+  return <div className="flex flex-col gap-1 rounded-lg bg-muted/50 px-3 py-2 text-xs" data-claim-bulk-reship-excluded="">
+    <p className="font-medium">이 표에서 뺀 요청 {excluded.length}건 · 상세에서 처리</p>
+    <ul className="flex flex-col gap-0.5 text-muted-foreground">
+      {excluded.map((entry) => <li key={entry.claimId}><span className="tabular-nums">{entry.reference ?? '확인 불가'}</span> — {adminClaimCopy(entry.reason)}</li>)}
+    </ul>
+  </div>;
 }
 
 export function ClaimBulkReshipDialog({ claimIds, onClose, previewHrefBase }: {
@@ -241,15 +256,14 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
       }
     }
     if (readyRows === 0) { setError('최종 주소를 불러온 요청이 없습니다. [최종 주소 불러오기]를 먼저 눌러주세요.'); return; }
-    /* 받는 분·주소와 출고지마다의 택배사·운송장·상품을 되읽고, 재고가 움직이고 교환이 끝난다는 결과를 말한다. */
+    /* 출고지마다의 택배사·운송장·상품을 되읽고, 재고가 움직이고 교환이 끝난다는 결과를 말한다. 받는 분·주소는 확인창에 옮겨 적지 않는다 —
+       이 창은 탭을 가리거나 10분이 지나면 주소를 지우는데 확인창 본문은 남는다. */
     const summary: ClaimBulkReshipSummaryClaim[] = [];
     for (const claim of readyClaims) {
       const context = contexts[claim.claimId];
       if (context?.status !== 'ready') continue;
       summary.push({
         reference: claim.reference,
-        recipient: context.address.recipientName,
-        address: `(${context.address.postalCode}) ${context.address.address1} ${context.address.address2}`.trim(),
         rows: claim.rows.map((row) => {
           const draft = drafts[reshipRowKey(claim.claimId, row.shipmentId)];
           return {
@@ -319,6 +333,7 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
       <Button disabled={busy} onClick={() => { void loadAddresses(); }} variant={hasPrivate ? 'outline' : 'default'}>{hasPrivate ? '최종 주소 다시 불러오기' : `최종 주소 불러오기 (${loadableCount}건)`}</Button>
       <p className="text-xs text-muted-foreground">주소는 확인 시간 10분 동안만 보이고, 탭을 가리거나 등록이 끝나면 지웁니다.</p>
     </div>
+    <ClaimBulkReshipExcluded excluded={load.excluded} />
     {load.claims.map((claim) => {
       const context = contexts[claim.claimId];
       return <section aria-label={`요청 ${claim.reference} 재출고`} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-claim-bulk-reship-claim={claim.claimId} key={claim.claimId}>

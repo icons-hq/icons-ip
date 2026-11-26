@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  carrierFormatSpec, carrierInUseMessage, carrierInactiveUseNote, carrierOffUseNote, carrierRenamed, carrierSampleVerdict, carrierTrackingUrlError, carrierTurnOff,
+  carrierFormatLengthProblem, carrierFormatSpec, carrierInUseMessage, carrierInactiveUseNote, carrierOffUseNote, carrierRenamed, carrierSampleVerdict, carrierTrackingUrlError, carrierTurnOff,
   mergeBusinessInfo, originNamesLabel, parseCarrierFormatChoice, parseCarrierFormatInput, parseCarrierInput, parseStoreSettingsInput, readCarrierFormat, readCarrierFormatLength, storeSettingsHistoryRows,
-  CARRIER_FORMAT_LENGTH_ERROR, CARRIER_FORMAT_STALE, CARRIER_RENAME_NOTE, CARRIER_TURN_OFF_UNKNOWN,
+  CARRIER_FORMAT_LENGTH_ERROR, CARRIER_FORMAT_STALE, CARRIER_RENAME_NOTE, CARRIER_SAMPLE_REQUIRED, CARRIER_TURN_OFF_UNKNOWN,
 } from './store-settings';
 import type { BusinessInfo } from '@/lib/legal/business-info';
 import { DEFAULT_STORE_BRANDING } from '@/lib/store-branding';
@@ -138,6 +138,20 @@ describe('택배사 운송장 형식 고르기 (C-2) — 저장되는 값은 식
     expect(readCarrierFormatLength(' 8 ', '30')).toEqual({ min: 8, max: 30 });
     for (const [min, max] of [['7', '14'], ['10', '31'], ['14', '10'], ['', '14'], ['10', ''], ['1.5', '14'], ['-10', '14'], ['abc', '14'], ['1e1', '14']]) expect(readCarrierFormatLength(min, max), `${min}~${max}`).toBeNull();
   });
+  it('자리 수를 읽을 수 없을 때의 까닭: 다 적었을 때만 말하고, 읽을 수 있으면 말하지 않는다', () => {
+    for (const [min, max] of [['10', '14'], ['8', '8'], ['30', '30'], ['', ''], ['12', ''], ['', '10'], [' ', '10']]) expect(carrierFormatLengthProblem(min, max), `${min}~${max}`).toBeNull();
+    expect(carrierFormatLengthProblem('12', '10')).toBe('최소 자리 수가 최대보다 큽니다. 최소를 최대보다 작거나 같게 적어 주세요.');
+    expect(carrierFormatLengthProblem('7', '14')).toBe('자리 수는 8~30 사이로 적어 주세요.');
+    expect(carrierFormatLengthProblem('10', '31')).toBe('자리 수는 8~30 사이로 적어 주세요.');
+    expect(carrierFormatLengthProblem('40', '10')).toBe('자리 수는 8~30 사이로 적어 주세요.');
+    for (const [min, max] of [['1.5', '14'], ['-10', '14'], ['abc', '14'], ['10', '1e1']]) expect(carrierFormatLengthProblem(min, max), `${min}~${max}`).toBe('자리 수는 숫자로 적어 주세요.');
+    /* 칸 아래 문구는 서버가 저장 때 하는 검사와 같은 기준이다 — 읽을 수 없는 값은 서버도 같은 이유로 거절한다. */
+    for (const [min, max] of [['12', '10'], ['7', '14'], ['abc', '14']]) {
+      expect(carrierFormatLengthProblem(min, max)).not.toBeNull();
+      expect(parseCarrierFormatChoice({ kind: 'digits', min, max, sample: '1234567890' })).toEqual({ ok: false, errors: { trackingNumberLength: CARRIER_FORMAT_LENGTH_ERROR } });
+    }
+    expect(`${carrierFormatLengthProblem('12', '10')}${carrierFormatLengthProblem('7', '14')}`).not.toMatch(/정규식|\^|\$/);
+  });
   it('확인용 번호는 하이픈·공백을 빼고 대문자로 맞춰 새 형식과 공통 형식으로 가린다', () => {
     const digits = { kind: 'digits', min: 10, max: 14 } as const;
     expect(carrierSampleVerdict(digits, '')).toBe('empty');
@@ -163,7 +177,10 @@ describe('택배사 운송장 형식 고르기 (C-2) — 저장되는 값은 식
     expect(parseCarrierFormatChoice({ kind: 'digits', min: '14', max: '10', sample: '1234567890' })).toEqual({ ok: false, errors: { trackingNumberLength: CARRIER_FORMAT_LENGTH_ERROR } });
     expect(parseCarrierFormatChoice({ kind: 'digits', min: '', max: '', sample: '1234567890' })).toEqual({ ok: false, errors: { trackingNumberLength: CARRIER_FORMAT_LENGTH_ERROR } });
     const sample = (value: string) => (parseCarrierFormatChoice({ kind: 'digits', min: '10', max: '14', sample: value }) as { ok: false; errors: Record<string, string> }).errors;
-    expect(sample('')).toEqual({ trackingNumberSample: '확인용 운송장번호를 넣어 주세요. 실제 번호 하나로 새 형식에 맞는지 확인합니다.' });
+    expect(sample('')).toEqual({ trackingNumberSample: CARRIER_SAMPLE_REQUIRED });
+    /* 자리 수도 틀리고 확인용 번호도 비었으면 한 번에 둘 다 말한다 — 하나 고친 뒤에야 다음 오류가 나오지 않게. */
+    expect(parseCarrierFormatChoice({ kind: 'digits', min: '14', max: '10', sample: '' })).toEqual({ ok: false, errors: { trackingNumberLength: CARRIER_FORMAT_LENGTH_ERROR, trackingNumberSample: CARRIER_SAMPLE_REQUIRED } });
+    expect(parseCarrierFormatChoice({ kind: 'digits', min: '14', max: '10', sample: ' - ' })).toEqual({ ok: false, errors: { trackingNumberLength: CARRIER_FORMAT_LENGTH_ERROR, trackingNumberSample: CARRIER_SAMPLE_REQUIRED } });
     expect(sample('12345')).toEqual({ trackingNumberSample: '확인용 운송장번호는 영문·숫자 8~30자로 넣어 주세요.' });
     expect(sample('ABCDEFGHIJ')).toEqual({ trackingNumberSample: '확인용 운송장번호가 새 형식에 맞지 않습니다. 번호나 형식을 확인해 주세요.' });
   });

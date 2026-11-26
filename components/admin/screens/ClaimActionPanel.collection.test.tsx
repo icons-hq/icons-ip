@@ -58,7 +58,7 @@ describe('claim collection guidance', () => {
     expect(open).toContain('TEST 남양주 늦은 입고 확인');
     expect(open).toContain('회수 생략으로 결정한 출고지입니다.');
     expect(open).not.toContain('TEST 김포 회수 확인</button>');
-    expect(open).toContain('실제 입고일 <span class="tabular-nums">2026-11-11</span>');
+    expect(open).toContain('실제 입고일 <span class="tabular-nums">2026. 11. 11.</span>');
     const closed = renderToStaticMarkup(<ClaimActionPanel {...base} claimType="exchange" stage="completed" collectionComplete collections={collections} />);
     expect(closed).not.toContain('늦은 입고 확인');
   });

@@ -31,3 +31,20 @@ it('normalizes unsupported filters and page numbers', () => {
  expect(claimFeeQueueFilters({ state: 'wire_sent', page: '0' })).toEqual({ state: 'open', page: 1 });
  expect(claimFeeQueueFilters({ state: 'paid', page: '2' })).toEqual({ state: 'paid', page: 2 });
 });
+
+/* F-18: 같은 주문의 여러 청구를 구분하도록 '요청' 칸에 요청번호를 함께 보이고, 표는 1366px 화면의 틀(약 1050px) 안에 든다. */
+it('요청 칸에 요청번호를 함께 보이고, 읽지 못했으면 유형만 보인다', () => {
+ const claimId = queue.rows[0].claimId;
+ const shown = renderToStaticMarkup(<ClaimFeesScreen data={queue} references={{ [claimId]: 22 }} />);
+ expect(shown).toMatch(/<a[^>]*href="\/admin\/sales\/claims\/exchanges\/a1010000-0000-4000-8000-000000000002"[^>]*><span class="flex flex-col"><span class="tabular-nums">C00022<\/span><span[^>]*>교환 요청<\/span><\/span><\/a>/);
+ /* 다른 요청의 번호는 이 줄에 붙지 않는다. */
+ expect(renderToStaticMarkup(<ClaimFeesScreen data={queue} references={{ 'a1010000-0000-4000-8000-0000000000aa': 9 }} />)).not.toContain('C00009');
+ expect(renderToStaticMarkup(<ClaimFeesScreen data={queue} />)).not.toMatch(/C000\d\d/);
+});
+it('열 폭 합계가 1366px 화면의 틀(약 1050px) 안에 들고, 날짜와 시각은 두 줄로 나눠 칸을 넓히지 않는다', () => {
+ const html = renderToStaticMarkup(<ClaimFeesScreen data={queue} />);
+ const widths = [...html.matchAll(/<col style="width:(\d+)px"\/>/g)].map(match => Number(match[1]));
+ expect(widths).toHaveLength(8);
+ expect(widths.reduce((sum, width) => sum + width, 0)).toBeLessThanOrEqual(1050);
+ expect(html).toMatch(/data-date-time=""><span>2026\. 10\. 16\.<\/span><span[^>]*>\d{2}:\d{2}<\/span>/);
+});

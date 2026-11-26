@@ -16,6 +16,7 @@ import { STOCK_DISPOSITION_LABELS } from '@/lib/admin/defective-stock';
 import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
 import {
   ADMIN_CLAIM_BULK_ACTION_LABELS,
+  ADMIN_CLAIM_BULK_APPROVE_GROUP_LABELS,
   ADMIN_CLAIM_BULK_AUTOMATED_NAMES,
   ADMIN_CLAIM_BULK_OUTCOME_LABELS,
   ADMIN_CLAIM_BULK_STEP_LABELS,
@@ -32,6 +33,7 @@ import {
   type AdminClaimBulkStepPreview,
   type AdminClaimBulkRefundRow,
 } from '@/lib/admin/claim-bulk';
+import { adminClaimReceivedOnLabel } from '@/lib/admin/claims';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { krw } from '@/lib/format';
 import { returnFeeDeductionRowNote } from '@/lib/claims/return-fee-deduction';
@@ -53,9 +55,9 @@ import { ClaimKitBulkResult } from './ClaimKitBulkResult';
  * 후행 트랙: 반품배송비 차감(T12a)은 환불 행의 금액·합계(서버 값)와 이 창의 금액 문구를, 불량 재고 분리(T14b)는 환불
  * 확인창의 품목별 '판매 재고 복원/불량' 선택을 이 파일의 RefundStep에 더한다.
  *
- * 취소 일괄 승인(ApproveStep)도 같은 틀이다. 승인하는 즉시 결제사에 전액 취소가 나가므로 환불 확정 창처럼 건수·취소 금액 합계·
- * 건너뛰는 건과 이유를 서버가 읽어 먼저 보이고, 실행은 지금 그대로 목록의 일괄 결정 액션(bulkDecideOrderClaimsAction)이 건마다 단건
- * 경로를 탄다.
+ * 취소 일괄 승인(ApproveStep)도 같은 틀이다. 승인하는 즉시 결제사에 전액 취소가 나가는 건이 있으므로 환불 확정 창처럼 건수·금액·
+ * 건너뛰는 건과 이유를 서버가 읽어 먼저 보인다. 결제사로 나가는 금액과 승인만 하는 건(무통장·코페이)·결제 전 주문은 나눠 보이고, 실행은
+ * 지금 그대로 목록의 일괄 결정 액션(bulkDecideOrderClaimsAction)이 건마다 단건 경로를 탄다.
  */
 
 export interface ClaimBulkStepSession {
@@ -244,16 +246,18 @@ function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }
       </> : !preview ? <p className="text-muted-foreground" role="status">확인할 내용을 불러오는 중입니다…</p>
         : preview.step === 'collect' ? <CollectStep
           evidence={evidence} evidenceId={evidenceId} inputError={inputError} onEvidence={setEvidence}
-          onReceivedOn={setReceivedOn} onRun={() => { void runCollect(preview.rows); }} onToggle={(key, checked) => setUnchecked((previous) => ({ ...previous, [key]: !checked }))}
+          onBack={() => onClose(result)} onReceivedOn={setReceivedOn} onRun={() => { void runCollect(preview.rows); }} onToggle={(key, checked) => setUnchecked((previous) => ({ ...previous, [key]: !checked }))}
           progress={progress} receivedId={receivedId} receivedOn={receivedOn} rows={preview.rows} running={running} today={session.today} unchecked={unchecked}
         />
-          : preview.step === 'approve' ? <ApproveStep onRun={() => { void runApprove(preview.rows); }} preview={preview} progress={progress} running={running} />
-            : <RefundStep defective={defective} onDefective={(id, value) => setDefective((previous) => ({ ...previous, [id]: value }))} onRun={() => { void runRefund(preview.rows); }} progress={progress} preview={preview} running={running} />}
+          : preview.step === 'approve' ? <ApproveStep onBack={() => onClose(result)} onRun={() => { void runApprove(preview.rows); }} preview={preview} progress={progress} running={running} />
+            : <RefundStep defective={defective} onBack={() => onClose(result)} onDefective={(id, value) => setDefective((previous) => ({ ...previous, [id]: value }))} onRun={() => { void runRefund(preview.rows); }} progress={progress} preview={preview} running={running} />}
     </DialogContent>
   </Dialog>;
 }
 
-export function CollectStep({ evidence, evidenceId, inputError, onEvidence, onReceivedOn, onRun, onToggle, progress, receivedId, receivedOn, rows, running, today, unchecked }: {
+export function CollectStep({ evidence, evidenceId, inputError, onBack, onEvidence, onReceivedOn, onRun, onToggle, progress, receivedId, receivedOn, rows, running, today, unchecked }: {
+  /** 확인창을 그만두는 [돌아가기]. 처리 중에는 눌리지 않는다. 주지 않으면 버튼을 그리지 않는다. */
+  onBack?: () => void;
   evidence: string;
   evidenceId: string;
   inputError: string;
@@ -312,14 +316,17 @@ export function CollectStep({ evidence, evidenceId, inputError, onEvidence, onRe
     {running ? <p className="text-sm text-muted-foreground" role="status">처리 중… 한 건씩 순서대로 확인합니다({progress}건 끝). 창을 닫지 마세요.</p> : null}
     <DialogFooter>
       <p className="mr-auto self-center text-sm" data-claim-bulk-summary="">
-        <strong>{claimCount}건</strong> · 출고지 {originCount}곳 · 입고일 <span className="tabular-nums">{receivedOn || '-'}</span>{excludedCount > 0 ? ` · ${ADMIN_CLAIM_BULK_OUTCOME_LABELS.excluded} ${excludedCount}건` : ''}
+        <strong>{claimCount}건</strong> · 출고지 {originCount}곳 · 입고일 <span className="tabular-nums">{receivedOn ? adminClaimReceivedOnLabel(receivedOn) : '-'}</span>{excludedCount > 0 ? ` · ${ADMIN_CLAIM_BULK_OUTCOME_LABELS.excluded} ${excludedCount}건` : ''}
       </p>
-      <Button disabled={running || originCount === 0} onClick={onRun}>{claimCount}건 회수 확인 (입고일 {receivedOn || '-'})</Button>
+      {onBack ? <Button disabled={running} onClick={onBack} variant="outline">돌아가기</Button> : null}
+      <Button disabled={running || originCount === 0} onClick={onRun}>{claimCount}건 회수 확인 (입고일 {receivedOn ? adminClaimReceivedOnLabel(receivedOn) : '-'})</Button>
     </DialogFooter>
   </div>;
 }
 
-export function RefundStep({ defective = {}, onDefective, onRun, preview, progress, running }: {
+export function RefundStep({ defective = {}, onBack, onDefective, onRun, preview, progress, running }: {
+  /** 확인창을 그만두는 [돌아가기]. 처리 중에는 눌리지 않는다. 주지 않으면 버튼을 그리지 않는다. */
+  onBack?: () => void;
   /** 품목 id → 불량 선택(QNA-035). 선택 칸이 있는 행(반품)에서만 쓴다. */
   defective?: Record<string, boolean>;
   onDefective?: (orderItemId: string, defective: boolean) => void;
@@ -383,6 +390,7 @@ export function RefundStep({ defective = {}, onDefective, onRun, preview, progre
     </div>
     {running ? <p className="text-sm text-muted-foreground" role="status">처리 중… 결제사 취소를 한 건씩 순서대로 확인합니다({progress}건 끝). 창을 닫지 마세요.</p> : null}
     <DialogFooter>
+      {onBack ? <Button disabled={running} onClick={onBack} variant="outline">돌아가기</Button> : null}
       <Button className="h-auto min-h-8 whitespace-normal" disabled={running || totals.count === 0} onClick={onRun} variant="danger">
         {totals.count}건 환불 완료 확정 (합계 {krw(totals.amount)})
       </Button>
@@ -391,10 +399,14 @@ export function RefundStep({ defective = {}, onDefective, onRun, preview, progre
 }
 
 /**
- * 취소 일괄 승인 확인창의 본문. 환불 확정 확인창과 같은 모양이다 — 승인할 건수·취소 금액 합계(결제 방식별)와 건너뛰는 건·이유를
- * 서버가 읽은 값 그대로 보이고, 확정 버튼에 같은 건수·합계를 적는다. 승인하면 결제사 전액 취소가 바로 나가므로 되돌릴 수 없다.
+ * 취소 일괄 승인 확인창의 본문. 환불 확정 확인창과 같은 모양이다 — 승인할 건수와 건너뛰는 건·이유를 서버가 읽은 값 그대로 보이고,
+ * 승인 버튼에 건수와 결제사로 나가는 금액을 적는다. 승인 뒤에 일어나는 일이 결제 방식마다 달라 합계를 묶음별로 나눠 보인다:
+ * 결제사로 바로 취소되는 건(금액 합계가 버튼에 적힘), 승인만 하고 환불은 따로 진행하는 건(무통장·코페이 — 이 금액은 결제사로 나가지 않음),
+ * 결제 전 주문(승인하면 주문이 바로 취소). 어느 쪽이든 승인은 되돌릴 수 없다.
  */
-export function ApproveStep({ onRun, preview, progress, running }: {
+export function ApproveStep({ onBack, onRun, preview, progress, running }: {
+  /** 확인창을 그만두는 [돌아가기]. 처리 중에는 눌리지 않는다. 주지 않으면 버튼을 그리지 않는다. */
+  onBack?: () => void;
   onRun: () => void;
   preview: Extract<AdminClaimBulkStepPreview, { step: 'approve' }>;
   progress: number;
@@ -405,13 +417,21 @@ export function ApproveStep({ onRun, preview, progress, running }: {
   return <div className="flex min-w-0 flex-col gap-4" data-claim-bulk-approve="">
     <AdminNotice title="승인하면 되돌릴 수 없습니다" tone="warning">
       {ADMIN_CLAIM_BULK_AUTOMATED_NAMES} 결제는 승인하는 즉시 결제사에 전액 취소를 요청하고, 결제사 조회로 확인되면 주문 취소·재고 복원과 환불 기록이 함께 끝납니다.
+      결제 전 주문은 승인하면 결제사 취소 없이 바로 주문이 취소되고 재고가 돌아옵니다.
       무통장 입금·코페이 결제는 승인만 하고 환불은 따로 진행합니다. 한 건씩 순서대로 처리하며, 일부가 실패해도 이미 취소된 건은 되돌리지 않고 건별 결과로 보여 줍니다.
     </AdminNotice>
-    <div className="flex flex-col gap-1 rounded-lg border bg-muted/40 px-3 py-2.5" data-claim-bulk-approve-total="">
-      <p className="text-sm">승인 <strong className="tabular-nums">{totals.count}건</strong> · 취소 금액 합계 <strong className="text-base tabular-nums">{krw(totals.amount)}</strong></p>
-      {totals.byProvider.map((entry) => <p className="text-xs text-muted-foreground" key={entry.label}>
-        {entry.label} {entry.count}건{entry.amount > 0 ? <> · <span className="tabular-nums">{krw(entry.amount)}</span></> : null} — {entry.providerCancel ? '결제사에 취소 요청' : '승인만'}
-      </p>)}
+    <div className="flex flex-col gap-2 rounded-lg border bg-muted/40 px-3 py-2.5" data-claim-bulk-approve-total="">
+      <p className="text-sm">승인 <strong className="tabular-nums">{totals.count}건</strong></p>
+      {totals.groups.map((group) => <div className="flex flex-col gap-0.5" data-claim-bulk-approve-group={group.kind} key={group.kind}>
+        <p className="text-sm">
+          {ADMIN_CLAIM_BULK_APPROVE_GROUP_LABELS[group.kind]} <strong className="tabular-nums">{group.count}건</strong>
+          {group.kind !== 'order' && group.amount > 0 ? <> · <strong className={group.kind === 'provider' ? 'text-base tabular-nums' : 'font-normal tabular-nums'}>{krw(group.amount)}</strong></> : null}
+        </p>
+        {group.kind !== 'order' ? group.byProvider.map((entry) => <p className="text-xs text-muted-foreground" key={entry.label}>
+          {entry.label} {entry.count}건{entry.amount > 0 ? <> · <span className="tabular-nums">{krw(entry.amount)}</span></> : null}
+        </p>) : null}
+        {group.kind === 'manual' ? <p className="text-xs text-muted-foreground">이 금액은 결제사로 나가지 않습니다. 승인한 뒤 환불을 따로 진행합니다.</p> : null}
+      </div>)}
       {skipped.length > 0 ? <p className="text-xs text-muted-foreground">{ADMIN_CLAIM_BULK_OUTCOME_LABELS.excluded} {skipped.length}건 — 이유는 아래 표와 처리 결과에 남습니다.</p> : null}
     </div>
     <div className="overflow-x-auto rounded-lg border">
@@ -429,8 +449,9 @@ export function ApproveStep({ onRun, preview, progress, running }: {
     </div>
     {running ? <p className="text-sm text-muted-foreground" role="status">처리 중… 결제사 취소를 한 건씩 순서대로 확인합니다({progress}건 끝). 창을 닫지 마세요.</p> : null}
     <DialogFooter>
+      {onBack ? <Button disabled={running} onClick={onBack} variant="outline">돌아가기</Button> : null}
       <Button className="h-auto min-h-8 whitespace-normal" disabled={running || totals.count === 0} onClick={onRun} variant="danger">
-        {totals.count}건 취소 승인{totals.amount > 0 ? ` (합계 ${krw(totals.amount)})` : ''}
+        {totals.count}건 취소 승인{totals.amount > 0 ? ` (결제사 취소 합계 ${krw(totals.amount)})` : ''}
       </Button>
     </DialogFooter>
   </div>;

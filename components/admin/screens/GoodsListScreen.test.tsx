@@ -651,7 +651,7 @@ describe('goods list screen', () => {
   });
   it('빈 상품 목록에서도 지역별 추가배송비 기간이 끝났다고 알린다', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0 }}
-      shippingRegionExpiry={{ warnings: [{ originName: "김포", carrierLabel: "한진택배", id: 'policy', name: '지역 정책', version: 1, endsAt: '2026-09-27T00:00:00Z', status: 'expired' }] }} />);
+      shippingRegionExpiry={{ warnings: [{ originName: "김포", carrierLabel: "한진택배", originId: 'origin-1', id: 'policy', name: '지역 정책', version: 1, endsAt: '2026-09-27T00:00:00Z', status: 'expired' }] }} />);
     expect(html).toContain('기간 끝남');
     expect(html).toContain('href="/admin/settings/shipping-regions"');
   });

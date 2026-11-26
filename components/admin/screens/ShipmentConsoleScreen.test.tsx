@@ -40,7 +40,9 @@ describe('배송 건 콘솔',()=>{
    expect(html.match(/착불 배송비 ₩4,000/g)).toHaveLength(2);expect(html.match(/합포장 착불 합계 ₩8,000/g)).toHaveLength(2);
    /* S-04: 합포장은 내부 번호 대신 묶인 건수로 부른다(화면 규칙 8). */
    expect(html.match(/>합포장 2건</g)).toHaveLength(2);expect(html).not.toContain('000000AA');
-   for(const text of ['착불 수납 주체','한진택배','수납 방법','수령 시 기사에게 현금','고객 안내','착불 배송비는 상품 수령 때 지급합니다.','착불 환급 문의','고객센터 1588-0000']) expect(html).toContain(text);
+   for(const text of ['착불 수납 주체','한진택배','수납 방법','수령 시 기사에게 현금','고객 안내','착불 배송비는 상품 수령 때 지급합니다.','착불 환불 문의','고객센터 1588-0000']) expect(html).toContain(text);
+   /* 돈을 돌려주는 일은 화면에서 '환불'이다 — '환급'은 창고 파일 시트의 머리글에만 남는다. */
+   expect(html).not.toContain('환급');
    expect(html).toContain('이 주문에는 착불 수납 정보 기록이 없습니다.');expect(html.match(/data-shipment-collect=""/g)).toHaveLength(2);
    // 읽기 전용: 합포장 만들기·해제(합포장 관리)는 판매 관리 권한에만 있다.
    expect(html).not.toContain('>합포장 관리</button>');
@@ -110,6 +112,11 @@ describe('배송 건 콘솔',()=>{
   const delivered={...transit,id:'20000000-0000-4000-8000-000000000999',status:'delivered' as const,deliveredAt:'2026-09-09T02:00:00Z'};
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},rows:[transit,delivered]}}/>);
   expect(html).toContain('>발송 되돌리기<');expect(html).toContain('>배송완료 되돌리기<');expect(html).toContain('data-shipment-revert="dispatch"');
+  expect(html).not.toContain('data-shipment-revert-blocked');
+  /* 배송 안내 메일을 보내는 중인 줄은 [발송 되돌리기]를 미리 잠그고 이유를 보인다(QA-O 고칠 것 7) — 사유를 적은 뒤에야 거절하지 않는다. */
+  const sending=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},rows:[{...transit,emailSending:true},delivered]}}/>);
+  expect(sending).toMatch(/<button[^>]*disabled=""[^>]*>발송 되돌리기<\/button><small[^>]*data-shipment-revert-blocked=""[^>]*>배송 안내 메일을 보내는 중입니다\. 몇 분 뒤 다시 시도해주세요\.<\/small>/);
+  expect(sending).not.toMatch(/<button[^>]*disabled=""[^>]*>배송완료 되돌리기</);
   const logistics=renderToStaticMarkup(<ShipmentConsoleScreen canManageSales={false} data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},rows:[transit,delivered]}}/>);
   expect(logistics).not.toContain('되돌리기');
   const dispatch=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'ready'},rows:[{...row,status:'ready' as const}]}}/>);

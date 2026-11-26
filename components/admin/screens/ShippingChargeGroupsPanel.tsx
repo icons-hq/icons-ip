@@ -6,7 +6,7 @@ import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { EditableCarrier } from '@/lib/admin/store-settings';
 import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import {
-  SHIPPING_CHARGE_GROUP_REGION_BLOCK_LABELS, SHIPPING_CHARGE_GROUP_RUNTIME_OFF, SHIPPING_CHARGE_GROUP_STOP_LABEL, parseShippingChargeGroupSaveRequest,
+  SHIPPING_CHARGE_GROUP_REGION_BLOCK_LABELS, SHIPPING_CHARGE_GROUP_RUNTIME_OFF, SHIPPING_CHARGE_GROUP_STOP_LABEL,
   shippingChargeGroupRegionBlock, type ShippingChargeGroup, type ShippingChargeGroupFilters, type ShippingChargeGroupIdentity, type ShippingChargeGroupListData,
   type ShippingChargeGroupOperationContext, type ShippingChargeGroupOperationReceipt, type ShippingChargeGroupOriginGuard, type ShippingChargeGroupSkipped,
 } from '@/lib/admin/shipping-charge-groups';
@@ -51,27 +51,38 @@ function OperationRecovery({ context, name, identity, scope, canEdit, onReceipt 
 /**
  * 목록 줄의 [보관]·[복원]. 보관 상태만 바꿔 저장한다(이름·계산 방식·지역표는 그대로). 보관하면 '사용 안 함'이 되고 추천 표시가 빠진다.
  * 상품이 들어 있는 묶음그룹은 보관할 수 없어 버튼을 잠그고 까닭을 줄에 보인다(DB도 거절한다).
+ * 서버가 이유를 들어 거절한 저장은 부른 쪽이 목록을 다시 읽고 목록 위에 알린다(`onFailure`). 그 밖에 보내기 전에 멈춘 경우
+ * (이 브라우저에 진행 기록을 남길 수 없음·보낼 값의 형식이 맞지 않음)는 이 버튼 아래에 이유를 보인다 — 눌러도 아무 일도 없는 것처럼 보이지 않게 한다.
+ * 보낼 값의 형식 검사는 보내는 쪽(`operation.send`)이 하고 같은 이유로 알린다.
  */
 export function ShippingChargeGroupArchiveButton({ group, origin, identity, scope, disabled, onReceipt, onFailure }: {
   group: ShippingChargeGroup; origin: ShippingChargeGroupOriginGuard | undefined; identity: ShippingChargeGroupIdentity; scope: ShippingChargeGroupScope;
   disabled: boolean; onReceipt: (receipt: ShippingChargeGroupOperationReceipt) => void; onFailure: (failure: ShippingChargeGroupFailure) => void;
 }) {
-  const operation = useShippingChargeGroupOperation({ identity, scope, groupId: group.id, command: 'save', onReceipt, onFailure });
+  /* 부른 쪽이 이미 알린 거절 이유는 이 버튼 아래에 한 번 더 말하지 않는다. */
+  const [reported, setReported] = useState('');
+  const operation = useShippingChargeGroupOperation({ identity, scope, groupId: group.id, command: 'save', onReceipt, onFailure: failure => { setReported(failure.error); onFailure(failure); } });
   const blocked = disabled || operation.busy || Boolean(operation.context) || !origin || (!group.archived && group.assignedCount > 0);
+  /* 결과를 모르는 경우(진행 기록이 남아 있다)는 목록 위 '저장하던 중이었습니다' 상자가 [저장됐는지 확인]과 함께 말한다. */
+  const unsent = !operation.context && operation.error && operation.error !== reported ? operation.error : '';
   function toggle() {
     if (blocked || !origin) return;
-    const request = parseShippingChargeGroupSaveRequest({ operationId: crypto.randomUUID(), command: 'save', groupId: group.id, expectedRevision: group.revision, ...identity,
+    void operation.send({ operationId: crypto.randomUUID(), command: 'save', groupId: group.id, expectedRevision: group.revision, ...identity,
       originId: group.originId, originUpdatedAt: origin.updatedAt, expectedDefaultGroupId: origin.defaultGroupId, expectedDefaultGroupRevision: origin.defaultGroupRevision,
       values: { ...shippingChargeGroupValuesOf(group), archived: !group.archived, enabled: false, isDefault: false }, attestRegional: false });
-    if (request) void operation.send(request);
   }
-  return <Button disabled={blocked} onClick={toggle} size="xs" type="button" variant="outline">{group.archived ? '복원' : '보관'}</Button>;
+  return <span className="inline-flex flex-col items-start gap-1">
+    <Button disabled={blocked} onClick={toggle} size="xs" type="button" variant="outline">{group.archived ? '복원' : '보관'}</Button>
+    {unsent ? <small className="max-w-56 text-xs whitespace-normal text-destructive" data-charge-group-archive-error="" role="alert">{unsent}</small> : null}
+  </span>;
 }
 
 /** 묶음그룹 조회·목록·편집 작업 영역. 세션이 확인된 뒤 ShippingChargeGroupsPanel이 그린다(테스트는 직접 그린다). */
-export function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, canManageRegional }: {
+export function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, canManageRegional, defaultOriginId }: {
   identity: ShippingChargeGroupIdentity; scope: ShippingChargeGroupScope; origins: GoodsFulfillmentOrigin[]; carriers: EditableCarrier[];
   canEdit: boolean; canManageRegional: boolean;
+  /** 위에서 열어 둔 출고지 탭의 출고지. [묶음그룹 추가]가 이 출고지로 시작한다(목록에서 출고지를 골라 둔 조건이 있으면 그쪽이 먼저다). */
+  defaultOriginId?: string;
 }) {
   const [filters, setFilters] = useState(emptyFilters), [applied, setApplied] = useState(emptyFilters);
   /* `readAt`은 목록을 읽은 시각이다. 지역표가 적용 기간 안인지 가리는 데 쓴다. */
@@ -99,6 +110,17 @@ export function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, c
     finally { lane.current = false; if (alive.current && scope.canApply(ticket)) setBusy(false); }
   }, [scope, expectedActorId, expectedSessionId]);
   useEffect(() => { alive.current = true; const task = setTimeout(() => { void load(emptyFilters()); }, 0); return () => { clearTimeout(task); alive.current = false; }; }, [load]);
+  /*
+   * 위에서 출고지의 기본 택배사·사용 여부를 저장하면 화면이 새 출고지를 내려 준다. 지역표의 택배사가 출고지의 기본 택배사와 달라진 묶음그룹은
+   * 줄에 '새 주문이 막혀 있습니다'가 떠야 하므로 그때 목록을 다시 읽는다(처음 읽을 때는 읽지 않는다).
+   */
+  const originsKey = origins.map(origin => `${origin.id}:${origin.defaultCarrier ?? ''}:${origin.active ? 1 : 0}`).join('|');
+  const seenOrigins = useRef(originsKey);
+  useEffect(() => {
+    if (seenOrigins.current === originsKey) return;
+    seenOrigins.current = originsKey;
+    void load(applied);
+  }, [originsKey, applied, load]);
   async function edit(group: ShippingChargeGroup) {
     const ticket = scope.capture(); if (!ticket || busy || lane.current || pending.length) return;
     lane.current = true; setBusy(true); setError('');
@@ -147,13 +169,13 @@ export function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, c
     {result ? <div className="flex min-w-0 flex-col gap-1.5 text-sm" data-charge-groups-result="" role="status">
       <p>{result.text}</p>
       {result.skipped?.length ? <div data-charge-groups-skipped=""><p>건너뛴 상품 {result.skipped.length}개</p>
-        <ul className="m-0 list-disc pl-5 text-muted-foreground">{result.skipped.map(item => <li key={item.id}>{item.name} — {item.reason}</li>)}</ul></div> : null}
+        <ul className="m-0 list-disc pl-5 text-muted-foreground">{result.skipped.map(item => <li key={item.id}>{item.name} — {item.reason}.</li>)}</ul></div> : null}
     </div> : null}
     {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}
     {!editor && !assignment ? pending.map(context => <OperationRecovery key={context.operationId} context={context} name={data?.groups.find(group => group.id === context.groupId)?.name}
       identity={identity} scope={scope} canEdit={canEdit} onReceipt={receiptReceived} />) : null}
     <ConsoleListCard aria-busy={busy} data-charge-groups-results="" headingLevel={3} title="배송비 묶음그룹" total={data?.total ?? null} unit="개"
-      actions={canEdit ? <Button disabled={locked || !data} onClick={() => { if (!locked && data) { setResult(null); setEditor({ id: crypto.randomUUID(), data: null, originId: applied.originId ?? '' }); } }} type="button"><Plus aria-hidden="true" />묶음그룹 추가</Button>
+      actions={canEdit ? <Button disabled={locked || !data} onClick={() => { if (!locked && data) { setResult(null); setEditor({ id: crypto.randomUUID(), data: null, originId: applied.originId ?? (origins.some(origin => origin.id === defaultOriginId && origin.active) ? defaultOriginId! : '') }); } }} type="button"><Plus aria-hidden="true" />묶음그룹 추가</Button>
         : <span className="text-xs text-muted-foreground">상품 관리 권한이 있어야 바꿀 수 있습니다.</span>}>
       {busy ? <p className="text-sm text-muted-foreground" role="status">묶음그룹을 불러오고 있습니다.</p> : null}
       {noGroups ? <p className={NOTE}>만든 묶음그룹이 없습니다.{canEdit ? ' [묶음그룹 추가]로 만들어 주세요.' : ''}</p> : <><div aria-label="배송비 묶음그룹 목록 가로 스크롤" className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" tabIndex={0}><Table className="min-w-[52rem]"><caption className="sr-only">배송비 묶음그룹 목록</caption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>묶음그룹 이름</TableHead><TableHead>출고지</TableHead><TableHead>배송비 계산</TableHead><TableHead>지역별 추가배송비</TableHead><TableHead>상품</TableHead><TableHead>사용 여부</TableHead><TableHead>수정일</TableHead><TableHead>관리</TableHead></TableRow></ConsoleTableHeader>
@@ -166,7 +188,7 @@ export function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, c
             <TableCell className="align-top tabular-nums">{group.assignedCount > 0 ? <Button aria-label={`${group.name} 묶음그룹에 넣은 상품 ${group.assignedCount}개 보기`} className="tabular-nums" disabled={locked} onClick={() => { if (!locked) { setResult(null); setAssignment({ group, task: 'manage' }); } }} size="xs" type="button" variant="outline">{group.assignedCount.toLocaleString('ko-KR')}개</Button> : '0개'}</TableCell>
             <TableCell className="align-top"><AdminStatusBadge tone={statusTone('setting', group.archived ? 'archived' : group.enabled ? 'active' : 'inactive')}>{group.archived ? '보관' : group.enabled ? '사용' : '사용 안 함'}</AdminStatusBadge></TableCell>
             <TableCell className="align-top tabular-nums">{formatOrderDateTime(group.updatedAt)}</TableCell>
-            <TableCell className="align-top whitespace-normal"><div className="flex flex-nowrap items-center gap-1.5"><Button disabled={locked} onClick={() => { void edit(group); }} size="xs" type="button" variant="outline">{canEdit ? '수정' : '보기'}</Button>
+            <TableCell className="align-top whitespace-normal"><div className="flex flex-nowrap items-start gap-1.5"><Button disabled={locked} onClick={() => { void edit(group); }} size="xs" type="button" variant="outline">{canEdit ? '수정' : '보기'}</Button>
               {canEdit && !group.archived ? <Button disabled={locked || runtimeOff || Boolean(reason)} onClick={() => { if (!locked && !runtimeOff && !reason) { setResult(null); setAssignment({ group, task: 'add' }); } }} size="xs" type="button" variant="outline">상품 넣기</Button> : null}
               {canEdit ? <ShippingChargeGroupArchiveButton group={group} origin={guard} identity={identity} scope={scope} disabled={locked}
                 onReceipt={receipt => receiptReceived(receipt, group.archived ? 'restored' : 'archived')} onFailure={failure => { void load(applied).then(() => { if (alive.current) setError(failure.error); }); }} /> : null}</div>
@@ -183,13 +205,13 @@ export function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, c
   </>;
 }
 
-export function ShippingChargeGroupsPanel({ accountId, origins, carriers, canEdit, canManageRegional }: {
-  accountId: string; origins: GoodsFulfillmentOrigin[]; carriers: EditableCarrier[]; canEdit: boolean; canManageRegional: boolean;
+export function ShippingChargeGroupsPanel({ accountId, origins, carriers, canEdit, canManageRegional, defaultOriginId }: {
+  accountId: string; origins: GoodsFulfillmentOrigin[]; carriers: EditableCarrier[]; canEdit: boolean; canManageRegional: boolean; defaultOriginId?: string;
 }) {
   const { identity, scope, blocked } = useShippingChargeGroupSession(accountId);
   return <section id="shipping-charge-groups" className="flex min-w-0 scroll-mt-16 flex-col gap-4" aria-labelledby="shipping-charge-groups-title">
     <header className="flex flex-col gap-1"><h2 className="text-lg leading-tight font-semibold tracking-tight" id="shipping-charge-groups-title">배송비 묶음그룹 관리</h2><p className="text-sm text-muted-foreground">함께 주문하면 배송비를 한 번만 받을 상품을 묶습니다.</p></header>
-    {identity ? <GroupsWorkspace key={`${identity.expectedActorId}:${identity.expectedSessionId}`} identity={identity} scope={scope} origins={origins} carriers={carriers} canEdit={canEdit} canManageRegional={canManageRegional} />
+    {identity ? <GroupsWorkspace key={`${identity.expectedActorId}:${identity.expectedSessionId}`} identity={identity} scope={scope} origins={origins} carriers={carriers} canEdit={canEdit} canManageRegional={canManageRegional} defaultOriginId={defaultOriginId} />
       : <AdminNotice role={blocked ? 'alert' : 'status'} tone={blocked ? 'danger' : 'neutral'}>{blocked ? '로그인 계정이 바뀌었거나 로그인이 끊겼습니다. 지금 로그인한 계정으로 이 화면을 새로고침해 주세요.' : '로그인 상태를 확인하고 있습니다.'}</AdminNotice>}
   </section>;
 }

@@ -20,7 +20,7 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
  * 택배사가 분실을 확인한 배송 건은 돌아올 물건이 없으므로 회수 확인 대신 사고 번호·메모·근거 사진으로 회수를 끝낸다. 모든 출고지가
  * 입고되거나 분실로 기록되면 환불을 진행하고, 분실 상품은 판매 재고로 되돌리지 않는다. 반품 사유와 무관하게 받고(회사·택배 귀책이라
  * 반품배송비를 빼지 않는다), 발송 여부·리비전은 DB가 다시 검사한다. 작업 번호는 처음 그릴 때 정해 실패 뒤 재시도에도 같아 이중 기록이 생기지 않는다.
- * 확인 체크는 두지 않는다 — 같은 사실을 확인창이 대상·결과와 함께 묻고, 서버 액션이 받는 확인 값은 화면이 채워 보낸다. */
+ * 확인 체크는 두지 않는다 — 같은 사실을 확인창이 대상·결과와 함께 묻는다. 서버 액션은 확인 값을 받지 않는다(DB 함수에도 그 인자가 없다). */
 /** 배송 분실 기록 확인창. 되돌릴 수 없는 결정이라 대상 출고지·사고 번호와 그 결과를 셸 확인창에서 다시 확인받는다. */
 export function carrierLossConfirmRequest(originName: string, accidentNumber: string): AdminConfirmRequest {
   return {
@@ -79,8 +79,6 @@ export function ClaimCarrierLossDecision({ claimId, claimRevision, shipmentId, o
     <input type="hidden" name="shipmentId" value={shipmentId} />
     <input type="hidden" name="claimRevision" value={claimRevision} />
     <input type="hidden" name="operationId" value={operationId} />
-    {/* 서버 액션이 받는 확인 값. 체크 대신 화면이 채우고, 같은 사실은 확인창이 묻는다. */}
-    <input type="hidden" name="confirmed" value="on" />
     {evidence.map(file => <input key={file.id} type="hidden" name="evidenceFileId" value={file.id} />)}
     <AdminNotice tone="warning" title={`${originName} 배송 분실 — 회수 없이 환불`}>
       고객이 상품을 다시 받기를 원하면 여기에 기록하지 말고, 하자·오배송 교환으로 접수해 회수 없이 재출고합니다.

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  changedFulfillmentOriginFields, fulfillmentOriginFormValues, fulfillmentOriginSaveConfirm, originCarrierChangeWarning, originDeactivateGoodsLine,
-  originDeactivateRestrictionLine, originFeeReadback, parseFulfillmentOriginInput, type FulfillmentOrigin, type OriginRegionalFeeUse, type OriginSaveImpact,
+  changedFulfillmentOriginFields, fulfillmentOriginFormValues, fulfillmentOriginSaveConfirm, originCarrierChangeGroupWarning, originCarrierChangeWarning, originDeactivateGoodsLine,
+  originDeactivateRestrictionLine, originFeeReadback, parseFulfillmentOriginInput, type FulfillmentOrigin, type OriginChargeGroupUse, type OriginRegionalFeeUse, type OriginSaveImpact,
 } from './fulfillment-origins';
 
 describe('origin settings input', () => {
@@ -86,6 +86,43 @@ describe('기본 택배사를 바꿀 때의 경고', () => {
   });
 });
 
+/*
+ * 주문 견적(private.calculate_shipping_charge_group_shipping)은 자체 지역표를 쓰는 '사용' 묶음그룹의 지역표 택배사가 출고지의 기본 택배사와 다르면
+ * 그 묶음그룹 상품의 새 주문을 막는다. 그래서 기본 택배사를 바꾸는 저장은 지역별 추가배송비 말고 묶음그룹 상품에도 닿는다.
+ */
+describe('기본 택배사를 바꿀 때 자체 지역표를 쓰는 묶음그룹 경고', () => {
+  const onHanjin: OriginChargeGroupUse[] = [{ carrierCode: 'hanjin', groups: 2, goods: 15 }];
+  const warn = (patch: Partial<Parameters<typeof originCarrierChangeGroupWarning>[0]> = {}) =>
+    originCarrierChangeGroupWarning({ from: 'hanjin', to: 'cj', active: true, chargeGroups: onHanjin, label, ...patch });
+  const BODY = '자체 지역표를 쓰는 묶음그룹 2개(넣은 상품 15개)는 지역표가 한진택배 기준이라 CJ대한통운에는 맞지 않습니다. '
+    + '배송비 묶음그룹 목록의 [수정]에서 지역표의 택배사를 CJ대한통운 기준으로 맞출 때까지 그 묶음그룹 상품의 새 주문이 막힙니다.';
+  it('지금 기본 택배사로 지역표를 정한 묶음그룹이 있으면 바꾸는 순간 그 묶음그룹 상품의 새 주문이 막힌다고 수와 함께 말한다', () => {
+    expect(warn()).toEqual({ certain: true, title: '바꾸면 묶음그룹 상품의 새 주문이 막힙니다', body: BODY });
+    expect(warn({ chargeGroups: [{ carrierCode: 'cj', groups: 1, goods: 1 }, ...onHanjin] })?.body).toBe(BODY);
+  });
+  it('알릴 것이 없을 때는 null이다', () => {
+    expect(warn({ active: false })).toBeNull();
+    expect(warn({ to: 'hanjin' })).toBeNull();
+    expect(warn({ to: '' })).toBeNull();
+    expect(warn({ chargeGroups: [] })).toBeNull();
+    /* 묶음그룹의 지역표가 지금 기본 택배사가 아니면 이미 막혀 있다 — 바꿔도 달라지는 것이 없다. 새 택배사에 맞는 지역표는 오히려 풀린다. */
+    expect(warn({ chargeGroups: [{ carrierCode: 'old', groups: 3, goods: 9 }] })).toBeNull();
+    expect(warn({ chargeGroups: [{ carrierCode: 'cj', groups: 3, goods: 9 }] })).toBeNull();
+    expect(warn({ from: '' })).toBeNull();
+    /* 묶음그룹을 읽지 않은 화면은 묶음그룹에 대해 말하지 않는다. */
+    expect(warn({ chargeGroups: undefined })).toBeNull();
+  });
+  it('묶음그룹을 읽지 못했으면 막히는지 모른다고 말하고 안전하다고 하지 않는다', () => {
+    expect(warn({ chargeGroups: null })).toMatchObject({ certain: false, title: '묶음그룹 상품의 새 주문이 막히는지 확인하지 못했습니다' });
+    expect(warn({ chargeGroups: null })?.body).toContain('배송비 묶음그룹을 읽지 못했습니다.');
+    expect(warn({ chargeGroups: null, to: 'hanjin' })).toBeNull();
+    expect(warn({ chargeGroups: null, active: false })).toBeNull();
+  });
+  it('큰 수는 쉼표를 찍어 말한다', () => {
+    expect(warn({ chargeGroups: [{ carrierCode: 'hanjin', groups: 12, goods: 1234 }] })?.body).toContain('묶음그룹 12개(넣은 상품 1,234개)');
+  });
+});
+
 describe('사용 안 함으로 바꿀 때 영향', () => {
   it('공개 상품 수를 말한다 — 상품은 계속 보이고 새 주문만 막힌다', () => {
     expect(originDeactivateGoodsLine({ publicGoods: 1234, policyFeeGoods: 10 })).toBe('공개 상품 1,234개는 고객에게 계속 보이지만 새 주문은 받을 수 없습니다.');
@@ -140,6 +177,29 @@ describe('저장 전 확인창', () => {
     expect(confirm({ defaultCarrier: 'cj' }, { impact: { goods: impact.goods, regionalFee: { ...managedOnHanjin, inEffectCarrierCodes: ['hanjin', 'cj'] } } })).toBeNull();
     /* 새 출고지·읽기 전용 화면은 영향을 읽어 오지 않는다. */
     expect(confirm({ defaultCarrier: 'cj' }, { impact: undefined })).toBeNull();
+  });
+  it('자체 지역표를 쓰는 묶음그룹이 막히는 택배사로 바꾸면 확인창이 그 묶음그룹 수와 고칠 곳을 말한다 — 지역별 추가배송비를 쓰지 않는 출고지여도 묻는다', () => {
+    const chargeGroups: OriginChargeGroupUse[] = [{ carrierCode: 'hanjin', groups: 2, goods: 15 }];
+    const notManaged = { managed: false, inEffectCarrierCodes: [], scheduledCarrierCodes: [] };
+    const groupsOnly = confirm({ defaultCarrier: 'cj' }, { impact: { goods: impact.goods, regionalFee: notManaged, chargeGroups } });
+    expect(groupsOnly).toMatchObject({ title: '김포 기본 택배사를 바꿀까요?', confirmLabel: '택배사 바꾸기', cancelLabel: '돌아가기' });
+    expect(groupsOnly?.message).toBe('기본 택배사: 한진택배 → CJ대한통운\n자체 지역표를 쓰는 묶음그룹 2개(넣은 상품 15개)는 지역표가 한진택배 기준이라 CJ대한통운에는 맞지 않습니다. '
+      + '배송비 묶음그룹 목록의 [수정]에서 지역표의 택배사를 CJ대한통운 기준으로 맞출 때까지 그 묶음그룹 상품의 새 주문이 막힙니다.');
+    /* 지역별 추가배송비도 막히면 한 확인창에 두 줄이다. */
+    const both = confirm({ defaultCarrier: 'cj' }, { impact: { ...impact, chargeGroups } });
+    expect(both?.message.split('\n')).toEqual(['기본 택배사: 한진택배 → CJ대한통운',
+      '지역별 추가배송비가 한진택배 기준으로 정해져 있어 CJ대한통운에는 적용되지 않습니다. 바꾼 뒤 지역별 추가배송비에서 CJ대한통운 기준으로 만들어 적용하면 새 주문을 다시 받습니다.',
+      expect.stringContaining('자체 지역표를 쓰는 묶음그룹 2개(넣은 상품 15개)')]);
+    /* 묶음그룹을 읽지 못했으면 모른다고 말한 뒤 묻는다. */
+    expect(confirm({ defaultCarrier: 'cj' }, { impact: { goods: impact.goods, regionalFee: notManaged, chargeGroups: null } })?.message).toContain('배송비 묶음그룹을 읽지 못했습니다.');
+  });
+  it('막히는 묶음그룹이 없으면(없거나 지역표 택배사가 지금도 다르거나 새 택배사와 같다) 택배사를 바꿔도 묻지 않는다', () => {
+    const notManaged = { managed: false, inEffectCarrierCodes: [], scheduledCarrierCodes: [] };
+    for (const chargeGroups of [[], [{ carrierCode: 'old', groups: 1, goods: 1 }], [{ carrierCode: 'cj', groups: 1, goods: 1 }]] as OriginChargeGroupUse[][]) {
+      expect(confirm({ defaultCarrier: 'cj' }, { impact: { goods: impact.goods, regionalFee: notManaged, chargeGroups } })).toBeNull();
+    }
+    /* 택배사가 그대로면 묶음그룹이 있어도 묻지 않는다. */
+    expect(confirm({ baseFee: '04700' }, { impact: { goods: impact.goods, regionalFee: notManaged, chargeGroups: [{ carrierCode: 'hanjin', groups: 1, goods: 1 }] } })).toBeNull();
   });
   it('기본 배송비·무료 배송 기준을 바꾸면 이전 값 → 새 값과 \'출고지 정책 따름\' 공개 상품 수를 보인다', () => {
     const request = confirm({ baseFee: '5000', freeThreshold: '' });

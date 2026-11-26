@@ -44,7 +44,8 @@ type Result = { text: string; templateId?: string; skipped?: ShippingSettingsSki
 
 /*
  * 배송정보 템플릿 관리(/admin/settings/shipping-templates): 목록 + [수정] 창 + [상품에 적용] 창. 사이즈·A/S·이벤트 템플릿 관리와 같은 모양이다.
- * 템플릿을 고쳐도 이미 적용한 상품은 바뀌지 않는다 — 그런 상품이 몇 개인지 줄에 보이고 [다시 적용]으로 바로 맞춘다.
+ * 템플릿을 고쳐도 이미 적용한 상품은 바뀌지 않는다 — 저장한 뒤 다시 적용하지 않은 상품이 몇 개인지 줄에 보이고 [다시 적용]으로 바로 맞춘다.
+ * 그 수는 저장할 때마다 오르는 번호로 센다 — 이름이나 사용 여부만 고친 저장도 포함되므로 상품 설정이 실제로 달라졌다고 말하지 않는다.
  * 조회 조건은 주소(?q=&state=&page=)가 진실원이다.
  */
 export function ShippingSettingsTemplatesScreen({ data, origins, regions, accountId, initialGoodIds = [], runtimeEnabled = null }: {
@@ -82,10 +83,10 @@ export function ShippingSettingsTemplatesScreen({ data, origins, regions, accoun
     </form>
     {result ? <div className="flex min-w-0 flex-col gap-1.5 text-sm" data-goods-template-notice="" role="status">
       <p>{result.text}</p>
-      {resultTemplate && resultOutdated ? <p className={`${ACTIONS} text-muted-foreground`}>이 템플릿을 쓰는 상품 {resultOutdated.toLocaleString('ko-KR')}개는 고치기 전 내용 그대로입니다.
+      {resultTemplate && resultOutdated ? <p className={`${ACTIONS} text-muted-foreground`}>이 템플릿을 저장한 뒤 다시 적용하지 않은 상품이 {resultOutdated.toLocaleString('ko-KR')}개 있습니다. 설정을 고쳤다면 상품에도 다시 적용해 주세요.
         <Button disabled={!canEdit || Boolean(applyBlocked(resultTemplate))} onClick={() => open(resultTemplate, true)} size="sm" type="button" variant="outline">{Math.min(resultOutdated, SHIPPING_SETTINGS_GOOD_LIMIT).toLocaleString('ko-KR')}개 상품에 다시 적용</Button></p> : null}
       {result.skipped?.length ? <div data-shipping-skipped=""><p>건너뛴 상품 {result.skipped.length}개</p>
-        <ul className="m-0 list-disc pl-5 text-muted-foreground">{result.skipped.map(item => <li key={item.id}>{item.name} — {item.reason}</li>)}</ul></div> : null}
+        <ul className="m-0 list-disc pl-5 text-muted-foreground">{result.skipped.map(item => <li key={item.id}>{item.name} — {item.reason}.</li>)}</ul></div> : null}
     </div> : null}
     {blocked ? <AdminNotice role="alert" tone="danger">로그인 계정이 바뀌었거나 로그인이 끊겼습니다. 지금 로그인한 계정으로 이 화면을 새로고침해 주세요.</AdminNotice> : null}
     {identity ? pending.map(context => <PendingOperation key={context.operationId} context={context} name={data.rows.find(row => row.id === context.templateId)?.name} identity={identity} scope={scope} onReceipt={receipt => {
@@ -107,7 +108,7 @@ export function ShippingSettingsTemplatesScreen({ data, origins, regions, accoun
               {extras.length ? <small className={`mt-1 block ${FIELD_HINT}`} data-shipping-template-extras="">함께 바꾸는 것: {extras.join(', ')}</small> : null}
               {template.settings.fulfillment?.mode === 'replace' ? <div className={`mt-1 ${FIELD_HINT}`}><ShippingSettingsFulfillmentDirective value={template.settings.fulfillment} /></div> : null}</TableCell>
             <TableCell className="align-top whitespace-normal tabular-nums" data-shipping-template-usage="">{usage ? <>{usage.applied.toLocaleString('ko-KR')}개
-              {usage.outdated ? <div className="mt-1 flex flex-col items-start gap-1"><small className={FIELD_HINT}>{usage.outdated.toLocaleString('ko-KR')}개는 고치기 전 내용</small>
+              {usage.outdated ? <div className="mt-1 flex flex-col items-start gap-1"><small className={FIELD_HINT}>템플릿을 저장한 뒤 다시 적용하지 않은 상품 {usage.outdated.toLocaleString('ko-KR')}개</small>
                 <Button disabled={!canEdit || Boolean(reason)} onClick={() => open(template, true)} size="xs" type="button" variant="outline">다시 적용</Button></div> : null}</> : '—'}</TableCell>
             <TableCell className="align-top tabular-nums">{kstDateTimeText(template.updatedAt).replaceAll('-', '.')}</TableCell>
             <TableCell className="align-top whitespace-normal"><div className="flex flex-nowrap items-center gap-1.5"><Button disabled={!canEdit} onClick={() => { if (canEdit) { setResult(null); setEditor({ owner: identityKey, template }); } }} size="xs" type="button" variant="outline">수정</Button><Button disabled={!canEdit || Boolean(reason)} onClick={() => open(template)} size="xs" type="button" variant={initialGoodIds.length ? 'soft' : 'outline'}>상품에 적용</Button></div>

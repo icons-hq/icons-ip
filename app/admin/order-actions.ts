@@ -50,6 +50,11 @@ export interface AdminOrderActionState {
   errors?: AdminOrderFieldErrors & { form?: string };
   message?: string;
   confirmedOrderIds?: string[];
+  /**
+   * 운송장 수정이 '다른 주문이 쓰는 번호'로 거절됐을 때 그 택배사·번호(서버가 판정한 값). 화면이 그 자리에서 여는
+   * [중복 확인 후 운송장 등록]에 그대로 넘긴다 — 운영자가 같은 번호를 다시 적지 않게 한다.
+   */
+  trackingInUse?: { carrier: string; trackingNumber: string };
 }
 
 /* 권한이 없을 때의 문구는 판매·출고 화면이 함께 쓴다(lib/admin/vocabulary). */
@@ -288,7 +293,11 @@ export async function updateAdminOrderTrackingAction(
   });
   if (error) {
     const tracking = await trackingRegistrationError(error.message);
-    return { errors: { form: tracking ?? `운송장을 저장하지 못했습니다. ${STALE_STATE_HINT}` } };
+    const { carrier, trackingNumber } = normalized.value;
+    return {
+      errors: { form: tracking ?? `운송장을 저장하지 못했습니다. ${STALE_STATE_HINT}` },
+      ...(error.message === 'tracking_number_in_use' ? { trackingInUse: { carrier, trackingNumber } } : {}),
+    };
   }
 
   revalidateOrderSurfaces(normalized.value.orderId);

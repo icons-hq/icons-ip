@@ -5,6 +5,7 @@ import { unstable_rethrow } from 'next/navigation';
 import { adminOrderActionHref } from '@/lib/admin/orders';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
+import { DELIVERY_RECORD_RESULT_COPY, deliveryOccurredThisMinute, deliveryRecordErrorMessage, deliveryTimeRejected } from '@/lib/admin/shipment-delivery-panel';
 import { ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 import {
   DELIVERY_POLICY_TEXT_FIELDS, deliveryIsHandoff, deliveryErrorMessage, deliveryObject, deliveryTimestamp, deliveryUuid,
@@ -92,16 +93,22 @@ export async function recordShipmentDeliveryAction(form: FormData): Promise<Save
   const receiptCode = String(form.get('receiptCode') ?? '').replace(/[\s-]/g, '').toUpperCase();
   if (!deliveryUuid(shipmentId) || !deliveryUuid(operationId) || !deliveryTimestamp(updatedAt) || !evidence
     || (!deliveryIsHandoff(kind) && !/^[0-9A-F]{12}$/.test(receiptCode)) || (deliveryIsHandoff(kind) && receiptCode !== '')) {
-    return { ok: false, error: '담당자·시각·확인 내용을 모두 적어주세요. 수령 기록에는 고객이 보여 준 확인값 12자리도 필요합니다.' };
+    return { ok: false, error: DELIVERY_RECORD_RESULT_COPY.invalid };
   }
   try {
-    const client = await createClient(); const { data, error } = await client.rpc('admin_record_shipment_delivery', {
-      p_shipment_id: shipmentId, p_kind: kind, p_evidence: evidence, p_receipt_code: receiptCode || null,
+    const client = await createClient();
+    const record = (occurredAt: string) => client.rpc('admin_record_shipment_delivery', {
+      p_shipment_id: shipmentId, p_kind: kind, p_evidence: { ...evidence, occurredAt }, p_receipt_code: receiptCode || null,
       p_expected_updated_at: updatedAt, p_operation_id: operationId,
     });
-    if (error) return { ok: false, error: deliveryErrorMessage(error.message) };
+    let { data, error } = await record(evidence.occurredAt);
+    /* 시각 칸은 분 단위다. 발주확인(또는 인계)한 그 분 안에 '지금 분'으로 기록하면 초가 00이라 앞선 시각이 되어 거절된다 —
+       거절된 것은 아무것도 남기지 않았으므로, 그 분을 적은 경우에만 초까지 채운 지금 시각으로 한 번 더 기록한다. DB의 시각 검사는 그대로다. */
+    const thisMinute = deliveryTimeRejected(error) ? deliveryOccurredThisMinute(evidence.occurredAt) : null;
+    if (thisMinute) ({ data, error } = await record(thisMinute));
+    if (error) return { ok: false, error: deliveryRecordErrorMessage(kind, error) };
     if (!deliveryObject(data) || data.ok !== true) return { ok: false, error: deliveryErrorMessage(deliveryObject(data) ? String(data.error) : undefined) };
-    refreshDelivery(); return { ok: true, message: data.replayed ? '이미 저장된 인계·수령 기록입니다.'
-      : deliveryIsHandoff(kind) ? '인계를 기록하고 배송중으로 바꿨습니다.' : '수령을 기록하고 배송완료로 바꿨습니다.' };
+    refreshDelivery(); return { ok: true, message: data.replayed ? DELIVERY_RECORD_RESULT_COPY.replayed
+      : deliveryIsHandoff(kind) ? DELIVERY_RECORD_RESULT_COPY.handoff : DELIVERY_RECORD_RESULT_COPY.receive };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: deliveryErrorMessage() }; }
 }

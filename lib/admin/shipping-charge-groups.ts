@@ -4,7 +4,7 @@ import { GOODS_TRANSACTION_INT_MAX, GOODS_TRANSACTION_MAX_LINES, GOODS_TRANSACTI
   transactionExactKeys, transactionGoodId, transactionInstant, transactionInteger } from '@/lib/goods-transaction-values';
 import { normalizeShippingAddress } from '@/lib/shipping-regions';
 import type { ShippingChargeGroupMode, ShippingChargeRegionMode } from '@/lib/shipping-charge-groups';
-import { MAX_SHIPPING_REGION_RULES, shippingRegionFeeSummary, shippingRegionPolicyProblems, type ShippingRegionRuleInput } from './shipping-regions';
+import { MAX_SHIPPING_REGION_RULES, SHIPPING_REGION_PERIOD_PROBLEM, shippingRegionFeeSummary, shippingRegionPolicyProblems, type ShippingRegionRuleInput } from './shipping-regions';
 
 export const SHIPPING_CHARGE_GROUPS_PATH = '/admin/settings/origins';
 export const SHIPPING_CHARGE_GROUP_GOOD_LIMIT = 100;
@@ -120,12 +120,11 @@ export function emptyShippingChargeGroupValues(): ShippingChargeGroupValues {
  * 물류사 회신·계약 근거(sourceEvidence)는 요구하지 않는다(2026-11-26, DB `assert_shipping_region_policy_complete`도 같다).
  */
 export function shippingChargeGroupRegionalProblems(policy: ShippingChargeGroupRegionPolicy): string[] {
-  /* 지역별 추가배송비 쪽 문장을 그대로 찾아 걸러 낸다(마이크로초까지 비교하는 아래 검사로 바꿔 넣는다). */
-  const periodProblem = '종료 일시는 시작 일시보다 뒤여야 합니다.';
+  /* 지역별 추가배송비 쪽의 같은 안내(`SHIPPING_REGION_PERIOD_PROBLEM`)를 걸러 낸다(마이크로초까지 비교하는 아래 검사로 바꿔 넣는다). */
   const problems = shippingRegionPolicyProblems({ ...policy, originId: '', name: '배송비 묶음그룹 지역표', feeUnit: 'per_shipment',
-    chargePolicyGoods: true, waivePolicyThreshold: false, chargeFreeGoods: true, chargeIndividualGoods: true }).filter(problem => problem !== periodProblem);
+    chargePolicyGoods: true, waivePolicyThreshold: false, chargeFreeGoods: true, chargeIndividualGoods: true }).filter(problem => problem !== SHIPPING_REGION_PERIOD_PROBLEM);
   if (policy.startsAt && policy.endsAt && transactionInstant(policy.startsAt) && transactionInstant(policy.endsAt)
-    && transactionEpochMicros(policy.startsAt) >= transactionEpochMicros(policy.endsAt)) problems.push('적용 종료를 적용 시작보다 뒤로 고쳐 주세요.');
+    && transactionEpochMicros(policy.startsAt) >= transactionEpochMicros(policy.endsAt)) problems.push(SHIPPING_REGION_PERIOD_PROBLEM);
   if (!policy.carrierCode) problems.unshift('택배사를 골라 주세요.');
   return problems;
 }
@@ -191,6 +190,7 @@ export function shippingChargeGroupRegionConfirmMessage({ name, originName, assi
 }): string {
   const lines = [`${originName} · ${name} · 넣은 상품 ${assignedCount.toLocaleString('ko-KR')}개`];
   const effects: string[] = [];
+  let endedNow = false;
   if (regional.mode === 'inherit') lines.push('지역별 추가배송비: 출고지 설정을 그대로 따릅니다. 이 묶음그룹의 지역표는 더 쓰지 않습니다.');
   else {
     const policy = regional.policy, started = Boolean(policy.startsAt) && Date.parse(policy.startsAt!) <= now;
@@ -200,9 +200,13 @@ export function shippingChargeGroupRegionConfirmMessage({ name, originName, assi
       `적용 기간: ${policy.startsAt ? formatDate(policy.startsAt) : '정하지 않음'}부터${policy.endsAt ? ` ${formatDate(policy.endsAt)}까지` : ''}`);
     if (enabled && !started && policy.startsAt) effects.push(`${formatDate(policy.startsAt)} 전에는 이 묶음그룹 상품의 새 주문이 막힙니다.`);
     if (policy.unlistedDisposition === 'manual_review') effects.push('지역표에 없는 주소로는 이 묶음그룹 상품을 주문할 수 없게 됩니다.');
-    if (policy.endsAt) effects.push(`${formatDate(policy.endsAt)} 뒤에는 이 묶음그룹 상품의 새 주문이 막힙니다. 그 전에 적용 종료를 고치거나 출고지 설정을 따르게 바꿔 주세요.`);
+    if (policy.endsAt && enabled && Date.parse(policy.endsAt) <= now) {
+      /* 끝나는 시각이 이미 지났다 — 나중에 막히는 것이 아니라 저장하는 순간 막힌다. */
+      endedNow = true;
+      effects.push(`적용 종료(${formatDate(policy.endsAt)})가 이미 지났습니다. 저장하면 바로 이 묶음그룹 상품의 새 주문이 막힙니다. 적용 종료를 지금보다 뒤로 고치거나 출고지 설정을 따르게 바꿔 주세요.`);
+    } else if (policy.endsAt) effects.push(`${formatDate(policy.endsAt)} 뒤에는 이 묶음그룹 상품의 새 주문이 막힙니다. 그 전에 적용 종료를 고치거나 출고지 설정을 따르게 바꿔 주세요.`);
   }
-  effects.push(enabled ? '저장하면 바로 새 주문에 적용됩니다. 이미 들어온 주문의 배송비는 그대로입니다.'
+  effects.push(endedNow ? '이미 들어온 주문의 배송비는 그대로입니다.' : enabled ? '저장하면 바로 새 주문에 적용됩니다. 이미 들어온 주문의 배송비는 그대로입니다.'
     : "'사용 안 함'이라 지금 주문에는 쓰이지 않습니다. '사용'으로 바꿔 저장하면 그때부터 적용됩니다.");
   return [...lines, '', ...effects].join('\n');
 }

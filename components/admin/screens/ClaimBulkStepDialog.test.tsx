@@ -93,9 +93,9 @@ describe('회수 확인 확인창', () => {
 
   it('건수·출고지 수·입고일을 확인 줄과 실행 버튼에 함께 적고, 뺀 요청은 사유를 보인다', () => {
     const html = render();
-    expect(html).toContain('<strong>2건</strong> · 출고지 3곳 · 입고일 <span class="tabular-nums">2026-11-11</span> · 건너뜀 1건');
+    expect(html).toContain('<strong>2건</strong> · 출고지 3곳 · 입고일 <span class="tabular-nums">2026. 11. 11.</span> · 건너뜀 1건');
     expect(html).toContain('건너뜀 · 남는 출고지');
-    expect(html).toMatch(/<button[^>]*>2건 회수 확인 \(입고일 2026-11-11\)<\/button>/);
+    expect(html).toMatch(/<button[^>]*>2건 회수 확인 \(입고일 2026\. 11\. 11\.\)<\/button>/);
     expect(html).toContain('주문 전체');
     expect(html).toContain('승인 전 요청입니다. 승인한 뒤 회수를 확인해주세요.');
     /* 입고일은 오늘(KST)까지만 고를 수 있다. */
@@ -111,44 +111,73 @@ describe('회수 확인 확인창', () => {
 });
 
 /*
- * 취소 일괄 승인 확인창(L-08). 승인하는 즉시 결제사에 전액 취소가 나가므로 환불 확정 확인창과 같은 모양으로 건수·취소 금액 합계·
- * 건너뛰는 건과 이유를 서버 값 그대로 보이고, 버튼에 같은 건수·합계를 적는다.
+ * 취소 일괄 승인 확인창(L-08). 승인하는 즉시 결제사에 전액 취소가 나가는 건이 있으므로 환불 확정 확인창과 같은 모양으로 건수·금액·
+ * 건너뛰는 건과 이유를 서버 값 그대로 보인다. 승인 뒤에 일어나는 일이 결제 방식마다 달라 합계는 묶음으로 나눠 보이고, 버튼의 금액은
+ * 결제사로 나가는 금액만이다 — 무통장·코페이처럼 승인만 하고 환불을 따로 진행하는 건의 금액은 더하지 않는다.
  */
 describe('취소 승인 확인창', () => {
   const rows: AdminClaimBulkApproveRow[] = [
-    { claimId: A, reference: 'C00001', providerLabel: '토스 결제', amount: 30000, providerCancel: true, effect: '승인하고 토스 전액 취소를 요청합니다', blocker: null },
-    { claimId: B, reference: 'C00002', providerLabel: '나이스페이', amount: 12000, providerCancel: true, effect: '승인하고 나이스페이 전액 취소를 요청합니다', blocker: null },
-    { claimId: C, reference: 'C00003', providerLabel: '토스 결제', amount: 8000, providerCancel: true, effect: '승인하고 토스 전액 취소를 요청합니다', blocker: '이미 승인한 요청입니다.' },
+    { claimId: A, reference: 'C00001', providerLabel: '토스 결제', amount: 30000, kind: 'provider', effect: '승인하고 토스 전액 취소를 요청합니다', blocker: null },
+    { claimId: B, reference: 'C00002', providerLabel: '나이스페이', amount: 12000, kind: 'provider', effect: '승인하고 나이스페이 전액 취소를 요청합니다', blocker: null },
+    { claimId: C, reference: 'C00003', providerLabel: '토스 결제', amount: 8000, kind: 'provider', effect: '승인하고 토스 전액 취소를 요청합니다', blocker: '이미 승인한 요청입니다.' },
   ];
   const render = (list = rows, running = false) => renderToStaticMarkup(<ApproveStep onRun={noop} preview={{ step: 'approve', rows: list, totals: adminClaimBulkApproveTotals(list) }} progress={1} running={running} />);
 
-  it('승인 건수·취소 금액 합계(결제 방식별)와 건너뛰는 건·이유를 보이고, 버튼에 같은 건수·합계를 적는다', () => {
+  it('승인 건수와 결제사로 취소되는 금액(결제 방식별)·건너뛰는 건·이유를 보이고, 버튼에 같은 건수·금액을 적는다', () => {
     const html = render();
     expect(html).toContain('승인하면 되돌릴 수 없습니다');
-    expect(html).toMatch(/승인 <strong[^>]*>2건<\/strong> · 취소 금액 합계 <strong[^>]*>₩42,000<\/strong>/);
+    expect(html).toMatch(/승인 <strong[^>]*>2건<\/strong>/);
+    expect(html).toMatch(/결제사로 바로 취소 <strong[^>]*>2건<\/strong> · <strong[^>]*>₩42,000<\/strong>/);
     expect(html).toContain('토스 결제 1건');
-    expect(html).toContain('결제사에 취소 요청');
+    expect(html).toContain('나이스페이 1건');
     expect(html).toContain('건너뜀 1건');
     expect(html).toContain('건너뜀 · 이미 승인한 요청입니다.');
     expect(html).toContain('승인하고 나이스페이 전액 취소를 요청합니다');
-    expect(html).toMatch(/<button[^>]*>2건 취소 승인 \(합계 ₩42,000\)<\/button>/);
+    expect(html).toMatch(/<button[^>]*>2건 취소 승인 \(결제사 취소 합계 ₩42,000\)<\/button>/);
     /* 결제사 이름은 이름표에서 읽는다 — 나이스페이 결제에 토스라고만 말하지 않는다. */
     expect(html).toContain('토스·나이스페이 결제는 승인하는 즉시');
     expect(html).not.toContain('제외');
+    /* 결제사 취소뿐이면 승인만 하는 건·결제 전 주문 묶음은 보이지 않는다. */
+    expect(html).toContain('data-claim-bulk-approve-group="provider"');
+    expect(html).not.toContain('data-claim-bulk-approve-group="manual"');
+    expect(html).not.toContain('data-claim-bulk-approve-group="order"');
   });
 
-  it('무통장·결제 없음은 승인만 하고, 결제가 없는 주문만 고르면 합계 없이 건수만 적는다', () => {
+  it('무통장 금액은 결제사로 나가는 금액과 따로 보이고, 승인 버튼과 합계에는 결제사 취소 금액만 적는다', () => {
+    const mixed: AdminClaimBulkApproveRow[] = [
+      rows[0],
+      { claimId: B, reference: 'C00002', providerLabel: '무통장 입금', amount: 50000, kind: 'manual', effect: '승인만 합니다(환불은 계좌 송금으로 따로 진행합니다)', blocker: null },
+    ];
+    const html = render(mixed);
+    expect(html).toMatch(/승인 <strong[^>]*>2건<\/strong>/);
+    expect(html).toMatch(/결제사로 바로 취소 <strong[^>]*>1건<\/strong> · <strong[^>]*>₩30,000<\/strong>/);
+    expect(html).toMatch(/승인만 하고 환불은 따로 진행 <strong[^>]*>1건<\/strong> · <strong[^>]*>₩50,000<\/strong>/);
+    expect(html).toContain('이 금액은 결제사로 나가지 않습니다');
+    expect(html).toContain('승인만 합니다(환불은 계좌 송금으로 따로 진행합니다)');
+    /* 두 금액을 더한 ₩80,000은 어디에도 없다 — 결제사로 나가는 돈은 30,000원이다. */
+    expect(html).not.toContain('₩80,000');
+    expect(html).toMatch(/<button[^>]*>2건 취소 승인 \(결제사 취소 합계 ₩30,000\)<\/button>/);
+  });
+
+  it('결제 전 주문은 승인만이 아니라 주문이 바로 취소된다고 말하고, 결제사 취소가 없으면 버튼에 금액을 적지 않는다', () => {
     const only: AdminClaimBulkApproveRow[] = [
-      { claimId: A, reference: 'C00001', providerLabel: '무통장 입금', amount: 7000, providerCancel: false, effect: '승인만 합니다(환불은 계좌 송금으로 따로 진행합니다)', blocker: null },
-      { claimId: B, reference: 'C00002', providerLabel: '결제 없음', amount: null, providerCancel: false, effect: '승인만 합니다(결제 전 주문이라 결제사 취소가 없습니다)', blocker: null },
+      { claimId: A, reference: 'C00001', providerLabel: '무통장 입금', amount: 7000, kind: 'manual', effect: '승인만 합니다(환불은 계좌 송금으로 따로 진행합니다)', blocker: null },
+      { claimId: B, reference: 'C00002', providerLabel: '결제 없음', amount: null, kind: 'order', effect: '승인하고 주문을 바로 취소합니다(결제 전 주문이라 결제사 취소는 없습니다)', blocker: null },
     ];
     const html = render(only);
     expect(html).toContain('무통장 입금 1건');
-    expect(html).toContain('— 승인만');
-    expect(html).toMatch(/<button[^>]*>2건 취소 승인 \(합계 ₩7,000\)<\/button>/);
+    expect(html).toMatch(/주문이 바로 취소되는 결제 전 주문 <strong[^>]*>1건<\/strong>/);
+    expect(html).toContain('승인하고 주문을 바로 취소합니다(결제 전 주문이라 결제사 취소는 없습니다)');
+    expect(html).toContain('결제 전 주문은 승인하면 결제사 취소 없이 바로 주문이 취소되고 재고가 돌아옵니다.');
+    expect(html).not.toContain('승인만 합니다(결제 전 주문');
+    expect(html).not.toContain('data-claim-bulk-approve-group="provider"');
+    expect(html).toMatch(/<button[^>]*>2건 취소 승인<\/button>/);
+    expect(html).not.toContain('결제사 취소 합계');
+    /* 결제 전 주문만 고르면 결제 없음 줄에 금액이 없고, 그 밖의 묶음 이름도 보이지 않는다. */
     const free = render(only.slice(1));
     expect(free).toMatch(/<button[^>]*>1건 취소 승인<\/button>/);
-    expect(free).not.toContain('합계 ₩');
+    expect(free).not.toContain('₩');
+    expect(free).not.toContain('data-claim-bulk-approve-group="manual"');
   });
 
   it('승인할 건이 없거나 처리 중이면 버튼을 잠그고, 처리 중에는 한 건씩 확인한다고 알린다', () => {
@@ -156,5 +185,27 @@ describe('취소 승인 확인창', () => {
     const busy = render(rows, true);
     expect(busy).toContain('처리 중… 결제사 취소를 한 건씩 순서대로 확인합니다(1건 끝).');
     expect(busy).toMatch(/<button[^>]*disabled=""[^>]*>2건 취소 승인/);
+  });
+});
+
+/* F-01: 일괄 확인창(회수 확인·환불 완료 확정·취소 승인)에 오른쪽 위 X와 빨간 실행 버튼뿐이라 다른 확인창과 달리 [돌아가기]가 없었다. 실행 버튼 옆에서 그만둘 수 있다. */
+describe('일괄 확인창의 [돌아가기]', () => {
+  const approveRows: AdminClaimBulkApproveRow[] = [{ claimId: A, reference: 'C00001', providerLabel: '토스 결제', amount: 30000, kind: 'provider', effect: '승인하고 토스 전액 취소를 요청합니다', blocker: null }];
+  const refundRows: AdminClaimBulkRefundRow[] = [{ claimId: A, reference: 'C00001', providerLabel: '토스 결제', amount: 12000, blocker: null }];
+  const collectRows = [{ claimId: A, reference: 'C00001', targets: [{ shipmentId: S1, originName: 'TEST 김포' }], skipped: [], blocker: null }];
+  const approve = (props: { onBack?: () => void; running?: boolean }) => renderToStaticMarkup(<ApproveStep onRun={noop} {...props} preview={{ step: 'approve', rows: approveRows, totals: adminClaimBulkApproveTotals(approveRows) }} progress={0} running={props.running ?? false} />);
+  const refund = (props: { onBack?: () => void; running?: boolean }) => renderToStaticMarkup(<RefundStep onRun={noop} {...props} preview={{ step: 'refund', rows: refundRows, totals: adminClaimBulkRefundTotals(refundRows) }} progress={0} running={props.running ?? false} />);
+  const collect = (props: { onBack?: () => void; running?: boolean }) => renderToStaticMarkup(<CollectStep evidence="" evidenceId="evidence" inputError="" onEvidence={noop} onReceivedOn={noop} onRun={noop} onToggle={noop}
+    {...props} progress={0} receivedId="received" receivedOn="2026-11-11" rows={collectRows} running={props.running ?? false} today="2026-11-12" unchecked={{}} />);
+
+  it.each([
+    ['취소 승인', approve, '1건 취소 승인'], ['환불 완료 확정', refund, '1건 환불 완료 확정'], ['회수 확인', collect, '1건 회수 확인'],
+  ] as const)('%s 확인창은 실행 버튼 앞에 [돌아가기]를 두고, 처리 중에는 잠근다', (_name, render, runLabel) => {
+    const html = render({ onBack: noop });
+    expect(html).toMatch(new RegExp(`<button[^>]*>돌아가기</button><button[^>]*>${runLabel}`));
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>돌아가기/);
+    expect(render({ onBack: noop, running: true })).toMatch(/<button[^>]*disabled=""[^>]*>돌아가기<\/button>/);
+    /* 돌아가기를 주지 않으면 그리지 않는다. */
+    expect(render({})).not.toContain('돌아가기');
   });
 });

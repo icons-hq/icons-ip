@@ -67,7 +67,7 @@ describe('주문 통합검색 목록 엑셀', () => {
       주문일시: '2026-10-07 00:10',
       '주문 상태': '배송중',
       구매자: 'maple_fan',
-      수취인: '김수취',
+      수령인: '김수취',
       결제수단: '무통장 입금(직접 이체)',
       '결제 상태': '결제완료',
       결제금액: 45_000,
@@ -90,7 +90,7 @@ describe('주문 통합검색 목록 엑셀', () => {
     expect(sheet.columns.map((column) => column.header)).not.toEqual(expect.arrayContaining(['전체 주문번호']));
     expect(sheet.columns.map((column) => column.header)).not.toContain('계산 버전');
     expect(sheet.columns.find((column) => column.header === '이메일')?.width).toBeGreaterThanOrEqual(34);
-    /* 주문 통합검색은 수취인 이름만 싣고 연락처·주소는 담지 않는다. */
+    /* 주문 통합검색은 수령인 이름만 싣고 연락처·주소는 담지 않는다. */
     expect(sheet.columns.map((column) => column.header)).not.toContain('연락처');
     expect(sheet.conditions).toEqual([
       ['검색 대상', '수령인'], ['검색어', '김수취'], ['주문 상태', '전체 상태'], ['주문일', '2026-10-01 ~ 종료 제한 없음'],
@@ -183,7 +183,7 @@ describe('취소·반품·교환 목록 엑셀', () => {
     expect(cells(sheet)).toMatchObject({
       요청번호: 'C00042', 주문번호: '11111111', 유형: '반품', 사유: '상품 하자·오배송', '처리 상태': '수거중',
       접수일: '2026-10-06 09:00', '환불 기한': '입고 전', '환불 수단': '접수 전', 처리자: '미배정',
-      상품명: '아크릴 키링', 수량: 2, 수취인: '김수취', 연락처: '01012345678', 우편번호: '04524', 운송장번호: '123456789012',
+      상품명: '아크릴 키링', 수량: 2, 수령인: '김수취', 연락처: '01012345678', 우편번호: '04524', 운송장번호: '123456789012',
       '직접 입력 옵션':'각인 문구: 합성 문구',
     });
     expect(sheet.conditions).toContainEqual(['처리 상태', '미처리 전체']);

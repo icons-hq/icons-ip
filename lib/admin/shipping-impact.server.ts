@@ -1,11 +1,13 @@
 import 'server-only';
 import { unstable_rethrow } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
-import type { OriginGoodsImpact, OriginRegionalFeeUse, OriginSaveImpact } from './fulfillment-origins';
+import type { OriginChargeGroupUse, OriginGoodsImpact, OriginRegionalFeeUse, OriginSaveImpact } from './fulfillment-origins';
 import { loadGoodsFulfillmentOptions } from './fulfillment-origins.server';
+import { parseShippingChargeGroupIdentity, shippingChargeGroupRegionBlock, type ShippingChargeGroup } from './shipping-charge-groups';
+import { loadShippingChargeGroups } from './shipping-charge-groups.server';
 import { shippingRegionPolicyInEffect, shippingRegionPolicyScheduled, type ShippingRegionPolicy } from './shipping-regions';
 
-export type { OriginGoodsImpact, OriginRegionalFeeUse, OriginSaveImpact } from './fulfillment-origins';
+export type { OriginChargeGroupUse, OriginGoodsImpact, OriginRegionalFeeUse, OriginSaveImpact } from './fulfillment-origins';
 
 /*
  * 출고지·택배사를 바꾸거나 끄기 전에 알릴 영향을 읽는다. 읽기만 한다 — 저장·계산·상태 변경은 하지 않는다.
@@ -88,10 +90,50 @@ export async function loadOriginRegionalFeeUse(now = Date.now()): Promise<Record
   }
 }
 
-/** 배송정보 관리가 출고지 하나를 저장하기 전에 알릴 영향: 영향받는 공개 상품 수와 지역별 추가배송비 사용 여부. 읽지 못한 쪽은 null. */
+/** 한 출고지의 '사용' 묶음그룹을 읽는 쪽 수의 상한(한 쪽에 20개). 넘으면 센 값이 모자랄 수 있어 읽지 못한 것으로 본다. */
+const CHARGE_GROUP_MAX_PAGES = 25;
+
+/**
+ * 이 출고지에서 자체 지역표를 쓰는 '사용' 묶음그룹 가운데 지금 적용 기간 안인 것을 지역표의 택배사별로 센다(묶음그룹 수·넣은 상품 수).
+ * 기본 택배사를 바꾸면 지역표의 택배사가 달라진 묶음그룹 상품의 새 주문이 막힌다(`private.calculate_shipping_charge_group_shipping`).
+ * 묶음그룹 목록 조회(`admin_list_shipping_charge_groups`)를 그대로 쓴다 — 로그인·세션·상품 관리 권한을 그 조회가 확인한다.
+ * 읽지 못하면(권한이 없거나 조회가 어긋남) null이다 — 화면은 모른다고 말한다. 택배사 코드순이다.
+ */
+export async function loadOriginChargeGroupUse(originId: string, now = Date.now()): Promise<OriginChargeGroupUse[] | null> {
+  try {
+    const claims = await (await createClient()).auth.getClaims();
+    const identity = parseShippingChargeGroupIdentity({ expectedActorId: claims.data?.claims.sub, expectedSessionId: claims.data?.claims.session_id });
+    if (claims.error || !identity) return null;
+    const groups: ShippingChargeGroup[] = [];
+    for (let page = 1; ; page += 1) {
+      if (page > CHARGE_GROUP_MAX_PAGES) return null;
+      const data = await loadShippingChargeGroups({ originId, query: '', status: 'active', page }, identity);
+      groups.push(...data.groups);
+      if (page * data.pageSize >= data.total) break;
+    }
+    const byCarrier = new Map<string, OriginChargeGroupUse>();
+    for (const group of groups) {
+      if (group.originId !== originId || !group.enabled || group.archived || group.regional.mode !== 'override') continue;
+      const policy = group.regional.policy;
+      /* 택배사는 일부러 같다고 두고 적용 기간만 본다 — 시작 전이거나 끝난 지역표는 지금도 주문에 쓰이지 않아 택배사를 바꿔도 달라지는 것이 없다. */
+      if (shippingChargeGroupRegionBlock(policy, { defaultCarrier: policy.carrierCode }, undefined, now) !== null) continue;
+      const use = byCarrier.get(policy.carrierCode) ?? { carrierCode: policy.carrierCode, groups: 0, goods: 0 };
+      byCarrier.set(policy.carrierCode, { ...use, groups: use.groups + 1, goods: use.goods + group.assignedCount });
+    }
+    return [...byCarrier.values()].sort((a, b) => a.carrierCode.localeCompare(b.carrierCode));
+  } catch (error) {
+    unstable_rethrow(error);
+    return null;
+  }
+}
+
+/**
+ * 배송정보 관리가 출고지 하나를 저장하기 전에 알릴 영향: 영향받는 공개 상품 수, 지역별 추가배송비 사용 여부,
+ * 자체 지역표를 쓰는 묶음그룹. 읽지 못한 쪽은 null.
+ */
 export async function loadOriginSaveImpact(originId: string, now = Date.now()): Promise<OriginSaveImpact> {
-  const [goods, regional] = await Promise.all([loadOriginGoodsImpact([originId]), loadOriginRegionalFeeUse(now)]);
-  return { goods: goods[originId] ?? null, regionalFee: regional ? (regional[originId] ?? notManaged()) : null };
+  const [goods, regional, chargeGroups] = await Promise.all([loadOriginGoodsImpact([originId]), loadOriginRegionalFeeUse(now), loadOriginChargeGroupUse(originId, now)]);
+  return { goods: goods[originId] ?? null, regionalFee: regional ? (regional[originId] ?? notManaged()) : null, chargeGroups };
 }
 
 /** 택배사를 기본 택배사로 쓰는 출고지 한 곳. */

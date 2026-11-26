@@ -194,6 +194,13 @@ export function warehouseStopRequirement(context: OrderWarehouseStopContext, shi
   return { state: 'ready', shipments: relevant };
 }
 
+/**
+ * DB가 권한으로 거절했을 때의 문장. 이 문구표는 창고 회신 읽기(주문 조회)·기록(출고)·취소 뒤 출고 처리(판매 관리)와 취소·반품의 창고 확인이
+ * 함께 써서 어느 권한인지 여기서는 알 수 없다 — 권한 이름을 단정하지 않는다. 화면이 부르는 서버 액션은 먼저 자기 권한을 확인하고
+ * 그 권한의 이름으로 말한다(app/admin/warehouse-stop-actions).
+ */
+const WAREHOUSE_STOP_ACCESS_DENIED = '이 작업을 할 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';
+
 /** DB가 던지는 창고 회신·발견 거절 코드를 운영자 문구로 옮긴다. 모르는 코드는 일반 문구다. */
 export function warehouseStopErrorMessage(code: string | null | undefined): string {
   const value = code ?? '';
@@ -219,8 +226,8 @@ export function warehouseStopErrorMessage(code: string | null | undefined): stri
     ['invalid_canceled_dispatch_resolution', `처리 결과를 고르고 근거 메모를 ${CANCELED_DISPATCH_NOTE_MIN}자 이상 적어주세요(최대 500자).`],
     ['goods_group_retry', '다른 작업이 같은 상품 재고를 바꾸는 중입니다. 잠시 뒤 다시 시도해주세요.'],
     ['shipment_not_found', '배송 건을 찾을 수 없습니다. 새로고침해주세요.'],
-    ['operator_capability_required', '이 작업을 할 권한이 없습니다. 로그인 계정의 주문 처리 권한을 계정 주매니저에게 확인해주세요.'],
-    ['staff required', '이 작업을 할 권한이 없습니다. 로그인 계정의 주문 처리 권한을 계정 주매니저에게 확인해주세요.'],
+    ['operator_capability_required', WAREHOUSE_STOP_ACCESS_DENIED],
+    ['staff required', WAREHOUSE_STOP_ACCESS_DENIED],
   ];
   const found = messages.find(([key]) => value.includes(key));
   return found ? found[1] : '처리하지 못했습니다. 다른 사람이 먼저 처리했을 수 있으니 새로고침해 지금 상태를 확인해주세요.';

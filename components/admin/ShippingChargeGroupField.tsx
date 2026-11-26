@@ -68,9 +68,14 @@ function createReadLane(owner: string) {
   return { owner, isAlive: () => alive, activate: () => { alive = true; }, dispose: () => { alive = false; } };
 }
 
-/** 선택창의 줄 설명: 가장 싼(비싼) 배송비 한 번 · 지역별 추가배송비를 어디서 정하는지. */
+/**
+ * 선택창의 줄 설명: 가장 싼(비싼) 배송비 한 번 · 지역별 추가배송비를 어디서 정하는지.
+ * 묶음그룹이 아닌 줄(`regional`이 없는 줄)이 섞여 들어와도 화면 전체가 죽지 않게 있는 값만 말한다 — 줄이 섞이지 않게 하는 것은 부르는 쪽의 몫이다
+ * (선택창을 단계마다 다른 key로 그린다: ShippingChargeGroupAssignmentDialog).
+ */
 function groupLine(group: ShippingChargeGroup): string {
-  return `${SHIPPING_CHARGE_GROUP_MODE_LABELS[group.calculationMode]} · 지역별 추가배송비는 ${SHIPPING_CHARGE_GROUP_REGION_LABELS[group.regional.mode]}`;
+  return [SHIPPING_CHARGE_GROUP_MODE_LABELS[group.calculationMode],
+    group.regional ? `지역별 추가배송비는 ${SHIPPING_CHARGE_GROUP_REGION_LABELS[group.regional.mode]}` : undefined].filter(Boolean).join(' · ');
 }
 /** 묶음그룹 선택창의 조회: 이 출고지의 '사용' 묶음그룹만 서버에 묻는다(다른 출고지·사용 안 함·보관은 조회 단계에서 빠진다). */
 export function shippingChargeGroupPickerLoader(identity: ShippingChargeGroupIdentity | null, originId: string | null | undefined): AdminPickerLoader<ShippingChargeGroup> {

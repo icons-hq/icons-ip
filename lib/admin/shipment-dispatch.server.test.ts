@@ -2,8 +2,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getShipmentConsoleData } from './shipment-dispatch.server';
 import { normalizeShipmentFilters, shipmentConsoleHref, shipmentConsoleSelectable } from './shipment-dispatch';
 import { shipmentDeliveryFixture } from '@/lib/shipment-delivery.fixture';
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), origins: vi.fn(), carriers: vi.fn() }));
-vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc, from: () => ({ select: () => ({ order: mocks.origins }) }) }) }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), origins: vi.fn(), carriers: vi.fn(), emailJobs: vi.fn() }));
+/* 메일 작업 표(order_shipment_email_jobs)는 배송현황 줄의 [발송 되돌리기] 잠금 표시에만 읽는다 — 조건(배송 건·처리 중·잡고 있는 시각)을 모아 mocks.emailJobs에 넘긴다. */
+vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc, from: (table: string) => {
+  if (table !== 'order_shipment_email_jobs') return { select: () => ({ order: mocks.origins }) };
+  const conditions: unknown[] = [];
+  const query: Record<string, unknown> = { select: (columns: string) => { conditions.push(['select', columns]); return query; },
+    in: (...args: unknown[]) => { conditions.push(['in', ...args]); return query; }, eq: (...args: unknown[]) => { conditions.push(['eq', ...args]); return query; },
+    gt: (...args: unknown[]) => { conditions.push(['gt', ...args]); return query; }, then: (resolve: (value: unknown) => void) => resolve(mocks.emailJobs(conditions)) };
+  return query;
+} }) }));
 vi.mock('@/lib/orders/shipment.server', () => ({ getShippingCarrierRegistry: mocks.carriers }));
 const notice = { status: 'not_sent', noticeId: null, requestedAt: null, inAppStatus: null, emailStatus: null, emailProviderState: null };
 const fingerprint = 'a'.repeat(64);
@@ -11,6 +19,7 @@ const counts = { new: 0, ready: 2, delayed: 1, transit: 0, delivered: 0 };
 beforeEach(() => {
   vi.clearAllMocks(); mocks.rpc.mockResolvedValue({ data: { delayNoticeFingerprint: fingerprint, rows: [], total: 201, counts }, error: null });
   mocks.origins.mockResolvedValue({ data: [{ id: 'origin', name: '김포' }], error: null }); mocks.carriers.mockResolvedValue([]);
+  mocks.emailJobs.mockReturnValue({ data: [], error: null });
 });
 describe('shipment console query boundary', () => {
   it.each(['parcel', 'quick', 'pickup', 'direct', 'freight', 'none', 'digital'] as const)('preserves the supported fulfillment method through filtering, paging and query: %s', async method => {
@@ -152,5 +161,35 @@ describe('shipment console query boundary', () => {
       .mockResolvedValueOnce({ data: { shipment: { count: 0, completed: 0, ready: true, dueAt: null } }, error: null })
       .mockResolvedValueOnce(response);
     await expect(getShipmentConsoleData(normalizeShipmentFilters({}, 'shipping'), 'shipping')).rejects.toThrow('착불 정보를 확인하지 못했습니다.');
+  });
+  /*
+   * QA-O 고칠 것 7: 배송 안내 메일을 보내는 중인 배송 건은 DB가 발송 되돌리기를 받지 않는다(처리 중이고 잡고 있는 시각이 지금보다 뒤).
+   * 배송현황이 같은 조건으로 읽어 줄의 [발송 되돌리기]를 미리 잠그게 한다. 표시 보조라 읽지 못하면 잠그지 않고 목록은 그대로다.
+   */
+  it('배송현황은 배송 안내 메일을 보내는 중인 배송 건을 표시하고, 읽지 못하면 표시 없이 목록을 보인다', async () => {
+    const delivery = shipmentDeliveryFixture();
+    const shippingRows = { data: { rows: [{ id: 'sending', delivery }, { id: 'idle', delivery }], total: 2, counts }, error: null };
+    const each = (value: unknown) => ({ data: { sending: value, idle: value }, error: null });
+    const tracking = { data: { autoDelivery: false, shipments: { sending: { extraTrackings: [], deliveredBy: null, tracking: null }, idle: { extraTrackings: [], deliveredBy: null, tracking: null } } }, error: null };
+    const read = () => { mocks.rpc.mockResolvedValueOnce(shippingRows).mockResolvedValueOnce(each(null)).mockResolvedValueOnce(each({ count: 0, completed: 0, ready: true, dueAt: null }))
+      .mockResolvedValueOnce(each(null)).mockResolvedValueOnce(tracking); return getShipmentConsoleData(normalizeShipmentFilters({}, 'shipping'), 'shipping'); };
+
+    mocks.emailJobs.mockReturnValue({ data: [{ shipment_id: 'sending' }], error: null });
+    const data = await read();
+    expect(data.rows.map(row => [row.id, row.emailSending])).toEqual([['sending', true], ['idle', undefined]]);
+    const conditions = mocks.emailJobs.mock.calls[0][0] as unknown[][];
+    expect(conditions.slice(0, 3)).toEqual([['select', 'shipment_id'], ['in', 'shipment_id', ['sending', 'idle']], ['eq', 'status', 'processing']]);
+    expect(conditions[3]).toEqual(['gt', 'lease_until', expect.stringMatching(/^\d{4}-\d{2}-\d{2}T/)]);
+
+    mocks.emailJobs.mockReturnValue({ data: null, error: { message: 'permission denied' } });
+    expect((await read()).rows.map(row => row.emailSending)).toEqual([undefined, undefined]);
+    mocks.emailJobs.mockImplementation(() => { throw new Error('network'); });
+    expect((await read()).rows).toHaveLength(2);
+
+    /* 발주·발송 목록에는 되돌리기 버튼이 없어 읽지 않는다. */
+    mocks.emailJobs.mockClear();
+    mocks.rpc.mockReset(); mocks.rpc.mockResolvedValue({ data: { delayNoticeFingerprint: fingerprint, rows: [], total: 0, counts }, error: null });
+    await getShipmentConsoleData(normalizeShipmentFilters({}, 'dispatch'), 'dispatch');
+    expect(mocks.emailJobs).not.toHaveBeenCalled();
   });
 });

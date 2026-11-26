@@ -173,12 +173,12 @@ export async function registerClaimReshipments(
   return stop ? 'stopped' : 'ok';
 }
 
-/** 확인창에 적을 요청 하나. 주소는 이 창에서 운영자가 확인한 최종 주소다. */
+/**
+ * 확인창에 적을 요청 하나. 받는 분·주소는 싣지 않는다 — 주소는 이 창이 탭을 가리거나 10분이 지나면 지우는데, 확인창 본문은 운영자가 닫을 때까지
+ * 남기 때문이다. 단건 재출고 확인창과 같은 기준이다(claimReshipmentConfirmRequest). 주소는 창의 표에 보이는 그대로 기록된다.
+ */
 export interface ClaimBulkReshipSummaryClaim {
   reference: string;
-  recipient: string;
-  /** 우편번호·주소를 한 줄로 이은 것. */
-  address: string;
   rows: { origin: string; carrierLabel: string; trackingNumber: string; items: { name: string; qty: number }[] }[];
 }
 
@@ -190,24 +190,25 @@ export function reshipOptionName(label: string) {
 }
 
 /**
- * [재출고 등록]을 누르면 뜨는 확인창. 예전의 '주소가 같습니다'·'발송 정보를 확인했습니다' 체크가 말하던 것을 — 받는 분·주소와
- * 출고지마다의 택배사·운송장·상품 — 한 번에 되읽어 주고, 화면에 보이지 않는 결과(재고가 움직이고 교환이 끝난다)를 말한다.
- * 앞의 여덟 요청만 풀어 적고 나머지는 건수로 줄인다(창 안의 표에 모두 있다).
+ * [재출고 등록]을 누르면 뜨는 확인창. 예전의 '주소가 같습니다'·'발송 정보를 확인했습니다' 체크가 말하던 것을 — 출고지마다의
+ * 택배사·운송장·상품 — 한 번에 되읽어 주고, 화면에 보이지 않는 결과(재고가 움직이고 교환이 끝난다)를 말한다. 받는 분·주소는 옮겨 적지 않고
+ * 창에 보이는 그대로 기록한다고만 말한다(개인정보가 확인창에 남지 않게 한다). 앞의 여덟 요청만 풀어 적고 나머지는 건수로 줄인다(창 안의 표에 모두 있다).
  */
 export function claimBulkReshipConfirmation(claims: readonly ClaimBulkReshipSummaryClaim[]): AdminConfirmRequest {
   const rowCount = claims.reduce((sum, claim) => sum + claim.rows.length, 0);
   const lines = claims.slice(0, RESHIP_CONFIRM_CLAIM_LIMIT).flatMap((claim) => [
-    `${claim.reference} · ${claim.recipient} · ${claim.address}`,
+    claim.reference,
     ...claim.rows.map((row) => `  ${row.origin} → ${row.carrierLabel} ${row.trackingNumber} · ${row.items.map((item) => `${item.name} × ${item.qty}`).join(', ')}`),
   ]);
   if (claims.length > RESHIP_CONFIRM_CLAIM_LIMIT) lines.push(`그 밖에 ${claims.length - RESHIP_CONFIRM_CLAIM_LIMIT}건`);
   return {
     title: `재출고 ${claims.length}건 · 출고지 ${rowCount}곳 등록`,
     message: [
-      '받는 분·주소와 택배사·운송장이 실제로 보내는 것과 같은지 확인해주세요.',
+      '택배사·운송장과 보낼 상품이 실제로 보내는 것과 같은지 확인해주세요.',
       '',
       ...lines,
       '',
+      '받는 분과 주소는 창에 보이는 그대로 함께 기록합니다.',
       '출고지마다 회수한 상품의 재고를 복원하고 고른 상품으로 재출고합니다. 모든 출고지를 보내면 교환이 끝납니다. 결제금액은 그대로입니다. 등록하면 되돌릴 수 없습니다.',
     ].join('\n'),
     confirmLabel: '재출고 등록',

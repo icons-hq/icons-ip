@@ -11,7 +11,7 @@ import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 /* 아래 셋은 운영자 분기(operator)만 쓴다. 고객 화면의 글자와 동작은 이 값들에 닿지 않는다. */
 import { adminConfirm } from '@/lib/admin/confirm';
 import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
-import { CLAIM_FEE_ACTION_INPUT_ERROR, CLAIM_FEE_ISSUE_LABEL, CLAIM_FEE_LIST_LABEL, CLAIM_FEE_MODE_LABELS, CLAIM_FEE_PAYER_LABEL, CLAIM_FEE_PAYER_LABELS, CLAIM_FEE_SETTINGS_LABEL, CLAIM_FEES_PATH, adminClaimFeeErrorCopy, claimFeeActionConfirm } from '@/lib/admin/claim-fees';
+import { CLAIM_FEE_ACTION_INPUT_ERROR, CLAIM_FEE_ISSUE_LABEL, CLAIM_FEE_LIST_LABEL, CLAIM_FEE_MODE_LABELS, CLAIM_FEE_PAYER_LABEL, CLAIM_FEE_PAYER_LABELS, CLAIM_FEE_SETTINGS_LABEL, CLAIM_FEES_PATH, adminClaimFeeErrorCopy, claimFeeActionConfirm, claimFeeTimeProblem } from '@/lib/admin/claim-fees';
 type Props = {
  actorId: string; claimId: string; operator?: boolean;
  /** 운영 화면: 반품배송비 차감(ADR-0031) 판정·결정이 있을 때의 안내(returnFeeDeductionFeePanelNote). 없으면 '환불액에서 차감하지 않음' 문구 그대로다. */
@@ -78,6 +78,11 @@ function FeePanel({ claimId, operator = false, deductionNote = null, initial = n
    : kind === 'report_payment' ? { confirmed } : { evidence, confirmed: checked });
   const request = dispatched.current ?? (values ? { invoiceId: selected.invoice?.id ?? null, kind, values, revision: document.revision, claimRevision: document.claimRevision, operationId: crypto.randomUUID() } : null);
   if (!request) { setError(operator ? CLAIM_FEE_ACTION_INPUT_ERROR : '금액·근거·처리시각·확인 항목을 입력해주세요.'); return; }
+  /* 운영자 시각 칸이 서버 규칙 밖이면 확인창을 띄우기 전에 어느 칸이 왜 틀렸는지 말한다(서버는 한 문장으로만 거절한다). */
+  if (operator && !dispatched.current && (request.kind === 'confirm_payment' || request.kind === 'refund')) {
+   const problem = claimFeeTimeProblem(request.kind, request.values.occurredAt ?? '', selected.invoice, Date.now());
+   if (problem) { setError(problem); return; }
+  }
   const ticket = scope.capture(); if (!ticket) return;
   busy.current = true;
   if (operator && !dispatched.current && request.kind !== 'report_payment') {

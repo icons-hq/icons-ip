@@ -7,8 +7,8 @@ import { ShipmentConsoleDeliveryDialog, type DispatchTargetSummary } from '@/com
 import { readShipmentDeliveryAction, recordShipmentDeliveryAction, selectShipmentDeliveryMethodAction } from '@/app/admin/shipment-delivery-actions';
 import { adminConfirm } from '@/lib/admin/confirm';
 import {
-  DELIVERY_RECORD_LABELS, activeDeliveryPolicy, deliveryChangeBlockReason, deliveryExcludedNote, deliveryHistoryRows, deliveryMethodChangeSummary, deliveryMethodChoices,
-  deliveryNowLocal, deliveryPanelIsCompact, deliveryRecordBlockReason, deliveryRecordConfirmRequest,
+  DELIVERY_RECORD_FORM_COPY as RECORD_COPY, DELIVERY_RECORD_LABELS, activeDeliveryPolicy, deliveryChangeBlockReason, deliveryExcludedNote, deliveryHistoryRows, deliveryMethodChangeSummary, deliveryMethodChoices,
+  deliveryNowLocal, deliveryPanelIsCompact, deliveryRecordBlockReason, deliveryRecordConfirmRequest, deliveryRecordFormCopy,
 } from '@/lib/admin/shipment-delivery-panel';
 import { adminDeliveryStatusLabel } from '@/lib/admin/shipment-status-labels';
 import { statusTone } from '@/lib/admin/status-tone';
@@ -128,6 +128,8 @@ export function HandoffForm({ shipment, reference, originName, onSaved }: { ship
   const method = shipment.summary.method;
   const kind = (method === 'pickup' || method === 'none' ? `${method}_receive` : `${method}_${shipment.status === 'ready' ? 'handoff' : 'receive'}`) as DeliveryOperation;
   const handoff = deliveryIsHandoff(kind);
+  /* 칸 이름·예시 글·버튼 이름은 발송관리 줄의 '인계·수령 확인' 창(DispatchDeliveryRecordPanel)과 한 곳에서 나온다. */
+  const copy = deliveryRecordFormCopy(kind);
   const [occurredAt, setOccurredAt] = useState(() => deliveryNowLocal()); const [error, setError] = useState<string | null>(null); const [pending, startTransition] = useTransition();
   useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const requestId = useRef<string | null>(null); const busy = useRef(false); const fieldId = useId();
@@ -136,44 +138,45 @@ export function HandoffForm({ shipment, reference, originName, onSaved }: { ship
     event.preventDefault(); if (busy.current) return;
     const form = new FormData(event.currentTarget);
     busy.current = true; setError(null);
-    const confirmed = await adminConfirm(deliveryRecordConfirmRequest({ kind, reference, originName, providerName: String(form.get('providerName') ?? '').trim() || undefined }));
+    /* 확인창을 띄우지 못해도 양식이 잠긴 채 남지 않게 한다. */
+    const confirmed = await adminConfirm(deliveryRecordConfirmRequest({ kind, reference, originName, providerName: String(form.get('providerName') ?? '').trim() || undefined })).catch(() => false);
     if (!confirmed) { busy.current = false; return; }
     requestId.current ??= crypto.randomUUID(); form.set('operationId', requestId.current);
     startTransition(async () => {
       try { const result = await recordShipmentDeliveryAction(form); if (result.ok) onSaved(result.message); else setError(result.error); }
-      catch { setError('저장됐는지 확인하지 못했습니다. 같은 내용으로 다시 누르면 두 번 저장되지 않습니다.'); }
+      catch { setError(RECORD_COPY.uncertain); }
       finally { busy.current = false; }
     });
   }
   return <form onSubmit={submit} className={`${FORM_CLASS} border-t pt-3`}>
-    <h4 className="text-sm font-medium text-foreground">{DELIVERY_RECORD_LABELS[kind]} 기록</h4>
+    <h4 className="text-sm font-medium text-foreground">{copy.heading}</h4>
     <input type="hidden" name="orderId" value={shipment.orderId} /><input type="hidden" name="shipmentId" value={shipment.shipmentId} /><input type="hidden" name="updatedAt" value={shipment.updatedAt} /><input type="hidden" name="kind" value={kind} />
     <fieldset disabled={pending || !shipment.preorderReady} className={FIELDSET_CLASS}>
-      <legend className="sr-only">{handoff ? '인계 기록' : '수령 기록'}</legend>
+      <legend className="sr-only">{copy.legend}</legend>
       <div className="grid min-w-0 gap-2.5 sm:grid-cols-2">
-        <label className={FIELD_CLASS}><span className={LABEL_TEXT}>{handoff ? '인계한 담당자' : '수령을 확인한 담당자'}</span><Input name="operatorName" maxLength={100} placeholder={handoff ? '물건을 넘긴 우리 담당자' : '수령을 확인한 우리 담당자'} required /></label>
-        <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-occurred`}>{handoff ? '인계' : '수령'} 시각 (KST)</Label>
+        <label className={FIELD_CLASS}><span className={LABEL_TEXT}>{copy.operator}</span><Input name="operatorName" maxLength={100} placeholder={copy.operatorPlaceholder} required /></label>
+        <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-occurred`}>{copy.occurredAt}</Label>
           <Input className="w-auto self-start" id={`${fieldId}-occurred`} type="datetime-local" name="occurredAt" value={occurredAt} onChange={(event) => setOccurredAt(event.target.value)} required /></div>
         {handoff ? <>
-          <label className={FIELD_CLASS}><span className={LABEL_TEXT}>배송 업체·기사</span><Input name="providerName" maxLength={100} placeholder="고객 주문 화면에 보입니다" required /></label>
-          <label className={FIELD_CLASS}><span className={LABEL_TEXT}>업체 연락처</span><Input name="providerPhone" type="tel" maxLength={40} required /></label>
-        </> : <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-recipient`}>수령인 구분</Label>
+          <label className={FIELD_CLASS}><span className={LABEL_TEXT}>{RECORD_COPY.providerName}</span><Input name="providerName" maxLength={100} placeholder={RECORD_COPY.providerNamePlaceholder} required /></label>
+          <label className={FIELD_CLASS}><span className={LABEL_TEXT}>{RECORD_COPY.providerPhone}</span><Input name="providerPhone" type="tel" maxLength={40} required /></label>
+        </> : <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-recipient`}>{RECORD_COPY.recipientKind}</Label>
           <NativeSelect className="w-full" id={`${fieldId}-recipient`} name="recipientKind" defaultValue={delegateAllowed ? '' : 'self'} required>
-            {delegateAllowed ? <option value="" disabled>수령인을 확인해주세요</option> : null}
-            <option value="self">주문자 본인</option>{delegateAllowed ? <option value="delegate">허용된 대리수령인</option> : null}
+            {delegateAllowed ? <option value="" disabled>{RECORD_COPY.recipientUnchosen}</option> : null}
+            <option value="self">{RECORD_COPY.recipientSelf}</option>{delegateAllowed ? <option value="delegate">{RECORD_COPY.recipientDelegate}</option> : null}
           </NativeSelect></div>}
       </div>
       {handoff
-        ? <label className={FIELD_CLASS}><span className={LABEL_TEXT}>인계 확인 내용</span><Textarea name="handoffReference" rows={2} maxLength={2000} placeholder="예: 퀵 접수번호 12345, 기사에게 직접 전달" required /></label>
+        ? <label className={FIELD_CLASS}><span className={LABEL_TEXT}>{RECORD_COPY.handoffReference}</span><Textarea name="handoffReference" rows={2} maxLength={2000} placeholder={RECORD_COPY.handoffReferencePlaceholder} required /></label>
         : <>
-          <label className={FIELD_CLASS}><span className={LABEL_TEXT}>수령 확인 내용</span><Textarea name="receiptReference" rows={2} maxLength={2000} placeholder="예: 방문한 고객 본인에게 현장에서 전달" required /></label>
-          <label className={FIELD_CLASS}><span className={LABEL_TEXT}>고객이 보여 준 확인값</span><Input name="receiptCode" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={20} required />
-            <span className={NOTE_CLASS}>고객이 주문 화면에서 발급한 값입니다(10분 동안 유효). 5번 틀리거나 다시 발급하면 이전 값은 쓸 수 없습니다.</span></label>
+          <label className={FIELD_CLASS}><span className={LABEL_TEXT}>{RECORD_COPY.receiptReference}</span><Textarea name="receiptReference" rows={2} maxLength={2000} placeholder={RECORD_COPY.receiptReferencePlaceholder} required /></label>
+          <label className={FIELD_CLASS}><span className={LABEL_TEXT}>{RECORD_COPY.receiptCode}</span><Input name="receiptCode" autoComplete="off" autoCapitalize="characters" spellCheck={false} maxLength={20} required />
+            <span className={NOTE_CLASS}>{RECORD_COPY.receiptCodeNote}</span></label>
         </>}
     </fieldset>
-    {!shipment.preorderReady ? <AdminNotice role="status" tone="warning">예약 품목의 입고 확인이 아직 끝나지 않았습니다. 상품 편집의 예약판매에서 이 주문을 골라 [선택한 예약 주문 입고 확인]을 먼저 눌러주세요.</AdminNotice> : null}
+    {!shipment.preorderReady ? <AdminNotice role="status" tone="warning">{RECORD_COPY.preorderBlocked}</AdminNotice> : null}
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
-    <Button type="submit" disabled={pending || !shipment.preorderReady}>{pending ? '기록 중…' : handoff ? '인계 기록 · 발송처리' : '수령 기록 · 배송완료'}</Button>
+    <Button type="submit" disabled={pending || !shipment.preorderReady}>{pending ? RECORD_COPY.pending : copy.submit}</Button>
   </form>;
 }
 

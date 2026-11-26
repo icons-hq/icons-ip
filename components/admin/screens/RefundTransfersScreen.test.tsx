@@ -65,3 +65,15 @@ it('부분 환불 줄은 유형이 차수를 말하고, 번호 칸에는 주문�
   expect(html).not.toContain('접수 전');
   expect(html).toContain('운영자 처리');
 });
+
+/* F-09: 표가 1366px 화면의 틀(약 1016px)보다 넓어 '환불 접수일' 시각이 잘리고 '요청자'가 가로로 밀렸다. 열 폭 합계를 틀 안으로 줄이고, 날짜와 시각은 두 줄로 나눈다. */
+it('열 폭 합계가 1366px 화면의 틀(약 1016px) 안에 들고, 취소 확정일·환불 접수일은 날짜와 시각을 두 줄로 보인다', () => {
+  const row = { claimId: 'a1010000-0000-4000-8000-000000000001', orderId: 'a1010000-0000-4000-8000-000000000002', reference: 45, claimType: 'cancel' as const, amount: 12000,
+    confirmedAt: '2026-10-14T06:00:00Z', filedAt: '2026-10-14T07:30:00Z', updatedAt: '2026-10-14T07:30:00Z', revision: 1, gift: false, payerName: '결제자', requesterName: '요청자' };
+  const html = renderToStaticMarkup(<RefundTransfersScreen now={new Date('2026-10-14T08:00:00Z')} data={{ page: 1, pageSize: 50, total: 1, rows: [row] }} />);
+  const widths = [...html.matchAll(/<col style="width:(\d+)px"\/>/g)].map(match => Number(match[1]));
+  expect(widths).toHaveLength(9);
+  expect(widths.reduce((sum, width) => sum + width, 0)).toBeLessThanOrEqual(1016);
+  expect([...html.matchAll(/data-date-time=""><span>([^<]*)<\/span><span[^>]*>(\d{2}:\d{2})<\/span>/g)].map(match => [match[1], match[2]]))
+    .toEqual([['2026. 10. 14.', '15:00'], ['2026. 10. 14.', '16:30']]);
+});

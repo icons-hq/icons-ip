@@ -12,6 +12,17 @@ const address = (patch: Partial<ReturnAddress> = {}): ReturnAddress => ({
 });
 const screen = (addresses: ReturnAddress[], canEdit = true) => renderToStaticMarkup(<ReturnAddressesScreen addresses={addresses} canEdit={canEdit} />);
 
+/* S4-4: 빈 채 등록하면 브라우저 기본 말풍선("이 입력란을 작성하세요.") 대신 칸 아래의 앱 문구로 알린다. required는 접근성 표시로 남기고 말풍선만 끈다. */
+describe('반품/교환지 폼은 브라우저 기본 말풍선을 쓰지 않는다', () => {
+  it('등록·수정 폼 모두 noValidate이고, 입력칸은 필수 표시를 유지한다', () => {
+    const html = screen([address()]);
+    const forms = html.match(/<form [^>]*>/g) ?? [];
+    expect(forms).toHaveLength(2);
+    for (const form of forms) expect(form).toContain('noValidate=""');
+    expect(html.match(/<input[^>]*name="(?:name|address|phone)"[^>]*>/g)!.every((input) => input.includes('required=""'))).toBe(true);
+  });
+});
+
 describe('반품/교환지 관리 화면의 이름과 글 (A-1·A-5·A-6)', () => {
   const html = screen([address()]);
   it('한 화면에서 반품/교환지라는 이름 하나로 부른다 — 옛 이름 반품지가 없다', () => {

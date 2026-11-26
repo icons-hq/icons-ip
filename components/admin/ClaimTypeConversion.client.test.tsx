@@ -13,6 +13,7 @@ vi.mock('@/app/admin/claim-type-conversion-actions', () => ({ convertClaimTypeAc
 const busy = vi.hoisted(() => vi.fn());
 vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
 import { ClaimTypeConversion, ClaimTypeConversionPanel } from './ClaimTypeConversion';
+import { ClaimTransferBankField } from './ClaimTransferBankField';
 import { conversionContext, conversionReceipt as receipt } from '@/lib/orders/claim-type-conversion.fixture';
 import { CLAIM_TYPE_AGREEMENT_ERROR, claimTypeError } from '@/lib/orders/claim-type-conversion';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
@@ -29,7 +30,12 @@ function agreementField() {
   const found = elements.find(e => target && e.props.id === target); if (!found) throw new Error('고객 합의 근거'); return found;
 }
 function wrapped(label: string) { const parent = all(render()).find(e => e.type === 'label' && text(e).startsWith(label)); const input = all(parent).find(e => e.type === 'input'); if (!input) throw new Error(label); return input; }
-function change(label: string, value: string) { (label === '고객 합의 근거' ? agreementField() : wrapped(label)).props.onChange?.({ target: { value } }); }
+/* 은행 칸은 새 작은 부품(ClaimTransferBankField)이라 이 시험은 펼치지 않고 부품에 넘긴 값·콜백을 본다. 부품 자체는 ClaimTransferBankField 시험이 본다. */
+function bankField() {
+  const found = all(render()).find(e => e.type === ClaimTransferBankField); if (!found) throw new Error('은행');
+  return found as unknown as ReactElement<{ value: string; required?: boolean; id: string; onChange: (value: string) => void }>;
+}
+function change(label: string, value: string) { if (label === '은행') { bankField().props.onChange(value); return; } (label === '고객 합의 근거' ? agreementField() : wrapped(label)).props.onChange?.({ target: { value } }); }
 async function settle() { for (let n = 0; n < 20; n++) await Promise.resolve(); }
 async function click(label: string) { const button = all(render()).find(e => e.type === 'button' && text(e) === label); if (!button) throw new Error(label); button.props.onClick?.(); await settle(); }
 async function submit() { all(render()).find(e => e.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} }); await settle(); }
@@ -127,7 +133,7 @@ it('교환→반품에서 무통장 주문은 환불계좌가 필수이고, 적�
  context = { ...structuredClone(conversionContext), claimType: 'exchange', bankRequired: true, savedAccount: null };
  const html = text(render());
  expect(html).toContain('교환 → 반품 전환'); expect(html).toContain('무통장 주문이라 환불계좌가 필요합니다. 은행·계좌번호·예금주를 모두 적어 주세요.');
- for (const label of ['은행', '계좌번호', '예금주']) expect(wrapped(label).props.required).toBe(true);
+ expect(bankField().props.required).toBe(true); for (const label of ['계좌번호', '예금주']) expect(wrapped(label).props.required).toBe(true);
  change('고객 합의 근거', receipt.agreement); await submit();
  expect(text(render())).toContain(claimTypeError(undefined, 'claim_conversion_account_required')); expect(confirm.requests).toHaveLength(0);
  mocks.save.mockImplementation(async (request: { id: string }) => ({ receipt: { ...receipt, id: request.id, fromType: 'exchange', toType: 'return', accountSupplied: true } }));
@@ -139,7 +145,7 @@ it('교환→반품에서 무통장 주문은 환불계좌가 필수이고, 적�
 it('저장된 환불계좌가 있으면 바꿀 때만 적게 하고, 못 바꾸는 단계는 입력 칸 없이 이유만 보인다', () => {
  context = { ...structuredClone(conversionContext), claimType: 'exchange', bankRequired: true, savedAccount: { account: '신한 ***1234', holder: '홍*동' } };
  const html = text(render());
- expect(html).toContain('저장된 환불계좌: 신한 ***1234 · 홍*동. 바꿀 때만 아래 세 칸을 모두 적어 주세요.'); expect(wrapped('은행').props.required).toBe(false);
+ expect(html).toContain('저장된 환불계좌: 신한 ***1234 · 홍*동. 바꿀 때만 아래 세 칸을 모두 적어 주세요.'); expect(bankField().props.required).toBe(false);
  hooks.state = []; context = { ...structuredClone(conversionContext), allowed: false, blocker: 'claim_conversion_reshipped' };
  const blocked = text(render());
  expect(blocked).toContain(claimTypeError(undefined, 'claim_conversion_reshipped')); expect(all(render()).some(e => e.type === 'form')).toBe(false);

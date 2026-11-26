@@ -66,7 +66,8 @@ describe('출고 보류 안내', () => {
   });
 
   it('해제 오류·출고 거절 문구', () => {
-    expect(fulfillmentHoldReleaseError('42501')).toContain('이 작업을 할 권한이 없습니다');
+    /* 보류 해제는 판매 관리 권한이다 — 주문·발송 화면이 함께 쓰는 한 문장으로 말한다. */
+    expect(fulfillmentHoldReleaseError('42501')).toBe('판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.');
     expect(fulfillmentHoldReleaseError('PT409', 'fulfillment_hold_operation_conflict')).not.toContain('요청');
     expect(fulfillmentHoldReleaseError('23514', 'fulfillment_hold_not_active')).toContain('이미 해제된');
     expect(fulfillmentHoldReleaseError('PT409', 'fulfillment_hold_operation_conflict')).toContain('다른 내용');

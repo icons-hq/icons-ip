@@ -24,6 +24,19 @@ describe('판매자 반품·교환 접수 화면', () => {
     expect(evidence).toContain('주문 전체 취소의 접수 근거');
     expect(evidence).not.toContain('수거 안내 주소');
   });
+  /* F-05: 앞선 재고 부족 부분 취소로 이미 환불한 금액이 있는 주문은 환불이 전액이 아니라 남은 금액 기준이다. 머리글이 '전액 기준'이라고 말하면 사실과 다르다. */
+  it('앞선 부분 취소로 환불한 금액이 있으면 머리글이 전액이 아니라 남은 금액 기준이라고 말한다', () => {
+    const context = { ...sellerClaimContextFixture, orderStatus: 'paid', deliveredAt: null, cancelBlockedReason: null, orderTotal: 48000 };
+    const header = (balance?: { paymentAmount: number; balance: number } | null) => renderToStaticMarkup(<SellerClaimIntakeForm balance={balance} context={context} carriers={context.carriers} onClose={() => {}} />);
+    const partial = header({ paymentAmount: 48000, balance: 33000 });
+    expect(partial).toContain('주문 전체 ₩48,000 · 앞선 부분 취소 ₩15,000 · 남은 금액 ₩33,000 기준');
+    expect(partial).not.toContain('전액 기준');
+    /* 부분 취소가 없거나(남은 금액이 결제 금액과 같음) 남은 금액을 모르면 지금처럼 전액 기준이다. */
+    for (const rendered of [header(), header(null), header({ paymentAmount: 48000, balance: 48000 })]) {
+      expect(rendered).toContain('주문 전체 ₩48,000 · 최초 배송비 포함 전액 기준');
+      expect(rendered).not.toContain('남은 금액');
+    }
+  });
   it('제공된 디지털 파일은 교환이나 가상 수거 대신 취소 심사로 접수한다', () => {
     const context = { ...sellerClaimContextFixture, digitalExchangeBlocked: true, cancelBlockedReason: null, collections: [] };
     const html = renderToStaticMarkup(<SellerClaimIntakeForm context={context} carriers={context.carriers} onClose={() => {}} />);

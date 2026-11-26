@@ -22,12 +22,16 @@ import { SHIPMENT_EXTRA_TRACKING_REASON_LIMIT } from '@/lib/admin/shipment-track
  */
 const FIELD_CLASS = 'flex w-full min-w-0 flex-col gap-1.5';
 
-export function ShipmentTrackingSwapForm({ shipmentId, reference, trackingNumber }: {
+export function ShipmentTrackingSwapForm({ shipmentId, reference, trackingNumber, initialQuery, onDone }: {
   shipmentId: string;
   /** 화면에 보이는 이 배송 건의 배송건번호(접근성 이름·확인 문구). */
   reference: string;
   /** 이 배송 건에 지금 등록된 대표 운송장번호. */
   trackingNumber: string;
+  /** 선택창의 처음 검색어. 운송장 수정이 방금 거절된 번호를 넘기면 그 번호를 쓰는 상대 배송 건이 바로 나온다. */
+  initialQuery?: string;
+  /** 성공 문구를 받는 쪽(운송장 수정 양식 — 거절 문구를 지우고 그 자리에 보인다). 없으면 이 양식 안에 보인다. */
+  onDone?: (message: string) => void;
 }) {
   const router = useRouter(); const fieldId = useId();
   /* 고른 상대 배송 건. 값(배송 건 내부 번호)은 숨은 칸에만 두고 화면에는 번호·수령인·운송장으로 보인다. */
@@ -53,7 +57,7 @@ export function ShipmentTrackingSwapForm({ shipmentId, reference, trackingNumber
     startTransition(async () => {
       try {
         const result = await swapShipmentTrackingAction(form);
-        if (result.ok) { setOther(null); picked.setValue(''); setReason(''); setNotice(result.message); router.refresh(); } else setError(result.error);
+        if (result.ok) { setOther(null); picked.setValue(''); setReason(''); if (onDone) onDone(result.message); else setNotice(result.message); router.refresh(); } else setError(result.error);
       } catch { setError('맞바꾼 결과를 확인하지 못했습니다. 화면을 새로고침해 두 배송 건의 운송장을 확인해주세요.'); }
     });
   }
@@ -69,7 +73,7 @@ export function ShipmentTrackingSwapForm({ shipmentId, reference, trackingNumber
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
     <Button className="self-start" size="sm" type="submit" variant="outline" disabled={pending}>{pending ? '맞바꾸는 중…' : '운송장 맞바꾸기'}</Button>
     {open ? <AdminPickerDialog title="상대 배송 건 고르기" description="이 배송 건의 실제 운송장번호가 지금 등록돼 있는 배송 건을 운송장번호로 찾아 고릅니다. 운송장번호는 8자 이상 적어주세요."
-      load={load} rowKey={row => row.id} unit="건" searchPlaceholder="운송장번호"
+      load={load} rowKey={row => row.id} unit="건" searchPlaceholder="운송장번호" initialQuery={initialQuery}
       rowView={row => ({ title: `배송 건 ${row.reference}`, meta: `${row.originName} · 주문 ${row.orderReference} · ${row.recipientName ?? '수령인 없음'} · ${row.carrierLabel} ${row.trackingNumber}` })}
       excludedNote="이 배송 건 자신과 운송장이 없는 배송 건은 목록에서 뺐습니다."
       emptyText="운송장번호를 8자 이상 적어 검색하면 그 번호를 쓰는 배송 건이 나옵니다."

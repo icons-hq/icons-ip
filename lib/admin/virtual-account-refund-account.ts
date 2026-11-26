@@ -3,6 +3,7 @@ import { isVirtualAccountRefundAccountReviewCode } from '@/lib/payments/virtual-
 import { isUuid } from '@/lib/uuid';
 import type { AdminConfirmRequest } from './confirm';
 import { SAVE_CHECK_LABEL } from './goods-template-save';
+import { ADMIN_SALES_ACCESS_DENIED } from './vocabulary';
 
 /*
  * 운영자의 가상계좌 환급 계좌 대신 입력(ADR-0049 결정 5 보강, 2026-11-25 — VAC-041·VAC-042).
@@ -95,7 +96,7 @@ export const VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS: Record<string, string>
   refund_account_gift_order: '선물 주문은 여기서 환불 계좌를 입력할 수 없습니다. 토스페이먼츠 상점관리자에서 환불한 뒤 [상태 다시 확인]을 눌러주세요.',
   refund_account_request_conflict: '앞서 누른 저장과 내용이 달라 저장하지 않았습니다. 화면을 새로고침해 등록된 계좌를 확인한 뒤 다시 입력해주세요.',
   claim_not_found: '요청을 찾지 못했습니다. 화면을 새로고침해 다시 확인해주세요.',
-  operator_capability_required: '주문 관리 권한이 있는 계정만 환불 계좌를 입력할 수 있습니다.',
+  operator_capability_required: ADMIN_SALES_ACCESS_DENIED,
   unknown: `저장됐는지 확인하지 못했습니다. [${SAVE_CHECK_LABEL}]을 누르면 같은 내용이 두 번 저장되지 않습니다.`,
 };
 

@@ -17,6 +17,7 @@ import { ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/cl
 import { formatOrderDateTime } from '@/lib/orders';
 import { startAdminNavigation } from '@/lib/admin/navigation-pending';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
+import { ClaimTransferBankField } from '@/components/admin/ClaimTransferBankField';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
 
@@ -41,7 +42,7 @@ export function ClaimTypeConversionPanel({ initial, onClose, embedded = false }:
   const actionLabel = `${targetLabel}으로 바꾸기`;
   const locked = pending || uncertain || Boolean(receipt); const editable = () => !inFlight.current && !dispatched.current && !receipt;
   const accountRequired = toType === 'return' && context.bankRequired && !context.savedAccount;
-  const agreementId = `claim-type-agreement-${context.claimId}`;
+  const agreementId = `claim-type-agreement-${context.claimId}`; const bankId = `claim-type-bank-${context.claimId}`;
   function accept(saved: ClaimTypeReceipt, request: ClaimTypeRequest) {
     if (!claimTypeReceiptMatches(saved, request) || saved.orderId !== context.orderId || saved.fromType !== context.claimType) { setError(CLAIM_CHANGE_RECEIPT_MISMATCH_MESSAGE); setUncertain(true); return; }
     dispatched.current = null; setReceipt(saved); setUncertain(false); setError(''); setMessage('');
@@ -111,7 +112,8 @@ export function ClaimTypeConversionPanel({ initial, onClose, embedded = false }:
         {toType === 'return' ? <>
           {context.savedAccount ? <p>저장된 환불계좌: {context.savedAccount.account} · {context.savedAccount.holder}. 바꿀 때만 아래 세 칸을 모두 적어 주세요.</p> : <p className="text-muted-foreground">{accountRequired ? '무통장 주문이라 환불계좌가 필요합니다. 은행·계좌번호·예금주를 모두 적어 주세요.' : '계좌로 환불하기로 고객과 협의했을 때만 환불계좌를 적어 주세요.'}</p>}
           <div className="grid gap-3 sm:grid-cols-3">
-            <label className={FIELD}><span className={FIELD_LABEL}>은행</span><input autoComplete="off" className="w-full" value={bankName} maxLength={40} required={accountRequired} onChange={event => { if (editable()) setBankName(event.target.value); }} /></label>
+            {/* 은행은 목록에서 고르고, 목록에 없는 은행·증권사만 직접 적는다. 운영자가 직접 송금하는 환불계좌라 서버는 이름을 1~40자 자유 글로 받는다. */}
+            <div className={FIELD}><label className={FIELD_LABEL} htmlFor={bankId}>은행</label><ClaimTransferBankField id={bankId} onChange={value => { if (editable()) setBankName(value); }} required={accountRequired} value={bankName} /></div>
             <label className={FIELD}><span className={FIELD_LABEL}>계좌번호</span><input autoComplete="off" className="w-full" inputMode="numeric" value={accountNumber} maxLength={30} required={accountRequired} onChange={event => { if (editable()) setAccountNumber(event.target.value); }} /></label>
             <label className={FIELD}><span className={FIELD_LABEL}>예금주</span><input autoComplete="off" className="w-full" value={accountHolder} maxLength={40} required={accountRequired} onChange={event => { if (editable()) setAccountHolder(event.target.value); }} /></label>
           </div>

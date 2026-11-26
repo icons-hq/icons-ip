@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
 
 /* 되돌릴 수 없는 결정(배송 분실 기록·회수 생략)은 셸 확인창(confirmAdminSubmit)을 거친다(AGENTS.md, PR #694 리뷰).
- * 확인 체크는 없다(2026-11-26 화면 규칙) — 서버 액션이 받는 확인 값은 화면이 채우고, 같은 사실은 확인창이 묻는다.
+ * 확인 체크는 없다(2026-11-26 화면 규칙) — 같은 사실은 확인창이 묻고, 서버 액션은 확인 값을 받지 않아 숨은 확인 칸도 없다.
  * DOM 없이 컴포넌트를 함수로 불러 form의 onSubmit을 직접 실행한다 — 훅은 정해 둔 값으로 돌려준다. */
 const hooks = vi.hoisted(() => ({ index: 0, values: [] as unknown[] }));
 vi.mock('react', async () => {
@@ -73,10 +73,10 @@ describe('배송 분실 기록 확인창', () => {
   it('확인 버튼은 위험색이고 이름이 동작을 말한다. 물러나는 버튼은 [돌아가기]다', () => {
     expect(carrierLossConfirmRequest('TEST 남양주', 'HJ-1')).toMatchObject({ title: 'TEST 남양주 배송 분실로 기록할까요?', confirmLabel: '배송 분실 기록', cancelLabel: '돌아가기', destructive: true });
   });
-  it('확인 체크 없이 확인 값을 채워 보내고, 아직 채우지 않은 것을 버튼 옆에 보인다', () => {
+  it('확인 체크도 숨은 확인 칸도 없고, 아직 채우지 않은 것을 버튼 옆에 보인다', () => {
     const empty = elements(lossForm());
     expect(empty.some(node => node.props.type === 'checkbox')).toBe(false);
-    expect(empty.find(node => node.props.name === 'confirmed')?.props).toMatchObject({ type: 'hidden', value: 'on' });
+    expect(empty.some(node => node.props.name === 'confirmed')).toBe(false);
     expect(text(empty.find(node => node.props['data-claim-carrier-loss-missing'] !== undefined))).toBe('아직 필요한 것: 분실 확인 메모 · 근거 사진');
     expect(empty.find(node => node.props.type === 'submit')?.props.disabled).toBe(true);
     const filled = elements(renderForm(() => ClaimCarrierLossDecision({ claimId: CLAIM, claimRevision: 3, originName: 'TEST 남양주', shipmentId: SHIPMENT }),
@@ -102,11 +102,11 @@ describe('회수 생략 결정 확인창', () => {
     const { target } = await submit(waiverForm());
     expect(target.requestSubmit).not.toHaveBeenCalled();
   });
-  it('확인 체크 없이 확인 값을 채워 보내고, 아직 채우지 않은 것을 버튼 옆에 보인다', () => {
+  it('확인 체크도 숨은 확인 칸도 없고, 아직 채우지 않은 것을 버튼 옆에 보인다', () => {
     expect(collectionWaiverConfirmRequest('TEST 김포')).toMatchObject({ confirmLabel: '회수 없이 제작 시작', cancelLabel: '돌아가기', destructive: true });
     const empty = elements(waiverForm());
     expect(empty.some(node => node.props.type === 'checkbox')).toBe(false);
-    expect(empty.find(node => node.props.name === 'confirmed')?.props).toMatchObject({ type: 'hidden', value: 'on' });
+    expect(empty.some(node => node.props.name === 'confirmed')).toBe(false);
     expect(text(empty.find(node => node.props['data-claim-waiver-missing'] !== undefined))).toBe('아직 필요한 것: 회수 생략 사유 · 근거 사진');
     const filled = elements(renderForm(() => ClaimCollectionWaiverDecision({ claimId: CLAIM, originName: 'TEST 김포', shipmentId: SHIPMENT }),
       ['고객 사진으로 인쇄 불량을 확인했습니다', [{ id: '40000000-0000-4000-8000-000000000004', mimeType: 'image/jpeg', size: 10 }]]));

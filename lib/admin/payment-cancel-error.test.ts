@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { adminPaymentCancelErrorCopy, adminPaymentCancelErrorLabel, adminPaymentCancelFailureMessage, splitAdminSupportCode, withAdminSupportCode } from './payment-cancel-error';
+import { adminPaymentCancelErrorCopy, adminPaymentCancelErrorLabel, adminPaymentCancelFailureMessage, adminPaymentCancelPanelNext, splitAdminSupportCode, withAdminSupportCode } from './payment-cancel-error';
 
 describe('결제 취소 실패 안내', () => {
   it('영어 코드만 보여 주지 않고 환불 상태와 다음 행동을 말한다', () => {
@@ -61,5 +61,23 @@ describe('결제 취소 실패 안내', () => {
       expect(adminPaymentCancelErrorLabel(code), code).not.toContain('결제사 확인에 실패했습니다');
     }
     expect(adminPaymentCancelFailureMessage('provider_virtual_account_invalid')).toContain('결제 담당자에게 넘겨주세요');
+  });
+
+  /*
+   * 주문통합검색의 주문 처리 패널에는 [환불 완료 확정]이 없다(취소·반품·교환 관리의 요청 상세에 있는 버튼이다).
+   * 패널은 코드별 안내에 이 패널에서 같은 일을 하는 버튼과, 그 버튼이 있는 요청 상세로 가는 버튼을 화면에 적힌 이름으로 덧붙인다.
+   */
+  it('주문 처리 패널의 다음 할 일은 그 패널에 있는 버튼 이름으로 말한다', () => {
+    expect(adminPaymentCancelPanelNext('provider_unavailable', { recheckLabel: '상태 다시 확인', claimsLinkLabel: '취소·반품·교환 관리에서 처리' }))
+      .toBe('잠시 뒤 [환불 완료 확정]을 다시 눌러주세요. 이 주문 패널에서는 아래 [상태 다시 확인]이 같은 일을 합니다. [환불 완료 확정]은 아래 [취소·반품·교환 관리에서 처리]로 여는 요청 상세에 있습니다.');
+    /* 버튼 이름의 끝소리에 맞춰 조사를 고른다. */
+    expect(adminPaymentCancelPanelNext('provider_cancel_failed', { recheckLabel: '코페이 만료·취소 처리', claimsLinkLabel: null }))
+      .toContain('이 주문 패널에서는 아래 [코페이 만료·취소 처리]가 같은 일을 합니다. [환불 완료 확정]은 취소·반품·교환 관리의 요청 상세에 있습니다.');
+    /* 이 패널에 같은 일을 하는 버튼이 없으면 그 버튼이 있는 곳만 말한다. */
+    expect(adminPaymentCancelPanelNext('something_new', { recheckLabel: null, claimsLinkLabel: '취소·반품·교환 관리에서 처리' }))
+      .toBe('[환불 완료 확정]을 한 번 더 눌러주세요. 같은 안내가 다시 나오면 결제 담당자에게 요청번호와 코드를 알려주세요. [환불 완료 확정]은 아래 [취소·반품·교환 관리에서 처리]로 여는 요청 상세에 있습니다.');
+    /* [환불 완료 확정]을 가리키지 않는 안내는 그대로다. */
+    expect(adminPaymentCancelPanelNext('provider_merchant_mismatch', { recheckLabel: '상태 다시 확인', claimsLinkLabel: null }))
+      .toBe(adminPaymentCancelErrorCopy('provider_merchant_mismatch').next);
   });
 });

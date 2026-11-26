@@ -31,8 +31,10 @@ import {
   orderPartialCancellationItemBlockerLabel,
   orderPartialCancellationPanelVisible,
   orderPartialCancellationReconcileMessage,
+  orderPartialCancellationTransferConfirm,
   orderPartialCancellationV1AllocationIssueMessage,
 } from '@/lib/admin/order-partial-cancellation';
+import { adminConfirm } from '@/lib/admin/confirm';
 import { statusTone } from '@/lib/admin/status-tone';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
@@ -54,7 +56,7 @@ function ErrorCodeNote({ code }: { code: string }) {
   return <span className="mt-1 block text-xs text-muted-foreground" data-partial-cancellation-error-code={code}>문의할 때 알려 줄 코드: {code}</span>;
 }
 
-function HistoryEntry({ orderId, record, canManage, onChanged }: { orderId: string; record: OrderPartialCancellationRecord; canManage: boolean; onChanged: (message: string) => void }) {
+function HistoryEntry({ orderId, orderNumber, record, canManage, onChanged }: { orderId: string; orderNumber?: string | null; record: OrderPartialCancellationRecord; canManage: boolean; onChanged: (message: string) => void }) {
   const [pending, setPending] = useState(false);
   const [resolveReason, setResolveReason] = useState('');
   const [message, setMessage] = useState<string | null>(null);
@@ -90,6 +92,15 @@ function HistoryEntry({ orderId, record, canManage, onChanged }: { orderId: stri
   }
   async function transfer(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (pending) return;
+    /* 송금 완료 기록은 되돌릴 수 없다 — 처리를 시작하기 전에 금액과 받는 계좌를 되읽는 확인을 받는다(무통장 환불 칸의 같은 버튼과 같은 말). */
+    let confirmed = false;
+    try {
+      confirmed = await adminConfirm(orderPartialCancellationTransferConfirm({
+        orderNumber, refundAmount: record.refundAmount, refundAccount: staff?.refundAccount, partialReturn: record.reasonCode === 'return',
+      }));
+    } catch { confirmed = false; }
+    if (!confirmed) return;
     operationId.current ??= crypto.randomUUID();
     setPending(true); setMessage(null);
     try {
@@ -298,7 +309,7 @@ export function OrderPartialCancellationPanelView({ orderId, orderNumber, contex
     </form> : null}
     {context.history.length ? <div className="flex flex-col gap-2">
       <h4 className="font-medium">부분 취소 기록</h4>
-      <ol className="flex flex-col gap-2">{[...context.history].reverse().map(record => <HistoryEntry canManage={context.canManage} key={`${record.id}:${record.state}`} onChanged={onReload} orderId={orderId} record={record} />)}</ol>
+      <ol className="flex flex-col gap-2">{[...context.history].reverse().map(record => <HistoryEntry canManage={context.canManage} key={`${record.id}:${record.state}`} onChanged={onReload} orderId={orderId} orderNumber={orderNumber} record={record} />)}</ol>
     </div> : null}
     <AlertDialog onOpenChange={next => { if (!next && !pending) setPlan(null); }} open={plan !== null}>
       <AlertDialogContent className="data-[size=default]:sm:max-w-lg">

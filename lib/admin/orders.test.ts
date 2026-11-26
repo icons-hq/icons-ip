@@ -10,7 +10,6 @@ import {
   adminOrderBackHref,
   adminOrderDetailHref,
   adminOrderPanelHref,
-  adminOrderSearchHref,
   adminOrdersHref,
   isKorpayManualRecoveryState,
   normalizeAdminCancellationDecisionForm,
@@ -418,15 +417,16 @@ describe('가상계좌 입금 대기와 입금 정보', () => {
   });
 });
 
-/* 결제수단 값은 card·bank_transfer 둘뿐이다. card에는 토스의 카드·가상계좌·계좌이체가 함께 묶이므로 '카드'라고 부르지 않는다. */
+/* 결제수단 값은 card·bank_transfer 둘뿐이다. card에는 토스의 카드·가상계좌·계좌이체와 나이스페이·코페이 결제가 함께 묶이므로 '카드'라고도, 결제사 하나의 이름으로도 부르지 않는다. */
 describe('결제수단 이름', () => {
-  it('card는 토스 결제(카드·가상계좌·계좌이체), bank_transfer는 무통장 입금(직접 이체)이다', () => {
-    expect(ADMIN_PAYMENT_METHOD_LABELS).toEqual({ card: '토스 결제(카드·가상계좌·계좌이체)', bank_transfer: '무통장 입금(직접 이체)' });
+  it('card는 결제사 결제(카드·가상계좌·계좌이체) — 토스·나이스페이·코페이가 모두 이 값이라 결제사 이름을 붙이지 않는다 — bank_transfer는 무통장 입금(직접 이체)이다', () => {
+    expect(ADMIN_PAYMENT_METHOD_LABELS).toEqual({ card: '결제사 결제(카드·가상계좌·계좌이체)', bank_transfer: '무통장 입금(직접 이체)' });
     expect(ADMIN_PAYMENT_METHOD_OPTIONS.map(option => option.value)).toEqual(['', 'card', 'bank_transfer']);
     expect(ADMIN_PAYMENT_METHOD_OPTIONS[0].label).toBe('전체');
     expect(JSON.stringify(ADMIN_PAYMENT_METHOD_OPTIONS)).not.toContain('"카드"');
-    /* 이름은 결제사 이름표 한 곳(lib/payments/provider-capabilities)에서 온다 — 목록 엑셀도 같은 이름을 쓴다. */
-    expect(ADMIN_PAYMENT_METHOD_LABELS.card.startsWith(PAYMENT_PROVIDER_VALUE_LABELS.toss)).toBe(true);
+    /* card에는 결제사 이름을 붙이지 않는다 — 나이스페이·코페이 주문에 틀린 결제사가 찍히지 않게 한다. 무통장은 결제사 이름표(lib/payments/provider-capabilities)의 이름이다. */
+    for (const provider of Object.values(PAYMENT_PROVIDER_VALUE_LABELS)) expect(ADMIN_PAYMENT_METHOD_LABELS.card).not.toContain(provider);
+    expect(ADMIN_PAYMENT_METHOD_LABELS.card).not.toMatch(/토스|나이스페이|코페이/);
     expect(ADMIN_PAYMENT_METHOD_LABELS.bank_transfer.startsWith(PAYMENT_PROVIDER_LABELS.bank_transfer)).toBe(true);
     expect([adminOrderPaymentMethodLabel('card'), adminOrderPaymentMethodLabel('bank_transfer'), adminOrderPaymentMethodLabel(null), adminOrderPaymentMethodLabel('point')])
       .toEqual([ADMIN_PAYMENT_METHOD_LABELS.card, ADMIN_PAYMENT_METHOD_LABELS.bank_transfer, '', 'point']);
@@ -440,10 +440,6 @@ describe('주문 처리 패널 링크', () => {
     expect(adminOrderPanelHref(ORDER_ID)).toBe(`/admin/sales/orders?query=${ORDER_ID}&order=${ORDER_ID}`);
     expect(adminOrderPanelHref(ORDER_ID, null)).toBe(`/admin/sales/orders?query=${ORDER_ID}&order=${ORDER_ID}`);
     expect(new URL(adminOrderPanelHref(ORDER_ID, '2026102710000042'), 'https://x.test').searchParams.get('order')).toBe(ORDER_ID);
-  });
-
-  it('검색 링크는 그대로 한 주문만 찾는다(패널은 그 줄의 [처리]로 연다)', () => {
-    expect(adminOrderSearchHref(ORDER_ID)).toBe(`/admin/sales/orders?query=${ORDER_ID}`);
   });
 });
 

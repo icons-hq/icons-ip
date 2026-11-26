@@ -36,7 +36,7 @@ import {
   type AdminClaimBulkStepPreviewState,
 } from '@/lib/admin/claim-bulk';
 import { adminClaimPendingReshipments, adminClaimShipmentPartiallyReceived, adminClaimStockDecisionPending, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
-import { adminClaimBasePath } from '@/lib/admin/claims';
+import { adminClaimBasePath, adminClaimReceivedOnLabel } from '@/lib/admin/claims';
 import type { ClaimDefectiveItem } from '@/lib/admin/defective-stock';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimDetailLoadFailureMessage } from '@/lib/admin/claim-transaction-snapshot';
@@ -175,9 +175,9 @@ export async function previewOrderClaimBulkApprovalAction(input: unknown): Promi
 
     const rows: AdminClaimBulkApproveRow[] = claimIds.map((claimId) => {
       const context = byId.get(claimId);
-      if (!context) return { claimId, reference: '확인 불가', providerLabel: adminClaimBulkProviderLabel(null), amount: null, providerCancel: false, effect: '', blocker: CLAIM_MISSING };
-      const { providerCancel, effect } = adminClaimBulkApproveEffect(context.paymentProvider);
-      const base = { claimId, reference: orderClaimReferenceLabel(context.reference), providerLabel: adminClaimBulkProviderLabel(context.paymentProvider), amount: context.refundAmount, providerCancel, effect };
+      if (!context) return { claimId, reference: '확인 불가', providerLabel: adminClaimBulkProviderLabel(null), amount: null, kind: 'manual', effect: '', blocker: CLAIM_MISSING };
+      const { kind, effect } = adminClaimBulkApproveEffect(context.paymentProvider);
+      const base = { claimId, reference: orderClaimReferenceLabel(context.reference), providerLabel: adminClaimBulkProviderLabel(context.paymentProvider), amount: context.refundAmount, kind, effect };
       if (context.claimType !== claimType) return { ...base, blocker: wrongType(claimType) };
       return { ...base, blocker: adminClaimBulkDecisionBlocker('approve', context.stage) };
     });
@@ -217,7 +217,7 @@ export async function runOrderClaimBulkCollectionsAction(input: unknown): Promis
       if (context.collectionPolicy === 'legacy') {
         /* 레거시 회수에는 근거 열이 없어 공통 근거를 감사 기록에 남긴다(같은 단건 경로). */
         const state = await recordOrderClaimCollectionAction({}, form({ claimId: item.claimId, claimType, stage: 'collected', receivedOn, evidence }));
-        return state.error ? { ok: false, message: state.error } : { ok: true, message: `입고를 확인했습니다(실제 입고일 ${receivedOn}).` };
+        return state.error ? { ok: false, message: state.error } : { ok: true, message: `입고를 확인했습니다(실제 입고일 ${adminClaimReceivedOnLabel(receivedOn)}).` };
       }
 
       /* 확인창에서 고른 출고지(반품지가 갈린 배송 건은 회수 묶음) 가운데 아직 남은 것만 확인한다. 그 사이 다른 운영자가
@@ -238,7 +238,7 @@ export async function runOrderClaimBulkCollectionsAction(input: unknown): Promis
         done.push(label);
       }
       const rest = plan.targets.length - chosen.length + plan.skipped.length;
-      return { ok: true, message: `${done.join('·')} 회수를 확인했습니다(실제 입고일 ${receivedOn}).${rest > 0 ? ` 남은 출고지 ${rest}곳은 따로 확인해주세요.` : ''}` };
+      return { ok: true, message: `${done.join('·')} 회수를 확인했습니다(실제 입고일 ${adminClaimReceivedOnLabel(receivedOn)}).${rest > 0 ? ` 남은 출고지 ${rest}곳은 따로 확인해주세요.` : ''}` };
     }, {
       startedAt,
       reserveMs: (item) => ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS * (Math.max(1, item.shipmentIds.length + item.bundleIds.length) + 1),

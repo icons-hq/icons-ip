@@ -63,3 +63,35 @@ describe('배송지 수정 문구', () => {
     expect(normalizeOrderAddressRequest({ ...request, reason: ' ' })).toEqual({ error: '변경 사유를 1~500자로 적어 주세요.' });
   });
 });
+
+/* DB(admin_change_order_address)의 order_address_quote_unavailable 조건과 같아야 한다 — 화면이 우편번호·기본 주소를 미리 잠그는 근거다. */
+describe('우편번호·기본 주소를 바꿀 수 없는 주문', () => {
+  const origin = '00000000-0000-4000-8000-000000042201';
+  const snapshot = { originId: origin, policySubtotal: 10000, baseFee: 3000, freeThreshold: null, policyFee: 3000, individualFee: 0, totalFee: 3000 };
+  const parcel = { origin_id: origin, delivery_method: 'parcel', shipping_fee: 3000, shipping_fee_snapshot: snapshot };
+
+  it('택배이고 주문 때의 배송비 기준이 배송 건과 맞게 남아 있으면 바꿀 수 있다', async () => {
+    const { orderAddressDestinationLocked } = await import('./order-address');
+    expect(orderAddressDestinationLocked(1, [parcel])).toBe(false);
+    expect(orderAddressDestinationLocked(null, [parcel, parcel])).toBe(false);
+  });
+
+  it.each([
+    ['퀵·방문수령 배송 건', { ...parcel, delivery_method: 'pickup' }],
+    ['배송비 기준 기록이 없는 옛 주문', { ...parcel, shipping_fee_snapshot: null }],
+    ['출고지가 다른 기록', { ...parcel, shipping_fee_snapshot: { ...snapshot, originId: '00000000-0000-4000-8000-000000042299' } }],
+    ['기준 금액 값이 빠진 기록', { ...parcel, shipping_fee_snapshot: { originId: origin, totalFee: 3000 } }],
+    ['합계가 숫자가 아닌 기록', { ...parcel, shipping_fee_snapshot: { ...snapshot, totalFee: '3000' } }],
+    ['합계가 배송 건의 배송비와 다른 기록', { ...parcel, shipping_fee: 6000 }],
+  ])('%s이 하나라도 있으면 바꿀 수 없다', async (_label, shipment) => {
+    const { orderAddressDestinationLocked } = await import('./order-address');
+    expect(orderAddressDestinationLocked(1, [parcel, shipment])).toBe(true);
+  });
+
+  it('계산 방식 2 주문은 새 주소로 배송비를 다시 계산하므로 잠그지 않는다', async () => {
+    const { orderAddressDestinationLocked, orderAddressError, ORDER_ADDRESS_DESTINATION_LOCKED_MESSAGE } = await import('./order-address');
+    expect(orderAddressDestinationLocked(2, [{ ...parcel, shipping_fee_snapshot: null, delivery_method: 'quick' }])).toBe(false);
+    /* 잠근 이유는 저장 때 DB가 거절하는 문구와 같은 문장이다. */
+    expect(orderAddressError('23514', 'order_address_quote_unavailable')).toBe(ORDER_ADDRESS_DESTINATION_LOCKED_MESSAGE);
+  });
+});

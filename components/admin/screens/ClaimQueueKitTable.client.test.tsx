@@ -26,6 +26,12 @@ vi.mock('react', async () => {
     startTransition: (callback: () => void) => callback(),
     useMemo: (factory: () => unknown) => factory(),
     useTransition: () => [false, (callback: () => void) => callback()],
+    /* 훅 순서는 useState와 같은 번호표를 쓴다. ref는 같은 자리의 같은 상자다. */
+    useRef: (initial: unknown) => {
+      const index = hooks.index++;
+      if (!(index in hooks.state)) hooks.state[index] = { current: initial };
+      return hooks.state[index];
+    },
     useState: (initial: unknown) => {
       const index = hooks.index++;
       if (!(index in hooks.state)) hooks.state[index] = initial;
@@ -48,7 +54,8 @@ vi.mock('@/components/admin/kit/use-console-table', () => ({
   },
 }));
 
-import { ActionBarItem } from '@/components/admin/kit/ui/action-bar';
+import { ActionBar, ActionBarItem } from '@/components/admin/kit/ui/action-bar';
+import { Popover } from '@/components/admin/kit/ui/popover';
 import { Button } from '@/components/admin/kit/ui/button';
 import { ADMIN_CLAIM_BULK_ACTION_LABELS, ADMIN_CLAIM_BULK_CONVERT, adminClaimBulkConversionLabel } from '@/lib/admin/claim-bulk';
 import { ADMIN_CLAIM_DATE_FIELDS, ADMIN_CLAIM_SEARCH_FIELDS, type AdminClaimFilters } from '@/lib/admin/claims';
@@ -133,6 +140,8 @@ beforeEach(() => {
 
 /* 확인창 요청(제목·본문·버튼 이름)을 그대로 본다. */
 const asked = () => mocks.confirm.mock.calls[0][0] as { title: string; message: string; confirmLabel: string; cancelLabel: string; destructive?: boolean };
+/* 운영자가 아직 고르지 않은 확인창. resolve로 고른 것으로 만든다. */
+function deferredAnswer() { let resolve!: (value: boolean) => void; const promise = new Promise<boolean>((done) => { resolve = done; }); return { promise, resolve }; }
 
 it('처리할 수 없는 행은 선택해도 보내지 않고, 확인한 뒤에만 지금 페이지의 선택을 보낸다', async () => {
   mocks.confirm.mockReturnValue(true);
@@ -181,6 +190,68 @@ it('확인을 취소하거나 거부 사유가 짧으면 보내지 않는다', a
   expect(mocks.run).not.toHaveBeenCalled();
   const alert = all(render()).find((element) => element.props.role === 'alert');
   expect(text(alert)).toBe('거부 사유를 10자 이상 200자 이하로 입력해주세요.');
+});
+
+/*
+ * F-13: 확인창이 뜨면 포커스가 그리로 넘어가 거부·전환 팝오버와 처리 막대가 닫혔고(선택이 풀린다), 돌아가기를 눌러도 적던 사유로 돌아올 수 없었다.
+ * 확인창을 기다리는 동안에는 이 닫힘을 무시한다. 확인이 끝나면 다시 닫을 수 있고, 확인하면 지금처럼 처리가 팝오버를 닫는다.
+ */
+describe('확인창이 떠 있는 동안의 팝오버·처리 막대', () => {
+  const popovers = (claimType: OrderClaimType) => all(render(claimType)).filter((element) => element.type === Popover);
+  const rejectPopover = (claimType: OrderClaimType) => popovers(claimType).find((element) => all(element.props.children).some((child) => child.props.claimType === claimType && typeof child.props.onChange === 'function'))!;
+  const convertPopover = (claimType: OrderClaimType) => popovers(claimType).find((element) => all(element.props.children).some((child) => typeof child.props.onAgreement === 'function'))!;
+  const closing = (element: Element) => (element.props.onOpenChange as (open: boolean) => void)(false);
+  const closeBar = () => (all(render('return')).find((element) => element.type === ActionBar)!.props.onOpenChange as (open: boolean) => void)(false);
+
+  it('거부 확인창을 기다리는 동안 팝오버가 닫히지 않고, 돌아가면 적던 사유가 그대로 열려 있다', async () => {
+    const answer = deferredAnswer();
+    mocks.confirm.mockReturnValue(answer.promise);
+    select([A, B, C], 'return');
+    const before = selected();
+    expect(before).toEqual([A, B, C]);
+    const draw = () => all(render('return'));
+    (rejectPopover('return').props.onOpenChange as (open: boolean) => void)(true);
+    (draw().find((element) => element.props.claimType === 'return' && typeof element.props.onChange === 'function')?.props.onChange as (value: string) => void)('회수한 상품에 사용 흔적이 있어 반품할 수 없습니다.');
+    const running = (draw().find((element) => element.type === Button && text(element).endsWith('건 거부'))?.props.onClick as () => Promise<void>)();
+    expect(mocks.confirm).toHaveBeenCalledTimes(1);
+    /* 확인창이 포커스를 가져가며 닫힘을 알려도 무시한다: 팝오버가 열린 채, 선택이 그대로다. */
+    closing(rejectPopover('return')); closeBar();
+    expect(rejectPopover('return').props.open).toBe(true);
+    expect(selected()).toEqual(before);
+    answer.resolve(false); await running;
+    /* 돌아가기: 사유와 팝오버가 그대로다. 실행은 하지 않았다. */
+    expect(mocks.run).not.toHaveBeenCalled();
+    expect(rejectPopover('return').props.open).toBe(true);
+    expect(all(rejectPopover('return').props.children).find((element) => element.props.value === '회수한 상품에 사용 흔적이 있어 반품할 수 없습니다.')).toBeDefined();
+    /* 확인이 끝나면 다시 닫을 수 있다. */
+    closing(rejectPopover('return'));
+    expect(rejectPopover('return').props.open).toBe(false);
+  });
+
+  it('전환 확인창을 기다리는 동안 전환 팝오버가 닫히지 않고, 돌아가면 적던 합의 근거가 그대로 열려 있다', async () => {
+    const answer = deferredAnswer();
+    mocks.confirm.mockReturnValue(answer.promise);
+    select([A, B, C], 'return');
+    (convertPopover('return').props.onOpenChange as (open: boolean) => void)(true);
+    (all(render('return')).find((element) => typeof element.props.onAgreement === 'function')?.props.onAgreement as (value: string) => void)(AGREEMENT);
+    const running = (all(render('return')).find((element) => element.type === Button && text(element).endsWith('으로 바꾸기'))?.props.onClick as () => Promise<void>)();
+    expect(mocks.confirm).toHaveBeenCalledTimes(1);
+    closing(convertPopover('return'));
+    expect(convertPopover('return').props.open).toBe(true);
+    answer.resolve(false); await running;
+    expect(mocks.run).not.toHaveBeenCalled();
+    expect(convertPopover('return').props.open).toBe(true);
+    expect(all(render('return')).find((element) => typeof element.props.onAgreement === 'function')?.props.agreement).toBe(AGREEMENT);
+    closing(convertPopover('return'));
+    expect(convertPopover('return').props.open).toBe(false);
+  });
+
+  it('확인창이 없을 때는 처리 막대를 닫으면 선택이 풀린다 — 닫힘을 막는 것은 확인창을 기다리는 동안뿐이다', () => {
+    select([A, B], 'return');
+    expect(selected()).toEqual([A, B]);
+    closeBar();
+    expect(selected()).toEqual([]);
+  });
 });
 
 it('거부 사유를 채우면 선택한 모든 건에 같은 사유를 실어 보내고, 확인창이 그 사유 원문과 되돌릴 수 없음을 말한다', async () => {
@@ -323,26 +394,69 @@ describe('반품↔교환 일괄 전환', () => {
     expect(text(runButton('return'))).toBe('2건 교환으로 바꾸기');
   });
 
-  it('합의 근거가 짧으면 보내지 않고 입력 칸 옆에 사유를 보여 준다', async () => {
+  it('합의 근거가 짧으면 확인창을 띄우지 않고 보내지 않으며 입력 칸 옆에 사유를 보여 준다', async () => {
     fill('return', '한');
-    (runButton('return')?.props.onClick as () => void)();
+    await (runButton('return')?.props.onClick as () => Promise<void>)();
     expect(mocks.run).not.toHaveBeenCalled();
+    expect(mocks.confirm).not.toHaveBeenCalled();
     expect(text(all(render('return')).find((element) => element.props.role === 'alert'))).toBe('고객 합의 근거를 2자 이상 500자 이하로 입력해주세요.');
   });
 
-  it('처리할 수 있는 선택만 합의 근거와 함께 보낸다', async () => {
+  it('확인창에서 확인한 뒤에 처리할 수 있는 선택만 합의 근거와 함께 보낸다', async () => {
+    mocks.confirm.mockReturnValue(true);
     fill('exchange', AGREEMENT);
-    (runButton('exchange')?.props.onClick as () => void)();
+    await (runButton('exchange')?.props.onClick as () => Promise<void>)();
     expect(mocks.run).toHaveBeenCalledTimes(1);
     const sent = mocks.run.mock.calls[0][0] as FormData;
     expect(sent.getAll('claimIds')).toEqual([A, B]);
     expect(sent.get('claimType')).toBe('exchange');
     expect(sent.get('decision')).toBe(ADMIN_CLAIM_BULK_CONVERT);
     expect(sent.get('agreement')).toBe(AGREEMENT);
+    /* '모두 합의했습니다' 체크는 없다 — 서버로 가는 값에도 없고, 확인창이 그 자리를 맡는다. */
     expect(sent.has('confirmed')).toBe(false);
-    /* 확인창 대신 팝오버의 합의 근거가 확인이다. */
-    expect(mocks.confirm).not.toHaveBeenCalled();
+    expect(mocks.confirm).toHaveBeenCalledTimes(1);
     expect(fields('exchange')?.props.agreement).toBe(AGREEMENT);
+  });
+
+  /* 일괄 전환은 건마다 고객 앱 알림이 가고 배송비 청구가 취소된다. 단건 전환 확인창(claimTypeConfirmMessage)과 같은 사실을 건수와 함께 묻는다. */
+  it('확인창은 건수와 고객 알림·배송비 청구 취소·재고 처리 선택 삭제를 말하고, 확인하기 전에는 보내지 않는다', async () => {
+    const answer = deferredAnswer();
+    mocks.confirm.mockReturnValue(answer.promise);
+    fill('return', AGREEMENT);
+    const running = (runButton('return')?.props.onClick as () => Promise<void>)();
+    expect(mocks.confirm).toHaveBeenCalledTimes(1);
+    expect(mocks.run).not.toHaveBeenCalled();
+    expect(asked()).toMatchObject({ title: '반품 2건 → 교환 전환', confirmLabel: '2건 교환으로 바꾸기', cancelLabel: '돌아가기' });
+    for (const part of ['선택한 2건을 고객과 합의한 대로 반품 요청에서 교환 요청으로 바꿉니다.', '배송비 청구가 있으면 취소됩니다(입금이 확인된 청구는 돌려줄 금액으로 바뀝니다)',
+      '저장해 둔 품목별 재고 처리', '고객마다 앱 알림이 갑니다', '이미 간 알림과 취소된 배송비 청구는 돌아오지 않습니다', '결과표에 이유가 남습니다']) expect(asked().message, part).toContain(part);
+    answer.resolve(true); await running;
+    expect(mocks.run).toHaveBeenCalledTimes(1);
+    /* 확인창이 먼저, 전환(보내기)이 나중이다 — 전환 안에서 확인창을 띄우면 창이 뜨지 않고 멈춘다. */
+    expect(mocks.confirm.mock.invocationCallOrder[0]).toBeLessThan(mocks.run.mock.invocationCallOrder[0]);
+  });
+
+  it('교환을 반품으로 바꿀 때는 환불로 마무리하고 교환품 제작이 취소된다고 말한다', async () => {
+    mocks.confirm.mockReturnValue(false);
+    fill('exchange', AGREEMENT);
+    await (runButton('exchange')?.props.onClick as () => Promise<void>)();
+    expect(asked()).toMatchObject({ title: '교환 2건 → 반품 전환', confirmLabel: '2건 반품으로 바꾸기' });
+    expect(asked().message).toContain('교환품 재출고 대신 환불로 마무리합니다');
+    expect(asked().message).toContain('열려 있던 교환품 제작은 취소됩니다');
+  });
+
+  it('확인창에서 돌아가면 보내지 않고, 팝오버와 적은 합의 근거를 그대로 둔다', async () => {
+    mocks.confirm.mockReturnValue(false);
+    fill('return', AGREEMENT);
+    await (runButton('return')?.props.onClick as () => Promise<void>)();
+    expect(mocks.confirm).toHaveBeenCalledTimes(1);
+    expect(mocks.run).not.toHaveBeenCalled();
+    expect(fields('return')?.props.agreement).toBe(AGREEMENT);
+    expect(runButton('return')).toBeDefined();
+    /* 돌아간 뒤 다시 누르면 다시 묻는다. */
+    mocks.confirm.mockReturnValue(true);
+    await (runButton('return')?.props.onClick as () => Promise<void>)();
+    expect(mocks.confirm).toHaveBeenCalledTimes(2);
+    expect(mocks.run).toHaveBeenCalledTimes(1);
   });
 
   it('전환은 전환 액션으로, 그 밖의 처리는 결정 액션으로 보내고 남은 건이 없으면 합의 근거를 비운다', async () => {
@@ -379,6 +493,8 @@ it('결과표는 요청번호·결과·내용 세 열이고 요청번호가 같�
     ],
   }} />);
   expect(html.match(/<table/g)).toHaveLength(1);
+  /* 표 제목은 낭독용(sr-only)이다 — 보이는 글자로 표 아래에 떠 있지 않는다(F-02). */
+  expect(html).toMatch(/<caption[^>]*class="[^"]*\bsr-only\b[^"]*"[^>]*>일괄 처리 결과<\/caption>/);
   expect([...html.matchAll(/<th[^>]*\bscope="col"[^>]*>([^<]*)<\/th>/g)].map((match) => match[1])).toEqual(['요청번호', '결과', '내용']);
   expect(html).toContain('처리됨');
   expect(html).toContain('실패');

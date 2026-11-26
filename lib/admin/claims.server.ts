@@ -30,6 +30,7 @@ import {
 import {
   ADMIN_CLAIM_PAGE_SIZE,
   adminClaimBuyerLabel,
+  adminClaimSearchQuery,
   type AdminClaimOperationalFee,
   type AdminClaimConsoleData,
   type AdminClaimFilters,
@@ -127,6 +128,8 @@ export async function getAdminClaimConsoleData(
 ): Promise<AdminClaimConsoleData> {
   const pageSize = Math.min(Math.max(Math.trunc(options.pageSize ?? filters.pageSize ?? ADMIN_CLAIM_PAGE_SIZE) || ADMIN_CLAIM_PAGE_SIZE, 1), 100);
   const supabase = await createClient();
+  /* 화면에 보이는 요청번호(C00021)로 찾아도 되게, DB가 받는 값(21)으로 바꿔 보낸다. 목록과 단계별 건수가 같은 값을 쓴다. */
+  const query = adminClaimSearchQuery(filters.query, filters.field) || null;
 
   const [listResult, countResult] = await Promise.all([
     supabase.rpc('admin_search_order_claims_console', {
@@ -134,7 +137,7 @@ export async function getAdminClaimConsoleData(
       p_from: filters.from,
       p_limit: pageSize,
       p_offset: (filters.page - 1) * pageSize,
-      p_query: filters.query || null,
+      p_query: query,
       p_reason_type: filters.reasonType === 'all' ? null : filters.reasonType,
       p_stage: filters.stage === 'all' ? null : filters.stage,
       p_to: filters.to,
@@ -146,7 +149,7 @@ export async function getAdminClaimConsoleData(
       ? Promise.resolve({ data: [], error: null })
       : supabase.rpc('admin_order_claim_stage_counts_console', {
         p_claim_type: claimType, p_reason_type: filters.reasonType === 'all' ? null : filters.reasonType,
-        p_from: filters.from, p_to: filters.to, p_query: filters.query || null,
+        p_from: filters.from, p_to: filters.to, p_query: query,
         p_field: filters.field ?? 'all', p_date_field: filters.dateField ?? 'requested',
       }),
   ]);

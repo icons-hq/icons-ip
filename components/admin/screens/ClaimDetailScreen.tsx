@@ -1,5 +1,6 @@
 import { ClaimCollectionPlan } from '@/components/orders/ClaimCollectionPlan';
 import { ClaimFeePanel } from '@/components/orders/ClaimFeePanel';
+import { partialReturnFeePanelNote } from '@/lib/admin/claim-fees';
 
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
@@ -518,8 +519,8 @@ export function ClaimDetailScreen({
               )}
             </CardContent>
           </Card>
-          {/* 배송비 청구와 운영 확인액은 승인에 앞서 채우는 칸이 아니다 — 주문 맥락과 요청 아래에 둔다. */}
-          {actorId && claim.claimType !== 'cancel' ? <Card><CardContent className="min-w-0"><ClaimFeePanel actorId={actorId} claimId={claim.id} operator deductionNote={claim.claimType === 'return' ? returnFeeDeductionFeePanelNote(refundDeduction) : null} /></CardContent></Card> : null}
+          {/* 배송비 청구와 운영 확인액은 승인에 앞서 채우는 칸이 아니다 — 주문 맥락과 요청 아래에 둔다. 반품배송비 차감 안내는 부분 반품이면 부분 반품 칸이 읽는 미리보기·원장에서, 주문 전체 반품이면 환불 단계의 차감 판정에서 만든다(두 칸이 반대로 말하지 않게). */}
+          {actorId && claim.claimType !== 'cancel' ? <Card><CardContent className="min-w-0"><ClaimFeePanel actorId={actorId} claimId={claim.id} operator deductionNote={claim.claimType === 'return' ? (partialReturn ? partialReturnFeePanelNote(partialReturn) : returnFeeDeductionFeePanelNote(refundDeduction)) : null} /></CardContent></Card> : null}
           <ClaimOperationalFeePanel claimId={claim.id} claimType={claim.claimType} fee={claim.operationalFee} />
         </div>
         <div className="flex min-w-0 flex-col gap-4">

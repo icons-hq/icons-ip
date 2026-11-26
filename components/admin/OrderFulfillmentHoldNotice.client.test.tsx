@@ -94,9 +94,9 @@ it('조회 권한만 있으면 해제 버튼을 지우지 않고 잠근 채 이�
   const tree = render([testHold], false);
   const button = all(tree).find(element => text(element).includes('사유 적고 보류 해제') && (element.props as { disabled?: boolean }).disabled === true);
   expect(button).toBeTruthy();
-  expect(text(tree)).toContain('보류 해제는 주문 처리 권한이 있는 운영자만 할 수 있습니다.');
+  expect(text(tree)).toContain('보류 해제는 판매 관리 권한이 있는 운영자만 할 수 있습니다.');
   /* 권한이 있으면 이유 줄은 없다. */
-  expect(text(render([testHold], true))).not.toContain('주문 처리 권한이 있는 운영자만');
+  expect(text(render([testHold], true))).not.toContain('판매 관리 권한이 있는 운영자만');
 });
 
 it('이미 발송된 주문의 보류는 경고 안내와 경고 배지다', () => {

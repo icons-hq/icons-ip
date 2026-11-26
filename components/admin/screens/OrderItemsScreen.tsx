@@ -18,7 +18,7 @@ import { statusTone } from '@/lib/admin/status-tone';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { adminListExportHref } from '@/lib/admin/list-export';
 import { adminOrderItemsHref, orderItemBuyerLabel, selectedConfirmableOrderIds, type AdminOrderItemData } from '@/lib/admin/order-items';
-import { shipmentStatusLabel, type ShipmentStatus } from '@/lib/orders/shipments';
+import { adminShipmentStatusLabelOf } from '@/lib/admin/shipment-status-labels';
 import type { OrderItemAllocation } from '@/lib/admin/item-allocation';
 import { adminOrderDetailHrefFromBack, ADMIN_ORDER_SEARCH_FIELDS, ADMIN_ORDER_STATUSES, ADMIN_ORDER_STATUS_LABELS, ADMIN_PAYMENT_METHOD_OPTIONS } from '@/lib/admin/orders';
 import { adminOrderPreviewHref } from '@/lib/admin/order-preview';
@@ -119,7 +119,7 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
           formatKrwExact(row.unitPrice), formatKrwExact(row.partialCancel?.activeItemAmount ?? row.itemAmount),
           <OrderItemAllocationCell key="allocation" allocation={row.allocation} />, row.allocation ? formatKrwExact(row.allocation.paidGoodsTotal - (row.partialCancel?.paidAmount ?? 0)) : '—',
           orderItemBuyerLabel(row), row.recipientName ?? '—',
-          <div key="shipment" className={META_CLASS}>{row.originName ?? '출고지 미연결'}{row.shipmentStatus ? <AdminStatusBadge tone={statusTone('shipment', row.shipmentStatus)}>{shipmentStatusLabel(row.shipmentStatus as ShipmentStatus) ?? ''}</AdminStatusBadge> : null}<small>{row.carrierLabel} {row.trackingNumber}</small>{row.extraTrackingNumbers?.map(number => <small className="tabular-nums" key={number}>추가 {number}</small>)}</div>,
+          <div key="shipment" className={META_CLASS}>{row.originName ?? '출고지 미연결'}{row.shipmentStatus ? <AdminStatusBadge tone={statusTone('shipment', row.shipmentStatus)}>{adminShipmentStatusLabelOf(row.shipmentStatus) ?? ''}</AdminStatusBadge> : null}<small>{row.carrierLabel} {row.trackingNumber}</small>{row.extraTrackingNumbers?.map(number => <small className="tabular-nums" key={number}>추가 {number}</small>)}</div>,
           row.claim ? (canManage ? <Link key="claim" className="inline-flex flex-wrap items-center gap-1 underline-offset-4 hover:underline" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[row.claim.type]}/${row.claim.id}`}>{ORDER_CLAIM_TYPE_LABELS[row.claim.type]} <AdminStatusBadge tone={statusTone('claim', row.claim.stage)}>{adminClaimStageLabel(row.claim.type, row.claim.stage)}</AdminStatusBadge></Link> : <span key="claim" className="inline-flex flex-wrap items-center gap-1">{ORDER_CLAIM_TYPE_LABELS[row.claim.type]} <AdminStatusBadge tone={statusTone('claim', row.claim.stage)}>{adminClaimStageLabel(row.claim.type, row.claim.stage)}</AdminStatusBadge></span>) : '—',
           <Link key="detail" className="font-medium underline-offset-4 hover:underline" href={adminOrderDetailHrefFromBack(row.orderId, currentHref)}>주문 상세</Link>,
         ] }))}>

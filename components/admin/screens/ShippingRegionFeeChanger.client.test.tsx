@@ -49,7 +49,7 @@ describe('적용 중인 설정의 추가배송비 금액 바꾸기', () => {
     const tree = render();
     expect(inputs(tree).map((node) => node.props.value)).toEqual(['1000', '']);
     expect(text(tree[0])).toContain('합성 도서 · 지역표 2줄');
-    expect(text(tree[0])).toContain('지금 ₩3,000~₩5,000');
+    expect(text(tree[0])).toContain('지금 3,000원~5,000원');
     expect(text(tree[0])).not.toContain('합성 없음');
     expect(button(tree).props.disabled).toBe(true);
     type(0, '1000');
@@ -64,7 +64,7 @@ describe('적용 중인 설정의 추가배송비 금액 바꾸기', () => {
     expect(button(render()).props.disabled).toBe(false);
     await press();
     expect(confirm).toHaveBeenCalledTimes(1);
-    expect(confirm.mock.calls[0][0].split('\n')).toEqual(['합성 출고지 · 합성 도서 정책', '합성 도서 ₩1,000 → ₩3,000 (2줄)', '',
+    expect(confirm.mock.calls[0][0].split('\n')).toEqual(['합성 출고지 · 합성 도서 정책', '합성 도서 1,000원 → 3,000원 (2줄)', '',
       '지금부터 새 주문에 적용됩니다. 아직 결제하지 않은 장바구니·주문서에도 적용되고, 이미 들어온 주문의 배송비는 그대로입니다.']);
     expect(mocks.change).toHaveBeenCalledWith(policy.id, 2, { '합성 도서': 3000 });
     expect(onReplaced).toHaveBeenCalledWith(next, policy.id, '추가배송비를 바꿨습니다.');

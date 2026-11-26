@@ -22,7 +22,7 @@ import {
   normalizeTrackingNumber,
   type ShippingCarrierRegistry,
 } from '@/lib/orders/shipment';
-import { PAYMENT_PROVIDER_LABELS, PAYMENT_PROVIDER_VALUE_LABELS, providerCancelsAutomatically } from '@/lib/payments/provider-capabilities';
+import { PAYMENT_PROVIDER_LABELS, providerCancelsAutomatically } from '@/lib/payments/provider-capabilities';
 
 // DB의 order_status enum과 같은 순서를 유지한다 — 상태 필터의 표시 순서가
 // 사다리 순서 그 자체다(#250).
@@ -60,11 +60,13 @@ export const ADMIN_ORDER_STATUS_LABELS: Record<AdminOrderStatus, string> = {
 
 /**
  * 주문의 결제수단 값(`card`·`bank_transfer`)의 화면 이름. 값은 둘뿐이라 `card`에는 결제사 결제 전부가 묶인다 —
- * 토스의 카드·가상계좌·계좌이체가 모두 `card`로 남는다. 그래서 '카드'라고 부르지 않고 사실대로 부른다.
+ * 토스의 카드·가상계좌·계좌이체뿐 아니라 나이스페이·코페이 결제도 모두 `card`로 남는다. 그래서 '카드'라고도, 결제사 하나의 이름으로도
+ * 부르지 않는다(나이스페이 주문에 '토스 결제'가 찍히면 재무·CS가 틀린 결제사로 대조한다). 주문 한 건의 실제 결제사는 주문 상세의
+ * 결제 칸·타임라인이 결제사 이름표(lib/payments/provider-capabilities)로 보인다.
  * 가상계좌만 따로 거르려면 결제수단을 나눠 저장해야 한다(이름만 고친 이번 정리의 범위 밖).
  */
 export const ADMIN_PAYMENT_METHOD_LABELS = {
-  card: `${PAYMENT_PROVIDER_VALUE_LABELS.toss}(카드·가상계좌·계좌이체)`,
+  card: '결제사 결제(카드·가상계좌·계좌이체)',
   bank_transfer: `${PAYMENT_PROVIDER_LABELS.bank_transfer}(직접 이체)`,
 } as const;
 
@@ -920,14 +922,6 @@ export function adminOrderDetailHref(orderId: string, filters?: AdminOrderFilter
   const base = `/admin/sales/orders/${orderId}`;
   if (!filters) return base;
   return `${base}?back=${encodeURIComponent(adminOrdersHref(filters))}`;
-}
-
-/**
- * 주문 통합검색에서 한 주문만 찾는 링크. 주문 처리 패널은 목록에서 주문을 고를 때(`order`) 열리므로,
- * 이 링크로 들어오면 그 한 줄의 [처리]를 눌러 연다. 패널까지 한 번에 열려면 `adminOrderPanelHref`를 쓴다.
- */
-export function adminOrderSearchHref(orderId: string) {
-  return `/admin/sales/orders?query=${encodeURIComponent(orderId)}`;
 }
 
 /**

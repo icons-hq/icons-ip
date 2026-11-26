@@ -46,7 +46,8 @@ export function ShipmentStatusRevertPanel({ targets }: { targets: ShipmentStatus
       {targets.length ? <ul className="flex flex-col gap-2">{targets.map(target => { const blocked = shipmentRevertBlockedReason(target); return <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2.5" key={target.id}>
         <span className="flex min-w-0 flex-col gap-0.5 wrap-anywhere">
           <span><strong className="font-medium">{target.originName} · {target.reference}</strong>
-            {target.trackingLabel ? <span className="ml-2 text-xs text-muted-foreground tabular-nums">{target.trackingLabel}</span> : null}</span>
+            {/* 배송건번호와 택배사·운송장이 한 덩어리로 읽히지 않게 글자로 나눈다(여백만으로는 붙어 보인다). */}
+            {target.trackingLabel ? <span className="text-xs text-muted-foreground tabular-nums">{' · '}{target.trackingLabel}</span> : null}</span>
           <span className="text-xs text-muted-foreground" data-shipment-revert-result={target.kind}>{blocked || SHIPMENT_REVERT_RESULT[target.kind]}</span>
         </span>
         {blocked

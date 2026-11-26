@@ -88,7 +88,7 @@ it('켤 때는 이미 접수된 요청에도 바로 적용된다는 것을 확�
   choose('on'); type('claim-fee-policy-return', '3000'); await submit();
   const message: string = mocks.confirm.mock.calls[0][0].message;
   expect(message).toContain('배송비 청구: 쓰지 않음 → 고객과 합의한 요청에만 직접 청구');
-  expect(message).toContain('이미 접수돼 진행 중인 반품·교환 요청에도 요청 상세에서 [새 배송비 청구]를 쓸 수 있게 됩니다(환불 금액에서 반품배송비를 빼기로 한 반품은 제외). 자동으로 청구되지는 않습니다.');
+  expect(message).toContain('이미 접수돼 진행 중인 반품·교환 요청에도 요청 상세에서 [새 배송비 청구]를 쓸 수 있게 됩니다. 환불을 접수해 반품배송비를 환불액에서 빼기로 정해진 반품은 쓸 수 없고, 환불을 접수하기 전 반품에서 청구하면 그 반품은 환불액에서 반품배송비를 빼지 않습니다. 자동으로 청구되지는 않습니다.');
   expect(mocks.save.mock.calls[0][0]).toEqual({ enabled: true, returnAmount: 3000, exchangeAmount: null });
 });
 

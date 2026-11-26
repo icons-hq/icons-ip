@@ -14,6 +14,8 @@ describe('배송 상태 정정 패널', () => {
     expect(html).toContain('aria-label="배송 상태 정정"');
     expect(html).toContain('김포 · 2026112600010001');
     expect(html).toContain('한진택배 123456789012');
+    /* 배송건번호와 택배사 사이를 글자로 나눈다 — '2026112600010001한진택배'처럼 붙어 읽히지 않는다. */
+    expect(html.replace(/<[^>]+>/g, '')).toContain('김포 · 2026112600010001 · 한진택배 123456789012');
     expect(html).toContain('발송 대기로 되돌립니다. 이미 보낸 배송 안내 메일은 회수되지 않습니다.');
     expect(html).toContain('배송중으로 되돌립니다.');
     expect(html).toContain('>발송 되돌리기<');

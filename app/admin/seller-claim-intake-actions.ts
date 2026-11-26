@@ -9,6 +9,7 @@ import { SELLER_CLAIM_PATH, parseSellerClaimContext, parseSellerClaimInput, pars
   sellerClaimReceiptMatchesInput, splitSellerClaimItems,
   type SellerClaimContext, type SellerClaimReceipt } from '@/lib/admin/seller-claim-intake';
 import { DISABLED_PARTIAL_RETURN, parseOrderPartialReturnContext, type OrderPartialReturnContext } from '@/lib/orders/partial-return';
+import { parseOrderPartialCancellationContext } from '@/lib/orders/partial-cancellation';
 
 export type SellerClaimSubmitResult = { receipt: SellerClaimReceipt } | { error: string; uncertain?: boolean };
 function inputError(message: string): string {
@@ -21,7 +22,7 @@ function inputError(message: string): string {
   if (message.includes('partial_return_item_')) return '고른 상품 가운데 일부 반품할 수 없는 상품이 있습니다(발송 전·디지털·주문제작·교환 이력 등). 주문을 다시 열어 확인해주세요.';
   if (message.includes('partial_return_')) return '이 주문은 일부 반품을 받을 수 없습니다(선물 주문, 부분 취소를 받지 않는 결제 수단, 상품별 결제 금액 기록 없음 등). 주문 전체로 접수해주세요.';
   if (message.includes('collections_changed')) return '주문의 출고지 구성이 변경되었습니다. 최신 주문에서 전체 수거 계획을 다시 확인해주세요.';
-  if (message.includes('request_conflict')) return '처음 보낸 접수와 내용이 달라 저장하지 않았습니다. [같은 요청의 저장 결과 확인]으로 처음 접수의 결과를 먼저 확인해주세요.';
+  if (message.includes('request_conflict')) return '처음 보낸 접수와 내용이 달라 저장하지 않았습니다. [저장됐는지 확인]으로 처음 접수의 결과를 먼저 확인해주세요.';
   if (message.includes('unknown_shipping_carrier')) return '현재 사용할 수 있는 택배사를 선택해주세요.';
   if (message.includes('staff_required') || message.includes('operator_capability_required')) return '이 접수를 할 권한(판매관리)이 없습니다. 권한이 있는 담당자에게 요청해주세요.';
   if (message.includes('refund_account')) return '은행·계좌번호·예금주를 확인해주세요. 교환에는 계좌를 저장하지 않습니다.';
@@ -48,6 +49,20 @@ export async function loadSellerPartialReturnContextAction(orderId: string): Pro
     return error ? DISABLED_PARTIAL_RETURN : parseOrderPartialReturnContext(data);
   } catch (error) { unstable_rethrow(error); return DISABLED_PARTIAL_RETURN; }
 }
+/**
+ * 접수 창 머리글이 말할 '남은 결제 금액'(F-05). 앞선 재고 부족 부분 취소로 이미 환불한 금액이 있는 주문은 환불이 주문 전체 금액이 아니라 남은 금액 기준이다.
+ * 일괄 승인 확인창이 쓰는 남은 금액(admin_order_claim_bulk_context의 refundAmount)과 같은 계산이다 — 결제 금액 − 부분 취소로 환불한 금액
+ * (private.payment_partial_refunded_amount). 읽기 전용이고, 읽지 못하거나 부분 취소 설정이 꺼져 값이 없으면 null이다(머리글은 지금처럼 전액 기준으로 둔다).
+ */
+export async function loadSellerClaimBalanceAction(orderId: string): Promise<{ paymentAmount: number; balance: number } | null> {
+  if (!await requireAdminActionAccess(SELLER_CLAIM_PATH, { capability: 'sales.manage' }) || !isUuid(orderId)) return null;
+  try {
+    const { data, error } = await (await createClient()).rpc('admin_order_partial_cancellation_context', { p_order_id: orderId });
+    if (error) return null;
+    const { paymentAmount, balance } = parseOrderPartialCancellationContext(data);
+    return paymentAmount !== null && balance !== null ? { paymentAmount, balance } : null;
+  } catch (error) { unstable_rethrow(error); return null; }
+}
 export async function readSellerClaimIntakeAction(input: unknown): Promise<{ receipt: SellerClaimReceipt | null } | { error: string }> {
   if (!await requireAdminActionAccess(SELLER_CLAIM_PATH, { capability: 'sales.manage' })) return { error: '관리자 권한이 필요합니다.' };
   const split = splitSellerClaimItems(input);
@@ -58,11 +73,11 @@ export async function readSellerClaimIntakeAction(input: unknown): Promise<{ rec
     const { data, error } = await client.rpc('admin_read_seller_claim_intake', {
       p_request_id: parsed.requestId, p_payload: parsed.payload, p_refund_account: parsed.refundAccount,
     });
-    if (error) return { error: '접수 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청의 저장 결과 확인]을 다시 눌러주세요.' };
+    if (error) return { error: '접수 결과를 불러오지 못했습니다. 잠시 뒤 [저장됐는지 확인]을 다시 눌러주세요.' };
     if (data === null) return { receipt: null };
     const receipt = parseSellerClaimReceipt(data);
     return receipt && sellerClaimReceiptMatchesInput(receipt, input) ? { receipt } : { error: '저장된 접수가 처음 보낸 내용과 일치하지 않습니다. 새로 접수하지 말고 개발 담당자에게 알려주세요.' };
-  } catch (error) { unstable_rethrow(error); return { error: '접수 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청의 저장 결과 확인]을 다시 눌러주세요.' }; }
+  } catch (error) { unstable_rethrow(error); return { error: '접수 결과를 불러오지 못했습니다. 잠시 뒤 [저장됐는지 확인]을 다시 눌러주세요.' }; }
 }
 export async function submitSellerClaimIntakeAction(input: unknown): Promise<SellerClaimSubmitResult> {
   if (!await requireAdminActionAccess(SELLER_CLAIM_PATH, { capability: 'sales.manage' })) return { error: '관리자 권한이 필요합니다.' };
@@ -85,12 +100,12 @@ export async function submitSellerClaimIntakeAction(input: unknown): Promise<Sel
     });
     const receipt = parseSellerClaimReceipt(data);
     if (readError || !receipt || !sellerClaimReceiptMatchesInput(receipt, input)) {
-      return { error: '접수됐는지 확인하지 못했습니다. 새로 접수하지 말고 [같은 요청의 저장 결과 확인]을 먼저 눌러주세요.', uncertain: true };
+      return { error: '접수됐는지 확인하지 못했습니다. 새로 접수하지 말고 [저장됐는지 확인]을 먼저 눌러주세요.', uncertain: true };
     }
     revalidatePath(SELLER_CLAIM_PATH);
     revalidatePath(`/admin/sales/claims/${receipt.claimType === 'cancel' ? 'cancels' : receipt.claimType === 'return' ? 'returns' : 'exchanges'}`);
     revalidatePath(`/orders/${receipt.orderId}`);
     revalidatePath('/orders');
     return { receipt };
-  } catch (error) { unstable_rethrow(error); return { error: '접수됐는지 확인하지 못했습니다. 새로 접수하지 말고 [같은 요청의 저장 결과 확인]을 먼저 눌러주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: '접수됐는지 확인하지 못했습니다. 새로 접수하지 말고 [저장됐는지 확인]을 먼저 눌러주세요.', uncertain: true }; }
 }

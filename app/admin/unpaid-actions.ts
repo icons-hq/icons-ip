@@ -10,6 +10,7 @@ import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { sendOrderConfirmationEmail } from '@/lib/email/transactional.server';
 import { sendOrderConfirmationAlimtalk } from '@/lib/kakao/alimtalk/order-notices.server';
 import { createClient } from '@/lib/supabase/server';
+import { UNPAID_EXTENDED_MESSAGE } from '@/lib/admin/unpaid-copy';
 import { ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 
 /*
@@ -167,7 +168,7 @@ export async function extendBankTransferDeadlineAction(
   if (error) return { error: rpcErrorMessage(error.message, EXTEND_FAILED) };
 
   revalidateUnpaidSurfaces(normalized.value.orderId);
-  return { message: '입금 기한을 24시간 연장했습니다.' };
+  return { message: UNPAID_EXTENDED_MESSAGE };
 }
 
 export async function cancelUnpaidBankTransferOrderAction(

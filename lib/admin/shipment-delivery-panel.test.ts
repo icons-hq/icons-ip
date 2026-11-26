@@ -106,3 +106,42 @@ it('인계·수령 시각의 처음 값은 지금(KST)이고 분 단위다', () 
   expect(deliveryNowLocal(new Date('2026-11-26T01:23:45Z'))).toBe('2026-11-26T10:23');
   expect(deliveryNowLocal(new Date('2026-11-26T16:00:00Z'))).toBe('2026-11-27T01:00');
 });
+
+/*
+ * QA-O 고칠 것 5: 인계·수령 기록의 거절을 원인별로 말하고, '지금 분'으로 적은 시각이 발주확인과 같은 분이라 거절되는 일을 푼다.
+ * DB는 값·형식(22023)과 시각 범위(23514)를 같은 이름으로 돌려준다 — 오류 종류로 나눈다.
+ */
+describe('인계·수령 기록의 거절 문구와 지금 분', () => {
+  it('시각이 범위를 벗어난 거절만 시각 거절로 본다', async () => {
+    const { deliveryTimeRejected } = await import('./shipment-delivery-panel');
+    expect(deliveryTimeRejected({ code: '23514', message: 'invalid_delivery_evidence' })).toBe(true);
+    expect(deliveryTimeRejected({ code: '22023', message: 'invalid_delivery_evidence' })).toBe(false);
+    expect(deliveryTimeRejected({ code: '23514', message: 'delivery_delegate_not_allowed' })).toBe(false);
+    expect(deliveryTimeRejected(null)).toBe(false);
+  });
+
+  it('원인별로 고칠 칸을 말한다 — 방문수령에 없는 배송 업체·기사를 말하지 않는다', async () => {
+    const { deliveryRecordErrorMessage } = await import('./shipment-delivery-panel');
+    const time = { code: '23514', message: 'invalid_delivery_evidence' }, fields = { code: '22023', message: 'invalid_delivery_evidence' };
+    expect(deliveryRecordErrorMessage('quick_handoff', time)).toBe('인계 시각이 발주확인보다 앞이거나 지금보다 뒤입니다. 발주확인 뒤부터 지금까지의 시각으로 고쳐 주세요.');
+    expect(deliveryRecordErrorMessage('pickup_receive', time)).toBe('수령 시각이 발주확인보다 앞이거나 지금보다 뒤입니다. 발주확인 뒤부터 지금까지의 시각으로 고쳐 주세요.');
+    expect(deliveryRecordErrorMessage('none_receive', time)).toContain('수령 시각이 발주확인보다 앞이거나');
+    expect(deliveryRecordErrorMessage('quick_receive', time)).toBe('수령 시각이 인계 시각보다 앞이거나 지금보다 뒤입니다. 인계 뒤부터 지금까지의 시각으로 고쳐 주세요.');
+    expect(deliveryRecordErrorMessage('pickup_receive', fields)).toBe('수령을 확인한 담당자·수령인 구분·수령 확인 내용을 모두 적고, 고객이 보여 준 확인값 12자리를 넣어주세요. 담당자 이름은 100자, 확인 내용은 2,000자까지입니다.');
+    expect(deliveryRecordErrorMessage('pickup_receive', fields)).not.toContain('배송 업체');
+    expect(deliveryRecordErrorMessage('pickup_receive', time)).not.toContain('담당자');
+    /* 그 밖의 거절은 공용 문구표 그대로다. */
+    expect(deliveryRecordErrorMessage('pickup_receive', { code: '23514', message: 'delivery_receipt_code_invalid' })).toBe('고객이 보여 준 확인값이 맞지 않습니다. 고객의 주문 화면에 보이는 값을 다시 확인해주세요.');
+  });
+
+  it('지금 분을 적었을 때만 초까지 채운 지금 시각을 돌려준다(1초 앞, 그 분의 시작보다 앞으로 가지 않는다)', async () => {
+    const { deliveryOccurredThisMinute } = await import('./shipment-delivery-panel');
+    const now = new Date('2026-11-26T07:00:55.400Z');
+    expect(deliveryOccurredThisMinute('2026-11-26T07:00:00.000Z', now)).toBe('2026-11-26T07:00:54.400Z');
+    expect(deliveryOccurredThisMinute('2026-11-26T07:00:00.000Z', new Date('2026-11-26T07:00:00.300Z'))).toBe('2026-11-26T07:00:00.000Z');
+    expect(deliveryOccurredThisMinute('2026-11-26T06:59:00.000Z', now)).toBeNull();
+    expect(deliveryOccurredThisMinute('2026-11-26T07:00:30.000Z', now)).toBeNull();
+    expect(deliveryOccurredThisMinute('2026-11-26T07:01:00.000Z', now)).toBeNull();
+    expect(deliveryOccurredThisMinute(undefined, now)).toBeNull();
+  });
+});

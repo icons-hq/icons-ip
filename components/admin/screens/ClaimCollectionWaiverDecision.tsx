@@ -20,7 +20,7 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
  * 여기서 사유와 근거 사진으로 회수 생략을 먼저 기록하면 그 출고지의 교환품 제작이 열리고, 주문 상세의 주문제작 처리에서
  * 제작을 마친 뒤 재출고 등록에서 회수 확인 없이 재출고한다. 사유·사진·하자 교환 여부는 DB가 다시 검사한다.
  * 사유는 제어 입력이라 실패한 제출 뒤에도 그대로 남고, 올린 사진은 숨은 id로만 보낸다(사진 본문은 다시 보내지 않는다).
- * 확인 체크는 두지 않는다 — 같은 사실을 확인창이 대상·결과와 함께 묻고, 서버 액션이 받는 확인 값은 화면이 채워 보낸다. */
+ * 확인 체크는 두지 않는다 — 같은 사실을 확인창이 대상·결과와 함께 묻는다. 서버 액션은 확인 값을 받지 않는다(DB 함수에도 그 인자가 없다). */
 /** 회수 생략 결정 확인창. 결정은 되돌리는 기능이 없어(ADR-0041) 대상 출고지와 결과를 셸 확인창에서 다시 확인받는다. */
 export function collectionWaiverConfirmRequest(originName: string): AdminConfirmRequest {
   return {
@@ -61,8 +61,6 @@ export function ClaimCollectionWaiverDecision({ claimId, shipmentId, originName 
     onSubmit={event => { confirmAdminSubmit(event, collectionWaiverConfirmRequest(originName)); }}>
     <input type="hidden" name="claimId" value={claimId} />
     <input type="hidden" name="shipmentId" value={shipmentId} />
-    {/* 서버 액션이 받는 확인 값. 체크 대신 화면이 채우고, 같은 사실은 확인창이 묻는다. */}
-    <input type="hidden" name="confirmed" value="on" />
     {evidence.map(file => <input key={file.id} type="hidden" name="evidenceFileId" value={file.id} />)}
     <AdminNotice tone="warning" title={`${originName} 회수 없이 교환품 제작 시작`} />
     <div className="flex flex-col gap-1.5">

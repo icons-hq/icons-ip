@@ -138,7 +138,7 @@ export function GoodsDeliveryRuleFields({ value, onChange }: { value: GoodsTerms
       </AdminFormGrid> : null}
       <GoodReadback>
         {rows ? <>수량별 배송비 · {rows}<br /></> : null}
-        상품 상세에는 &lsquo;{GOODS_DELIVERY_PAYMENT_READBACK[fields.paymentMode] ?? GOODS_DELIVERY_PAYMENT_READBACK.prepaid}&rsquo;로 보입니다. 지역 추가 배송비는 따로 더해집니다.
+        상품 상세에는 &lsquo;{GOODS_DELIVERY_PAYMENT_READBACK[fields.paymentMode] ?? GOODS_DELIVERY_PAYMENT_READBACK.prepaid}&rsquo;로 보입니다. 지역별 추가배송비는 따로 더해집니다.
       </GoodReadback>
     </> : null}
   </div>;

@@ -143,12 +143,20 @@ describe('읽기/봉인과 명시 오류',()=>{
   ['23514','shipping_region_policy_incomplete',"지역표나 적용 기간에 빠진 것이 있습니다. 적용 시작·종료, '표에 없는 지역', 지역표를 확인한 뒤 다시 저장해 주세요.",false],
   ['23514','shipping_charge_group_unavailable',"묶음그룹이 '사용 안 함'이거나 보관돼 있습니다. 묶음그룹을 '사용'으로 바꾼 뒤 다시 해 주세요.",false],
   ['23514','goods_aggregation_policy_owned_by_source','원상품에서 나눈 상품이라 원상품에서 바꿔야 합니다. 그 상품을 빼고 다시 해 주세요.',false],
+  ['23514','collect_contract_not_ready',"착불을 쓰는 상품인데 이 출고지에 '사용'으로 저장한 착불 조건이 없습니다. 배송정보 관리에서 출고지의 착불 조건을 먼저 '사용'으로 저장한 뒤 다시 해 주세요.",false],
   ['23514','checkout_contract_upgrade_required',"지금 쇼핑몰 설정에서는 묶음그룹을 '사용'으로 저장하거나 상품을 넣고 뺄 수 없습니다. 써야 하면 개발 담당자에게 요청해 주세요.",false],
   ['22023','invalid_shipping_charge_group_values','저장하지 못했습니다. 화면을 새로고침해 지금 저장된 내용을 확인한 뒤 다시 해 주세요.',false],
  ] as const)('DB 거절 %s %s는 고칠 방법까지 말하고, 다른 사람이 먼저 바꾼 경우만 changed로 알린다',async(code,message,error,changed)=>{
   const f=chargeAdminFixtures();mocks.rpc.mockResolvedValue({data:null,error:{code,message}});
   expect(await saveShippingChargeGroupAction(f.save)).toEqual({error,uncertain:false,conflict:code==='PT409',changed});
   expect(error).not.toMatch(/요청번호|기준 버전|운영 설정을 확인|거래 경로|합산군|[a-z_]{8,}/);
+ });
+ /* 상품을 넣는 함수는 막힌 이유의 이름을 그대로 오류로 던진다. 착불·구매자 선택 상품인데 그 출고지에 '사용'인 착불 조건이 없을 때의 이름이 collect_contract_not_ready다. */
+ it('상품을 넣다가 착불 조건이 없어 거절되면 일반 문구가 아니라 그 까닭과 고칠 곳을 말한다',async()=>{
+  const f=chargeAdminFixtures();mocks.rpc.mockResolvedValue({data:null,error:{code:'23514',message:'collect_contract_not_ready'}});
+  const result=await assignShippingChargeGroupAction(f.assign);
+  expect(result).toEqual({error:"착불을 쓰는 상품인데 이 출고지에 '사용'으로 저장한 착불 조건이 없습니다. 배송정보 관리에서 출고지의 착불 조건을 먼저 '사용'으로 저장한 뒤 다시 해 주세요.",uncertain:false,conflict:false,changed:false});
+  expect(JSON.stringify(result)).not.toContain('저장하지 못했습니다');
  });
  it('결과를 모를 때와 권한·형식 오류의 말',async()=>{
   const f=chargeAdminFixtures();mocks.rpc.mockResolvedValueOnce({data:null,error:{code:'XX000',message:'PRIVATE'}});

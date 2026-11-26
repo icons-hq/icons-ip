@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
+import { claimCancelApprovalConfirm, claimCancelApprovalMoneyConfirm, claimPanelConfirmRequest } from './claim-approval-confirm';
 import {
+  ADMIN_CANCEL_AMOUNT_RETRY,
+  ADMIN_CANCEL_AMOUNT_UNREAD,
+  ADMIN_CANCEL_APPROVE_MANUAL_NOTE,
   ADMIN_CONFIRM_BACK,
   ADMIN_ORDER_CONFIRM_CONSEQUENCE,
-  ADMIN_PARTIAL_REFUND_NOTE,
   ADMIN_VIRTUAL_ACCOUNT_REFUND_NOTE,
   adminBulkOrderConfirmRequest,
   adminCancelApproveRequest,
@@ -22,7 +25,7 @@ const payment = (overrides: Partial<{ id: string; provider: string | null; amoun
 });
 const order = (overrides: Record<string, unknown> = {}) => ({
   id: '11111111-1111-4111-8111-111111111111', orderNumber: '2026102710000042', buyerName: 'maple_fan', total: 32000, payments: [payment()], ...overrides,
-}) as Parameters<typeof adminStaffCancelRequest>[0];
+}) as Parameters<typeof adminStaffCancelRequest>[0] & Parameters<typeof adminOrderIdentityLine>[0];
 
 /*
  * 돈·재고·출고가 움직이는 버튼의 확인창은 누르기 전에 어느 주문인지(번호·구매자)와 얼마인지를 말한다.
@@ -35,21 +38,45 @@ describe('주문 처리 확인창', () => {
     expect(adminOrderIdentityLine(order(), 1234567)).toBe('주문 2026102710000042 · maple_fan · ₩1,234,567');
   });
 
-  it('전액 취소: 취소되는 금액·결제사·되돌릴 수 없음과, 부분 취소로 금액이 줄 수 있다는 사실을 말한다', () => {
-    const request = adminStaffCancelRequest(order());
+  const CONSEQUENCE = '되돌릴 수 없고, 재고·쿠폰·적립금이 돌아가며 구매자에게 취소 알림이 갑니다.';
+
+  it('전액 취소: 누르는 시점에 읽은 취소 금액·결제사·되돌릴 수 없음을 말한다', () => {
+    const request = adminStaffCancelRequest(order(), { amount: 32000, paidAmount: 32000 });
     expect(request.message).toBe([
       '주문 2026102710000042 · maple_fan · ₩32,000',
-      '토스 결제를 전액 취소합니다. 되돌릴 수 없고, 재고·쿠폰·적립금이 돌아가며 구매자에게 취소 알림이 갑니다.',
-      '재고 부족 부분 취소로 이미 환불한 금액이 있으면 그만큼 뺀 나머지만 취소합니다.',
+      `토스 결제를 전액 취소합니다. ${CONSEQUENCE}`,
     ].join('\n'));
-    expect(request).toMatchObject({ confirmLabel: '전액 취소', cancelLabel: ADMIN_CONFIRM_BACK, destructive: true });
-    expect(request.message).toContain(ADMIN_PARTIAL_REFUND_NOTE);
+    expect(request).toMatchObject({ title: '이 주문을 전액 취소할까요?', confirmLabel: '전액 취소', cancelLabel: ADMIN_CONFIRM_BACK, destructive: true });
   });
 
-  it('취소 금액은 결제완료 결제의 합이고, 실패한 결제는 더하지 않는다(처리 쪽 환불 계산과 같은 기준)', () => {
+  /* 40,000 결제 · 9,500 부분 취소 → 실제 취소는 30,500이다. 확인창이 결제 금액(40,000)을 취소 금액처럼 말하지 않는다. */
+  it('전액 취소: 앞서 부분 취소한 주문은 남은 결제 금액과 결제 금액을 함께 말한다', () => {
+    const request = adminStaffCancelRequest(order({ total: 40000, payments: [payment({ amount: 40000 })] }), { amount: 30500, paidAmount: 40000 });
+    expect(request.message).toBe([
+      '주문 2026102710000042 · maple_fan · ₩30,500',
+      `토스 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 ₩30,500을 취소합니다(결제 금액 ₩40,000). ${CONSEQUENCE}`,
+    ].join('\n'));
+    expect(adminStaffCancelRequest(order(), { amount: 0, paidAmount: 32000 }).message).toBe([
+      '주문 2026102710000042 · maple_fan · ₩0',
+      `토스 결제는 앞서 모두 취소해 더 취소할 금액이 없습니다. 결제사 취소 없이 주문을 취소합니다. ${CONSEQUENCE}`,
+    ].join('\n'));
+  });
+
+  it('전액 취소: 금액을 읽지 못했으면 금액을 지어내지 않고, 읽지 못했다고 말한 뒤 진행할지 묻는다', () => {
+    const request = adminStaffCancelRequest(order(), null);
+    expect(request.message).toBe([
+      '주문 2026102710000042 · maple_fan',
+      `${ADMIN_CANCEL_AMOUNT_UNREAD} 그대로 진행하면 토스 결제에 남아 있는 금액을 모두 취소합니다. ${CONSEQUENCE}`,
+      ADMIN_CANCEL_AMOUNT_RETRY,
+    ].join('\n'));
+    expect(ADMIN_CANCEL_AMOUNT_UNREAD).toBe('지금 취소 금액을 읽지 못했습니다.');
+    expect(request.message).not.toContain('₩');
+    expect(request).toMatchObject({ confirmLabel: '금액 확인 없이 전액 취소', cancelLabel: ADMIN_CONFIRM_BACK, destructive: true });
+  });
+
+  it('화면이 받은 결제 금액은 결제완료 결제의 합이고, 실패한 결제는 더하지 않는다(취소 금액은 누르는 시점에 따로 읽는다)', () => {
     const multi = order({ total: 50000, payments: [payment({ id: 'a', amount: 18000 }), payment({ id: 'b', amount: 12000 }), payment({ id: 'c', amount: 99000, status: 'failed' })] });
     expect(adminOrderCancelAmount(multi)).toBe(30000);
-    expect(adminStaffCancelRequest(multi).message).toContain('maple_fan · ₩30,000');
     /* 결제완료 결제가 없으면 주문 금액이다. */
     expect(adminOrderCancelAmount(order({ payments: [] }))).toBe(32000);
   });
@@ -67,30 +94,91 @@ describe('주문 처리 확인창', () => {
     expect(adminOrderCancelPaymentLabel(order({ virtualAccount: { state: 'deposited' } }))).toBe('토스 가상계좌');
     expect(adminOrderCancelPaymentLabel(order({ transferEscrow: { useEscrow: null, job: {} } }))).toBe('토스 계좌이체');
     expect(adminOrderCancelPaymentLabel(order({ payments: [payment({ provider: 'korpay' })], virtualAccount: { state: 'deposited' } }))).toBeNull();
-    expect(adminStaffCancelRequest(order({ payments: [payment({ provider: 'nicepay' })] })).message).toContain('\n나이스페이 결제를 전액 취소합니다.');
-    expect(adminStaffCancelRequest(order({ payments: [payment({ provider: 'korpay' })] })).message).toContain('\n결제를 전액 취소합니다.');
+    const full = { amount: 32000, paidAmount: 32000 };
+    expect(adminStaffCancelRequest(order({ payments: [payment({ provider: 'nicepay' })] }), full).message).toContain('\n나이스페이 결제를 전액 취소합니다.');
+    expect(adminStaffCancelRequest(order({ payments: [payment({ provider: 'korpay' })] }), full).message).toContain('\n결제를 전액 취소합니다.');
   });
 
   it('가상계좌 결제는 환불이 고객 환불 계좌로 나가고 계좌가 없으면 멈춘다는 사실을 덧붙인다', () => {
-    const request = adminStaffCancelRequest(order({ virtualAccount: { state: 'deposited' } }));
+    const request = adminStaffCancelRequest(order({ virtualAccount: { state: 'deposited' } }), { amount: 32000, paidAmount: 32000 });
     expect(request.message.split('\n')).toEqual([
       '주문 2026102710000042 · maple_fan · ₩32,000',
-      '토스 가상계좌 결제를 전액 취소합니다. 되돌릴 수 없고, 재고·쿠폰·적립금이 돌아가며 구매자에게 취소 알림이 갑니다.',
-      ADMIN_PARTIAL_REFUND_NOTE,
+      `토스 가상계좌 결제를 전액 취소합니다. ${CONSEQUENCE}`,
       ADMIN_VIRTUAL_ACCOUNT_REFUND_NOTE,
     ]);
-    expect(adminStaffCancelRequest(order()).message).not.toContain('환불 계좌');
+    expect(adminStaffCancelRequest(order({ virtualAccount: { state: 'deposited' } }), null).message.split('\n')[2]).toBe(ADMIN_VIRTUAL_ACCOUNT_REFUND_NOTE);
+    expect(adminStaffCancelRequest(order(), { amount: 32000, paidAmount: 32000 }).message).not.toContain('환불 계좌');
   });
 
-  it('취소 승인: 승인하면 일어나는 일과 금액을 말하고, 발송 뒤 반품 입고 확인은 묻지 않는다', () => {
-    const request = adminCancelApproveRequest(order());
-    expect(request.message).toBe([
-      '주문 2026102710000042 · maple_fan · ₩32,000',
-      '승인하면 결제 취소를 시작합니다. 결제 취소가 확인되면 주문이 취소되고 재고가 돌아갑니다.',
-      ADMIN_PARTIAL_REFUND_NOTE,
-    ].join('\n'));
-    expect(request.message).not.toContain('반품 물건');
-    expect(request).toMatchObject({ confirmLabel: '취소 승인', cancelLabel: '돌아가기', destructive: true });
+  /*
+   * 주문 처리 패널의 취소 승인은 취소·반품·교환 관리의 취소 승인과 같은 문구 함수를 쓴다(lib/admin/claim-approval-confirm).
+   * 같은 요청을 어느 화면에서 승인해도 같은 금액·같은 말을 본다.
+   */
+  describe('취소 승인', () => {
+    const target = { orderReference: '2026102710000042', buyerName: 'maple_fan' };
+
+    it('토스·나이스페이: 누르는 시점에 읽은 금액을 말한다 — 앞서 부분 취소한 주문은 남은 결제 금액과 결제 금액을 함께', () => {
+      const partial = order({ total: 40000, payments: [payment({ amount: 40000 })] });
+      const request = adminCancelApproveRequest(partial, { amount: 30500, paymentProvider: 'toss' });
+      expect(request).toEqual(claimPanelConfirmRequest(claimCancelApprovalMoneyConfirm({ autoCancelLabel: '토스', amount: 30500, paidAmount: 40000, target })));
+      expect(request).toEqual({
+        title: '취소 승인', confirmLabel: '30,500원 취소', cancelLabel: '돌아가기', destructive: true,
+        message: [
+          '주문 2026102710000042 · 구매자 maple_fan',
+          '토스 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 30,500원을 취소합니다(결제 금액 40,000원).',
+          '승인하면 바로 결제사에 취소를 요청합니다. 되돌릴 수 없고, 취소가 확인되면 주문 취소·재고 복원까지 함께 끝납니다.',
+        ].join('\n'),
+      });
+      const full = adminCancelApproveRequest(order({ payments: [payment({ provider: 'nicepay' })] }), { amount: 32000, paymentProvider: 'nicepay' });
+      expect(full.message.split('\n')[1]).toBe('나이스페이 결제 전액 32,000원을 취소합니다.');
+      expect(full.message).not.toContain('반품 물건');
+    });
+
+    it('결제 금액의 기준은 실패하지 않은 가장 최근 결제다', () => {
+      const retried = order({ payments: [payment({ id: 'old', amount: 99000, status: 'failed' }), payment({ id: 'new', amount: 40000 })] });
+      expect(adminCancelApproveRequest(retried, { amount: 30500, paymentProvider: 'toss' }).message).toContain('(결제 금액 40,000원)');
+    });
+
+    it('결제 전 주문: 바로 주문이 취소된다고 말한다(취소 관리와 같은 문장)', () => {
+      const request = adminCancelApproveRequest(order({ payments: [] }), { amount: null, paymentProvider: null });
+      expect(request).toEqual(claimPanelConfirmRequest(claimCancelApprovalConfirm(null, target)));
+      expect(request.message).toBe('주문 2026102710000042 · 구매자 maple_fan\n취소를 승인할까요? 결제 전 주문은 바로 주문이 취소되고 되돌릴 수 없습니다.');
+      expect(request).toMatchObject({ confirmLabel: '승인하고 주문 취소', destructive: true });
+    });
+
+    /* 이 화면의 승인은 결제와 관계없이 결제 취소 확정까지 시도한다. 결제사 취소가 없는 결제는 확정되지 않아 요청이 결제확인필요로 남는다. */
+    it.each([
+      ['bank_transfer', '취소를 승인할까요? 승인 뒤 환불계좌 송금 절차로 진행합니다.'],
+      ['korpay', '취소를 승인할까요? 승인 뒤 코페이 취소 접수와 환불 완료 확정으로 진행합니다.'],
+    ])('%s: 취소 관리와 같은 문장에, 이 화면에서 승인하면 생기는 일을 덧붙인다', (provider, sentence) => {
+      const request = adminCancelApproveRequest(order({ payments: [payment({ provider })] }), { amount: 32000, paymentProvider: provider });
+      expect(request.message.split('\n')).toEqual(['주문 2026102710000042 · 구매자 maple_fan', sentence, ADMIN_CANCEL_APPROVE_MANUAL_NOTE]);
+      expect(request.message).toContain(claimCancelApprovalConfirm(provider, target).message);
+      expect(request).toMatchObject({ title: '취소 승인', confirmLabel: '승인하고 환불 처리 시작', cancelLabel: '돌아가기' });
+      expect(request.destructive).toBeUndefined();
+      expect(request.message).not.toContain('원을 취소');
+    });
+
+    it('이 화면에서 승인하면 생기는 일은 화면에 보이는 이름으로 말한다', () => {
+      expect(ADMIN_CANCEL_APPROVE_MANUAL_NOTE).toBe("이 화면에서 승인하면 요청이 '결제확인필요'로 바뀝니다. 승인만으로는 주문이 취소되지 않고 재고도 그대로입니다. 환불은 취소·반품·교환 관리에서 이 요청을 열어 이어서 합니다.");
+    });
+
+    it.each([
+      ['읽지 못함', null],
+      ['결제사 취소인데 금액이 없음', { amount: null, paymentProvider: 'toss' }],
+    ])('금액을 읽지 못했으면(%s) 금액을 지어내지 않고, 읽지 못했다고 말한 뒤 진행할지 묻는다', (_label, approval) => {
+      const request = adminCancelApproveRequest(order(), approval);
+      expect(request.message).toBe([
+        '주문 2026102710000042 · 구매자 maple_fan',
+        `${ADMIN_CANCEL_AMOUNT_UNREAD} 그대로 승인하면 토스 결제는 남은 결제 금액을 모두 바로 취소하고 되돌릴 수 없습니다.`,
+        ADMIN_CANCEL_AMOUNT_RETRY,
+      ].join('\n'));
+      expect(request.message).not.toMatch(/₩|\d원/);
+      expect(request).toMatchObject({ title: '취소 승인', confirmLabel: '금액 확인 없이 승인', cancelLabel: '돌아가기', destructive: true });
+      /* 화면이 결제사를 모르면 결제사 이름을 단정하지 않는다. */
+      expect(adminCancelApproveRequest(order({ payments: [payment({ provider: 'bank_transfer' })] }), null).message)
+        .toContain('그대로 승인하면 결제사에서 바로 취소되는 결제(토스·나이스페이)는 남은 결제 금액을 모두 바로 취소하고 되돌릴 수 없습니다.');
+    });
   });
 
   it('취소 거부: 입력한 사유가 구매자 화면에 보인다고 알린다', () => {
@@ -129,7 +217,10 @@ describe('주문 처리 확인창', () => {
 
   it('확인창 글에 쓰지 않는 표현이 없다(번역투·개발 용어)', () => {
     const texts = [
-      adminStaffCancelRequest(order()), adminCancelApproveRequest(order()), adminCancelRejectRequest(order()), adminOrderConfirmRequest(order()),
+      adminStaffCancelRequest(order(), { amount: 30500, paidAmount: 40000 }), adminStaffCancelRequest(order(), null),
+      adminCancelApproveRequest(order(), { amount: 30500, paymentProvider: 'toss' }), adminCancelApproveRequest(order(), null),
+      adminCancelApproveRequest(order(), { amount: 32000, paymentProvider: 'bank_transfer' }), adminCancelApproveRequest(order(), { amount: null, paymentProvider: null }),
+      adminCancelRejectRequest(order()), adminOrderConfirmRequest(order()),
       adminBulkOrderConfirmRequest(2), adminCancelRecheckRequest(order(), '상태 다시 확인'), adminKorpayRecoveryRequest({ providerOrderId: 'O1', amount: 1, currency: 'KRW' }),
     ].flatMap(request => [request.title ?? '', request.message, request.confirmLabel ?? '']);
     for (const text of texts) {

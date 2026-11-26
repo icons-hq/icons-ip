@@ -1,4 +1,6 @@
 'use client';
+import { ADMIN_DIALOG_CLOSE_DIRTY_CONFIRM } from '@/lib/admin/dialog-close';
+import { focusFirstInvalid } from '@/lib/admin/focus-invalid';
 import { useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { readShippingSettingsTemplateAction } from '@/app/admin/shipping-settings-template-actions';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
@@ -10,7 +12,7 @@ import {
 import { goodsTermsDraft, prepareGoodsTermsInput, type DeliveryTermsInput } from '@/lib/admin/goods-transaction-terms';
 import { prepareShippingFulfillment, shippingFulfillmentDraft, shippingFulfillmentProblem, shippingFulfillmentReadback } from '@/lib/admin/shipping-settings-fulfillment';
 import {
-  CHANGED_BY_OTHER, SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE, TEMPLATE_CLOSE_DIRTY_CONFIRM, TEMPLATE_DISCARD_INPUT_CONFIRM, TEMPLATE_DISCARD_INPUT_LABEL,
+  CHANGED_BY_OTHER, SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE, TEMPLATE_DISCARD_INPUT_CONFIRM, TEMPLATE_DISCARD_INPUT_LABEL,
   TEMPLATE_LATEST_UNREAD_MESSAGE, TEMPLATE_SAVE_OVER_LATEST_LABEL, TEMPLATE_SAVE_OVER_LATEST_NOTE, reopenClosedDialog,
 } from '@/lib/admin/goods-template-save';
 import { adminConfirm } from '@/lib/admin/confirm';
@@ -112,18 +114,18 @@ export function ShippingSettingsTemplateForm({ template, newId, origins, regions
     event.preventDefault(); if (locked) return;
     const form = new FormData(event.currentTarget);
     const fulfillment = prepareShippingFulfillment(fulfillmentDraft);
-    if (!fulfillment) { setErrors({ fulfillment: shippingFulfillmentProblem(fulfillmentDraft) ?? '' }); return; }
+    if (!fulfillment) { setErrors({ fulfillment: shippingFulfillmentProblem(fulfillmentDraft) ?? '' }); focusFirstInvalid(root.current); return; }
     form.set('fulfillment', JSON.stringify(fulfillment));
-    if (chargeMode === 'assign' && !chargeId) { setErrors({ chargeGroup: '넣을 묶음그룹을 골라 주세요.' }); return; }
+    if (chargeMode === 'assign' && !chargeId) { setErrors({ chargeGroup: '넣을 묶음그룹을 골라 주세요.' }); focusFirstInvalid(root.current); return; }
     form.set('chargeGroup', JSON.stringify(chargeMode === 'assign' ? { mode: chargeMode, groupId: chargeId } : { mode: chargeMode }));
     if (deliveryMode === 'preserve') form.set('delivery', JSON.stringify({ mode: 'preserve' }));
     else {
       const prepared = readDelivery();
-      if (!prepared.ok) { setErrors({ delivery: prepared.error }); return; }
+      if (!prepared.ok) { setErrors({ delivery: prepared.error }); focusFirstInvalid(root.current); return; }
       form.set('delivery', JSON.stringify({ mode: 'replace', policy: prepared.value as DeliveryTermsInput }));
     }
     const parsed = parseShippingSettingsTemplateForm(form);
-    if (!parsed.ok) { setErrors(parsed.errors); return; }
+    if (!parsed.ok) { setErrors(parsed.errors); focusFirstInvalid(root.current); return; }
     setErrors({}); setNotice('');
     sent.current = { command: 'save', templateId: parsed.id, ...identity, name: parsed.name, enabled: parsed.enabled, settings: parsed.settings };
     await operation.send({ ...sent.current, operationId: crypto.randomUUID(), expectedRevision: parsed.revision });
@@ -151,7 +153,7 @@ export function ShippingSettingsTemplateForm({ template, newId, origins, regions
   }
   async function close() {
     if (pending || unknown) return;
-    if (touched.current && !await adminConfirm(TEMPLATE_CLOSE_DIRTY_CONFIRM)) { reopenClosedDialog(root.current); return; }
+    if (touched.current && !await adminConfirm(ADMIN_DIALOG_CLOSE_DIRTY_CONFIRM)) { reopenClosedDialog(root.current); return; }
     onClose(conflict);
   }
   /* 고르면 열리는 입력 한 묶음: 체크 한 줄 + (체크했을 때만) 그 입력. */
@@ -162,7 +164,7 @@ export function ShippingSettingsTemplateForm({ template, newId, origins, regions
   const feeCard = (type: typeof feeType, title: string, description: string) => <GoodChoiceCard name="feeType" value={type} checked={feeType === type} onChange={() => setFeeType(type)} title={title} description={description}
     aria-invalid={errors.feeType ? 'true' : undefined} aria-describedby={errors.feeType ? 'shipping-settings-feeType-error' : undefined} />;
   return <CustomerServiceDialog title={template ? '배송정보 템플릿 수정' : '배송정보 템플릿 등록'} onClose={() => { void close(); }} busy={pending || unknown} wide>
-    <form className="flex min-w-0 flex-col gap-4" data-shipping-editor="" onChange={touch} onSubmit={submit} ref={root}>
+    <form className="flex min-w-0 flex-col gap-4" data-shipping-editor="" noValidate onChange={touch} onSubmit={submit} ref={root}>
       <input type="hidden" name="id" value={templateId} /><input type="hidden" name="revision" value={revision} />
       <fieldset disabled={locked} className="m-0 grid min-w-0 grid-cols-1 gap-x-5 gap-y-4 border-0 p-0 sm:grid-cols-2">
         <label className={FIELD_LABEL} htmlFor="shipping-settings-name">템플릿 이름<Input {...props('name')} defaultValue={template?.name ?? ''} maxLength={80} required placeholder="예: 기본 택배 배송" />{error('name')}</label>

@@ -15,7 +15,7 @@ beforeEach(() => { vi.clearAllMocks(); mocks.access.mockResolvedValue({ user: { 
 describe('강제 배송완료 주문 고르기 조회', () => {
   it('강제 배송완료와 같은 권한(sales.manage)을 먼저 확인하고, 권한이 없으면 조회하지 않는다', async () => {
     mocks.access.mockResolvedValue(null);
-    expect(await searchForcedDeliveryOrdersAction({ query: '', field: 'order', filter: 'confirmed', page: 1 })).toEqual({ ok: false, error: '주문을 찾으려면 주문 관리 권한이 필요합니다.' });
+    expect(await searchForcedDeliveryOrdersAction({ query: '', field: 'order', filter: 'confirmed', page: 1 })).toEqual({ ok: false, error: '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.' });
     expect(mocks.access).toHaveBeenCalledWith('/admin/sales/dispatch', { capability: 'sales.manage' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -58,7 +58,7 @@ describe('강제 배송완료 주문 고르기 조회', () => {
 
   it('조회 권한 거절과 읽기 실패는 고칠 방법이 있는 문구로, 모르는 모양의 결과는 통째로 거절한다', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'operator_capability_required' } });
-    expect(await searchForcedDeliveryOrdersAction({})).toEqual({ ok: false, error: '주문을 찾으려면 주문 관리 권한이 필요합니다.' });
+    expect(await searchForcedDeliveryOrdersAction({})).toEqual({ ok: false, error: '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.' });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '57014', message: 'canceling statement due to statement timeout' } });
     expect(await searchForcedDeliveryOrdersAction({})).toEqual({ ok: false, error: '주문 목록을 불러오지 못했습니다. 잠시 뒤 다시 검색해주세요.' });
     mocks.rpc.mockResolvedValueOnce({ data: [row({ status: 'paid' })], error: null });

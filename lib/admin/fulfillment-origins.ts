@@ -65,8 +65,24 @@ export interface OriginRegionalFeeUse {
   /** 활성으로 정했지만 적용 시작 전인 택배사 코드. */
   scheduledCarrierCodes: string[];
 }
-/** 저장 전에 알릴 영향. 읽지 못한 것은 null이다(화면은 모른다고 말하고 안전하다고 하지 않는다). */
-export interface OriginSaveImpact { goods: OriginGoodsImpact | null; regionalFee: OriginRegionalFeeUse | null }
+/**
+ * 이 출고지에서 '이 묶음그룹의 지역표로 정하기'를 쓰는 '사용' 묶음그룹 가운데 지금 적용 기간 안인 것을 지역표의 택배사별로 센 값.
+ * 주문 견적(`private.calculate_shipping_charge_group_shipping`)은 이런 묶음그룹의 지역표 택배사가 출고지의 기본 택배사와 다르면
+ * 그 묶음그룹 상품의 새 주문을 막는다.
+ */
+export interface OriginChargeGroupUse {
+  /** 묶음그룹 지역표의 택배사 코드. */
+  carrierCode: string;
+  /** 그 택배사로 지역표를 정한 묶음그룹 수. */
+  groups: number;
+  /** 그 묶음그룹들에 넣은 상품 수(묶음그룹마다 넣은 상품의 합). */
+  goods: number;
+}
+/**
+ * 저장 전에 알릴 영향. 읽지 못한 것은 null이다(화면은 모른다고 말하고 안전하다고 하지 않는다).
+ * `chargeGroups`는 읽지 않은 화면에서는 없다(그때는 묶음그룹에 대해 말하지 않는다).
+ */
+export interface OriginSaveImpact { goods: OriginGoodsImpact | null; regionalFee: OriginRegionalFeeUse | null; chargeGroups?: OriginChargeGroupUse[] | null }
 
 /** 금액 칸의 글을 숫자로. 비었으면 null, 0 이상의 정수가 아니면 NaN. */
 function wonOf(text: string): number | null {
@@ -116,6 +132,29 @@ export function originCarrierChangeWarning(input: {
       : `지역별 추가배송비가 ${label(from)} 기준으로 정해져 있어 ${label(to)}에는 적용되지 않습니다. 바꾼 뒤 지역별 추가배송비에서 ${label(to)} 기준으로 만들어 적용하면 새 주문을 다시 받습니다.` };
 }
 
+/**
+ * 기본 택배사를 바꾸면 자체 지역표를 쓰는 묶음그룹 상품의 새 주문이 막히는가. 그런 '사용' 묶음그룹은 지역표의 택배사가 출고지의 기본 택배사와 같아야 주문을 받는다.
+ * 지금 기본 택배사(`from`)로 지역표를 정한 묶음그룹이 있으면 바꾸는 순간 그 묶음그룹 상품의 새 주문이 막힌다 — 묶음그룹의 [수정]에서 지역표의 택배사를 맞출 때까지다.
+ * 다음 경우에는 알릴 것이 없어 null이다: 출고지가 새 주문을 받지 않을 때, 택배사가 그대로일 때, 묶음그룹을 읽지 않은 화면(`undefined`),
+ * 지금 기본 택배사로 지역표를 정한 묶음그룹이 없을 때(이미 막혀 있거나 영향받는 묶음그룹이 없다).
+ * 묶음그룹을 읽지 못했으면(`null`) 막히는지 모른다고 말한다.
+ */
+export function originCarrierChangeGroupWarning(input: {
+  from: string; to: string; active: boolean; chargeGroups: OriginChargeGroupUse[] | null | undefined; label: (carrierCode: string) => string;
+}): OriginCarrierChangeWarning | null {
+  const { from, to, active, chargeGroups, label } = input;
+  if (!active || !to || from === to || chargeGroups === undefined) return null;
+  if (chargeGroups === null) {
+    return { certain: false, title: '묶음그룹 상품의 새 주문이 막히는지 확인하지 못했습니다',
+      body: '배송비 묶음그룹을 읽지 못했습니다. 이 출고지에 자체 지역표를 쓰는 묶음그룹이 있으면 택배사를 바꾼 뒤 그 묶음그룹 상품의 새 주문이 막힐 수 있으니, 저장하기 전에 배송비 묶음그룹 목록에서 확인해 주세요.' };
+  }
+  const affected = from ? chargeGroups.find(use => use.carrierCode === from && use.groups > 0) : undefined;
+  if (!affected) return null;
+  return { certain: true, title: '바꾸면 묶음그룹 상품의 새 주문이 막힙니다',
+    body: `자체 지역표를 쓰는 묶음그룹 ${affected.groups.toLocaleString('ko-KR')}개(넣은 상품 ${affected.goods.toLocaleString('ko-KR')}개)는 지역표가 ${label(from)} 기준이라 ${label(to)}에는 맞지 않습니다. `
+      + `배송비 묶음그룹 목록의 [수정]에서 지역표의 택배사를 ${label(to)} 기준으로 맞출 때까지 그 묶음그룹 상품의 새 주문이 막힙니다.` };
+}
+
 /** 출고지를 사용 안 함으로 바꿀 때 영향받는 상품 한 줄. 상품은 고객에게 계속 보이고 새 주문만 막힌다(`goods_public_read`는 출고지를 보지 않는다). */
 export function originDeactivateGoodsLine(goods: OriginGoodsImpact | null | undefined): string {
   if (!goods) return '이 출고지의 공개 상품은 고객에게 계속 보이지만 새 주문은 받을 수 없습니다.';
@@ -138,7 +177,7 @@ export function originDeactivateRestrictionLine(exportTemplate: string): string 
 type SaveConfirmValues = Pick<FulfillmentOriginFormValues, 'active' | 'defaultCarrier' | 'baseFee' | 'freeThreshold'>;
 /**
  * 저장 전에 한 번 묻는 확인창. 새 주문을 막거나 돈이 바뀌는 저장에만 둔다 — 출고지를 사용 안 함으로 바꿀 때(영향받는 공개 상품 수),
- * 사용 중인 출고지의 기본 택배사를 바꿔 새 주문이 막힐 때, 사용 중인 출고지의 기본 배송비·무료 배송 기준을 바꿀 때.
+ * 사용 중인 출고지의 기본 택배사를 바꿔 새 주문이 막힐 때(지역별 추가배송비 또는 자체 지역표를 쓰는 묶음그룹 상품), 사용 중인 출고지의 기본 배송비·무료 배송 기준을 바꿀 때.
  * `before`는 지금 저장돼 있는 값(다른 사람이 먼저 바꿨다면 그 사람이 저장한 값), `after`는 저장하려는 값이다. 묻지 않을 저장이면 null.
  */
 export function fulfillmentOriginSaveConfirm(input: {
@@ -154,7 +193,10 @@ export function fulfillmentOriginSaveConfirm(input: {
   if (willBeActive) {
     /* 영향을 읽어 오지 않은 화면(새 출고지·읽기 전용)은 알릴 것이 없다. */
     const warning = impact ? originCarrierChangeWarning({ from: before.defaultCarrier, to: after.defaultCarrier, active: true, regionalFee: impact.regionalFee, label }) : null;
-    if (warning) sections.push({ kind: 'carrier', text: [`기본 택배사: ${label(before.defaultCarrier)} → ${label(after.defaultCarrier)}`, warning.body].join('\n') });
+    const groupWarning = impact ? originCarrierChangeGroupWarning({ from: before.defaultCarrier, to: after.defaultCarrier, active: true, chargeGroups: impact.chargeGroups, label }) : null;
+    if (warning || groupWarning) {
+      sections.push({ kind: 'carrier', text: [`기본 택배사: ${label(before.defaultCarrier)} → ${label(after.defaultCarrier)}`, warning?.body, groupWarning?.body].filter(Boolean).join('\n') });
+    }
     if (wasActive) {
       const oldBase = wonOf(before.baseFee), newBase = wonOf(after.baseFee), oldThreshold = wonOf(before.freeThreshold), newThreshold = wonOf(after.freeThreshold);
       const valid = oldBase !== null && newBase !== null && !Number.isNaN(oldBase) && !Number.isNaN(newBase) && !Number.isNaN(oldThreshold) && !Number.isNaN(newThreshold);

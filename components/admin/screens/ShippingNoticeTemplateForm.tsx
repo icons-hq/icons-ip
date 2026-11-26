@@ -1,5 +1,7 @@
 'use client';
 
+import { ADMIN_DIALOG_CLOSE_DIRTY_CONFIRM } from '@/lib/admin/dialog-close';
+import { focusFirstInvalid } from '@/lib/admin/focus-invalid';
 import { createContext, useContext, useId, useRef, useState, type FormEvent, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
@@ -17,7 +19,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { adminConfirm } from '@/lib/admin/confirm';
 import {
-  CHANGED_BY_OTHER, SAVE_CHECK_LABEL, SAVE_FAILED_MESSAGE, SAVE_UNKNOWN_MESSAGE, TEMPLATE_CLOSE_DIRTY_CONFIRM, TEMPLATE_DISCARD_INPUT_CONFIRM,
+  CHANGED_BY_OTHER, SAVE_CHECK_LABEL, SAVE_FAILED_MESSAGE, SAVE_UNKNOWN_MESSAGE, TEMPLATE_DISCARD_INPUT_CONFIRM,
   TEMPLATE_DISCARD_INPUT_LABEL, TEMPLATE_LATEST_UNREAD_MESSAGE, TEMPLATE_SAVE_OVER_LATEST_LABEL, TEMPLATE_SAVE_OVER_LATEST_NOTE,
   reopenClosedDialog, templateCloseUnknownConfirm,
 } from '@/lib/admin/goods-template-save';
@@ -171,7 +173,8 @@ export function ShippingNoticeTemplateEditor({ template, onClose, onDone }: {
     if (result.conflict) { setConflict(true); setLatest(found && found !== 'failed' ? found : null); }
   }
   async function saveInput() {
-    if (busy.current || uncertain || conflict || !checkInput()) return;
+    if (busy.current || uncertain || conflict) return;
+    if (!checkInput()) { focusFirstInvalid(form.current); return; }
     /* 사용 중인 템플릿을 고친 것 없이 저장하면 바뀌는 것이 없다. 묻지도 보내지도 않는다(준비 중인 템플릿은 저장해야 고를 수 있어 그대로 보낸다). */
     if (base?.status === 'active' && !dirty) { setMessage(NOTHING_CHANGED_MESSAGE); return; }
     if (base) {
@@ -190,7 +193,7 @@ export function ShippingNoticeTemplateEditor({ template, onClose, onDone }: {
     if (busy.current || !base) return;
     /* 두 길을 고르는 동안에는 '다른 사람이 먼저 바꿨습니다'가 계속 보여야 한다. 빠진 칸은 그 칸에서 따로 말한다. */
     const ready = checkInput(); setMessage(CHANGED_BY_OTHER);
-    if (!ready) return;
+    if (!ready) { focusFirstInvalid(form.current); return; }
     let target = latest;
     if (!target) {
       busy.current = true; setPending(true);
@@ -212,7 +215,7 @@ export function ShippingNoticeTemplateEditor({ template, onClose, onDone }: {
   async function close() {
     if (busy.current) return;
     if (uncertain) { if (await adminConfirm(templateCloseUnknownConfirm(false))) onDone(null); else reopenClosedDialog(form.current); return; }
-    if (dirty && !await adminConfirm(TEMPLATE_CLOSE_DIRTY_CONFIRM)) { reopenClosedDialog(form.current); return; }
+    if (dirty && !await adminConfirm(ADMIN_DIALOG_CLOSE_DIRTY_CONFIRM)) { reopenClosedDialog(form.current); return; }
     if (conflict) onDone(null); else onClose();
   }
   const field = (key: keyof ShippingNoticeTemplateValues) => ({
@@ -231,7 +234,7 @@ export function ShippingNoticeTemplateEditor({ template, onClose, onDone }: {
         <AdminField label="배송 안내" inputId={`${prefix}-shippingNotice`} error={errors.shippingNotice} hint="배송비는 여기 적지 않아도 상품 상세에 따로 나옵니다.">
           <Textarea {...field('shippingNotice')} maxLength={SHIPPING_NOTICE_TEMPLATE_NOTICE_MAX} onChange={(event) => change('shippingNotice', event.target.value)} placeholder="예: 결제한 날부터 2~3일 안에 보냅니다." rows={5} />
         </AdminField>
-        <AdminField label="도서산간 안내 (선택)" inputId={`${prefix}-remoteAreaNotice`} error={errors.remoteAreaNotice} hint="추가배송비 금액은 적지 않습니다. ‘지역별 추가배송비 관리’에 넣은 금액이 상품 상세에 따로 나옵니다.">
+        <AdminField label="도서산간 안내 (선택)" inputId={`${prefix}-remoteAreaNotice`} error={errors.remoteAreaNotice} hint="추가배송비 금액은 적지 않습니다. 지역별 추가배송비를 적용 중인 출고지의 상품은 금액이 상품 상세에 따로 나오고, 정확한 금액은 주문서에서 주소를 넣으면 나옵니다.">
           <Textarea {...field('remoteAreaNotice')} maxLength={SHIPPING_NOTICE_TEMPLATE_NOTICE_MAX} onChange={(event) => change('remoteAreaNotice', event.target.value)} placeholder="예: 제주·도서산간은 하루 이틀 더 걸립니다." rows={3} />
         </AdminField>
         <AdminField label="교환·반품 안내" inputId={`${prefix}-returnExchangeNotice`} error={errors.returnExchangeNotice} hint="반품 주소와 반품비는 여기 적지 않아도 상품 상세에 따로 나옵니다.">

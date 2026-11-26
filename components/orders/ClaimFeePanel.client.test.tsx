@@ -139,6 +139,21 @@ describe('운영자 화면(요청 상세)', () => {
     expect(screen()).toContain('실제 입금 확인 내용을 저장했습니다.');
   });
 
+  it('입금·반환 시각이 청구한 시각보다 앞이거나 지금보다 뒤이면 확인창 전에 시각 칸이 왜 틀렸는지 말하고 보내지 않는다', async () => {
+    await openOperator(operatorDoc([invoice(1, 'unpaid')])); await click('실제 입금 확인');
+    change('입금 확인 근거', '거래 일련번호 0123');
+    change('실제 입금된 시각', '2026-10-15T10:00'); await submit();
+    expect(screen()).toContain('실제 입금된 시각이 청구한 시각(2026. 10. 16. 15:00)보다 앞입니다. 청구한 뒤의 시각으로 적어주세요. 같은 분이면 한 분 뒤로 적습니다.');
+    expect(mocks.confirm).not.toHaveBeenCalled(); expect(mocks.change).not.toHaveBeenCalled();
+    change('실제 입금된 시각', '2999-01-01T00:00'); await submit();
+    expect(screen()).toContain('실제 입금된 시각이 지금보다 뒤입니다. 지금이거나 그 이전 시각으로 적어주세요.');
+    expect(screen()).not.toContain('청구한 시각(');
+    expect(mocks.confirm).not.toHaveBeenCalled(); expect(mocks.change).not.toHaveBeenCalled();
+    /* 고치면 그대로 확인창으로 간다. */
+    change('실제 입금된 시각', '2026-10-16T16:00'); mocks.change.mockResolvedValueOnce({ document: operatorDoc([invoice(1, 'paid')]) }); await submit();
+    expect(mocks.confirm).toHaveBeenCalledOnce(); expect(mocks.change).toHaveBeenCalledOnce();
+  });
+
   it('면제·취소·반환도 확인 체크 없이 사유를 적고 확인창으로 묻는다', async () => {
     await openOperator(operatorDoc([invoice(1, 'unpaid')])); await click('청구 면제');
     expect(labels()).toEqual(['면제 사유 (필수)운영자에게만 보입니다. 고객의 계좌번호·연락처는 적지 마세요.']);

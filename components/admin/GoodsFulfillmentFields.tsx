@@ -63,7 +63,7 @@ export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSumm
     <div className={`${GOOD_NOTE_CLASS} flex min-w-0 flex-col gap-1.5`} aria-live="polite" data-good-shipping-policy="">
       <strong className="font-medium">{goodShippingFeeReadback({ feeType, origin, individualFee: Number(fee) || 0 })}</strong>
       {feeType === 'individual' ? <p className="text-muted-foreground">수량·옵션이 여러 개여도 한 번만 받습니다.</p> : null}
-      {feeType === 'policy' ? <a className="w-fit underline underline-offset-4" href="/admin/settings/origins" target="_blank" rel="noreferrer">출고지 정책 확인 (새 탭)</a> : null}
+      {feeType === 'policy' ? <a className="w-fit underline underline-offset-4" href="/admin/settings/origins" target="_blank" rel="noreferrer">출고지 설정 확인 (새 탭)</a> : null}
       <p className="text-muted-foreground wrap-anywhere">{region?.label ?? '지역별 추가배송비 확인 필요'} · {region?.detail ?? '지역별 추가배송비 화면에서 적용 중인지 확인해주세요.'} <a className="text-foreground underline underline-offset-4" href="/admin/settings/shipping-regions" target="_blank" rel="noreferrer">지역별 추가배송비 (새 탭)</a></p>
       <p className="text-muted-foreground">이미 받은 주문의 배송비와 반품 주소는 바뀌지 않습니다.</p>
     </div>

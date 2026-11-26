@@ -184,7 +184,7 @@ it('사유를 적고 확인하면 같은 요청 번호로 실행하고, 결과�
   expect(mocks.refresh).toHaveBeenCalledOnce();
 });
 
-it('출고지시를 이미 전달한 배송 건·디지털 파일 배송 건·합포장 동반 주문은 확인창이 말하고, 체크 없이 사유만으로 실행한다', async () => {
+it('출고지시를 이미 보낸 배송 건·디지털 파일 배송 건·합포장 동반 주문은 확인창이 말하고, 체크 없이 사유만으로 실행한다', async () => {
   pick();
   const mixed = { ...preview, orderCount: 3, shipments: [shipment(1, 'parcel', { exportedAt: '2026-11-11T01:00:00Z' }), shipment(2, 'quick', { orderNumber: '2026111110000002' }), shipment(3, 'digital')] };
   mocks.preview.mockResolvedValue({ preview: mixed });
@@ -193,7 +193,7 @@ it('출고지시를 이미 전달한 배송 건·디지털 파일 배송 건·�
   await start();
   const message = requests[0].message;
   expect(message).toContain('배송 건: 택배 발송 대기 1건, 퀵 발송 대기 1건');
-  expect(message).toContain('출고지시를 이미 전달한 배송 건 1건이 있습니다'); expect(message).toContain('창고에 출고 보류를 먼저 요청해주세요');
+  expect(message).toContain('출고지시를 이미 보낸 배송 건 1건이 있습니다'); expect(message).toContain('창고에 출고 보류를 먼저 요청해주세요');
   expect(message).toContain('디지털 파일 배송 건 1건은 구매자가 내려받을 때 완료되므로 뺍니다'); expect(message).toContain('"배송이 시작됐어요" 앱 알림이 갈 수 있습니다');
   expect(message).not.toContain('"배송이 완료됐어요"가 갑니다');
   expect(message).toContain('합포장으로 묶인 주문 3개가 함께 배송완료됩니다(다른 주문: 2026111110000002)');

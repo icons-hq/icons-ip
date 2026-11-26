@@ -226,7 +226,7 @@ describe('나머지 섹션의 안내 글', () => {
     const draft = (session.props.children as (identity: unknown, scope: unknown) => Element)({}, {});
     const fulfillment = (draft.type as (props: unknown) => ReactNode)(draft.props);
     const fulfillmentLegend = nodes(fulfillment).find(node => node.type === 'legend')!;
-    expect([fulfillmentLegend.props.className, text(fulfillmentLegend.props.children as ReactNode)]).toEqual(['sr-only', '상품 제공 방식']);
+    expect([fulfillmentLegend.props.className, text(fulfillmentLegend.props.children as ReactNode)]).toEqual(['sr-only', '수령 방식']);
     /* 설정 근거·확인 체크가 없어 채우라는 안내도 없다(2026-11-25 결정). 주문 후 제작은 체크 하나가 스스로 말해 도입 문장을 두지 않는다. */
     expect(intro(fulfillment)).toEqual(['택배만 쓰면 바꿀 것이 없습니다.']);
     expect(intro(production)).toEqual([]);

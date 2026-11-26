@@ -2,10 +2,12 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
-  adminClaimFeeErrorCopy, claimFeeActionConfirm, claimFeePolicyChangedMessage, claimFeePolicyConfirmMessage, claimFeePolicyFailure, claimFeePolicyReadback, claimFeePolicySummary,
-  claimFeePolicyValues, parseClaimFeePolicyAmount, sameClaimFeePolicyValues,
+  adminClaimFeeErrorCopy, claimFeeActionConfirm, claimFeeTimeProblem, claimFeePolicyChangedMessage, claimFeePolicyConfirmMessage, claimFeePolicyFailure, claimFeePolicyReadback, claimFeePolicySummary,
+  claimFeePolicyValues, parseClaimFeePolicyAmount, partialReturnFeePanelNote, sameClaimFeePolicyValues,
 } from './claim-fees';
 import { claimFeeError } from '@/lib/orders/claim-fees';
+import { parseReturnFeeDeduction, returnFeeDeductionFeePanelNote } from '@/lib/claims/return-fee-deduction';
+import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
 
 const off = { enabled: false, returnAmount: null, exchangeAmount: null };
 const on = { enabled: true, returnAmount: 3000, exchangeAmount: 6000 };
@@ -40,7 +42,7 @@ describe('배송비 청구 설정의 값과 말', () => {
     /* 켬: 이미 접수된 요청에도 바로 쓸 수 있다. 자동 청구는 없다. */
     expect(claimFeePolicyConfirmMessage(off, on)).toBe([
       '배송비 청구: 쓰지 않음 → 고객과 합의한 요청에만 직접 청구', '반품 기본 청구 금액: 없음 → 3,000원', '교환 기본 청구 금액: 없음 → 6,000원', '',
-      '저장하면 바로 적용됩니다.', '이미 접수돼 진행 중인 반품·교환 요청에도 요청 상세에서 [새 배송비 청구]를 쓸 수 있게 됩니다(환불 금액에서 반품배송비를 빼기로 한 반품은 제외). 자동으로 청구되지는 않습니다.',
+      '저장하면 바로 적용됩니다.', '이미 접수돼 진행 중인 반품·교환 요청에도 요청 상세에서 [새 배송비 청구]를 쓸 수 있게 됩니다. 환불을 접수해 반품배송비를 환불액에서 빼기로 정해진 반품은 쓸 수 없고, 환불을 접수하기 전 반품에서 청구하면 그 반품은 환불액에서 반품배송비를 빼지 않습니다. 자동으로 청구되지는 않습니다.',
       '새 금액은 지금부터 여는 [새 배송비 청구]의 금액 칸에 미리 채워집니다. 이미 청구한 배송비의 금액은 바뀌지 않습니다.',
     ].join('\n'));
     /* 끔: 새 청구만 막히고 이미 청구한 건은 계속 처리한다. */
@@ -99,5 +101,96 @@ describe('요청 상세 배송비 칸(운영자)의 말', () => {
     /* 권한 문구와 모르는 문구는 그대로 보인다. */
     expect(adminClaimFeeErrorCopy(claimFeeError('42501'))).toBe(claimFeeError('42501'));
     expect(adminClaimFeeErrorCopy('처음 보는 문구')).toBe('처음 보는 문구');
+  });
+});
+
+/*
+ * F-21: 부분 반품 상세에서 부분 반품 칸은 '반품배송비 3,000원 차감 · 환불 예정 19,000원'이라 하는데 배송비 칸은 '주문 환불 금액에서는 빼지 않습니다'라고 해서
+ * 두 칸이 반대로 말했다. 부분 반품의 차감은 부분 반품 칸이 읽는 미리보기·원장에 있어, 배송비 칸 안내도 거기서 만든다.
+ * 서버(private.claim_fee_document·partial_return_fee_deduction)는 환불 접수 전에는 청구를 열어 두되 청구하면 차감하지 않고, 접수해 차감이 정해지면 청구를 막는다.
+ */
+describe('부분 반품 요청의 배송비 칸 안내', () => {
+  const preview = (extra: Record<string, unknown> = {}) => ({ provider: 'bank_transfer', balanceBefore: 44000, goodsRefundAmount: 22000, shippingRefundAmount: 0, grossRefundAmount: 22000,
+    returnFeeDeduction: 3000, returnFeeBasis: 'one_way', returnFeeReason: null, refundAmount: 19000, storeCreditRestoreAmount: 0, emptiedShipmentCount: 0, ...extra });
+  const live = (extra: Record<string, unknown> = {}) => ({ id: 'l1', sequence: 1, reasonCode: 'return', claimId: 'c1', returnFeeDeduction: 3000, state: 'awaiting_transfer', provider: 'bank_transfer',
+    refundAmount: 19000, goodsRefundAmount: 22000, shippingRefundAmount: 0, storeCreditRestoreAmount: 0, createdAt: '2026-11-26T08:00:00.000Z', ...extra });
+  const partial = (extra: Record<string, unknown> = {}) => ({ items: [], refundId: null, history: [], preview: null, previewError: null, settlement: null, transferConvertible: false, ...extra }) as unknown as AdminClaimPartialReturn;
+
+  it('환불 접수 전 차감 예정이면 주문 전체 반품과 글자까지 같은 말로 따로 청구하지 말라고 한다', () => {
+    const note = partialReturnFeePanelNote(partial({ preview: preview() }));
+    expect(note).toBe('이 반품은 반품배송비 3,000원(편도 3,000원)을 환불할 때 환불액에서 뺍니다. 같은 반품배송비를 여기서 다시 청구하지 마세요.');
+    /* 같은 칸(주문 전체 반품)의 안내와 같은 문장이다 — 부분 반품이라고 말이 달라지지 않는다. */
+    const whole = parseReturnFeeDeduction({ source: 'plan', state: null, applicable: true, reason: null, oneWayAmount: 3000, basis: 'one_way', deductionAmount: 3000, paymentAmount: 22000, refundAmount: 19000, provider: 'bank_transfer' });
+    expect(note).toBe(returnFeeDeductionFeePanelNote(whole));
+  });
+
+  it('최초 무료배송이라 왕복을 빼는 부분 반품은 왕복 근거를 보인다', () => {
+    expect(partialReturnFeePanelNote(partial({ preview: preview({ returnFeeDeduction: 6000, returnFeeBasis: 'round_trip', refundAmount: 16000 }) })))
+      .toBe('이 반품은 반품배송비 6,000원(최초 무료배송이라 왕복(편도 3,000원 × 2))을 환불할 때 환불액에서 뺍니다. 같은 반품배송비를 여기서 다시 청구하지 마세요.');
+    /* 기준을 모르면 괄호 없이 금액만 말한다. */
+    expect(partialReturnFeePanelNote(partial({ preview: preview({ returnFeeBasis: null }) })))
+      .toBe('이 반품은 반품배송비 3,000원을 환불할 때 환불액에서 뺍니다. 같은 반품배송비를 여기서 다시 청구하지 마세요.');
+  });
+
+  it('환불을 접수한 뒤에는 원장의 차감을 말하고, 끝났으면 뺐다고 말한다', () => {
+    expect(partialReturnFeePanelNote(partial({ refundId: 'l1', history: [live()], preview: null })))
+      .toBe('이 반품은 반품배송비 3,000원을 환불할 때 환불액에서 뺍니다. 같은 반품배송비를 여기서 다시 청구하지 마세요.');
+    expect(partialReturnFeePanelNote(partial({ refundId: 'l1', history: [live({ state: 'completed' })] })))
+      .toBe('이 반품은 반품배송비 3,000원을 환불액에서 뺐습니다. 같은 반품배송비를 여기서 다시 청구하지 마세요.');
+    /* 접수한 환불이 차감 없이 정해졌으면 칸의 기본 문장('환불 금액에서는 빼지 않습니다')이 맞다. */
+    expect(partialReturnFeePanelNote(partial({ refundId: 'l1', history: [live({ returnFeeDeduction: 0 })] }))).toBeNull();
+  });
+
+  it('여기서 이미 청구해 차감하지 않기로 바뀌었으면 그렇게 말한다', () => {
+    expect(partialReturnFeePanelNote(partial({ preview: preview({ returnFeeDeduction: 0, returnFeeBasis: 'one_way', returnFeeReason: 'claim_fee_invoiced', refundAmount: 22000 }) })))
+      .toBe('이 반품은 여기서 청구한 배송비가 있어 환불액에서 반품배송비를 빼지 않습니다.');
+  });
+
+  it('차감이 없는 그 밖의 경우나 부분 반품이 아닌 요청은 null — 칸의 기본 문장이 사실이다', () => {
+    for (const returnFeeReason of ['disabled', 'seller_fault', 'requested_before_enabled', 'carrier_loss', 'fee_exceeds_refund']) {
+      expect(partialReturnFeePanelNote(partial({ preview: preview({ returnFeeDeduction: 0, returnFeeReason }) })), returnFeeReason).toBeNull();
+    }
+    expect(partialReturnFeePanelNote(partial())).toBeNull();
+    expect(partialReturnFeePanelNote(null)).toBeNull();
+    expect(partialReturnFeePanelNote(undefined)).toBeNull();
+  });
+});
+
+/* F-17: 시각 칸이 서버 규칙 밖이면 저장 전에 어느 칸이 왜 틀렸는지 말한다(서버는 금액·시각·근거를 한 문장으로만 거절한다). */
+describe('실제 입금·반환 시각 확인', () => {
+  const issuedAt = '2026-11-26T07:26:23.000Z'; /* 16:26:23 KST */
+  const invoice = { issuedAt, receivedAt: null };
+  const NOW = Date.parse('2026-11-26T08:00:00.000Z');
+
+  it('청구한 뒤 지금까지의 시각이면 통과한다 — 청구한 바로 그 초도 된다', () => {
+    expect(claimFeeTimeProblem('confirm_payment', '2026-11-26T07:30:00.000Z', invoice, NOW)).toBeNull();
+    expect(claimFeeTimeProblem('confirm_payment', issuedAt, invoice, NOW)).toBeNull();
+    expect(claimFeeTimeProblem('confirm_payment', '2026-11-26T08:01:00.000Z', invoice, NOW)).toBeNull(); /* 서버가 1분까지 여유를 둔다 */
+  });
+
+  it('지금보다 뒤이면 시각 칸이 지금보다 뒤라고 말한다', () => {
+    expect(claimFeeTimeProblem('confirm_payment', '2026-11-26T08:01:01.000Z', invoice, NOW)).toBe('실제 입금된 시각이 지금보다 뒤입니다. 지금이거나 그 이전 시각으로 적어주세요.');
+    expect(claimFeeTimeProblem('refund', '2026-11-27T00:00:00.000Z', invoice, NOW)).toBe('실제 반환한 시각이 지금보다 뒤입니다. 지금이거나 그 이전 시각으로 적어주세요.');
+  });
+
+  it('청구한 시각보다 앞이면 그 시각을 보이고, 같은 분이면 한 분 뒤로 적으라고 말한다', () => {
+    const early = claimFeeTimeProblem('confirm_payment', '2026-11-26T07:26:00.000Z', invoice, NOW);
+    expect(early).toBe('실제 입금된 시각이 청구한 시각(2026. 11. 26. 16:26)보다 앞입니다. 청구한 뒤의 시각으로 적어주세요. 같은 분이면 한 분 뒤로 적습니다.');
+    expect(claimFeeTimeProblem('refund', '2026-11-25T00:00:00.000Z', invoice, NOW)).toContain('실제 반환한 시각이 청구한 시각(');
+  });
+
+  it('반환은 입금을 확인한 시각보다 앞일 수 없다 — 입금 확인에는 적용하지 않는다', () => {
+    const paid = { issuedAt, receivedAt: '2026-11-26T07:40:00.000Z' };
+    expect(claimFeeTimeProblem('refund', '2026-11-26T07:30:00.000Z', paid, NOW))
+      .toBe('실제 반환한 시각이 입금을 확인한 시각(2026. 11. 26. 16:40)보다 앞입니다. 입금을 확인한 뒤의 시각으로 적어주세요.');
+    expect(claimFeeTimeProblem('refund', '2026-11-26T07:50:00.000Z', paid, NOW)).toBeNull();
+    expect(claimFeeTimeProblem('confirm_payment', '2026-11-26T07:30:00.000Z', paid, NOW)).toBeNull();
+  });
+
+  it('비었거나 읽을 수 없는 시각, 청구 정보가 없을 때는 다루지 않는다(기존 입력 오류가 말한다)', () => {
+    expect(claimFeeTimeProblem('confirm_payment', '', invoice, NOW)).toBeNull();
+    expect(claimFeeTimeProblem('confirm_payment', '내일', invoice, NOW)).toBeNull();
+    expect(claimFeeTimeProblem('confirm_payment', '2026-11-26T07:00:00.000Z', null, NOW)).toBeNull();
+    expect(claimFeeTimeProblem('confirm_payment', '2026-11-27T07:00:00.000Z', null, NOW)).toContain('지금보다 뒤');
   });
 });

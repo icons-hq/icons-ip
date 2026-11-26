@@ -34,7 +34,7 @@ import {SHIPMENT_DELAY_NOTICE_OPTIONS,shipmentDelayNoticeLabel} from '@/lib/admi
 import {ORDER_DELAY_STATUS_LABELS} from '@/lib/admin/order-delay-notices';
 import {ShipmentExtraTrackingsButton} from '@/components/admin/ShipmentExtraTrackingsPanel';
 import {ShipmentStatusRevertButton} from '@/components/admin/ShipmentStatusRevertButton';
-import {shipmentRevertKind} from '@/lib/admin/shipment-revert';
+import {SHIPMENT_REVERT_EMAIL_SENDING,shipmentRevertKind} from '@/lib/admin/shipment-revert';
 import {SHIPMENT_DELIVERED_BY_LABELS,trackingProgressLabel,type ShipmentTrackingSummary} from '@/lib/admin/shipment-tracking';
 import {ChevronDown,Info,PackageCheck,TimerOff,Truck} from 'lucide-react';
 import type {ReactNode} from 'react';
@@ -186,7 +186,8 @@ export function ShipmentConsoleScreen({data,registeredCount,registeredExtraCount
      {row.trackingSummary&&tracking&&(row.status==='shipping'||row.status==='delivered')?<ShipmentExtraTrackingsButton shipmentId={row.id} reference={reference} carriers={carriers} defaultCarrier={row.carrier} extras={row.trackingSummary.extraTrackings}/>:null}
      {/* 배송 상태 정정(ADR-0045): 판매 관리 권한만. 배송 중은 발송 대기로, 배송완료는 배송 중으로 한 단계 되돌린다. */}
      {canManageSales&&revertKind?<ShipmentStatusRevertButton shipmentId={row.id} reference={reference} kind={revertKind} expected={revertKind==='delivery'?row.deliveredAt:row.trackingNumber}
-      packCount={row.pack?.count??null} trackingLabel={tracking?`${tracking.carrierLabel} ${tracking.trackingNumber}`:row.trackingNumber}/>:null}</div>,
+      packCount={row.pack?.count??null} trackingLabel={tracking?`${tracking.carrierLabel} ${tracking.trackingNumber}`:row.trackingNumber}
+      blockedReason={revertKind==='dispatch'&&row.emailSending?SHIPMENT_REVERT_EMAIL_SENDING:null}/>:null}</div>,
    ...(delayNoticeColumn?[<div key="notice" className={CELL_STACK}><AdminStatusBadge tone={row.delayNotice?statusTone('delayNotice',row.delayNotice.status):'warning'}>{shipmentDelayNoticeLabel(row.delayNotice?.status)}</AdminStatusBadge>
     {row.delayNotice?.requestedAt?<><small className={CELL_NOTE}>앱 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.inAppStatus??'prepared']} · 이메일 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.emailStatus??'unknown']}</small><small className={`${CELL_NOTE} tabular-nums`}>{formatOrderDateTime(row.delayNotice.requestedAt)}</small></>:null}</div>]:[]),
    ...(delayNoteColumn?[<DispatchDelayNoteForm key="delay" orderId={row.orderId} reference={orderReferenceLabel(row.orderId, row.orderNumber)} note={row.delayReason?{reason:row.delayReason,expectedShipDate:row.expectedShipDate,updatedAt:row.updatedAt}:null}/>]:[]),

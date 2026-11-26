@@ -9,7 +9,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { adminConfirm, confirmAdminSubmit } from '@/lib/admin/confirm';
 import {
-  changedFulfillmentOriginFields, fulfillmentOriginFormValues, fulfillmentOriginSaveConfirm, originCarrierChangeWarning, originDeactivateGoodsLine, originFeeReadback,
+  changedFulfillmentOriginFields, fulfillmentOriginFormValues, fulfillmentOriginSaveConfirm, originCarrierChangeGroupWarning, originCarrierChangeWarning, originDeactivateGoodsLine, originFeeReadback,
   type FulfillmentOrigin, type FulfillmentOriginConflict, type FulfillmentOriginFormValues, type OriginSaveImpact,
 } from '@/lib/admin/fulfillment-origins';
 import {
@@ -54,6 +54,7 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit, impact }: { o
   const carrierLabel = (code: string) => code ? carriers.find(item => item.code === code)?.label ?? code : '고르지 않음';
   const selectedCarrier = carriers.find(item => item.code === draft.defaultCarrier);
   const carrierWarning = impact ? originCarrierChangeWarning({ from: base.defaultCarrier, to: draft.defaultCarrier, active, regionalFee: impact.regionalFee, label: carrierLabel }) : null;
+  const groupWarning = impact ? originCarrierChangeGroupWarning({ from: base.defaultCarrier, to: draft.defaultCarrier, active, chargeGroups: impact.chargeGroups, label: carrierLabel }) : null;
   const carrierError = state.errors?.defaultCarrier
     ?? (selectedCarrier && !selectedCarrier.active ? '사용 안 함인 택배사는 고를 수 없습니다. 다른 택배사를 골라 주세요.'
       : active && !draft.defaultCarrier ? '사용으로 저장하려면 기본 택배사를 골라 주세요.' : undefined);
@@ -113,6 +114,10 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit, impact }: { o
             </AdminField>
             {carrierWarning ? <AdminNotice role="status" title={carrierWarning.title} tone="warning">
               {carrierWarning.body}{' '}<a className="underline underline-offset-4" href={SHIPPING_REGIONS_PATH} rel="noreferrer" target="_blank">지역별 추가배송비 (새 탭)</a>
+            </AdminNotice> : null}
+            {/* 묶음그룹 목록은 이 화면 아래에 있다 — 같은 화면에서 이어서 고친다. */}
+            {groupWarning ? <AdminNotice role="status" title={groupWarning.title} tone="warning">
+              {groupWarning.body}{' '}<a className="underline underline-offset-4" href="#shipping-charge-groups">배송비 묶음그룹 목록으로 가기</a>
             </AdminNotice> : null}
           </div>
           {text('cutoff', '출고 마감 시각 (KST)', { type: 'time' })}

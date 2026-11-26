@@ -315,7 +315,7 @@ describe('회수 확인 성공', () => {
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('admin_record_order_claim_collection', {
       p_claim_id: CLAIM_ID, p_stage: 'collected', p_received_on: '2026-01-02', p_evidence: '창고 회신 R-9 대조',
     });
-    expect(state.message).toContain('실제 입고일(2026-01-02)');
+    expect(state.message).toContain('실제 입고일(2026. 1. 2.)');
   });
 
   it('DB가 주문일 이전 입고일을 거절하면 운영자 문구로 옮긴다', async () => {
@@ -405,7 +405,7 @@ describe('waiveOrderClaimCollectionAction', () => {
   function waiverForm() {
     const form = new FormData();
     form.set('claimId', CLAIM_ID); form.set('shipmentId', SHIPMENT_ID);
-    form.set('reason', '고객 사진으로\n인쇄 불량을 확인했습니다'); form.append('evidenceFileId', EVIDENCE_ID); form.set('confirmed', 'on');
+    form.set('reason', '고객 사진으로\n인쇄 불량을 확인했습니다'); form.append('evidenceFileId', EVIDENCE_ID);
     return form;
   }
   it('결정을 RPC로 보내고 제작 대기면 주문제작 처리로 안내한다', async () => {
@@ -418,11 +418,13 @@ describe('waiveOrderClaimCollectionAction', () => {
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/admin/sales/claims/exchanges/${CLAIM_ID}`);
   });
-  it('확인 체크 값이 없어도 사유·사진이 맞으면 기록한다(체크는 화면의 확인창이 대신한다)', async () => {
+  it('확인 값 없이 사유·사진이 맞으면 기록한다(확인은 화면의 확인창이 대신하고, 서버 액션은 확인 값을 받지 않는다)', async () => {
     mocks.rpc.mockResolvedValue({ data: { claimId: CLAIM_ID, shipmentId: SHIPMENT_ID, productionPending: false, replayed: false }, error: null });
-    const unchecked = waiverForm(); unchecked.delete('confirmed');
-    expect((await waiveOrderClaimCollectionAction({}, unchecked)).message).toBe("회수 생략을 기록했습니다. '재출고 등록'에서 회수 없이 재출고합니다.");
+    const form = waiverForm();
+    expect(form.has('confirmed')).toBe(false);
+    expect((await waiveOrderClaimCollectionAction({}, form)).message).toBe("회수 생략을 기록했습니다. '재출고 등록'에서 회수 없이 재출고합니다.");
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc.mock.calls[0][1]).not.toHaveProperty('p_confirmed');
   });
   it('사유·사진이 모자라면 RPC를 부르지 않는다', async () => {
     const short = waiverForm(); short.set('reason', '짧음');
@@ -452,7 +454,7 @@ describe('recordOrderClaimCarrierLossAction', () => {
     const form = new FormData();
     form.set('claimId', CLAIM_ID); form.set('shipmentId', SHIPMENT_ID); form.set('claimRevision', '7'); form.set('operationId', OPERATION_ID);
     form.set('accidentNumber', ' HJ-ACC-20261119-01 ');
-    form.set('reason', '한진 고객센터\n분실 확인 회신(11/19)'); form.append('evidenceFileId', EVIDENCE_ID); form.set('confirmed', 'on');
+    form.set('reason', '한진 고객센터\n분실 확인 회신(11/19)'); form.append('evidenceFileId', EVIDENCE_ID);
     return form;
   }
   it('기록을 RPC로 보내고 회수가 끝나면 환불 진행을 안내한다', async () => {
@@ -471,11 +473,13 @@ describe('recordOrderClaimCarrierLossAction', () => {
     mocks.rpc.mockResolvedValue({ data: { claimId: CLAIM_ID, shipmentId: SHIPMENT_ID, collectionComplete: false, replayed: false }, error: null });
     expect((await recordOrderClaimCarrierLossAction({}, lossForm())).message).toBe('배송 분실을 기록했습니다. 남은 출고지의 입고를 확인하면 환불을 진행할 수 있습니다.');
   });
-  it('확인 체크 값이 없어도 사고 번호·메모·사진이 맞으면 기록한다(체크는 화면의 확인창이 대신한다)', async () => {
+  it('확인 값 없이 사고 번호·메모·사진이 맞으면 기록한다(확인은 화면의 확인창이 대신하고, 서버 액션은 확인 값을 받지 않는다)', async () => {
     mocks.rpc.mockResolvedValue({ data: { claimId: CLAIM_ID, shipmentId: SHIPMENT_ID, collectionComplete: false, replayed: false }, error: null });
-    const unchecked = lossForm(); unchecked.delete('confirmed');
-    expect((await recordOrderClaimCarrierLossAction({}, unchecked)).message).toBe('배송 분실을 기록했습니다. 남은 출고지의 입고를 확인하면 환불을 진행할 수 있습니다.');
+    const form = lossForm();
+    expect(form.has('confirmed')).toBe(false);
+    expect((await recordOrderClaimCarrierLossAction({}, form)).message).toBe('배송 분실을 기록했습니다. 남은 출고지의 입고를 확인하면 환불을 진행할 수 있습니다.');
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc.mock.calls[0][1]).not.toHaveProperty('p_confirmed');
   });
   it('사고 번호·메모·사진·리비전이 모자라면 RPC를 부르지 않는다', async () => {
     const noAccident = lossForm(); noAccident.set('accidentNumber', ' ');

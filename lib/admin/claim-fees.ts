@@ -4,6 +4,10 @@ import { isUuid } from '@/lib/uuid';
 import { isCommerceNumber } from '@/lib/commerce-number';
 import { CHANGED_BY_OTHER, SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { krwAmountWords } from '@/lib/format';
+import { formatOrderDateTime } from '@/lib/orders';
+import { returnFeeDeductionBasisLabel } from '@/lib/claims/return-fee-deduction';
+import { objectParticle } from '@/lib/korean-particle';
+import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
 export const CLAIM_FEES_PATH = '/admin/sales/claims/returns/fees';
 
 /*
@@ -52,6 +56,34 @@ export function claimFeePolicyReadback(values: ClaimFeePolicyValues): string {
  return `${open} 금액을 그때마다 직접 적습니다.`;
 }
 /**
+ * 부분 반품 요청의 '반품·교환 배송비' 칸 안내(F-21). 주문 전체 반품은 `returnFeeDeductionFeePanelNote`가 환불 단계의 차감 판정을 읽어 말하지만,
+ * 부분 반품의 차감은 부분 반품 칸(ClaimPartialReturnPanel)이 읽는 미리보기·부분 환불 원장에 있어, 이 안내가 없으면 두 칸이 반대로 말한다
+ * (한 칸은 '반품배송비 차감 · 환불 예정', 다른 칸은 '환불 금액에서는 빼지 않습니다').
+ *
+ * 서버 규칙(private.claim_fee_document의 canIssue · partial_return_fee_deduction): 환불을 접수하기 전에는 [새 배송비 청구]가 열려 있지만 청구하면 그 반품은
+ * 차감하지 않고(claim_fee_invoiced), 환불을 접수해 차감이 정해지면 청구가 막힌다(버튼이 그려지지 않는다). 그래서 차감 예정·확정이면 따로 청구하지 말라고 말하고,
+ * 이미 청구해서 차감하지 않기로 바뀌었으면 그렇게 말한다. 차감이 없는 그 밖의 경우(null)는 칸의 기본 문장('환불 금액에서는 빼지 않습니다')이 맞다.
+ */
+export function partialReturnFeePanelNote(partialReturn: AdminClaimPartialReturn | null | undefined): string | null {
+ if (!partialReturn) return null;
+ const live = partialReturn.history.find(record => record.id === partialReturn.refundId) ?? null;
+ const warning = '같은 반품배송비를 여기서 다시 청구하지 마세요.';
+ if (live) {
+  if (live.returnFeeDeduction <= 0) return null;
+  const amount = krwAmountWords(live.returnFeeDeduction);
+  return `이 반품은 반품배송비 ${amount}${objectParticle(amount)} ${live.state === 'completed' ? '환불액에서 뺐습니다' : '환불할 때 환불액에서 뺍니다'}. ${warning}`;
+ }
+ const preview = partialReturn.preview;
+ if (!preview) return null;
+ if (preview.returnFeeDeduction > 0) {
+  const amount = krwAmountWords(preview.returnFeeDeduction);
+  const basis = preview.returnFeeBasis ? `(${returnFeeDeductionBasisLabel({ basis: preview.returnFeeBasis, oneWayAmount: preview.returnFeeBasis === 'round_trip' ? preview.returnFeeDeduction / 2 : preview.returnFeeDeduction })})` : '';
+  return `이 반품은 반품배송비 ${amount}${basis}${objectParticle(amount)} 환불할 때 환불액에서 뺍니다. ${warning}`;
+ }
+ if (preview.returnFeeReason === 'claim_fee_invoiced') return '이 반품은 여기서 청구한 배송비가 있어 환불액에서 반품배송비를 빼지 않습니다.';
+ return null;
+}
+/**
  * 저장 전 확인창 본문: 바뀌는 값(이전 → 새)과, 언제부터 어떤 요청에 적용되는지.
  * 적용 범위는 DB로 확인한 사실만 적는다 — 금액은 청구할 때 운영자가 적은 값으로 청구 건마다 따로 저장돼 설정을 바꿔도 이미 청구한 금액은 그대로이고,
  * 사용 여부는 요청 상세가 열릴 때마다 지금 설정을 읽어 진행 중인 요청에도 바로 적용된다(끄면 새 청구만 막힌다).
@@ -62,7 +94,7 @@ export function claimFeePolicyConfirmMessage(before: ClaimFeePolicyValues, after
  if (before.enabled !== after.enabled) changes.push(`배송비 청구: ${CLAIM_FEE_MODE_LABELS[before.enabled ? 'on' : 'off']} → ${CLAIM_FEE_MODE_LABELS[after.enabled ? 'on' : 'off']}`);
  if (before.returnAmount !== after.returnAmount) changes.push(`반품 기본 청구 금액: ${amountWords(before.returnAmount)} → ${amountWords(after.returnAmount)}`);
  if (before.exchangeAmount !== after.exchangeAmount) changes.push(`교환 기본 청구 금액: ${amountWords(before.exchangeAmount)} → ${amountWords(after.exchangeAmount)}`);
- if (!before.enabled && after.enabled) effects.push(`이미 접수돼 진행 중인 반품·교환 요청에도 요청 상세에서 [${CLAIM_FEE_ISSUE_LABEL}]를 쓸 수 있게 됩니다(환불 금액에서 반품배송비를 빼기로 한 반품은 제외). 자동으로 청구되지는 않습니다.`);
+ if (!before.enabled && after.enabled) effects.push(`이미 접수돼 진행 중인 반품·교환 요청에도 요청 상세에서 [${CLAIM_FEE_ISSUE_LABEL}]를 쓸 수 있게 됩니다. 환불을 접수해 반품배송비를 환불액에서 빼기로 정해진 반품은 쓸 수 없고, 환불을 접수하기 전 반품에서 청구하면 그 반품은 환불액에서 반품배송비를 빼지 않습니다. 자동으로 청구되지는 않습니다.`);
  if (before.enabled && !after.enabled) effects.push('새로 청구할 수 없게 됩니다. 이미 청구한 건의 입금 확인·면제·취소·반환은 계속 할 수 있습니다.');
  if (after.enabled && (before.returnAmount !== after.returnAmount || before.exchangeAmount !== after.exchangeAmount)) effects.push(`새 금액은 지금부터 여는 [${CLAIM_FEE_ISSUE_LABEL}]의 금액 칸에 미리 채워집니다. 이미 청구한 배송비의 금액은 바뀌지 않습니다.`);
  return `${changes.join('\n')}\n\n${effects.join('\n')}`;
@@ -108,6 +140,28 @@ export function claimFeeActionConfirm(kind: Exclude<ClaimFeeKind, 'report_paymen
 }
 /** 운영자 저장 양식에서 필수 값이 빠졌을 때(확인 체크는 없다). */
 export const CLAIM_FEE_ACTION_INPUT_ERROR = '금액, 실제 입금·반환한 시각, 근거를 확인해 주세요. 근거는 2자 이상 적습니다.';
+/**
+ * [실제 입금 확인]·[실제 반환 완료]의 시각 칸이 서버가 받아 주는 범위 밖이면 어느 칸이 왜 틀렸는지 저장 전에(확인창보다 먼저) 말한다.
+ * 서버 규칙: 지금보다 1분 넘게 뒤일 수 없고, 청구한 시각보다 앞일 수 없고, 반환은 입금을 확인한 시각보다 앞일 수 없다.
+ * 시각 칸은 분 단위라 청구한 바로 그 분을 적으면 청구한 초보다 앞이 되어 거절된다. 비었거나 읽을 수 없는 값은 여기서 다루지 않는다.
+ */
+export function claimFeeTimeProblem(
+  kind: 'confirm_payment' | 'refund', occurredAt: string, invoice: { issuedAt: string; receivedAt: string | null } | null, now: number,
+): string | null {
+  const at = Date.parse(occurredAt);
+  if (!Number.isFinite(at)) return null;
+  const label = kind === 'refund' ? '실제 반환한 시각' : '실제 입금된 시각';
+  if (at > now + 60_000) return `${label}이 지금보다 뒤입니다. 지금이거나 그 이전 시각으로 적어주세요.`;
+  const issued = invoice ? Date.parse(invoice.issuedAt) : NaN;
+  if (invoice && Number.isFinite(issued) && at < issued) {
+    return `${label}이 청구한 시각(${formatOrderDateTime(invoice.issuedAt)})보다 앞입니다. 청구한 뒤의 시각으로 적어주세요. 같은 분이면 한 분 뒤로 적습니다.`;
+  }
+  const received = invoice?.receivedAt ? Date.parse(invoice.receivedAt) : NaN;
+  if (kind === 'refund' && invoice?.receivedAt && Number.isFinite(received) && at < received) {
+    return `${label}이 입금을 확인한 시각(${formatOrderDateTime(invoice.receivedAt)})보다 앞입니다. 입금을 확인한 뒤의 시각으로 적어주세요.`;
+  }
+  return null;
+}
 /**
  * 배송비 칸의 서버 오류 문구는 고객 화면과 함께 쓴다(claimFeeError). 운영자에게는 지금 화면의 버튼 이름과 고칠 방법으로 바꿔 보인다.
  * 모르는 문구는 그대로 돌려준다.

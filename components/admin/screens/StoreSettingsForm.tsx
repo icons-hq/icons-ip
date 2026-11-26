@@ -12,7 +12,7 @@ import { BUSINESS_INFO_LABELS } from '@/lib/legal/business-info';
 import { INQUIRY_CATEGORIES } from '@/lib/inquiries';
 import { FULFILLMENT_ORIGINS_PATH } from '@/lib/admin/fulfillment-origins';
 import {
-  BANK_ACCOUNT_LABELS,CARRIER_RENAME_NOTE,CARRIER_TURN_OFF_UNKNOWN,carrierFormatSpec,carrierRenamed,carrierSampleVerdict,carrierTurnOff,mergeBusinessInfo,originNamesSuffix,readCarrierFormat,readCarrierFormatLength,
+  BANK_ACCOUNT_LABELS,CARRIER_RENAME_NOTE,CARRIER_TURN_OFF_UNKNOWN,carrierFormatLengthProblem,carrierFormatSpec,carrierRenamed,carrierSampleVerdict,carrierTurnOff,mergeBusinessInfo,originNamesSuffix,readCarrierFormat,readCarrierFormatLength,
   type CarrierFormatKind,type CarrierOriginView,type EditableCarrier,type StoreSettingsSnapshot,
 } from '@/lib/admin/store-settings';
 import { GoodChoiceCard,GoodChoiceCards,GoodReadback } from '../GoodEditorParts';
@@ -128,27 +128,32 @@ export function ShippingCarrierFormatForm({carrier,canEdit}:{carrier:EditableCar
     </div>;
   }
   const length=kind==='none'?null:readCarrierFormatLength(min,max);
+  /* 자리 수를 읽을 수 없으면 되읽기 한 줄이 말없이 사라지지 않도록 까닭과 고칠 방법을 칸 아래에 바로 보인다. 저장 뒤 서버가 돌려준 오류는 그다음 순서다. */
+  const lengthError=kind==='none'?undefined:carrierFormatLengthProblem(min,max)??state.errors?.trackingNumberLength;
   const readback=kind!=='none'&&length?`${carrier.label} 운송장번호는 ${carrierFormatSpec(kind,length.min,length.max).rule}여야 등록됩니다.`:null;
   const verdict=kind!=='none'&&length?carrierSampleVerdict({kind,min:length.min,max:length.max},sample):'empty';
   const sampleHint=verdict==='match'?'이 번호는 형식에 맞습니다.':verdict==='mismatch'?'이 번호는 형식에 맞지 않습니다.':'실제 운송장번호 하나를 넣어 형식에 맞는지 확인합니다. 저장되지 않습니다.';
-  return <form action={action} className="flex min-w-0 flex-col gap-4 border-t pt-4" ref={formRef} data-carrier-format="">
+  /* noValidate: 빈 칸은 브라우저 기본 말풍선("이 입력란을 작성하세요.") 대신 칸 아래의 앱 문구로 알린다(저장 때 서버가 칸마다 말한다). required는 접근성 표시로 남긴다. */
+  return <form action={action} className="flex min-w-0 flex-col gap-4 border-t pt-4" ref={formRef} data-carrier-format="" noValidate>
     <input type="hidden" name="code" value={carrier.code}/>
     <input type="hidden" name="updatedAt" value={latestStamp(carrier.updatedAt,state.updatedAt)}/>
     <p className={NOTE}>모든 운송장 등록(발송처리·운송장 수정·창고 회신·추가 운송장·교환 재출고)이 이 형식에 맞아야 합니다.</p>
+    {/* 예전에 식을 직접 적은 형식은 이 화면의 카드로 나타낼 수 없다 — 저장하면 그 형식이 사라진다는 것을 [형식 새로 정하기]를 누른 사람에게 말한다. */}
+    {stored===null?<p className={NOTE}>지금은 직접 적은 형식({carrier.trackingNumberRule||'이 화면에서 정하지 않은 형식'})을 쓰고 있습니다. 저장하면 이 화면에서 고른 형식으로 바뀌고 예전 형식은 없어집니다. 그만두려면 화면을 새로고침해 주세요.</p>:null}
     <GoodChoiceCards legend="운송장 형식">
       {FORMAT_CARDS.map(card=><GoodChoiceCard defaultChecked={kind===card.kind} description={card.description} key={card.kind} name="trackingNumberKind" onChange={()=>setKind(card.kind)} title={card.title} value={card.kind}/>)}
     </GoodChoiceCards>
     {kind!=='none'?<>
-      <AdminField label="자리 수" inputId={id('min')} error={state.errors?.trackingNumberLength}>
+      <AdminField label="자리 수" inputId={id('min')} error={lengthError}>
         <div className="flex flex-wrap items-center gap-2 text-sm">
-          <Input aria-describedby={state.errors?.trackingNumberLength?`${id('min')}-error`:undefined} aria-invalid={Boolean(state.errors?.trackingNumberLength)} aria-label="최소 자리 수" className="w-20 text-right tabular-nums" id={id('min')} inputMode="numeric" maxLength={2} name="trackingNumberMin" onChange={event=>setMin(event.target.value)} required value={min}/>
+          <Input aria-describedby={lengthError?`${id('min')}-error`:undefined} aria-invalid={Boolean(lengthError)} aria-label="최소 자리 수" className="w-20 text-right tabular-nums" id={id('min')} inputMode="numeric" maxLength={2} name="trackingNumberMin" onChange={event=>setMin(event.target.value)} required value={min}/>
           <span aria-hidden="true">~</span>
-          <Input aria-describedby={state.errors?.trackingNumberLength?`${id('min')}-error`:undefined} aria-invalid={Boolean(state.errors?.trackingNumberLength)} aria-label="최대 자리 수" className="w-20 text-right tabular-nums" id={id('max')} inputMode="numeric" maxLength={2} name="trackingNumberMax" onChange={event=>setMax(event.target.value)} required value={max}/>
+          <Input aria-describedby={lengthError?`${id('min')}-error`:undefined} aria-invalid={Boolean(lengthError)} aria-label="최대 자리 수" className="w-20 text-right tabular-nums" id={id('max')} inputMode="numeric" maxLength={2} name="trackingNumberMax" onChange={event=>setMax(event.target.value)} required value={max}/>
           <span>자리</span>
         </div>
       </AdminField>
       {readback?<GoodReadback>{readback}</GoodReadback>:null}
-      <AdminField label="확인용 운송장번호" inputId={id('sample')} error={state.errors?.trackingNumberSample} hint={sampleHint}>
+      <AdminField label="확인용 운송장번호 (필수)" inputId={id('sample')} error={state.errors?.trackingNumberSample} hint={sampleHint}>
         <Input aria-describedby={state.errors?.trackingNumberSample?`${id('sample')}-error`:`${id('sample')}-hint`} aria-invalid={Boolean(state.errors?.trackingNumberSample)} autoComplete="off" id={id('sample')} maxLength={40} name="trackingNumberSample" onChange={event=>setSample(event.target.value)} required spellCheck={false} value={sample}/>
       </AdminField>
     </>:null}

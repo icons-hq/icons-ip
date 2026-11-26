@@ -168,7 +168,7 @@ describe('화면이 쓰는 말과 판정', () => {
       { id:null, postalFrom:'40200', postalTo:'40240', addressPrefix:'', regionLabel:'울릉도', disposition:'unavailable' as const, amount:null }];
     const common = { name:'김포 기본 묶음', originName:'김포', assignedCount:1234, now, formatDate };
     expect(shippingChargeGroupRegionConfirmMessage({ ...common, enabled:true, regional:{ mode:'override', policy:{ ...region, noRulesConfirmed:false, rules } } })).toBe([
-      '김포 · 김포 기본 묶음 · 넣은 상품 1,234개', '추가배송비: 제주 ₩3,000 · 주문받지 않는 지역 1줄 · 묶음그룹마다 한 번', '표에 없는 지역: 추가배송비 없음',
+      '김포 · 김포 기본 묶음 · 넣은 상품 1,234개', '추가배송비: 제주 3,000원 · 주문받지 않는 지역 1줄 · 묶음그룹마다 한 번', '표에 없는 지역: 추가배송비 없음',
       `적용 기간: <${region.startsAt}>부터`, '', '저장하면 바로 새 주문에 적용됩니다. 이미 들어온 주문의 배송비는 그대로입니다.'].join('\n'));
     const scheduled = shippingChargeGroupRegionConfirmMessage({ ...common, enabled:true, regional:{ mode:'override',
       policy:{ ...region, startsAt:'2026-12-10T00:00:00Z', openEnded:false, endsAt:'2026-12-31T00:00:00Z', unlistedDisposition:'manual_review' } } });
@@ -181,5 +181,25 @@ describe('화면이 쓰는 말과 판정', () => {
     expect(inherit).toContain('지역별 추가배송비: 출고지 설정을 그대로 따릅니다. 이 묶음그룹의 지역표는 더 쓰지 않습니다.');
     expect(inherit).toContain("'사용 안 함'이라 지금 주문에는 쓰이지 않습니다. '사용'으로 바꿔 저장하면 그때부터 적용됩니다.");
     for (const message of [scheduled, inherit]) expect(message).not.toMatch(/근거|계약|추가료|확인했습니다|버전/);
+  });
+  it('적용 종료가 이미 지났으면 나중에 막힌다고 하지 않고 저장하면 바로 막힌다고 말한다', () => {
+    const { region } = chargeAdminFixtures(), now = Date.parse('2026-12-01T00:00:00Z'), formatDate = (value: string) => `<${value}>`;
+    const ended = { ...region, openEnded: false, endsAt: '2026-11-30T00:00:00Z' };
+    const common = { name: '김포 기본 묶음', originName: '김포', assignedCount: 3, now, formatDate };
+    const message = shippingChargeGroupRegionConfirmMessage({ ...common, enabled: true, regional: { mode: 'override', policy: ended } });
+    expect(message).toContain('적용 종료(<2026-11-30T00:00:00Z>)가 이미 지났습니다. 저장하면 바로 이 묶음그룹 상품의 새 주문이 막힙니다. 적용 종료를 지금보다 뒤로 고치거나 출고지 설정을 따르게 바꿔 주세요.');
+    /* 나중에 막힌다는 말과 새 주문에 적용된다는 말은 같이 하지 않는다 — 서로 반대로 읽힌다. */
+    expect(message).not.toContain('<2026-11-30T00:00:00Z> 뒤에는');
+    expect(message).not.toContain('저장하면 바로 새 주문에 적용됩니다');
+    expect(message.split('\n').at(-1)).toBe('이미 들어온 주문의 배송비는 그대로입니다.');
+    /* 아직 끝나기 전이면 전처럼 그 시각 뒤에 막힌다고 말한다. 지금 끝나는 시각과 같은 때는 이미 끝난 것이다(견적은 끝 시각을 포함하지 않는다). */
+    const soon = shippingChargeGroupRegionConfirmMessage({ ...common, enabled: true, regional: { mode: 'override', policy: { ...ended, endsAt: '2026-12-01T00:00:01Z' } } });
+    expect(soon).toContain('<2026-12-01T00:00:01Z> 뒤에는 이 묶음그룹 상품의 새 주문이 막힙니다.');
+    expect(soon).toContain('저장하면 바로 새 주문에 적용됩니다.');
+    expect(shippingChargeGroupRegionConfirmMessage({ ...common, enabled: true, regional: { mode: 'override', policy: { ...ended, endsAt: '2026-12-01T00:00:00Z' } } })).toContain('가 이미 지났습니다.');
+    /* '사용 안 함'으로 저장하면 지금 주문에는 쓰이지 않으니 저장하면 바로 막힌다고 말하지 않는다. */
+    const off = shippingChargeGroupRegionConfirmMessage({ ...common, enabled: false, regional: { mode: 'override', policy: ended } });
+    expect(off).not.toContain('저장하면 바로 이 묶음그룹 상품의 새 주문이 막힙니다');
+    expect(off).toContain("'사용 안 함'이라 지금 주문에는 쓰이지 않습니다.");
   });
 });

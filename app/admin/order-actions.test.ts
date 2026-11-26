@@ -296,9 +296,14 @@ describe('admin order actions', () => {
   /* SHP-030·032: 다른 주문이 쓰는 번호·택배사 형식은 운영자가 고칠 수 있는 사유라 그대로 알린다. */
   it('운송장 수정이 다른 주문의 번호·택배사 형식으로 거절되면 그 사유를 알린다', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'tracking_number_in_use' } });
-    expect((await updateAdminOrderTrackingAction({}, trackingForm())).errors?.form).toContain('다른 주문의 배송 건');
+    const inUse = await updateAdminOrderTrackingAction({}, trackingForm(' 9998-8877-7666 '));
+    expect(inUse.errors?.form).toContain('다른 주문의 배송 건');
+    /* 거절된 택배사·번호(서버가 정리해 판정한 값)를 함께 돌려준다 — 화면이 그 자리의 [중복 확인 후 운송장 등록]에 채워 넘긴다. */
+    expect(inUse.trackingInUse).toEqual({ carrier: 'hanjin', trackingNumber: '999888777666' });
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'tracking_number_format_mismatch' } });
-    expect((await updateAdminOrderTrackingAction({}, trackingForm())).errors?.form).toContain('(한진택배 숫자 10~14자리)');
+    const mismatch = await updateAdminOrderTrackingAction({}, trackingForm());
+    expect(mismatch.errors?.form).toContain('(한진택배 숫자 10~14자리)');
+    expect(mismatch).not.toHaveProperty('trackingInUse');
   });
 
   it('택배사 형식에 맞지 않는 번호는 RPC 전에 칸 오류로 돌려준다', async () => {

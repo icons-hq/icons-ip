@@ -34,3 +34,19 @@ export async function submitUnpaidAfterConfirm(
   startTransition(() => dispatch(formData));
   return true;
 }
+
+/**
+ * 서버 액션이 성공하면 그 결과 문구를 바깥에도 알린다. 입금 확인·즉시 취소가 끝나면 그 주문이 목록에서 빠지며 처리 패널과 패널이 가진
+ * 결과 문구가 함께 사라진다 — 패널 바깥(`UnpaidSelectedOrder`)이 그 자리에 결과를 남길 수 있게 성공 문구만 넘긴다.
+ * 서버 액션은 그대로 한 번 부르고 결과도 그대로 돌려준다(거절은 알리지 않는다 — 거절된 주문은 목록에 남아 패널이 오류를 보인다).
+ */
+export function reportUnpaidProcessed<State extends { message?: string }>(
+  action: (state: State, formData: FormData) => Promise<State>,
+  onProcessed: (message: string) => void,
+): (state: State, formData: FormData) => Promise<State> {
+  return async (state, formData) => {
+    const result = await action(state, formData);
+    if (result.message) onProcessed(result.message);
+    return result;
+  };
+}

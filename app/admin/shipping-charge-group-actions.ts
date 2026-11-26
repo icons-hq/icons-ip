@@ -57,6 +57,8 @@ const REJECTED: readonly (readonly [key: string, message: string, changed?: bool
   ['group_unavailable', "묶음그룹이 '사용 안 함'이거나 보관돼 있습니다. 묶음그룹을 '사용'으로 바꾼 뒤 다시 해 주세요."],
   ['goods_unavailable', '지워졌거나 보관된 상품이 들어 있습니다. 상품을 다시 골라 주세요.'],
   ['owned_by_source', `${SHIPPING_CHARGE_GROUP_BLOCKER_LABELS.goods_aggregation_policy_owned_by_source}. 그 상품을 빼고 다시 해 주세요.`],
+  /* DB는 막힌 이유의 이름(`collect_contract_not_ready`)을 그대로 오류로 던진다. 배송비 결제가 착불·구매자 선택인 상품인데 그 출고지에 '사용'인 착불 조건이 없을 때다. */
+  ['collect_contract_not_ready', "착불을 쓰는 상품인데 이 출고지에 '사용'으로 저장한 착불 조건이 없습니다. 배송정보 관리에서 출고지의 착불 조건을 먼저 '사용'으로 저장한 뒤 다시 해 주세요."],
   ['operation_conflict', `앞서 누른 저장과 내용이 달라 이어서 저장하지 못했습니다. [${SHIPPING_CHARGE_GROUP_STOP_LABEL}]를 누른 뒤 처음부터 다시 해 주세요.`],
   ['retry', '다른 저장이 진행 중이라 저장하지 않았습니다. 잠시 뒤 다시 눌러 주세요.'],
   ['checkout_contract_upgrade_required', SHIPPING_CHARGE_GROUP_RUNTIME_OFF],

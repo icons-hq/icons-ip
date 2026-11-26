@@ -92,7 +92,8 @@ export async function applyShippingRegionPolicyAction(id: unknown, revision: unk
       return { ok: false, error: '적용됐는지 확인하지 못했습니다. 다시 누르지 말고 새로고침해 목록에서 상태를 확인해 주세요.' };
     }
     revalidate();
-    const scheduled = policy.startsAt !== null && Date.parse(policy.startsAt) > Date.now();
+    /* '저장하면 바로'의 시작 시각은 DB 시계가 정한다. 이 서버의 시계가 DB보다 느려도 '나중에 적용'이라고 말하지 않는다. */
+    const scheduled = !startNow && policy.startsAt !== null && Date.parse(policy.startsAt) > Date.now();
     return { ok: true, policy, replaced: replaced as ShippingRegionPolicy[], message: scheduled
       ? `저장했습니다. ${formatOrderDateTime(policy.startsAt!)}부터 들어오는 주문에 적용됩니다.`
       : '적용했습니다. 지금부터 새 주문에 적용되고, 이미 들어온 주문의 배송비는 그대로입니다.' };

@@ -296,7 +296,7 @@ function FulfillmentDraft({ identity, scope, serverError, runtimeOff = false }: 
       ? <p className="text-warning" data-good-fulfillment-runtime-off="" role="status">{runtimeBlocked ? GOODS_FULFILLMENT_RUNTIME_OFF : GOODS_FULFILLMENT_RUNTIME_OFF_REVERT}</p>
       : <p className="text-muted-foreground">택배만 쓰면 바꿀 것이 없습니다.</p>}
     <fieldset className="m-0 flex min-w-0 flex-col gap-4 rounded-lg border p-4 disabled:opacity-60" disabled={pending || Boolean(pendingFile) || runtimeBlocked}>
-      <legend className="sr-only">상품 제공 방식</legend>
+      <legend className="sr-only">수령 방식</legend>
       <GoodsFulfillmentDraftFields draft={value} onChange={(draft) => set(draft as GoodWorkspaceExtraDraft['fulfillment'])} onUpload={(file) => { void upload(file); }} fieldId={fieldId} />
     </fieldset>
     {pendingFile ? <p className="flex flex-wrap items-center gap-2 text-sm" role="status">{pendingFile.name}이(가) 올라갔는지 아직 확인하지 못했습니다. <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={pending} onClick={() => { void verify(); }}>같은 업로드 결과 확인</button></p> : null}

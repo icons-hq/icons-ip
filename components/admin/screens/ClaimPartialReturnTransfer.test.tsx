@@ -33,14 +33,17 @@ describe('부분 반품 계좌 송금 전환 양식', () => {
     expect(html).not.toContain('고객과 계좌 송금 환불을 확인했고');
   });
 
-  it('은행은 손으로 적지 않고 환불 계좌 입력과 같은 목록에서 고른다', () => {
+  /* 은행은 고객 화면의 환불계좌와 같은 목록에서 고른다. 이 길은 운영자가 직접 송금해 서버·DB가 은행 이름을 자유 글로 받으므로, 목록에 없는 은행·증권사는 따로 골라 적는다. */
+  it('은행은 환불 계좌 입력과 같은 목록에서 고르고, 목록에 없는 은행·증권사를 고를 수 있다', () => {
     const html = open();
-    expect(html).not.toMatch(/<input[^>]*name="bankName"/);
     const select = html.match(/<select[^>]*name="bankName"[^>]*>[\s\S]*?<\/select>/)?.[0] ?? '';
     expect(select).toContain('required');
     expect(select).toContain('>은행 선택</option>');
-    expect(select.match(/<option /g)).toHaveLength(TOSS_REFUND_BANKS.length + 1);
+    expect(select.match(/<option /g)).toHaveLength(TOSS_REFUND_BANKS.length + 2);
     for (const bank of TOSS_REFUND_BANKS) expect(select).toContain(`value="${bank.name}"`);
+    expect(select).toContain('>목록에 없는 은행·증권사</option>');
+    /* 처음에는 직접 적는 칸이 없다. 목록에서 고르는 것이 기본이다. */
+    expect(html).not.toMatch(/<input[^>]*name="bankName"/);
   });
 
   it('사유는 필수이고 어디에 남는지 말하며, 입력 전에는 전환 버튼이 눌리지 않는다', () => {

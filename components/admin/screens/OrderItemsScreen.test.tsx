@@ -47,7 +47,7 @@ describe('OrderItemsScreen', () => {
 
   it('결제수단 조건은 카드·무통장으로 뭉뚱그리지 않고 사실대로 부른다', () => {
     const html = renderToStaticMarkup(<OrderItemsScreen data={data([row()])} canManage />);
-    expect(html).toContain('<option value="card">토스 결제(카드·가상계좌·계좌이체)</option>');
+    expect(html).toContain('<option value="card">결제사 결제(카드·가상계좌·계좌이체)</option>');
     expect(html).toContain('<option value="bank_transfer">무통장 입금(직접 이체)</option>');
     expect(html).not.toMatch(/>카드<\/option>|>무통장<\/option>/);
   });

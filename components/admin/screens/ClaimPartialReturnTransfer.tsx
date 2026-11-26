@@ -7,11 +7,10 @@ import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
-import { NativeSelect, NativeSelectOption } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { ClaimTransferBankField } from '@/components/admin/ClaimTransferBankField';
 import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
 import { krwAmountWords } from '@/lib/format';
-import { TOSS_REFUND_BANKS } from '@/lib/payments/toss-bank-codes';
 import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 
 /* 결제사가 부분 취소를 받지 않아 닫힌 부분 반품의 출구(ADR-0047, 적대적 리뷰 2026-11-19).
@@ -22,7 +21,8 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
  * 입력은 화면 상태로만 들고 저장소에 보관하지 않는다(계좌 원문). 작업 번호는 처음 그릴 때 정해 재시도에도 같아 이중 전환이 없다.
  *
  * 화면 규칙 PR 3: '확인했습니다' 체크는 없앴다(서버 액션도 그 값을 받지 않는다). 체크가 하던 말은 저장 전 확인창이 금액·계좌·결과로 한다.
- * 은행은 환불 계좌를 받는 다른 칸(가상계좌 환불 계좌 입력)과 같은 목록에서 고른다 — 손으로 적지 않는다. */
+ * 은행은 목록에서 고르고(고객 화면의 환불계좌와 같은 이름), 목록에 없는 은행·증권사만 직접 적는다(ClaimTransferBankField). 이 길은 결제사에 은행 코드를 보내지 않고
+ * 결제 담당이 직접 송금하므로 서버·DB는 은행 이름을 1~40자 자유 글로 받는다 — 목록에서만 고르게 하면 증권사 계좌를 받은 고객을 이 화면으로 전환할 수 없다. */
 export const PARTIAL_RETURN_TRANSFER_REASON_MIN = 5;
 export const PARTIAL_RETURN_TRANSFER_REASON_MAX = 500;
 /** 서버 액션이 받는 계좌번호 모양(숫자·하이픈 8~30자). */
@@ -102,10 +102,7 @@ export function ClaimPartialReturnTransfer({ claimId, refundAmount, defaultOpen 
     <div className="grid gap-3 sm:grid-cols-3">
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={ids.bank}>은행</Label>
-        <NativeSelect className="w-full" disabled={pending} id={ids.bank} name="bankName" onChange={event => setBankName(event.target.value)} required value={bankName}>
-          <NativeSelectOption value="">은행 선택</NativeSelectOption>
-          {TOSS_REFUND_BANKS.map(bank => <NativeSelectOption key={bank.code} value={bank.name}>{bank.name}</NativeSelectOption>)}
-        </NativeSelect>
+        <ClaimTransferBankField disabled={pending} id={ids.bank} name="bankName" onChange={setBankName} required value={bankName} />
       </div>
       <div className="flex flex-col gap-1.5">
         <Label htmlFor={ids.account}>계좌번호</Label>

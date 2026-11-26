@@ -26,7 +26,7 @@ import { SHIPPING_CHARGE_GROUP_RUNTIME_OFF, shippingChargeGroupOperationContext,
 import { chargeAdminFixtures, chargeId, chargeIdentity as identity, chargeIds as ids } from '@/test/fixtures/shipping-charge-groups';
 import type { EditableCarrier } from '@/lib/admin/store-settings';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
-import { ShippingChargeGroupField, ShippingChargeGroupSummary, type ShippingChargeGroupFieldProps } from '../ShippingChargeGroupField';
+import { ShippingChargeGroupField, ShippingChargeGroupSummary, shippingChargeGroupPickerRowView, type ShippingChargeGroupFieldProps } from '../ShippingChargeGroupField';
 import { GroupsWorkspace, ShippingChargeGroupArchiveButton } from '../screens/ShippingChargeGroupsPanel';
 import { ShippingChargeGroupEditor } from './ShippingChargeGroupEditor';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
@@ -415,6 +415,30 @@ it('지역표에는 근거 칸·확인 체크·택배사 고르기가 없고, �
   expect(shown).toContain('지역표 미리보기 · 1줄'); expect(shown).toContain('추가배송비 받음');
   patchRegion({ noRulesConfirmed: true }); expect(text(regionTree())).not.toContain('지역표 미리보기');
 });
+/* 지역표 붙여넣기는 지역별 추가배송비 화면과 같은 읽기(parseShippingRegionRulesTsv)다. 쉼표 자리가 틀린 금액이 조용히 다른 금액이 되지 않는다. */
+it('붙여넣은 지역표의 쉼표 자리가 틀린 금액(3,00)은 300원으로 읽지 않고 그 줄을 알리며, 맞는 금액(3,000)은 읽는다', () => {
+  mode = 'editor'; editorProps.start.data!.group.regional = { mode: 'override', policy: regionWithRules() }; render(); effects();
+  const paste = (value: string) => (regionFields()!.props.onTsvChange as (next: string) => void)(value);
+  paste('63000\t63644\t\t제주\t추가배송비 받음\t3,00');
+  const bad = text(regionTree());
+  expect(bad).toContain('지역표 1번째 줄의 추가배송비(3,00)를 읽지 못했습니다. 0부터 1,000,000까지 숫자만 적어 주세요. 쉼표는 3,000처럼 세 자리마다만 찍어 주세요.');
+  expect(bad).not.toContain('지역표 미리보기');
+  paste('63000\t63644\t\t제주\t추가배송비 받음\t3,000원');
+  const good = text(regionTree());
+  expect(good).not.toContain('읽지 못했습니다');
+  expect(good).toContain('지역표 미리보기 · 1줄'); expect(good).toContain('3,000원');
+});
+it('붙여넣은 지역표에 틀린 줄이 여럿이면 줄 순서대로 모두 목록으로 알린다', () => {
+  mode = 'editor'; editorProps.start.data!.group.regional = { mode: 'override', policy: regionWithRules() }; render(); effects();
+  const paste = (value: string) => (regionFields()!.props.onTsvChange as (next: string) => void)(value);
+  paste('63000\t63644\t\t제주\t추가배송비 받음\t3,00\n63100\t63200\t\t제주\t추가배송비 받음\t3,000\n63300\t63400\t\t제주\t알 수 없음\t0');
+  const shown = text(regionTree());
+  expect(shown).toContain('지역표 1번째 줄의 추가배송비(3,00)를 읽지 못했습니다.');
+  expect(shown).toContain('지역표 3번째 줄의 처리(알 수 없음)를 읽지 못했습니다.');
+  expect(shown.indexOf('지역표 1번째 줄')).toBeLessThan(shown.indexOf('지역표 3번째 줄'));
+  expect(shown).not.toContain('지역표 2번째 줄');
+  expect(shown).not.toContain('지역표 미리보기');
+});
 it('지역 설정이 바뀌는 저장은 확인 체크 대신 대상·금액·적용 기간을 보여 주는 확인창 한 번을 거친다', async () => {
   mode = 'editor'; confirm = stubAdminConfirm(true); render(); effects(); change('지역별 추가배송비', 'override');
   expect(regionFields()!.props.policy).toMatchObject({ carrierCode: 'cj', openEnded: true, unlistedDisposition: 'standard', sourceEvidence: '', noRulesConfirmed: false });
@@ -574,6 +598,8 @@ it('조건이 안 맞는 상품은 건너뛰고 나머지만 넣는다(막힌 �
   expect(mocks.preview.mock.calls.map(([group, goods]) => [group, goods])).toEqual([[ids.group, ['good-a', 'good-b']], [ids.group, ['good-a']]]);
   const shown = text(node()); expect(shown).toContain('상품 1개를 ‘TEST 묶음그룹’ 묶음그룹에 넣습니다. 1개는 건너뜁니다.');
   expect(shown).toContain('건너뜀 · 출고지가 착불을 받을 준비가 돼 있지 않습니다.');
+  /* S6-1: 건너뜀 이유는 마지막 문장도 마침표로 닫는다. */
+  expect(shown).toContain('착불 조건을 먼저 준비해 주세요.');
   click('1개 상품 넣기'); await settle();
   expect(mocks.assign.mock.calls[0][0].goods.map((good: { id: string }) => good.id)).toEqual(['good-a']);
   expect(mocks.receipt).toHaveBeenCalledOnce(); expect(mocks.receipt.mock.calls[0][1]).toEqual({ action: 'add', groupName: 'TEST 묶음그룹',
@@ -609,6 +635,58 @@ it('다른 묶음그룹으로 옮기기는 옮길 곳만 선택창에서 고르�
 it('옮길 곳 고르기를 닫으면 고른 상품을 둔 채 상품 목록으로 돌아간다', async () => {
   await mountAssignment('manage'); pickGood(goodIn()); (footerButton('다른 묶음그룹으로 옮기기').props.onClick as () => void)();
   goodsPicker()!.props.onClose(); expect(goodsPicker()!.props).toMatchObject({ title: '묶음그룹의 상품', selectedKeys: ['good-a'] });
+});
+
+/*
+ * QA-S S3-1: [다른 묶음그룹으로 옮기기]를 누르면 화면 전체가 죽었다("Cannot read properties of undefined (reading 'mode')").
+ * 상품 고르기와 옮길 곳 고르기는 같은 부품(AdminPickerDialog)을 같은 자리에서 단계만 바꿔 그린다. React는 같은 자리에 같은 부품과 같은 key가 오면
+ * 새로 만들지 않고 이전 것을 재사용해 상태를 물려준다. 선택창은 조회 결과(줄)를 자기 상태로 들고 있어서, 뒤 단계의 줄 그리기(묶음그룹용)가
+ * 앞 단계에서 읽은 상품 줄에 불렸다. 이 저장소 시험에는 DOM이 없어 실제로 갱신해 보지 못하므로, 그 재사용 규칙(부품·key가 같은가)을
+ * 단계가 바뀔 때마다 돌려받는 요소로 직접 가린다.
+ */
+const sharesState = (before: ReactElement, after: ReactElement) => before.type === after.type && before.key === after.key;
+it('상품 고르기와 옮길 곳 고르기는 같은 선택창 부품이지만 key가 달라, 단계가 바뀔 때 앞 단계의 조회 결과(상품 줄)를 물려받지 않는다', async () => {
+  await mountAssignment('manage');
+  const pickStep = node(); expect(pickStep.type).toBe(AdminPickerDialog); expect(pickStep.key).not.toBeNull();
+  pickGood(goodIn()); (footerButton('다른 묶음그룹으로 옮기기').props.onClick as () => void)();
+  const targetStep = node(); expect(targetStep.type).toBe(AdminPickerDialog); expect(targetStep.key).not.toBeNull();
+  expect(sharesState(pickStep, targetStep)).toBe(false);
+  /* 이 두 단계는 줄의 종류도 다르다 — 상품 줄과 묶음그룹 줄을 같은 선택창이 함께 들고 있으면 안 된다. */
+  expect((pickStep.props as { title: string }).title).toBe('묶음그룹의 상품'); expect((targetStep.props as { title: string }).title).toBe('묶음그룹 고르기');
+  /* 상품 단계로 돌아올 때도 같다. */
+  (targetStep.props as { onClose: () => void }).onClose();
+  const backStep = node(); expect(backStep.type).toBe(AdminPickerDialog);
+  expect(sharesState(targetStep, backStep)).toBe(false);
+  expect(backStep.key).toBe(pickStep.key);
+});
+it('단계가 바뀌어도 같은 key를 이어 쓰는 두 선택창이 이어서 그려지는 곳이 없다 — 상품 넣기·빼기·옮기기의 모든 단계 이동', async () => {
+  const { preview, summary, group } = chargeAdminFixtures(), other: ShippingChargeGroup = { ...group, id: ids.other, name: '다른 묶음', revision: 2 };
+  mocks.preview.mockResolvedValue({ data: { ...preview, group: other, goods: [{ ...goodIn(), beforeGroup: summary, afterGroup: { ...summary, id: other.id, name: other.name, revision: 2 } }] } });
+  await mountAssignment('manage');
+  /* 한 단계씩 돌려받은 요소를 모아 이웃한 단계가 같은 것으로 판정되지 않는지 본다. 미리보기 창은 선택창이 아닌 부품이라 서로 다르다. */
+  const steps: ReactElement[] = [node()];
+  pickGood(goodIn()); (footerButton('다른 묶음그룹으로 옮기기').props.onClick as () => void)(); steps.push(node());    /* pick → target */
+  (goodsPicker()!.props.onSelect as (row: unknown) => unknown)(other); await settle(); steps.push(node());           /* target → preview */
+  click('상품 다시 고르기'); steps.push(node());                                                                    /* preview → pick */
+  (footerButton('다른 묶음그룹으로 옮기기').props.onClick as () => void)(); steps.push(node());                        /* pick → target */
+  expect(steps.map(step => step.type === AdminPickerDialog ? String(step.key) : 'preview')).toEqual(['pick', 'target', 'preview', 'pick', 'target']);
+  for (let index = 1; index < steps.length; index++) expect(sharesState(steps[index - 1], steps[index])).toBe(false);
+});
+it('옮길 곳 선택창이 처음 여는 조회는 묶음그룹 목록이고, 이 선택창의 줄 그리기는 묶음그룹 줄을 읽는다', async () => {
+  const { group } = chargeAdminFixtures();
+  await mountAssignment('manage'); pickGood(goodIn()); (footerButton('다른 묶음그룹으로 옮기기').props.onClick as () => void)();
+  const target = goodsPicker()!.props;
+  await target.load(firstRequest); expect(mocks.list).toHaveBeenCalledExactlyOnceWith({ originId: ids.origin, query: '', status: 'active', page: 1 }, identity);
+  expect(mocks.find).not.toHaveBeenCalled();
+  expect(text(target.rowView(group).title)).toBe('TEST 묶음그룹'); expect(text(target.rowView(group).meta)).toBe('가장 싼 배송비 한 번 · 지역별 추가배송비는 출고지 설정 그대로');
+});
+/* 방어: 줄이 섞이지 않게 하는 것은 위 key의 몫이다. 그래도 묶음그룹이 아닌 줄(상품 줄)이 들어오면 화면 전체가 죽지 않고 있는 값만 말한다. */
+it('묶음그룹 줄 그리기는 묶음그룹이 아닌 줄을 받아도 던지지 않는다', () => {
+  const { group, good } = chargeAdminFixtures();
+  expect(text(shippingChargeGroupPickerRowView(group).meta)).toBe('가장 싼 배송비 한 번 · 지역별 추가배송비는 출고지 설정 그대로');
+  expect(text(shippingChargeGroupPickerRowView({ ...group, calculationMode: 'max', regional: { mode: 'override', policy: chargeAdminFixtures().region } }).meta)).toBe('가장 비싼 배송비 한 번 · 지역별 추가배송비는 이 묶음그룹의 지역표대로');
+  expect(() => shippingChargeGroupPickerRowView(good as unknown as ShippingChargeGroup)).not.toThrow();
+  expect(text(shippingChargeGroupPickerRowView(good as unknown as ShippingChargeGroup).meta)).toBe('');
 });
 it('다른 상품이나 로그인의 미리보기가 돌아오면 보낼 내용을 만들지 않는다', async () => {
   const { preview, good } = chargeAdminFixtures(); mocks.preview.mockResolvedValueOnce({ data: { ...preview, sessionId: ids.other } });
@@ -683,6 +761,20 @@ it('목록에는 내부 번호·버전이 없고, 줄마다 하는 일을 말하
   expect(text(listActions())).toBe('묶음그룹 추가');
   expect(all(node()).some(item => item.type === ShippingChargeGroupArchiveButton)).toBe(true);
 });
+/* S3-2: 남양주 탭에서 [묶음그룹 추가]를 열면 출고지가 '골라 주세요'로 비어 있지 않고 그 탭의 출고지로 시작한다. */
+it('[묶음그룹 추가]는 목록에서 고른 출고지 조건이 먼저이고, 없으면 열어 둔 출고지 탭의 출고지로 시작한다', async () => {
+  const origin = (patch: Partial<GoodsFulfillmentOrigin> = {}): GoodsFulfillmentOrigin => ({ id: ids.origin, name: 'TEST 출고지', defaultCarrier: 'cj', baseFee: 3000, freeThreshold: null, returnAddress: '', active: true, ...patch });
+  const editorStart = () => all(node()).find(item => item.type === ShippingChargeGroupEditor)?.props.start as { originId: string } | undefined;
+  const addGroup = () => (all(listActions()).find(item => item.type === Button)!.props.onClick as () => void)();
+  workspaceProps = { ...workspaceProps, origins: [origin()], defaultOriginId: ids.origin };
+  await mountWorkspace(); expect(editorStart()).toBeUndefined();
+  addGroup(); expect(editorStart()!.originId).toBe(ids.origin);
+  /* 열어 둔 탭이 없으면(출고지 추가 탭 등) 예전처럼 비어 있다. */
+  resetHooks(); workspaceProps = { ...workspaceProps, defaultOriginId: undefined }; await mountWorkspace(); addGroup(); expect(editorStart()!.originId).toBe('');
+  /* 사용 안 함이거나 목록에 없는 출고지는 고를 수 없으니 비운다. */
+  resetHooks(); workspaceProps = { ...workspaceProps, origins: [origin({ active: false })], defaultOriginId: ids.origin }; await mountWorkspace(); addGroup(); expect(editorStart()!.originId).toBe('');
+  resetHooks(); workspaceProps = { ...workspaceProps, origins: [origin()], defaultOriginId: '00000000-0000-4000-8000-0000000000ff' }; await mountWorkspace(); addGroup(); expect(editorStart()!.originId).toBe('');
+});
 it('[상품 넣기]와 상품 수는 서로 다른 일로 창을 연다', async () => {
   const { group } = chargeAdminFixtures(); mocks.list.mockReset().mockResolvedValue({ data: { ...listData(), groups: [{ ...group, assignedCount: 3 }] } });
   await mountWorkspace(); expect(assignmentDialog()).toBeUndefined();
@@ -735,6 +827,57 @@ it('보관한 묶음그룹은 [복원]으로 되살리고(사용 안 함), 상�
   render(); effects(); click('복원'); await flush(); expect(mocks.save.mock.calls[0][0]).toMatchObject({ values: { archived: false, enabled: false } });
   resetHooks(); storageValues.clear(); archiveProps = { ...archiveProps, group: { ...group, assignedCount: 2 } }; render(); effects();
   expect(button('보관').props.disabled).toBe(true); (button('보관').props.onClick as () => void)(); expect(mocks.save).toHaveBeenCalledOnce();
+});
+
+/*
+ * 서버가 이유를 들어 거절한 저장은 목록 위에 알린다(onFailure). 보내기 전에 멈춘 경우(이 브라우저에 진행 기록을 남길 수 없음·보낼 값의 형식이 맞지 않음)는
+ * 버튼 아래에 이유를 보인다 — 눌러도 아무 일도 없는 것처럼 보이지 않게 한다. 같은 거절 이유를 두 곳에서 말하지는 않는다.
+ */
+const archiveError = () => all(node()).find(item => item.props['data-charge-group-archive-error'] !== undefined);
+it('[보관]이 보내기 전에 멈추면(진행 기록을 남길 수 없음) 버튼 아래에 이유를 보이고 아무것도 보내지 않는다', async () => {
+  mode = 'archive'; render(); effects(); expect(archiveError()).toBeUndefined();
+  vi.stubGlobal('sessionStorage', { getItem: () => null, setItem: () => { throw new Error('blocked'); }, removeItem: () => {}, key: () => null, length: 0 });
+  click('보관'); await flush();
+  expect(mocks.save).not.toHaveBeenCalled();
+  expect(text(archiveError()!)).toBe('이 브라우저에 진행 기록을 남길 수 없어 보내지 않았습니다. 시크릿 창이 아닌 일반 창에서 열거나, 브라우저 설정에서 사이트 데이터 저장을 허용해 주세요.');
+  expect(archiveError()!.props.role).toBe('alert');
+  expect(mocks.failure).not.toHaveBeenCalled();
+});
+it('[복원]도 보낼 값의 형식이 맞지 않아 멈추면 이유를 보인다', async () => {
+  mode = 'archive'; const { group, origin } = chargeAdminFixtures();
+  /* 출고지를 읽은 시각이 시각 형식이 아니라 요청 검사에서 걸린다. */
+  archiveProps = { ...archiveProps, group: { ...group, enabled: false, archived: true }, origin: { ...origin, updatedAt: '시각 아님' } };
+  render(); effects(); click('복원'); await flush();
+  expect(mocks.save).not.toHaveBeenCalled(); expect(storageValues.size).toBe(0);
+  expect(text(archiveError()!)).toBe('로그인한 계정이나 묶음그룹이 달라 보내지 않았습니다. 화면을 새로고침한 뒤 다시 해 주세요.');
+});
+it('서버가 이유를 들어 거절한 [보관]은 목록 위에서 알리므로 버튼 아래에 한 번 더 말하지 않는다', async () => {
+  mode = 'archive'; mocks.save.mockResolvedValueOnce({ error: '다른 사람이 먼저 바꿨습니다.', uncertain: false, changed: true }); mocks.seal.mockImplementationOnce(sealOf);
+  render(); effects(); click('보관'); await flush();
+  expect(mocks.failure).toHaveBeenCalledExactlyOnceWith({ error: '다른 사람이 먼저 바꿨습니다.', changed: true });
+  expect(archiveError()).toBeUndefined();
+});
+it('결과를 모르는 [보관]은 목록 위 \'저장하던 중이었습니다\' 상자가 말하므로 버튼 아래에 이유를 두지 않는다', async () => {
+  mode = 'archive'; render(); effects(); click('보관'); await flush();
+  expect(mocks.save).toHaveBeenCalledOnce(); expect(storageValues.size).toBe(1);
+  expect(archiveError()).toBeUndefined();
+  expect(button('보관').props.disabled).toBe(true);
+});
+
+/* 위에서 출고지의 기본 택배사를 저장하면 화면이 새 출고지를 내려 준다 — 지역표 택배사가 달라진 묶음그룹의 경고를 보이려면 목록을 다시 읽어야 한다. */
+it('출고지의 기본 택배사가 바뀌어 새 출고지가 내려오면 목록을 다시 읽고, 같은 출고지가 다시 내려오면 읽지 않는다', async () => {
+  const origin = (patch: Partial<GoodsFulfillmentOrigin> = {}): GoodsFulfillmentOrigin => ({ id: ids.origin, name: 'TEST 출고지', defaultCarrier: 'cj', baseFee: 3000, freeThreshold: null, returnAddress: '', active: true, ...patch });
+  workspaceProps = { ...workspaceProps, origins: [origin()] };
+  await mountWorkspace(); expect(mocks.list).toHaveBeenCalledTimes(1);
+  workspaceProps = { ...workspaceProps, origins: [origin()] }; node(); effects(); await flush();
+  expect(mocks.list).toHaveBeenCalledTimes(1);
+  workspaceProps = { ...workspaceProps, origins: [origin({ defaultCarrier: 'hanjin' })] }; node(); effects(); await flush();
+  expect(mocks.list).toHaveBeenCalledTimes(2);
+  /* 사용 여부가 바뀌어도 같다. 이름만 바뀌면 읽지 않는다. */
+  workspaceProps = { ...workspaceProps, origins: [origin({ defaultCarrier: 'hanjin', active: false })] }; node(); effects(); await flush();
+  expect(mocks.list).toHaveBeenCalledTimes(3);
+  workspaceProps = { ...workspaceProps, origins: [origin({ defaultCarrier: 'hanjin', active: false, name: '이름만 바뀜' })] }; node(); effects(); await flush();
+  expect(mocks.list).toHaveBeenCalledTimes(3);
 });
 
 /* 공용 페이지 이동(ConsolePagination)은 범위 밖 페이지를 범위 안으로 보정해 그려 '이전'이 닫힌다 — 보관 등으로 마지막

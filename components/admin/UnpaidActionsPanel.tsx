@@ -15,10 +15,12 @@ import {
   type AdminUnpaidOrderRow,
 } from '../../lib/admin/unpaid';
 import {
+  UNPAID_EXTEND_BUTTON_LABEL,
   unpaidCancelRequest,
   unpaidConfirmDepositRequest,
   unpaidExtendDeadlineRequest,
   unpaidOrderLabel,
+  unpaidProcessedNotice,
 } from '../../lib/admin/unpaid-copy';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
@@ -31,7 +33,7 @@ import {
   bankTransferDeadlinePassed,
   bankTransferDepositNameWithCode,
 } from '@/lib/payments/bank-transfer';
-import { ignoreUnconfirmedUnpaidSubmit, submitUnpaidAfterConfirm } from './unpaid-submit';
+import { ignoreUnconfirmedUnpaidSubmit, reportUnpaidProcessed, submitUnpaidAfterConfirm } from './unpaid-submit';
 
 const initialState: AdminUnpaidActionState = {};
 
@@ -73,22 +75,28 @@ function DeadlineFact({ order, now }: { order: AdminUnpaidOrderRow; now?: number
  * 선택한 미입금 주문의 처리 패널.
  *
  * 세 액션이 모두 근거를 요구한다. 확정은 돈이 들어왔다는 사람의 판단이고,
- * 연장은 재고를 하루 더 묶는 판단이며, 취소는 구매자의 주문을 없애는 판단이다 —
+ * 연장은 재고를 지금부터 하루 동안 더 묶는 판단이며, 취소는 구매자의 주문을 없애는 판단이다 —
  * 셋 다 나중에 "왜 그랬나"를 물을 수 있어야 한다.
  *
  * 패널은 표·페이지 아래에 있어 고른 줄과 떨어져 있다. 그래서 머리에 어느 주문인지(주문번호·구매자·입금자명·금액·기한)를
  * 통장과 맞춰 볼 값 그대로 보이고, 세 버튼은 누르면 같은 값과 결과를 확인창에서 한 번 더 말한다(`lib/admin/unpaid-copy.ts`).
  * 확인 뒤 제출은 `unpaid-submit.ts` 참고.
  */
-export function UnpaidActionsPanel({ order, now, detailHref }: {
+export function UnpaidActionsPanel({ order, now, detailHref, onProcessed }: {
   order: AdminUnpaidOrderRow;
   /** 남은 시간을 셀 기준 시각(ms). 목록과 같은 값을 서버 화면이 준다. */
   now?: number;
   /** 이 주문의 주문 상세 링크. 입금 확인을 못 누르는 상태에서 결제 내역을 보러 가는 길이다. */
   detailHref?: string;
+  /**
+   * 입금 확인·즉시 취소가 끝났을 때 결과 한 줄을 받는 곳. 처리된 주문은 목록에서 빠지며 이 패널이 사라지므로,
+   * 패널을 감싼 쪽(`UnpaidSelectedOrder`)이 그 자리에 결과를 남긴다. 기한 연장은 주문이 목록에 남아 패널이 결과를 보이므로 알리지 않는다.
+   */
+  onProcessed?: (notice: string) => void;
 }) {
+  const processed = onProcessed ? (message: string) => onProcessed(unpaidProcessedNotice(order, message)) : null;
   const [confirmState, confirmAction, confirmPending] = useActionState(
-    confirmBankTransferDepositAction,
+    processed ? reportUnpaidProcessed(confirmBankTransferDepositAction, processed) : confirmBankTransferDepositAction,
     initialState,
   );
   const [extendState, extendAction, extendPending] = useActionState(
@@ -96,7 +104,7 @@ export function UnpaidActionsPanel({ order, now, detailHref }: {
     initialState,
   );
   const [cancelState, cancelAction, cancelPending] = useActionState(
-    cancelUnpaidBankTransferOrderAction,
+    processed ? reportUnpaidProcessed(cancelUnpaidBankTransferOrderAction, processed) : cancelUnpaidBankTransferOrderAction,
     initialState,
   );
   /* 입금 확인은 결제 시도가 '입금 대기'일 때만 된다 — 그 밖의 상태는 DB가 거절한다. 못 누르는 이유를 그 자리에서 말한다. */
@@ -167,7 +175,7 @@ export function UnpaidActionsPanel({ order, now, detailHref }: {
             />
           </label>
           <Button disabled={extendPending || extended} type="submit" variant="outline">
-            {extended ? '이미 한 번 연장함' : extendPending ? '연장하는 중' : '기한 24시간 연장'}
+            {extended ? '이미 한 번 연장함' : extendPending ? '연장하는 중' : UNPAID_EXTEND_BUTTON_LABEL}
           </Button>
           <ActionResult state={extendState} />
         </form>

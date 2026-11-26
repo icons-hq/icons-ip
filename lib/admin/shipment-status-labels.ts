@@ -14,6 +14,11 @@ export function adminShipmentStatusLabel(status: ShipmentStatus): string {
   return ADMIN_SHIPMENT_STATUS_LABELS[status];
 }
 
+/** 목록·엑셀이 문자열로 받은 상태 값의 이름. 값이 없거나 모르는 값이면 null이다(영문 값을 그대로 보이지 않는다). */
+export function adminShipmentStatusLabelOf(status: string | null | undefined): string | null {
+  return status && Object.hasOwn(ADMIN_SHIPMENT_STATUS_LABELS, status) ? ADMIN_SHIPMENT_STATUS_LABELS[status as ShipmentStatus] : null;
+}
+
 /**
  * 택배 외 배송 건의 상태 이름. 퀵·직접배송·화물배송은 '퀵 배송중'처럼 방식 이름을 앞에 붙이고,
  * 방문수령·배송없음·디지털 파일은 단계가 달라 고객 화면과 같은 이름(방문수령 준비·완료 등)을 쓴다.

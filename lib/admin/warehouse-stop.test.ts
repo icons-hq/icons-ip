@@ -87,7 +87,9 @@ describe('창고 회신 이름과 오류 문구', () => {
       expect(message).toContain('새로고침');
       expect(message).not.toMatch(/요청|번호/);
     }
-    expect(warehouseStopErrorMessage('operator_capability_required')).toContain('이 작업을 할 권한이 없습니다');
+    /* 읽기(주문 조회)·기록(출고)·취소 뒤 출고 처리(판매 관리)가 함께 쓰는 문구표라 권한 이름을 단정하지 않는다. */
+    expect(warehouseStopErrorMessage('operator_capability_required')).toBe('이 작업을 할 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.');
+    expect(warehouseStopErrorMessage('operator_capability_required')).not.toMatch(/주문 처리 권한|주문 관리 권한/);
   });
 
   it('취소 뒤 출고 발견의 택배사 이름은 읽는 쪽이 채울 때만 받고 없으면 비워 둔다(코드를 이름으로 지어내지 않는다)', () => {

@@ -1,6 +1,7 @@
 import { isCommerceNumber } from '@/lib/commerce-number';
 import { FULFILLMENT_METHOD_LABELS, FULFILLMENT_METHODS, type FulfillmentMethod } from '@/lib/goods-fulfillment';
 import { isUuid } from '@/lib/uuid';
+import { ADMIN_SALES_ACCESS_DENIED } from './vocabulary';
 
 /*
  * 운영 강제 배송완료 — 1014-083(2026-11-11 결정 묶음 3 "운영 전체 주문 허용"). DB 계약은
@@ -127,12 +128,12 @@ export function forcedDeliveryConfirmMessage(preview: ForcedDeliveryPreview, ord
     '· 되돌리려면 주문 상세의 [배송완료 되돌리기]를 씁니다(택배 배송 건만). 이미 간 앱 알림은 회수할 수 없습니다.',
   ];
   if (preview.orderCount > 1) lines.push('', `합포장으로 묶인 주문 ${preview.orderCount}개가 함께 배송완료됩니다${others.length ? `(다른 주문: ${others.join(', ')})` : ''}.`);
-  if (exported.length) lines.push('', `출고지시를 이미 전달한 배송 건 ${exported.length}건이 있습니다. 창고 출고는 멈추지 않으니, 보내지 않을 주문이면 창고에 출고 보류를 먼저 요청해주세요.`);
+  if (exported.length) lines.push('', `출고지시를 이미 보낸 배송 건 ${exported.length}건이 있습니다. 창고 출고는 멈추지 않으니, 보내지 않을 주문이면 창고에 출고 보류를 먼저 요청해주세요.`);
   return lines.join('\n');
 }
 
 export function forcedDeliveryError(code?: string, message?: string): string {
-  if (message?.includes('operator_capability_required') || ['42501', '28000'].includes(code ?? '')) return '현재 로그인 계정과 배송 처리 권한을 확인해주세요.';
+  if (message?.includes('operator_capability_required') || ['42501', '28000'].includes(code ?? '')) return ADMIN_SALES_ACCESS_DENIED;
   if (message?.includes('forced_delivery_order_not_found')) return '선택한 주문을 찾지 못했습니다. 주문을 다시 골라주세요.';
   if (message?.includes('invalid_forced_delivery')) return '주문을 다시 골라주세요.';
   if (message?.includes('forced_delivery_reason_required')) return `사유를 1~${FORCED_DELIVERY_REASON_MAX_LENGTH}자로 입력해주세요.`;

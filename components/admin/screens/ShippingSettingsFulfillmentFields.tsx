@@ -19,7 +19,7 @@ export function ShippingSettingsFulfillmentFields({ value, onChange, error }: { 
   const modeCard = (mode: ShippingFulfillmentDraft['mode'], title: string, description: string) => <GoodChoiceCard name="shipping-settings-fulfillment-mode" value={mode}
     checked={value.mode === mode} onChange={() => onChange({ ...value, mode })} title={title} description={description} />;
   return <div className="flex min-w-0 flex-col gap-3" data-shipping-fulfillment="">
-    <GoodChoiceCards legend="상품 제공 방식">
+    <GoodChoiceCards legend="수령 방식">
       {modeCard('shipping', '배송 또는 방문수령', '고객이 주문서에서 받는 방법을 고릅니다.')}
       {modeCard('no_delivery', '배송없음 · 직접전달', '배송비 없이 주문받고, 직접 전달한 뒤 전달 근거를 기록합니다.')}
     </GoodChoiceCards>
@@ -34,7 +34,7 @@ export function ShippingSettingsFulfillmentFields({ value, onChange, error }: { 
     </div>)}</div> : null}
     {needsOriginSetup ? <p className={NOTE} data-shipping-fulfillment-origin-note="">택배 외 방식은 <a className="font-medium text-foreground underline underline-offset-4" href="/admin/settings/origins" target="_blank" rel="noreferrer">배송정보 관리</a>에서 출고지의 연락처·인계 장소·수령 절차를 먼저 켜 둬야 주문할 수 있습니다. 추가 배송비는 선결제로만 받고, 현장에서 따로 받지 않습니다.</p> : null}
     <label className={FIELD_LABEL} htmlFor="shipping-settings-fulfillment-note">고객 안내 (선택)<Input id="shipping-settings-fulfillment-note" maxLength={1000} placeholder="예: 설치 기사가 방문해 설치합니다" value={value.publicNote} onChange={e => onChange({ ...value, publicNote: e.target.value })} />
-      <small className={FIELD_HINT}>상품 상세의 제공 방식과 주문서의 받을 방식 아래에 보입니다.</small></label>
+      <small className={FIELD_HINT}>상품 상세의 ‘제공 방식’과 주문서의 ‘받을 방식’ 아래에 보입니다.</small></label>
     {error ? <p role="alert" className={FIELD_ERROR}>{error}</p> : null}
   </div>;
 }
