@@ -29,6 +29,7 @@ vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthS
 import { BankTransferRefund } from './BankTransferRefund';
 import { BANK_REFUND_ACCOUNT_MISSING_AFTER_PARTIAL, BANK_REFUND_FIELDS, BANK_REFUND_LABELS, bankRefundRecoveryKey, type BankRefundContext, type BankRefundKind, type BankRefundRecovery, type BankRefundRequest } from '@/lib/admin/bank-transfer-refund';
 import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
+import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 
 const identity = { actorId: 'b1920000-0000-4000-8000-000000000001', sessionId: 'b1920000-0000-4000-8000-000000000002',
   orderId: 'b1920000-0000-4000-8000-000000000003', claimId: 'b1920000-0000-4000-8000-000000000004' };
@@ -42,6 +43,8 @@ const context: BankRefundContext = { actorId: identity.actorId, orderId: identit
 const rawAccount = { bankName: '합성은행', accountNumber: '123-4567-890', accountHolder: '합성예금주' };
 type Element = ReactElement<Record<string, unknown>>;
 let nodes: Element[], storage: Map<string, string>;
+/* 요청의 단계(ClaimActionPanel이 넘긴다). 바뀌면 이 칸이 환불 상태를 다시 읽는다. */
+let stageProp: string | undefined;
 /* 확인창 대역: 불린 순서를 transition.order에 남기고, 전환 안에서 불렸는지도 구분한다. 어느 시험이든 확인창이 전환 안에서 불리면 afterEach가 실패시킨다. */
 const answering = (answer: boolean | (() => boolean | Promise<boolean>)) => stubAdminConfirm(() => {
   transition.order.push(transition.depth > 0 ? '확인창(전환 안)' : '확인창');
@@ -58,7 +61,7 @@ function render() {
     if (typeof value.type === 'function') { seen.add(key); if (!hooks.frames.has(key)) hooks.frames.set(key, { values: [], effects: new Map(), jobs: [] }); hooks.current = key; hooks.index = 0; visit((value.type as (props: unknown) => ReactNode)(value.props), key); }
     else { nodes.push(value); if (value.type === 'dialog') { const ref = value.props.ref as { current: unknown } | undefined; if (ref) ref.current ??= { showModal: mocks.showModal }; } visit(value.props.children as ReactNode, key); }
   }); }
-  visit(<BankTransferRefund actorId={identity.actorId} orderId={identity.orderId} claimId={identity.claimId} />, 'root');
+  visit(<BankTransferRefund actorId={identity.actorId} orderId={identity.orderId} claimId={identity.claimId} stage={stageProp} />, 'root');
   for (const [key, frame] of hooks.frames) if (!seen.has(key)) { for (const effect of frame.effects.values()) effect.cleanup?.(); hooks.frames.delete(key); }
 }
 function effects() { for (const frame of hooks.frames.values()) for (const effect of frame.jobs.splice(0)) effect(); }
@@ -86,7 +89,7 @@ function makeReceipt(original: BankRefundRecovery, state = 'recorded') { return 
 const deferred = () => { let resolve!: (value: unknown) => void; const promise = new Promise(yes => { resolve = yes; }); return { promise, resolve }; };
 async function mount(nextContext: BankRefundContext = context) { dispose(); mocks.load.mockResolvedValue({ context: nextContext }); render(); effects(); authenticate(); await flush(); }
 beforeEach(async () => {
-  vi.useFakeTimers(); vi.setSystemTime(new Date(NOW)); vi.resetAllMocks(); hooks.frames.clear(); storage = new Map();
+  vi.useFakeTimers(); vi.setSystemTime(new Date(NOW)); vi.resetAllMocks(); hooks.frames.clear(); storage = new Map(); stageProp = undefined;
   vi.stubGlobal('sessionStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key), key: (index: number) => [...storage.keys()][index] ?? null, get length() { return storage.size; } });
   vi.stubGlobal('window', Object.assign(new EventTarget(), { confirm: vi.fn(() => false), setTimeout, clearTimeout }));
   vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }));
@@ -334,4 +337,95 @@ it('환불계좌가 없는 주문은 일반 안내를 하되, 앞선 부분 취�
   expect(partialBlocked[0]).toContain('고객이 계좌를 추가할 수 없고');
   expect(partialBlocked[0]).toContain('개발 요청이 필요합니다');
   expect(partialBlocked[0]).not.toContain('안내해주세요');
+});
+
+/*
+ * R-N1: 기록을 보내고 응답을 기다리는 동안 '저장됐는지 확인하지 못했습니다'와 잠긴 [저장됐는지 확인]·[같은 내용으로 다시 저장]이 보였다(복구에 쓸 값을
+ * 호출 전에 남기면서 복구 화면까지 그렸다). 기다리는 동안은 '기록하는 중…'만 보이고, 응답을 못 받았거나 결과를 모를 때만 복구 화면이 나와야 한다.
+ */
+const recoveryNotice = () => nodes.some(node => node.props.role === 'alert' && text(node) === SAVE_UNKNOWN_MESSAGE);
+const buttonTexts = () => nodes.filter(node => node.type === 'button').map(node => text(node));
+const submitButton = () => nodes.find(node => node.type === 'button' && node.props.type === 'submit');
+const RECOVERY_BUTTONS = ['저장됐는지 확인', '같은 내용으로 다시 저장', '그만두고 다시 하기'];
+it('호출이 끝나기 전에는 복구 문장과 두 버튼이 없고 기록하는 중…이 보이며, 복구에 쓸 값은 이미 남아 있다', async () => {
+  const pending = deferred(); mocks.save.mockReturnValueOnce(pending.promise);
+  fill(); submit(); await flush();
+  expect(mocks.save).toHaveBeenCalledOnce();
+  expect(recoveryNotice()).toBe(false);
+  for (const label of RECOVERY_BUTTONS) expect(buttonTexts(), label).not.toContain(label);
+  expect(text(submitButton()!)).toBe('기록하는 중…'); expect(submitButton()!.props.disabled).toBe(true);
+  expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(true);
+  /* 응답이 끊겨도 [저장됐는지 확인]이 같은 작업을 보도록 작업 번호는 호출 전에 탭에 남는다. */
+  expect(JSON.parse(storage.get(bankRefundRecoveryKey(identity))!).operationId).toBe(mocks.save.mock.calls[0][0].operationId);
+  pending.resolve({ receipt: makeReceipt(mocks.save.mock.calls[0][0]) }); await flush();
+});
+it('호출이 결과를 모른 채 끝나면(응답 유실·끊김) 복구 문장과 두 버튼이 나온다', async () => {
+  const lost = deferred(); mocks.save.mockReturnValueOnce(lost.promise);
+  fill(); submit(); await flush();
+  expect(recoveryNotice()).toBe(false);
+  lost.resolve({ error: '응답 유실', uncertain: true }); await flush();
+  expect(recoveryNotice()).toBe(true);
+  expect(buttonTexts()).toEqual(expect.arrayContaining(['저장됐는지 확인', '같은 내용으로 다시 저장']));
+  expect(submitButton()).toBeUndefined(); expect(storage.size).toBe(1);
+  /* 호출이 예외로 끝나도 같다(앞 기록은 지우고 새로 시작한다). */
+  storage.clear(); await mount(); mocks.save.mockRejectedValueOnce(new Error('network'));
+  fill(); submit(); await flush();
+  expect(recoveryNotice()).toBe(true); expect(buttonTexts()).toEqual(expect.arrayContaining(['저장됐는지 확인', '같은 내용으로 다시 저장']));
+});
+it('성공하면 복구 문장도 두 버튼도 없고, 기다리는 동안 보이던 기록하는 중…도 없다', async () => {
+  const pending = deferred(); mocks.save.mockReturnValueOnce(pending.promise);
+  mocks.load.mockResolvedValue({ context: { ...context, phase: 'completed', completeBlocker: 'bank_refund_claim_unavailable' } });
+  fill(); submit(); await flush();
+  pending.resolve({ receipt: makeReceipt(mocks.save.mock.calls[0][0]) }); await flush();
+  expect(recoveryNotice()).toBe(false);
+  for (const label of RECOVERY_BUTTONS) expect(buttonTexts(), label).not.toContain(label);
+  expect(buttonTexts()).not.toContain('기록하는 중…'); expect(storage.size).toBe(0);
+  expect(nodes.some(node => node.props.role === 'status' && text(node) === '송금 완료를 기록했습니다. 환불이 끝났습니다.')).toBe(true);
+});
+it('같은 내용으로 다시 저장하는 동안에도 복구 화면이 아니라 기록하는 중…이고, 또 모르면 복구 화면으로 돌아온다', async () => {
+  fill(); submit(); await flush();
+  expect(recoveryNotice()).toBe(true);
+  const again = deferred(); mocks.save.mockReturnValueOnce(again.promise);
+  click('같은 내용으로 다시 저장'); await flush();
+  expect(mocks.save).toHaveBeenCalledTimes(2);
+  expect(recoveryNotice()).toBe(false);
+  for (const label of RECOVERY_BUTTONS) expect(buttonTexts(), label).not.toContain(label);
+  expect(text(submitButton()!)).toBe('기록하는 중…');
+  again.resolve({ error: '응답 유실', uncertain: true }); await flush();
+  expect(recoveryNotice()).toBe(true); expect(buttonTexts()).toEqual(expect.arrayContaining(['저장됐는지 확인', '같은 내용으로 다시 저장']));
+});
+it('탭을 닫았다 다시 열었을 때 남은 기록이 있으면 복구 화면이 처음부터 보인다', async () => {
+  fill(); submit(); await flush();
+  await mount();
+  expect(recoveryNotice()).toBe(true);
+  expect(buttonTexts()).toEqual(expect.arrayContaining(['저장됐는지 확인', '그만두고 다시 하기']));
+  expect(buttonTexts()).not.toContain('기록하는 중…'); expect(mocks.save).toHaveBeenCalledOnce();
+});
+it('[저장됐는지 확인]을 누르는 동안에는 복구 화면이 그대로 남는다(기록을 보내는 중이 아니다)', async () => {
+  fill(); submit(); await flush();
+  const reading = deferred(); mocks.read.mockReturnValueOnce(reading.promise);
+  click('저장됐는지 확인'); await flush();
+  expect(recoveryNotice()).toBe(true); expect(buttonTexts()).toContain('저장됐는지 확인');
+  expect(nodes.find(node => node.type === 'button' && text(node) === '저장됐는지 확인')!.props.disabled).toBe(true);
+  reading.resolve({ receipt: null }); await flush();
+});
+
+/* R-N2: 같은 화면에서 요청을 승인하면 요청의 단계가 바뀐다. 이 칸이 승인 전 상태('지금 단계에서는 기록할 수 없습니다')로 남지 않고 다시 읽어 1단계 양식을 연다. */
+it('요청의 단계가 바뀌면 환불 상태를 다시 읽어 새 양식을 연다', async () => {
+  const before: BankRefundContext = { ...context, claimType: 'cancel', stage: 'requested', phase: 'not_confirmed', gift: false, confirmedAt: null, filedAt: null, maskedAccount: null, maskedHolder: null,
+    confirmBlocker: 'bank_refund_claim_unavailable', fileBlocker: 'bank_refund_claim_unavailable', completeBlocker: 'bank_refund_claim_unavailable', viewBlocker: 'bank_refund_claim_unavailable' };
+  const approved: BankRefundContext = { ...before, stage: 'processing', maskedAccount: '123-****-890', maskedHolder: '합**', confirmBlocker: null, fileBlocker: 'bank_refund_confirmation_required', completeBlocker: 'bank_refund_confirmation_required', viewBlocker: null };
+  stageProp = 'requested'; await mount(before);
+  const blocked = () => nodes.some(node => node.type === 'p' && text(node).startsWith('지금 단계에서는 기록할 수 없습니다.'));
+  expect(blocked()).toBe(true); expect(nodes.some(node => node.type === 'form')).toBe(false);
+  const reads = mocks.load.mock.calls.length;
+  /* 같은 단계로 다시 그리면 다시 읽지 않는다. */
+  render(); effects(); await flush(); expect(mocks.load).toHaveBeenCalledTimes(reads);
+  /* 승인 → 단계가 바뀐 채 다시 그려진다. */
+  mocks.load.mockResolvedValue({ context: approved }); stageProp = 'processing';
+  render(); effects(); await flush();
+  expect(mocks.load).toHaveBeenCalledTimes(reads + 1);
+  expect(blocked()).toBe(false);
+  expect(nodes.some(node => node.type === 'legend' && text(node) === BANK_REFUND_LABELS.confirm_cancellation)).toBe(true);
+  expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(false);
 });

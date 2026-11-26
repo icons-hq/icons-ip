@@ -22,17 +22,19 @@ import { ADMIN_LIST_EXPORT_BUTTON_LABEL, adminListExportHref } from '@/lib/admin
 const LONG_WAIT_DAYS = 3;
 
 /* 번호(주문 + 요청) → 유형 → 돈·사람·행동 순서다. 날짜는 그 뒤다. 부분 환불 줄은 요청번호가 없어 번호 칸에 주문번호만 있고 유형이 차수를 말한다. */
-/* 열 폭 합계는 1366px 화면의 틀(약 1016px) 안에 든다 — 합이 틀보다 크면 '환불 접수일' 시각이 잘리고 '요청자'가 가로로 밀린다(F-09). 날짜는 두 줄(ClaimDateTimeCell)이라 120px대로 줄었다. */
+/* 열 폭 합계는 1366px 화면의 틀(약 1016px)보다 작게 둔다 — 합이 틀보다 크면 '환불 접수일' 시각이 잘리고 '요청자'가 가로로 밀린다(F-09).
+ * 열은 안의 글이 줄바꿈되지 않으면 정한 폭보다 넓어진다(영문 아이디 같은 긴 이름). 그래서 결제자·요청자 이름은 어디서든 줄을 바꿔(wrap-anywhere)
+ * 폭을 지키고, 합계에는 날짜·번호 칸의 여유를 남긴다. 날짜는 두 줄(ClaimDateTimeCell)이라 120px 아래로 줄었다. */
 const columns: ConsoleGridColumn[] = [
   { key: 'claim', label: '주문 · 요청번호', width: '152px', required: true },
   { key: 'type', label: '유형', width: '100px' },
   { key: 'amount', label: '송금할 금액', width: '100px', align: 'end' },
-  { key: 'payer', label: '결제자', width: '108px' },
+  { key: 'payer', label: '결제자', width: '96px' },
   { key: 'waiting', label: '대기', width: '72px' },
   { key: 'action', label: '송금 기록', width: '160px', required: true },
   { key: 'confirmed', label: '취소 확정일', width: '112px' },
   { key: 'filed', label: '환불 접수일', width: '112px' },
-  { key: 'requester', label: '요청자', width: '88px' },
+  { key: 'requester', label: '요청자', width: '80px' },
 ];
 
 /* 한국 달력으로 센다. 어제 밤에 확정된 요청이 '오늘'로 보이면 하루 묵은 송금을 놓친다. */
@@ -80,13 +82,13 @@ export function RefundTransfersScreen({ data, now = new Date() }: {
             <span className="flex flex-col" key="claim"><span className="tabular-nums">{orderLabel}</span>{claimLabel ? <span className="text-xs font-normal text-muted-foreground tabular-nums">요청 {claimLabel}</span> : null}</span>,
             type,
             <span className="font-semibold tabular-nums" key="amount">{formatKrwExact(row.amount)}</span>,
-            row.payerName || <AdminStatusBadge key="payer" tone="warning">이름 없음</AdminStatusBadge>,
+            row.payerName ? <span className="wrap-anywhere" key="payer">{row.payerName}</span> : <AdminStatusBadge key="payer" tone="warning">이름 없음</AdminStatusBadge>,
             days >= LONG_WAIT_DAYS ? <AdminStatusBadge key="waiting" tone="warning">{waiting}</AdminStatusBadge> : <span className="tabular-nums" key="waiting">{waiting}</span>,
             <Link aria-label={claimLabel ? `요청 ${claimLabel} 상세에서 계좌를 보고 송금을 기록` : `주문 ${orderLabel} 상세의 ${type} 기록에서 계좌를 보고 송금을 기록`}
               className={cn(buttonVariants({ size: 'sm', variant: 'soft' }))} data-slot="button" href={processHref} key="action">{place}에서 기록</Link>,
             <ClaimDateTimeCell key="confirmed" value={row.confirmedAt} />,
             filed,
-            partial ? <span className="text-muted-foreground" key="requester">운영자 처리</span> : row.requesterName || '-',
+            partial ? <span className="text-muted-foreground" key="requester">운영자 처리</span> : <span className="wrap-anywhere" key="requester">{row.requesterName || '-'}</span>,
           ],
         };
       })} />

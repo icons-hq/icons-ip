@@ -234,7 +234,7 @@ export function ShippingNoticeTemplateEditor({ template, onClose, onDone }: {
         <AdminField label="배송 안내" inputId={`${prefix}-shippingNotice`} error={errors.shippingNotice} hint="배송비는 여기 적지 않아도 상품 상세에 따로 나옵니다.">
           <Textarea {...field('shippingNotice')} maxLength={SHIPPING_NOTICE_TEMPLATE_NOTICE_MAX} onChange={(event) => change('shippingNotice', event.target.value)} placeholder="예: 결제한 날부터 2~3일 안에 보냅니다." rows={5} />
         </AdminField>
-        <AdminField label="도서산간 안내 (선택)" inputId={`${prefix}-remoteAreaNotice`} error={errors.remoteAreaNotice} hint="추가배송비 금액은 적지 않습니다. 지역별 추가배송비를 적용 중인 출고지의 상품은 금액이 상품 상세에 따로 나오고, 정확한 금액은 주문서에서 주소를 넣으면 나옵니다.">
+        <AdminField label="도서산간 안내 (선택)" inputId={`${prefix}-remoteAreaNotice`} error={errors.remoteAreaNotice} hint="추가배송비 금액은 적지 않습니다. 금액은 ‘지역별 추가배송비 관리’에 넣은 대로 주문서에서 주소를 넣으면 나옵니다.">
           <Textarea {...field('remoteAreaNotice')} maxLength={SHIPPING_NOTICE_TEMPLATE_NOTICE_MAX} onChange={(event) => change('remoteAreaNotice', event.target.value)} placeholder="예: 제주·도서산간은 하루 이틀 더 걸립니다." rows={3} />
         </AdminField>
         <AdminField label="교환·반품 안내" inputId={`${prefix}-returnExchangeNotice`} error={errors.returnExchangeNotice} hint="반품 주소와 반품비는 여기 적지 않아도 상품 상세에 따로 나옵니다.">

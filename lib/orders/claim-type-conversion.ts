@@ -104,6 +104,12 @@ export function claimTypeBulkError(code?: string, message?: string): string {
   return CLAIM_TYPE_DEFINITE_ERROR_CODES.includes(code ?? '') ? claimTypeError(code, message) : '저장됐는지 확인하지 못했습니다. 요청번호를 눌러 지금 유형을 확인해 주세요.';
 }
 
+/** 확인창이 되읽는 계좌번호. 끝 4자리만 보이고 나머지는 가린다(하이픈은 뺀다) — 서버가 저장 계좌를 가려 보이는 모양과 같다. */
+export function maskedRefundAccountNumber(accountNumber: string): string {
+  const digits = accountNumber.replace(/[^0-9]/g, '');
+  return digits.length <= 4 ? digits : `${'*'.repeat(digits.length - 4)}${digits.slice(-4)}`;
+}
+
 /**
  * 반품 ↔ 교환 전환 확인창 문구. 전환하면 무엇이 그대로이고 무엇이 달라지는지를 말한다(`admin_convert_order_claim_type`과 그 트리거 기준).
  * - 접수일·회수 기록은 그대로다. 다만 회수 생략을 결정한 출고지는 유형에 따라 효력이 달라져 단계가 바뀔 수 있다(`reopen_ineffective_collection_waivers`·`sync_claim_collection_completion`).
@@ -130,7 +136,10 @@ export function claimTypeConfirmMessage(
     `· 저장해 둔 품목별 재고 처리(반품의 불량 선택, 교환 출고지의 회수품 재고 처리)가 있으면 지워지니 ${to}에서 다시 고릅니다.`,
   ];
   if (request.toType === 'return') {
-    if (request.refundAccount) lines.push('· 환불계좌는 방금 적은 계좌로 저장됩니다.');
+    if (request.refundAccount) {
+      const { bankName, accountNumber, accountHolder } = request.refundAccount;
+      lines.push(`· 환불계좌는 방금 적은 계좌(${bankName} ${maskedRefundAccountNumber(accountNumber)} · ${accountHolder})로 저장됩니다.`);
+    }
     else if (context.savedAccount) lines.push(`· 환불계좌는 저장된 계좌(${context.savedAccount.account} · ${context.savedAccount.holder})를 씁니다.`);
   } else if (context.savedAccount) lines.push('· 저장된 환불계좌는 교환에서 쓰지 않아 30일 뒤 지워집니다. 그 전에 다시 반품으로 바꾸면 계속 씁니다.');
   lines.push('· 고객에게 앱 알림이 갑니다. 환불·재출고를 시작하기 전에는 다시 바꿀 수 있지만, 이미 간 알림과 취소된 배송비 청구는 돌아오지 않습니다.');

@@ -927,6 +927,29 @@ describe('상세 틀·요약 — 처리 칸 연결', () => {
     expect(note({ claim: { ...detail().claim, claimType: 'exchange' as const } }, { partialReturn: partialOf(null, { preview }) })).toBeNull();
   });
 
+  /* R-N4: 2개 중 1개만 반품했는데 '품목별 재고 처리'에 주문 수량(2개)이 보여 두 개가 다 돌아오는 것으로 읽혔다. 실제 복원은 요청한 1개다. */
+  it('품목별 재고 처리 칸에는 부분 반품이면 반품을 요청한 수량을 보이고, 선택·저장 상태는 그대로 둔다', () => {
+    const ITEM = '00000000-0000-4000-8000-0000000000a1', OTHER = '00000000-0000-4000-8000-0000000000a2';
+    const stock = { claimId: CLAIM_ID, frozen: false, pending: 0, items: [
+      { orderItemId: ITEM, name: '데스크 매트', variantName: null, qty: 2, defective: true, state: 'planned' as const },
+      { orderItemId: OTHER, name: '파우치', variantName: '파랑', qty: 3, defective: false, state: null },
+    ] };
+    const requested = { orderItemId: ITEM, goodName: '데스크 매트', variantName: null, variantCode: null, qty: 1, orderedQty: 2, shipmentNumber: null, originName: null };
+    const returned = { claim: { ...detail().claim, claimType: 'return' as const, stage: 'collected' as const } };
+    const shown = (props: Partial<ScreenProps>) => find(treeOf(returned, { actorId: ACTOR, ...props }), ClaimActionPanel)[0].props.defectiveStock as typeof stock | null;
+    const partial = shown({ defectiveStock: stock, partialReturn: partialOf(null, { items: [requested] }) });
+    /* 요청에 담긴 품목은 요청한 수량, 요청에 없는 품목은 그대로. 이름·불량 선택·저장 상태는 바뀌지 않는다. */
+    expect(partial?.items.map(item => item.qty)).toEqual([1, 3]);
+    const withoutQty = (items: typeof stock.items) => items.map((item) => ({ ...item, qty: 0 }));
+    expect(withoutQty(partial!.items)).toEqual(withoutQty(stock.items));
+    expect(partial).toMatchObject({ claimId: CLAIM_ID, frozen: false, pending: 0 });
+    expect(stock.items[0].qty).toBe(2);
+    /* 주문 전체 반품(칸 없음)·읽지 못한 반품·선택 데이터 없음은 지금과 같다. */
+    expect(shown({ defectiveStock: stock, partialReturn: null })).toBe(stock);
+    expect(shown({ defectiveStock: stock, partialReturn: undefined })).toBe(stock);
+    expect(shown({ defectiveStock: null, partialReturn: partialOf(null, { items: [requested] }) })).toBeNull();
+  });
+
   it('가상계좌 환불 계좌 입력에는 화면에 이미 있는 환불 금액만 넘기고, 모르면 넘기지 않는다', () => {
     const entryOf = (overrides: Partial<AdminClaimDetail>, props: Partial<ScreenProps> = {}) => find(treeOf({ claim: { ...detail().claim, claimType: 'cancel', stage: 'needs_review',
       lastErrorCode: 'provider_refund_account_required' }, ...overrides }, props), VirtualAccountRefundAccountEntry)[0];

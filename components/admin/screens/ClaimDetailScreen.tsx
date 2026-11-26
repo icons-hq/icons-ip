@@ -44,7 +44,7 @@ import { ClaimActionPanel } from './ClaimActionPanel';
 import { VirtualAccountRefundAccountEntry } from '@/components/admin/VirtualAccountRefundAccountEntry';
 import { ClaimPartialReturnPanel } from './ClaimPartialReturnPanel';
 import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
-import type { ClaimDefectiveStock } from '@/lib/admin/defective-stock';
+import { defectiveStockWithRequestedQty, type ClaimDefectiveStock } from '@/lib/admin/defective-stock';
 import { ClaimPreviewFullScreenLink } from './ClaimPreviewDialog';
 import { ClaimOperationalFeePanel } from './ClaimOperationalFeePanel';
 import { ClaimReshipmentDelivery } from './ClaimReshipmentDelivery';
@@ -540,7 +540,7 @@ export function ClaimDetailScreen({
                 refundDeduction={refundDeduction}
                 partialReturn={partialReturn ? partialReturnRefund(partialReturn, payment?.provider === 'bank_transfer') : null}
                 partialReturnUnavailable={partialReturnUnavailable}
-                defectiveStock={defectiveStock}
+                defectiveStock={defectiveStockWithRequestedQty(defectiveStock, partialReturn?.items)}
                 exchangeStockTargets={claim.claimType === 'exchange' && claim.collectionPolicy !== null ? adminClaimExchangeStockTargets(claim, order?.items ?? []) : []}
                 requestSummary={exchangeRequest}
                 bankTransfer={payment?.provider === 'bank_transfer' && !partialReturn && !partialReturnUnavailable}

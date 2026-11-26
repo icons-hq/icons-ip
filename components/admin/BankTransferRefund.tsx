@@ -70,10 +70,12 @@ function Steps({ steps }: { steps: BankRefundStep[] }) {
   </ol>;
 }
 
-function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope: Scope }) {
+function RefundPanel({ identity, scope, stage }: { identity: BankRefundIdentity; scope: Scope; stage?: string }) {
   const router = useRouter(), key = bankRefundRecoveryKey(identity);
   const [context, setContext] = useState<BankRefundContext | null>(null);
   const [draft, setDraft] = useState(empty), [pending, setPending] = useState(false), [needsRefresh, setNeedsRefresh] = useState(false);
+  /* 기록을 서버에 보내고 응답을 기다리는 중. 복구 기록(recovery)은 호출 전에 남기지만, 복구 안내는 응답을 모를 때만 그린다. */
+  const [sending, setSending] = useState(false);
   useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [reload, setReload] = useState(0), [canRetry, setCanRetry] = useState(false);
   const [account, setAccount] = useState<BankRefundAccountView | null>(null);
@@ -85,10 +87,13 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
     : context.fileBlocker === null ? 'file_transfer' : context.completeBlocker === null ? 'complete_transfer' : null;
   const kind = recovery?.kind ?? nextKind;
   const locked = pending || Boolean(recovery) || needsRefresh || !nextKind;
+  /* 복구 화면(결과를 모를 때의 문장과 두 버튼)은 응답을 기다리는 동안이 아니라, 응답을 못 받았거나 결과를 모를 때·탭을 다시 열었을 때만 그린다. */
+  const showRecovery = Boolean(recovery) && !sending;
   const dirty = Boolean(recovery || draft.customTime || draft.evidence || draft.note);
   const closeAccount = useMemo(() => () => setAccount(null), []);
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; dispatched.current = null; }; }, []);
+  /* 요청의 단계(stage)가 바뀌면 다시 읽는다 — 같은 화면에서 요청을 승인하면 이 칸이 승인 전 상태('지금 단계에서는 기록할 수 없습니다')로 남지 않고 1단계 양식을 연다. */
   useEffect(() => {
     let active = true; const ticket = scope.capture(); if (!ticket) return;
     startTransition(async () => {
@@ -100,7 +105,7 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
       } catch { if (active && alive.current && scope.canApply(ticket)) setError(BANK_REFUND_LOAD_FAILED); }
     });
     return () => { active = false; };
-  }, [identity, reload, scope]);
+  }, [identity, reload, scope, stage]);
   useAdminLeaveGuard({ dirty, message: '적던 근거와 메모는 저장되지 않고 사라집니다. 화면을 나갈까요?' });
 
   function clearRecovery() { try { sessionStorage.removeItem(key); } catch {} setRecovery(null); dispatched.current = null; setCanRetry(false); }
@@ -141,12 +146,14 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
    * 기록을 서버에 보낸다. 새 기록(submit, 확인을 받은 뒤)과 다시 보내기(앞서 보낸 내용 그대로, 이미 확인한 일이라 확인창 없음)가 함께 쓴다.
    * 화면을 '기록하는 중'으로 바꾸는 갱신은 전환 밖에서 하고 서버 호출만 전환 안에서 한다 — 전환 안의 갱신은 호출이 끝날 때까지 보류돼
    * 처리 중 표시와 팝업 닫힘 방지(useClaimPreviewBusy)가 늦어진다.
+   * 복구에 쓸 값(같은 작업 번호·보낸 내용)은 호출 전에 recovery·탭 저장소에 남긴다(응답이 끊겨도 [저장됐는지 확인]이 같은 작업을 보게). 다만 복구 화면은
+   * 기다리는 동안(sending)에는 그리지 않는다 — 처리 중에 '저장됐는지 확인하지 못했습니다'가 보이면 느린 응답이 매번 실패처럼 읽힌다.
    */
   function record(original: BankRefundRequest) {
     const ticket = scope.capture(); if (busy.current || !ticket) return;
     const metadata = bankRefundMetadata(original), wasUncertain = Boolean(recovery);
     try { sessionStorage.setItem(key, JSON.stringify(metadata)); } catch { setError('브라우저가 이 사이트의 저장을 막고 있어 기록하지 않았습니다. 시크릿 창이면 일반 창에서 다시 열고, 아니면 브라우저 설정에서 사이트 데이터 저장을 허용해주세요.'); return; }
-    dispatched.current = original; setRecovery(metadata); setCanRetry(true); busy.current = true; setPending(true); setAccount(null); setError(''); setMessage('');
+    dispatched.current = original; setRecovery(metadata); setCanRetry(true); busy.current = true; setPending(true); setSending(true); setAccount(null); setError(''); setMessage('');
     startTransition(async () => {
       try {
         const result = await recordBankRefundAction(original);
@@ -155,7 +162,7 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
         else if (result.receipt?.state === 'recorded') accept(result.receipt, original, result.notice);
         else setError(SAVE_UNKNOWN_MESSAGE);
       } catch { if (alive.current && scope.canApply(ticket)) setError(SAVE_UNKNOWN_MESSAGE); }
-      finally { busy.current = false; if (alive.current && scope.canApply(ticket)) setPending(false); }
+      finally { busy.current = false; if (alive.current && scope.canApply(ticket)) { setPending(false); setSending(false); } }
     });
   }
   async function check(seal = false) {
@@ -209,7 +216,7 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
     {blocked ? <p className="text-muted-foreground">{blocked}</p> : null}
     {context?.viewBlocker === null ? <button className={`${OUTLINE} w-fit`} data-slot="button" disabled={pending || Boolean(recovery) || needsRefresh} type="button"
       onClick={() => startTransition(async () => { await viewAccount(); })}>{BANK_REFUND_VIEW_ACCOUNT_LABEL}</button> : null}
-    {recovery ? <p className="text-destructive" role="alert">{SAVE_UNKNOWN_MESSAGE}</p> : null}
+    {showRecovery ? <p className="text-destructive" role="alert">{SAVE_UNKNOWN_MESSAGE}</p> : null}
     {kind && fields ? <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); void submit(); }}>
       <fieldset disabled={locked} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
         <legend className="mb-1 font-medium">{BANK_REFUND_LABELS[kind]}</legend>
@@ -225,9 +232,9 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
         <label className={FIELD}><span className={FIELD_LABEL}>{fields.note}</span><input className="w-full" required minLength={2} maxLength={300} value={draft.note} onChange={event => setDraft(previous => ({ ...previous, note: event.target.value }))} placeholder={fields.noteExample} /></label>
         <p className="text-xs text-muted-foreground">{fields.kept} 계좌번호·예금주는 적지 마세요.</p>
       </fieldset>
-      {!recovery ? <button className={`${PRIMARY} w-fit`} data-slot="button" type="submit" disabled={locked}>{pending ? '기록하는 중…' : BANK_REFUND_LABELS[kind]}</button> : null}
+      {!showRecovery ? <button className={`${PRIMARY} w-fit`} data-slot="button" type="submit" disabled={locked}>{sending ? '기록하는 중…' : BANK_REFUND_LABELS[kind]}</button> : null}
     </form> : null}
-    {recovery ? <div className="flex flex-wrap gap-2">
+    {showRecovery ? <div className="flex flex-wrap gap-2">
       <button className={PRIMARY} data-slot="button" disabled={pending} type="button" onClick={() => startTransition(async () => { await check(); })}>{SAVE_CHECK_LABEL}</button>
       {canRetry ? <button className={OUTLINE} data-slot="button" disabled={pending} type="button" onClick={() => { const original = dispatched.current; if (original) record(original); }}>{BANK_REFUND_RESEND_LABEL}</button>
         : <button className={OUTLINE} data-slot="button" disabled={pending} type="button" onClick={() => startTransition(async () => { await check(true); })}>{BANK_REFUND_ABANDON_LABEL}</button>}
@@ -237,7 +244,7 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
   </section>;
 }
 
-export function BankTransferRefund({ actorId, orderId, claimId }: { actorId: string; orderId: string; claimId: string }) {
+export function BankTransferRefund({ actorId, orderId, claimId, stage }: { actorId: string; orderId: string; claimId: string; stage?: string }) {
   const scope = useMemo(() => createGoodsDescriptionToolScope(actorId), [actorId]);
   const auth = useSyncExternalStore(scope.subscribe, scope.getSnapshot, scope.getServerSnapshot);
   const [sessionId, setSessionId] = useState<string | null>(null);
@@ -256,5 +263,5 @@ export function BankTransferRefund({ actorId, orderId, claimId }: { actorId: str
   const identity = useMemo(() => sessionId ? { actorId, sessionId, orderId, claimId } : null, [actorId, sessionId, orderId, claimId]);
   if (!auth.ready) return <p className="text-sm text-muted-foreground" role="status">무통장 환불 처리를 위해 로그인 상태를 확인하고 있습니다.</p>;
   if (auth.blocked || !identity) return <p className="text-sm text-destructive" role="alert">로그인 계정이나 로그인 상태가 바뀌었습니다. 새로고침해 현재 계정으로 요청을 다시 열어주세요.</p>;
-  return <RefundPanel key={`${orderId}:${claimId}:${sessionId}`} identity={identity} scope={scope} />;
+  return <RefundPanel key={`${orderId}:${claimId}:${sessionId}`} identity={identity} scope={scope} stage={stage} />;
 }

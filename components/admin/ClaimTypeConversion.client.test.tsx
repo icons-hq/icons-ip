@@ -139,7 +139,7 @@ it('교환→반품에서 무통장 주문은 환불계좌가 필수이고, 적�
  mocks.save.mockImplementation(async (request: { id: string }) => ({ receipt: { ...receipt, id: request.id, fromType: 'exchange', toType: 'return', accountSupplied: true } }));
  change('은행', '합성은행'); change('계좌번호', '1234567890'); change('예금주', '합성고객'); await submit();
  expect(confirm.requests[0]).toMatchObject({ title: '교환 → 반품 전환', confirmLabel: '반품으로 바꾸기' });
- expect(confirm.requests[0].message).toContain('환불계좌는 방금 적은 계좌로 저장됩니다.');
+ expect(confirm.requests[0].message).toContain('환불계좌는 방금 적은 계좌(합성은행 ******7890 · 합성고객)로 저장됩니다.'); expect(confirm.requests[0].message).not.toContain('1234567890');
  expect(mocks.save.mock.calls[0][0]).toMatchObject({ toType: 'return', refundAccount: { bankName: '합성은행', accountNumber: '1234567890', accountHolder: '합성고객' } });
 });
 it('저장된 환불계좌가 있으면 바꿀 때만 적게 하고, 못 바꾸는 단계는 입력 칸 없이 이유만 보인다', () => {

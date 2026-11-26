@@ -185,6 +185,17 @@ describe('일괄 환불 확인창 — 품목별 재고 처리', () => {
     expect(withoutHandler).not.toContain('data-claim-bulk-stock');
   });
 
+  /* R-N4: 부분 반품 행은 돌려받는 수량을 이 창이 읽지 않으므로 주문 수량(틀린 값)을 적지 않는다. */
+  it('부분 반품 행은 품목 이름만 보이고 주문 수량을 적지 않는다 — 선택 칸은 그대로다', () => {
+    const partial = [{ ...rows[0], partialReturn: true as const }];
+    const html = renderToStaticMarkup(<RefundStep defective={{}} onDefective={() => undefined} onRun={() => undefined}
+      preview={{ step: 'refund', rows: partial, totals: adminClaimBulkRefundTotals(partial) }} progress={0} running={false} />);
+    expect(html).toContain('아크릴 키링 · 파랑</label>');
+    expect(html).not.toContain('아크릴 키링 · 파랑 · 2개');
+    expect(html).toContain(`id="bulk-stock-${ITEM_A}"`);
+    expect(html).toContain('엽서</label>');
+  });
+
   it('저장된 불량 선택은 화면에 보이는 값 그대로 실행 입력이 된다(표시값=전송값)', () => {
     const items = [
       { orderItemId: ITEM_A, name: 'a', variantName: null, qty: 1, defective: true, state: 'planned' as const },

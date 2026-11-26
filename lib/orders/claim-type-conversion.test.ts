@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { CLAIM_CHANGE_CONFLICT_MESSAGE, CLAIM_CHANGE_UNKNOWN_MESSAGE } from '@/lib/admin/claim-change-copy';
 import {
   CLAIM_TYPE_AGREEMENT_ERROR, CLAIM_TYPE_AGREEMENT_MAX, CLAIM_TYPE_AGREEMENT_MIN, claimTypeBulkError, claimTypeConfirmMessage, claimTypeError, claimTypeInputError, claimTypeReceiptMatches,
-  normalizeClaimTypeAgreement, normalizeClaimTypeRequest, parseClaimTypeContext, parseClaimTypeHistory, parseClaimTypeReceipt,
+  maskedRefundAccountNumber, normalizeClaimTypeAgreement, normalizeClaimTypeRequest, parseClaimTypeContext, parseClaimTypeHistory, parseClaimTypeReceipt,
 } from './claim-type-conversion';
 import { conversionContext as context, conversionRequest as request, conversionReceipt as receipt } from './claim-type-conversion.fixture';
 it('전환할 유형·동의·행버전만 허용하고 금액·취소·부분계좌 입력은 거절한다', () => {
@@ -82,7 +82,17 @@ it('교환→반품 확인창은 환불로 마무리하고 제작 취소·환불
   expect(message).toContain('가 있으면 지워지니 반품에서 다시 고릅니다');
   expect(message).not.toContain('환불계좌');
   const account = { bankName: '합성은행', accountNumber: '1234567890', accountHolder: '합성고객' };
-  expect(claimTypeConfirmMessage(exchange, { toType: 'return', refundAccount: account }, '수거중')).toContain('환불계좌는 방금 적은 계좌로 저장됩니다.');
+  /* 적은 계좌는 은행·가린 계좌번호(끝 4자리만)·예금주로 되읽는다 — 전체 번호는 확인창에 싣지 않는다. */
+  const withNew = claimTypeConfirmMessage(exchange, { toType: 'return', refundAccount: account }, '수거중');
+  expect(withNew).toContain('· 환불계좌는 방금 적은 계좌(합성은행 ******7890 · 합성고객)로 저장됩니다.');
+  expect(withNew).not.toContain('1234567890');
+  expect(claimTypeConfirmMessage(exchange, { toType: 'return', refundAccount: { ...account, accountNumber: '110-123-456789' } }, '수거중')).toContain('(합성은행 ********6789 · 합성고객)');
   expect(claimTypeConfirmMessage({ ...exchange, savedAccount: { account: '신한 ***1234', holder: '홍*동' } }, { toType: 'return', refundAccount: null }, '수거중'))
     .toContain('환불계좌는 저장된 계좌(신한 ***1234 · 홍*동)를 씁니다.');
+});
+it('확인창이 되읽는 계좌번호는 끝 4자리만 보이고 하이픈은 뺀다', () => {
+  expect(maskedRefundAccountNumber('1234567890')).toBe('******7890');
+  expect(maskedRefundAccountNumber('110-123-456789')).toBe('********6789');
+  expect(maskedRefundAccountNumber('12345678')).toBe('****5678');
+  expect(maskedRefundAccountNumber('1234')).toBe('1234'); expect(maskedRefundAccountNumber('')).toBe('');
 });

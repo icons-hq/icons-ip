@@ -73,7 +73,10 @@ it('열 폭 합계가 1366px 화면의 틀(약 1016px) 안에 들고, 취소 확
   const html = renderToStaticMarkup(<RefundTransfersScreen now={new Date('2026-10-14T08:00:00Z')} data={{ page: 1, pageSize: 50, total: 1, rows: [row] }} />);
   const widths = [...html.matchAll(/<col style="width:(\d+)px"\/>/g)].map(match => Number(match[1]));
   expect(widths).toHaveLength(9);
-  expect(widths.reduce((sum, width) => sum + width, 0)).toBeLessThanOrEqual(1016);
+  /* 틀(1016px)보다 20px 넘게 작게 둔다 — 열이 안의 글 때문에 정한 폭보다 넓어지는 만큼의 여유다(R-8: 합 1004에서도 1366px에서 '요청자'가 잘렸다). */
+  expect(widths.reduce((sum, width) => sum + width, 0)).toBeLessThanOrEqual(990);
+  /* 영문 아이디처럼 줄이 안 바뀌는 이름이 열을 넓히지 않게 결제자·요청자는 어디서든 줄을 바꾼다. */
+  expect(html).toContain('<span class="wrap-anywhere">결제자</span>'); expect(html).toContain('<span class="wrap-anywhere">요청자</span>');
   expect([...html.matchAll(/data-date-time=""><span>([^<]*)<\/span><span[^>]*>(\d{2}:\d{2})<\/span>/g)].map(match => [match[1], match[2]]))
     .toEqual([['2026. 10. 14.', '15:00'], ['2026. 10. 14.', '16:30']]);
 });

@@ -372,9 +372,10 @@ export function RefundStep({ defective = {}, onBack, onDefective, onRun, preview
           ...(!row.blocker && row.items && row.items.some((item) => item.state !== 'recorded') && onDefective ? [<TableRow data-claim-bulk-stock="" key={`${row.claimId}-stock`}>
             <TableCell className="whitespace-normal bg-muted/30" colSpan={4}>
               <fieldset className="flex min-w-0 flex-col gap-1.5">
+                {/* 부분 반품은 돌려받는 수량이 주문 수량과 다른데 이 창은 요청한 수량을 읽지 않는다 — 틀린 수량(주문 수량)을 보이느니 수량을 적지 않는다. */}
                 <legend className="text-xs font-medium">품목별 재고 처리 · {row.reference}</legend>
                 {row.items.filter((item) => item.state !== 'recorded').map((item) => <div className="flex min-w-0 flex-wrap items-center justify-between gap-2" key={item.orderItemId}>
-                  <Label className="min-w-0 flex-1 whitespace-normal text-xs font-normal" htmlFor={`bulk-stock-${item.orderItemId}`}>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} · {item.qty}개</Label>
+                  <Label className="min-w-0 flex-1 whitespace-normal text-xs font-normal" htmlFor={`bulk-stock-${item.orderItemId}`}>{item.name}{item.variantName ? ` · ${item.variantName}` : ''}{row.partialReturn ? '' : ` · ${item.qty}개`}</Label>
                   <NativeSelect className="w-full sm:w-44" disabled={running} id={`bulk-stock-${item.orderItemId}`}
                     onChange={(event) => onDefective(item.orderItemId, event.currentTarget.value === 'defective')}
                     value={(defective[item.orderItemId] ?? item.defective) ? 'defective' : 'restore'}>

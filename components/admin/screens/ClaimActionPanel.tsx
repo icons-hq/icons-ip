@@ -955,7 +955,7 @@ export function ClaimActionPanel({
         </section>
       ) : null}
 
-      {stage !== 'withdrawn' && bankTransfer && actorId && claimType !== 'exchange' ? <BankTransferRefund actorId={actorId} orderId={orderId} claimId={claimId} /> : null}
+      {stage !== 'withdrawn' && bankTransfer && actorId && claimType !== 'exchange' ? <BankTransferRefund actorId={actorId} orderId={orderId} claimId={claimId} stage={stage} /> : null}
 
       {(bankTransfer || partialReturn?.convertible) && claimType === 'return' && defectiveStock && !defectiveStock.frozen && stage !== 'completed' && stage !== 'withdrawn' && stage !== 'rejected'
         && defectiveStock.items.some((item) => item.state !== 'recorded') ? (
