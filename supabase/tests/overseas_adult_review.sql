@@ -10,7 +10,7 @@ create function pg_temp.assert(ok boolean,label text) returns void language plpg
 begin if ok is distinct from true then raise exception 'overseas test: %',label; end if; end $$;
 insert into auth.users(id,email,aud,role,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 select pg_temp.uid(n),'overseas-'||n||'@example.test','authenticated','authenticated','{}','{}',now(),now() from generate_series(1,3) n;
-update public.profiles set nickname='합성회원'||right(id::text,1),onboarded_at=now(),birth_date='1990-01-01',consents='{"terms":true,"privacy":true}',
+update public.profiles set nickname='합성회원'||right(id::text,1),onboarded_at=now(),birth_date=case when id=pg_temp.uid(3) then make_date(extract(year from now() at time zone 'Asia/Seoul')::int-18,1,1) else make_date(extract(year from now() at time zone 'Asia/Seoul')::int-19,12,31) end,consents='{"terms":true,"privacy":true}',
   role=case when id=pg_temp.uid(1) then 'admin' else 'user' end::public.user_role where id in (pg_temp.uid(1),pg_temp.uid(2),pg_temp.uid(3));
 update private.operator_access_state set configured=false where id;
 insert into private.operator_legacy_cohort(profile_id,legacy_role) values(pg_temp.uid(1),'admin') on conflict do nothing;
@@ -30,6 +30,9 @@ select pg_temp.publish_goods_kc_fixture('overseas-yes');
 update private.adult_goods_storefront_settings set enabled=true where singleton;
 select pg_temp.assert(not has_function_privilege('authenticated','public.service_finish_overseas_adult_cleanup(uuid)','execute')
   and not has_function_privilege('anon','public.open_overseas_adult_review(uuid,text)','execute')
+  and not has_function_privilege('authenticated','public.begin_overseas_adult_request()','execute')
+  and not has_function_privilege('authenticated','public.reserve_overseas_adult_upload(uuid,text)','execute')
+  and not has_function_privilege('anon','public.reserve_overseas_adult_document(uuid,text)','execute')
   and not has_table_privilege('authenticated','private.overseas_adult_requests','select'),'grants');
 select pg_temp.actor(2);
 set local role authenticated;
@@ -57,18 +60,34 @@ savepoint no_storefront;
 update private.adult_goods_storefront_settings set enabled=false where singleton;
 select pg_temp.assert(not private.overseas_intake_open() and public.my_overseas_adult_request()->>'intakeStatus'='store_closed','storefront pause');
 rollback to no_storefront;
-select public.begin_overseas_adult_request() as rid \gset
-select pg_temp.assert(public.begin_overseas_adult_request()=:'rid'::uuid,'single pending');
+-- 이전 화면에서 이미 만들어 둔 미제출 신청도 새 동의로 바로 제출한다.
+insert into private.overseas_adult_requests(user_id,challenge,policy_version)
+values(pg_temp.uid(2),'OLDCODE','overseas_manual_all@2026-11-26') returning id as rid \gset
+select pg_temp.assert(not ((public.my_overseas_adult_request()->'request') ? 'challenge'),'customer never receives a code');
 select pg_temp.actor(3);
 select pg_temp.assert(not public.cancel_overseas_adult_request(:'rid') and (public.my_overseas_adult_request()->'request')='null'::jsonb,'ownership');
 select pg_temp.actor(2);
-select pg_temp.assert(not public.reserve_overseas_adult_upload(:'rid','overseas_manual@2026-11-26'),'old photo consent cannot authorize a new upload');
-select pg_temp.assert(public.reserve_overseas_adult_upload(:'rid','overseas_manual_all@2026-11-26'),'reserve');
+set local role authenticated;
+do $$ begin
+  begin perform public.reserve_overseas_adult_document(pg_temp.uid(40),'overseas_manual_all@2026-11-26');
+  exception when insufficient_privilege then return; end;
+  raise exception 'old consent accepted';
+end $$;
+select pg_temp.assert(public.reserve_overseas_adult_document(pg_temp.uid(40),'overseas_document@2026-11-26')->>'id'=:'rid','resume draft on actual submission');
+select pg_temp.assert(public.reserve_overseas_adult_document(pg_temp.uid(40),'overseas_document@2026-11-26')->>'status'='existing','duplicate upload cannot reserve twice');
+reset role;
+select pg_temp.assert((select challenge is null and consent_version='overseas_document@2026-11-26' from private.overseas_adult_requests where id=:'rid'),'document method');
 insert into storage.objects(bucket_id,name) values('overseas-adult-evidence',:'rid');
 select pg_temp.assert(public.service_submit_overseas_adult_upload(:'rid',pg_temp.uid(2),repeat('a',64)),'submission');
+select pg_temp.assert(public.reserve_overseas_adult_document(pg_temp.uid(40),'overseas_document@2026-11-26')->>'status'='received','lost successful response');
+select pg_temp.assert(public.reserve_overseas_adult_document(pg_temp.uid(49),'overseas_document@2026-11-26')->>'status'='existing','another tab cannot replace a pending document');
 select pg_temp.actor(1);
 select pg_temp.assert(private.overseas_reviewer(pg_temp.uid(1)),'AAL1 admin can review');
-select public.open_overseas_adult_review(:'rid',repeat('b',64));
+savepoint legacy_pending;
+update private.overseas_adult_requests set consent_version='overseas_manual_all@2026-11-26', challenge='OLDPHOTO' where id=:'rid';
+select pg_temp.assert(public.open_overseas_adult_review(:'rid',repeat('b',64))->>'challenge'='OLDPHOTO','existing submitted photo remains reviewable under its original consent');
+rollback to legacy_pending;
+select pg_temp.assert(public.open_overseas_adult_review(:'rid',repeat('b',64))->>'method'='overseas_document@2026-11-26','review uses actual consent');
 select pg_temp.assert(not public.deliver_overseas_adult_review(:'rid',repeat('f',64)),'one-tab ticket');
 select pg_temp.assert(public.deliver_overseas_adult_review(:'rid',repeat('b',64)),'first view');
 select pg_temp.assert(not public.deliver_overseas_adult_review(:'rid',repeat('b',64)),'single delivery');
@@ -85,6 +104,10 @@ update public.profiles set role='user' where id=pg_temp.uid(1);
 select pg_temp.assert(not public.overseas_adult_review_live(:'rid',repeat('b',64)) and
   not public.decide_overseas_adult_review(:'rid',repeat('b',64),null,false), 'revoked role cannot read or decide');
 rollback to revoked_admin;
+savepoint mismatched_date;
+select pg_temp.assert(public.decide_overseas_adult_review(:'rid',repeat('b',64),'1980-01-01',true),'mismatch handled');
+select pg_temp.assert((select outcome='rejected' and valid_until is null from private.overseas_adult_requests where id=:'rid'),'different birthday cannot grant access');
+rollback to mismatched_date;
 select pg_temp.assert(public.decide_overseas_adult_review(:'rid',repeat('b',64),make_date(extract(year from now() at time zone 'Asia/Seoul')::int-19,12,31),true),'decision');
 select pg_temp.assert(not public.overseas_adult_review_live(:'rid',repeat('b',64)),'decision closes review');
 select pg_temp.assert((select key_share is null from private.overseas_adult_requests where id=:'rid'),'key destroyed');
@@ -116,8 +139,7 @@ select public.bind_goods_payment_callback_nonce((select id from public.payment_a
 select pg_temp.assert(public.claim_goods_payment_attempt('toss',(select provider_order_id from public.payment_attempts where ref_id=:'adult_order'),repeat('9',64),pg_temp.uid(89))->>'claim_status'='claimed','payment pre-capture DB check');
 -- 다음 출생 연도 경계의 신분증은 판정·파기에 성공해도 권한을 얻지 못한다.
 select pg_temp.actor(3);
-select public.begin_overseas_adult_request() as minor_id \gset
-select pg_temp.assert(public.reserve_overseas_adult_upload(:'minor_id','overseas_manual_all@2026-11-26'),'minor upload');
+select public.reserve_overseas_adult_document(pg_temp.uid(41),'overseas_document@2026-11-26')->>'id' as minor_id \gset
 insert into storage.objects(bucket_id,name) values('overseas-adult-evidence',:'minor_id');
 select public.service_submit_overseas_adult_upload(:'minor_id',pg_temp.uid(3),repeat('a',64));
 select pg_temp.actor(1);
@@ -129,8 +151,7 @@ update storage.objects set name='purged-minor-fixture' where bucket_id='overseas
 select public.service_finish_overseas_adult_cleanup(:'minor_id');
 select pg_temp.assert(private.overseas_valid_until(pg_temp.uid(3)) is null and (select outcome='underage' from private.overseas_adult_requests where id=:'minor_id'),'underage stays restricted');
 select pg_temp.actor(3);
-select public.begin_overseas_adult_request() as aborted_id \gset
-select public.reserve_overseas_adult_upload(:'aborted_id','overseas_manual_all@2026-11-26');
+select public.reserve_overseas_adult_document(pg_temp.uid(42),'overseas_document@2026-11-26')->>'id' as aborted_id \gset
 select pg_temp.assert(public.cancel_overseas_adult_request(:'aborted_id'),'cancel while uploading');
 select pg_temp.assert(not public.service_submit_overseas_adult_upload(:'aborted_id',pg_temp.uid(3),repeat('d',64)),'late upload cannot re-open');
 update private.overseas_adult_requests set upload_until=now()-interval '1 minute',cleanup_after=now()-interval '1 second' where id=:'aborted_id';

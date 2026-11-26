@@ -1,5 +1,6 @@
 'use client';
 
+import { OVERSEAS_REVIEW_PATH } from '@/lib/identity/overseas-adult';
 import { InquiryMessageBody } from './InquiryMessageBody';
 import { InquiryMessageFiles } from './InquiryMessageFiles';
 import { inquiryMessageAuthorLabel } from '@/lib/inquiries';
@@ -313,7 +314,7 @@ export function InquiryWidget() {
   const [overlay, setOverlay] = useState({ pathname, open: false });
   if (overlay.pathname !== pathname) setOverlay({ pathname, open: false });
   /* /login은 전역 셸 안에서 열리지만(L3) 입력에 집중하는 흐름이라 런처를 띄우지 않는다 — 모바일에서 소셜 버튼을 가린다. */
-  if (isStandaloneShellPath(pathname) || pathname === '/login') return null;
+  if (isStandaloneShellPath(pathname) || pathname === '/login' || pathname === OVERSEAS_REVIEW_PATH) return null;
   const open = overlay.pathname === pathname && overlay.open;
   return <div className="wc-root wc-inquiry-widget">
     <button className="wc-inquiry-widget__launcher" data-tucked={tucked && !open ? 'true' : undefined} type="button" aria-haspopup="dialog" aria-expanded={open} onClick={() => setOverlay({ pathname, open: true })}>FAQ · 문의</button>

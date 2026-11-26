@@ -81,7 +81,7 @@ export const MEMBERS_ROLES_TOPIC: AdminGuideTopic = {
     {
       id: 'overseas-adult',
       heading: '해외 신분증 성인 인증',
-      paragraphs: ['관리자 계정으로 심사 대기 목록을 열어 가린 신분증과 손글씨 코드를 한 번 확인합니다. 승인 후 사진 파기가 끝나면 해당 회원이 1년간 모든 19금 상품을 보고 구매할 수 있습니다.'],
+      paragraphs: ['관리자 계정으로 심사 대기 목록을 열어 가린 신분증의 발급처와 유효기간, 신청인이 입력한 영문 이름과 성별 표기를 확인하고 신분증의 생년월일을 입력합니다. 가입 생년월일과 일치해야 승인됩니다. 승인 후 사진 파기가 끝나면 해당 회원이 1년간 모든 19금 상품을 보고 구매할 수 있습니다.'],
       screens: [{ href: '/admin/settings/overseas-adult', note: '회원 관리 권한이 있는 관리자' }],
     },
     {

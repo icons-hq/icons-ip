@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { decryptPhoto, encryptPhoto, readPhoto } from './overseas-evidence.server';
+import { decryptPhoto, encryptPhoto, readDocumentEvidence, unpackDocumentEvidence } from './overseas-evidence.server';
 import { OVERSEAS_UPLOAD_LIMIT } from './overseas-adult';
 
 describe('해외 심사 증빙', () => {
@@ -20,11 +20,21 @@ describe('해외 심사 증빙', () => {
       .jpeg()
       .withMetadata()
       .toBuffer();
-    const request = (body: Uint8Array<ArrayBuffer>) =>
-      new Request('http://localhost/test', { method: 'POST', body });
-    const result = await readPhoto(request(new Uint8Array(input)));
-    expect((await sharp(result).metadata()).exif).toBeUndefined();
-    await expect(readPhoto(request(new Uint8Array([1, 2, 3])))).rejects.toThrow();
-    await expect(readPhoto(request(new Uint8Array(OVERSEAS_UPLOAD_LIMIT + 1)))).rejects.toThrow();
+    const request = (body: Uint8Array<ArrayBuffer>, name = 'Émilie O’Neil', gender = 'X') => {
+      const data = new FormData();
+      data.set('name', name);
+      data.set('gender', gender);
+      data.set('photo', new Blob([body]), 'source.jpg');
+      return new Request('http://localhost/test', { method: 'POST', body: data });
+    };
+    const packed = await readDocumentEvidence(request(new Uint8Array(input)));
+    const sealed = encryptPhoto('doc', packed);
+    const { identity, photo } = unpackDocumentEvidence(decryptPhoto('doc', sealed.share, sealed.object));
+    expect(identity).toEqual({ name: 'Émilie O’Neil', gender: 'X' });
+    expect((await sharp(photo).metadata()).exif).toBeUndefined();
+    await expect(readDocumentEvidence(request(new Uint8Array([1, 2, 3])))).rejects.toThrow();
+    await expect(readDocumentEvidence(request(new Uint8Array(OVERSEAS_UPLOAD_LIMIT + 1)))).rejects.toThrow();
+    await expect(readDocumentEvidence(request(new Uint8Array(input), '12345'))).rejects.toThrow();
+    await expect(readDocumentEvidence(request(new Uint8Array(input), 'Alex', 'unknown'))).rejects.toThrow();
   });
 });

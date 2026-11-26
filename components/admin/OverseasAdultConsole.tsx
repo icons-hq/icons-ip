@@ -5,13 +5,14 @@ import { AdminSectionCard } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { adminConfirm } from '@/lib/admin/confirm';
-import type { OverseasQueueItem } from '@/lib/identity/overseas-adult';
+import { documentIdentity, type DocumentIdentity, type OverseasQueueItem } from '@/lib/identity/overseas-adult';
 
 interface Review {
   id: string;
   token: string;
   url: string;
-  code: string;
+  identity: DocumentIdentity | null;
+  legacyCode: string | null;
   until: number;
 }
 const remaining = (until: number) => Math.max(0, until - Date.now());
@@ -88,15 +89,19 @@ export function OverseasAdultConsole({ queue }: { queue: OverseasQueueItem[] | n
     const controller = new AbortController();
     opening.current = controller;
     try {
-      const res = await post(id, { action: 'open' }, controller.signal);
-      const token = res.headers.get('x-review-token'),
-        code = res.headers.get('x-review-challenge'),
-        until = Date.parse(res.headers.get('x-review-until') ?? '');
-      if (!res.ok || !token || !code || !Number.isFinite(until)) throw new Error();
-      const blob = await res.blob();
+      const res = await post(id, { action: 'open', format: 'document' }, controller.signal);
+      const token = res.headers.get('x-review-token');
+      const until = Date.parse(res.headers.get('x-review-until') ?? '');
+      if (!res.ok || !token || !Number.isFinite(until)) throw new Error();
+      const form = await res.formData();
+      const photo = form.get('photo');
+      const identity = documentIdentity(form.get('name'), form.get('gender'));
+      const oldCode = form.get('legacyCode');
+      const legacyCode = typeof oldCode === 'string' ? oldCode : null;
+      if (!(photo instanceof Blob) || (!identity && !legacyCode)) throw new Error();
       if (document.hidden || controller.signal.aborted || !remaining(until)) return;
-      url.current = URL.createObjectURL(blob);
-      setActive({ id, token, code, until, url: url.current });
+      url.current = URL.createObjectURL(photo);
+      setActive({ id, token, identity, legacyCode, until, url: url.current });
     } catch {
       setMessage('사진을 열 수 없습니다. 현재 심사 목록을 다시 확인해 주세요.');
       router.refresh();
@@ -142,12 +147,14 @@ export function OverseasAdultConsole({ queue }: { queue: OverseasQueueItem[] | n
       {active ? (
         <AdminSectionCard title="신분증 확인">
           <div className="grid max-w-2xl gap-3" data-private>
-            <p>
-              신청 코드 <strong>{active.code}</strong> · 한 번 열람
-            </p>
+            {active.identity ? (
+              <p>신청인이 입력한 영문 이름 <strong>{active.identity.name}</strong> · 성별 표기 <strong>{active.identity.gender}</strong></p>
+            ) : (
+              <p>이전 방식으로 제출된 사진입니다. 사진의 손글씨와 <strong>{active.legacyCode}</strong>를 대조해 주세요.</p>
+            )}
             {/* eslint-disable-next-line @next/next/no-img-element -- 브라우저 메모리 안의 일회용 사진만 표시한다. */}
             <img
-              alt="고객이 제출한 가린 신분증과 본인 확인 사진"
+              alt="고객이 제출한 신분증 사본"
               src={active.url}
               className="max-h-[55vh] max-w-full object-contain"
             />
@@ -155,9 +162,12 @@ export function OverseasAdultConsole({ queue }: { queue: OverseasQueueItem[] | n
               신분증에 적힌 생년월일
               <Input type="date" autoComplete="off" value={birth} onChange={(e) => setBirth(e.target.value)} />
             </label>
+            {active.identity && <p>입력한 생년월일이 회원가입 정보와 다르면 반려됩니다.</p>}
             <label>
               <input type="checkbox" checked={matched} onChange={(e) => setMatched(e.target.checked)} />{' '}
-              발급처·문서 유효기간·얼굴·손글씨 코드 일치를 확인했습니다.
+              {active.identity
+                ? '해외 발급·유효기간·가림 상태를 확인했고, 영문 이름과 성별 표기가 신청 정보와 일치합니다.'
+                : '발급처·유효기간·얼굴·손글씨가 이전 신청 내용과 일치합니다.'}
             </label>
             <div className="flex gap-2">
               <Button disabled={busy || !matched || !birth} onClick={() => void decide(true)}>

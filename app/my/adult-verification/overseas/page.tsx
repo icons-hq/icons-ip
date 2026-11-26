@@ -1,4 +1,6 @@
 import type { Metadata } from 'next';
+import { headers } from 'next/headers';
+import '@/app/styles/wc-overseas-verification.css';
 import { redirect } from 'next/navigation';
 import { OverseasAdultRequest } from '@/components/identity/OverseasAdultRequest';
 import { MypageShell } from '@/components/wc/MypageShell';
@@ -23,26 +25,20 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect('/login?next=' + encodeURIComponent(href));
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(href));
-  const result = await (await createClient()).rpc('my_overseas_adult_request');
+  const [result, requestHeaders] = await Promise.all([
+    (await createClient()).rpc('my_overseas_adult_request'), headers(),
+  ]);
   const request = (result.data?.request ?? null) as OverseasRequest | null;
-  const approved = Boolean(request?.validUntil);
+  const language = requestHeaders.get('accept-language')?.split(',')[0]?.toLowerCase();
   return (
     <MypageShell active={ADULT_VERIFICATION_PATH}>
-      <h1 className="wc-mypage__heading">
-        해외 신분증 성인 인증 <small lang="en">Overseas ID verification</small>
-      </h1>
-      {result.data?.domesticVerified ? <p>국내 휴대폰 성인 인증이 이미 유효해요. / Your Korean mobile verification is already valid.</p> : result.error ? (
-        <p role="alert">
-          신청 상태를 불러오지 못했어요. 새로고침해 주세요. / Please refresh to check your request.
-        </p>
-      ) : (
-        <OverseasAdultRequest
-          intakeStatus={result.data?.intakeStatus ?? 'review_paused'}
-          request={request}
-          approved={approved}
-          next={next}
-        />
-      )}
+      <OverseasAdultRequest
+        intakeStatus={result.error ? 'error' : result.data?.domesticVerified ? 'domestic' : result.data?.intakeStatus ?? 'review_paused'}
+        request={request}
+        birthDate={auth.profile?.birth_date ?? ''}
+        initialLanguage={language && !language.startsWith('ko') ? 'en' : 'ko'}
+        next={next}
+      />
     </MypageShell>
   );
 }

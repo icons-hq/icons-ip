@@ -6225,6 +6225,8 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
 }
 
 .wc-adult-actions {
+  display: grid;
+  gap: 8px;
   margin-top: 20px;
   max-width: 360px;
 }
