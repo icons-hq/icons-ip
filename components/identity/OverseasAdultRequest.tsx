@@ -1,6 +1,6 @@
 'use client';
 
-import { Check, ChevronDown, CircleCheck, Clock3, Eye, EyeOff, FileCheck2, Globe2 } from 'lucide-react';
+import { Check, ChevronDown, CircleCheck, Clock3, CalendarDays, CircleAlert, FileCheck2, Globe2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useId, useState, useTransition } from 'react';
@@ -9,10 +9,9 @@ import type { OverseasIntakeStatus, OverseasRequest } from '@/lib/identity/overs
 import { documentCopy, type DocumentLanguage } from './overseas-document-copy';
 import { OverseasPhotoForm } from './OverseasPhotoForm';
 
-export function OverseasAdultRequest({ intakeStatus, request, birthDate, initialLanguage, next }: {
+export function OverseasAdultRequest({ intakeStatus, request, initialLanguage, next }: {
   intakeStatus: OverseasIntakeStatus | 'domestic' | 'error';
   request: OverseasRequest | null;
-  birthDate: string;
   initialLanguage: DocumentLanguage;
   next: string;
 }) {
@@ -61,12 +60,12 @@ export function OverseasAdultRequest({ intakeStatus, request, birthDate, initial
             <div id={guideId} className="wc-overseas__guide-detail" data-open={guideOpen}>
               <p>{t.documents}</p>
               <dl>
-              <dt><Eye size={16} aria-hidden="true" />{t.show}</dt><dd>{t.visibleFields}</dd>
-              <dt><EyeOff size={16} aria-hidden="true" />{t.hide}</dt><dd>{t.hiddenFields}</dd>
+              <dt><CalendarDays size={16} aria-hidden="true" />{t.show}</dt><dd>{t.visibleFields}</dd>
+              <dt><CircleAlert size={16} aria-hidden="true" />{t.hide}</dt><dd>{t.hiddenFields}</dd>
               </dl>
             </div>
           </aside>
-          <OverseasPhotoForm copy={t} birthDate={birthDate} onRefresh={refresh} />
+          <OverseasPhotoForm copy={t} onRefresh={refresh} />
         </div>
       </> : (
         <div className="wc-overseas__status" role={intakeStatus === 'error' ? 'alert' : 'status'}>

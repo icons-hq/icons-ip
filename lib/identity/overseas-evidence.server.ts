@@ -17,12 +17,9 @@ export function sameOrigin(request: Request) {
 }
 export const reviewDigest = (token: string) => createHash('sha256').update(token).digest('hex');
 
-// FormData의 문자 필드·경계까지 제한한다. 전송 길이가 없는 요청에도 같은 상한을 적용한다.
-async function readBoundedForm(request: Request) {
-  const limit = OVERSEAS_UPLOAD_LIMIT + 8192;
-  const type = request.headers.get('content-type') ?? '';
-  if (!type.toLowerCase().startsWith('multipart/form-data;') ||
-      Number(request.headers.get('content-length') ?? 0) > limit || !request.body) throw new Error('invalid_document');
+export async function readPhoto(request: Request) {
+  const declared = Number(request.headers.get('content-length') ?? 0);
+  if (declared > OVERSEAS_UPLOAD_LIMIT || !request.body) throw new Error('invalid_photo');
   const reader = request.body.getReader();
   const chunks: Uint8Array[] = [];
   let size = 0;
@@ -31,21 +28,11 @@ async function readBoundedForm(request: Request) {
       const { done, value } = await reader.read();
       if (done) break;
       size += value.length;
-      if (size > limit) { await reader.cancel(); throw new Error('invalid_document'); }
+      if (size > OVERSEAS_UPLOAD_LIMIT) { await reader.cancel(); throw new Error('invalid_photo'); }
       chunks.push(value);
     }
-    return await new Response(new Blob(chunks.map(chunk => new Uint8Array(chunk))), {
-      headers: { 'Content-Type': type },
-    }).formData();
   } finally { reader.releaseLock(); }
-}
-
-export async function readDocumentEvidence(request: Request) {
-  const form = await readBoundedForm(request);
-  const identity = documentIdentity(form.get('name'), form.get('gender'));
-  const file = form.get('photo');
-  if (!identity || !(file instanceof Blob) || file.size === 0 || file.size > OVERSEAS_UPLOAD_LIMIT) throw new Error('invalid_document');
-  const decoder = sharp(Buffer.from(await file.arrayBuffer()), { limitInputPixels: 16_000_000, failOn: 'warning' });
+  const decoder = sharp(Buffer.concat(chunks), { limitInputPixels: 16_000_000, failOn: 'warning' });
   const meta = await decoder.metadata();
   if (
     !['jpeg', 'png', 'webp'].includes(meta.format ?? '') ||
@@ -60,19 +47,14 @@ export async function readDocumentEvidence(request: Request) {
     .flatten({ background: '#fff' })
     .jpeg({ quality: 85 })
     .toBuffer();
-  // 입력한 정보와 사본을 같은 암호문에 넣어 함께 파기한다. 평문 DB 열·파일명·헤더에는 담지 않는다.
-  const fields = Buffer.from(JSON.stringify(identity), 'utf8');
-  const length = Buffer.alloc(4);
-  length.writeUInt32BE(fields.length);
-  const evidence = Buffer.concat([length, fields, photo]);
-  photo.fill(0);
-  if (evidence.length + 60 > OVERSEAS_UPLOAD_LIMIT) {
-    evidence.fill(0);
+  if (photo.length + 60 > OVERSEAS_UPLOAD_LIMIT) {
+    photo.fill(0);
     throw new Error('document_too_large');
   }
-  return evidence;
+  return photo;
 }
 
+// 구버전 신청은 제출 당시의 암호화 형식으로 한 번만 열람한다.
 export function unpackDocumentEvidence(data: Buffer): { identity: DocumentIdentity; photo: Buffer } {
   const length = data.readUInt32BE(0);
   if (!length || length > 1024 || 4 + length >= data.length) throw new Error('invalid_document');

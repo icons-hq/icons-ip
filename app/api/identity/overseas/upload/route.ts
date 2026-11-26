@@ -1,6 +1,6 @@
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { OVERSEAS_METHOD } from '@/lib/identity/overseas-adult';
-import { evidenceHeaders, readDocumentEvidence, sameOrigin, storeEvidence } from '@/lib/identity/overseas-evidence.server';
+import { evidenceHeaders, readPhoto, sameOrigin, storeEvidence } from '@/lib/identity/overseas-evidence.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 
@@ -11,7 +11,8 @@ const respond = (status: number) => new Response(null, { status, headers: eviden
 export async function POST(request: Request) {
   const submission = request.headers.get('x-submission-id');
   if (!sameOrigin(request) || request.headers.get('x-photo-consent') !== OVERSEAS_METHOD) return respond(403);
-  if (!isUuid(submission)) return respond(400);
+  const numbers = request.headers.get('x-document-number-consent');
+  if (!isUuid(submission) || (numbers !== 'allow' && numbers !== 'not-present')) return respond(400);
   const { user } = await getCurrentAuthState();
   if (!user) return respond(401);
   const client = await createClient();
@@ -20,13 +21,13 @@ export async function POST(request: Request) {
   if (!current.data?.open || current.data.domesticVerified || current.data.request?.validUntil) return respond(409);
   let evidence: Buffer;
   try {
-    evidence = await readDocumentEvidence(request);
+    evidence = await readPhoto(request);
   } catch {
     return respond(422);
   }
   try {
-    const reserved = await client.rpc('reserve_overseas_adult_document', {
-      p_submission_key: submission, p_consent: OVERSEAS_METHOD,
+    const reserved = await client.rpc('reserve_overseas_adult_photo', {
+      p_submission_key: submission, p_consent: OVERSEAS_METHOD, p_number_consent: numbers === 'allow',
     });
     if (reserved.error?.message === 'overseas_request_limit') return respond(429);
     if (reserved.error) return respond(reserved.error.code === '42501' ? 403 : 503);

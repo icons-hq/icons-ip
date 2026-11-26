@@ -13,6 +13,7 @@ interface Review {
   url: string;
   identity: DocumentIdentity | null;
   legacyCode: string | null;
+  numbers: FormDataEntryValue | null;
   until: number;
 }
 const remaining = (until: number) => Math.max(0, until - Date.now());
@@ -98,10 +99,11 @@ export function OverseasAdultConsole({ queue }: { queue: OverseasQueueItem[] | n
       const identity = documentIdentity(form.get('name'), form.get('gender'));
       const oldCode = form.get('legacyCode');
       const legacyCode = typeof oldCode === 'string' ? oldCode : null;
-      if (!(photo instanceof Blob) || (!identity && !legacyCode)) throw new Error();
+      const numbers = form.get('numberConsent');
+      if (!(photo instanceof Blob) || (!identity && !legacyCode && numbers !== 'allow' && numbers !== 'not-present')) throw new Error();
       if (document.hidden || controller.signal.aborted || !remaining(until)) return;
       url.current = URL.createObjectURL(photo);
-      setActive({ id, token, identity, legacyCode, until, url: url.current });
+      setActive({ id, token, identity, legacyCode, numbers, until, url: url.current });
     } catch {
       setMessage('사진을 열 수 없습니다. 현재 심사 목록을 다시 확인해 주세요.');
       router.refresh();
@@ -147,7 +149,11 @@ export function OverseasAdultConsole({ queue }: { queue: OverseasQueueItem[] | n
       {active ? (
         <AdminSectionCard title="신분증 확인">
           <div className="grid max-w-2xl gap-3" data-private>
-            {active.identity ? (
+             {active.numbers ? (
+              <p>{active.numbers === 'allow'
+                ? '해외 발급 신분증의 생년월일과 유효기간을 확인하세요. 사진 속 번호를 다른 곳에 옮겨 적지 마세요.'
+                : '문서번호가 없는 사진으로 접수했습니다. 번호가 보이면 반려하여 파기해 주세요.'}</p>
+            ) : active.identity ? (
               <p>신청인이 입력한 영문 이름 <strong>{active.identity.name}</strong> · 성별 표기 <strong>{active.identity.gender}</strong></p>
             ) : (
               <p>이전 방식으로 제출된 사진입니다. 사진의 손글씨와 <strong>{active.legacyCode}</strong>를 대조해 주세요.</p>
@@ -162,10 +168,12 @@ export function OverseasAdultConsole({ queue }: { queue: OverseasQueueItem[] | n
               신분증에 적힌 생년월일
               <Input type="date" autoComplete="off" value={birth} onChange={(e) => setBirth(e.target.value)} />
             </label>
-            {active.identity && <p>입력한 생년월일이 회원가입 정보와 다르면 반려됩니다.</p>}
+            {(active.identity || active.numbers) && <p>입력한 생년월일이 회원가입 정보와 다르면 반려됩니다.</p>}
             <label>
               <input type="checkbox" checked={matched} onChange={(e) => setMatched(e.target.checked)} />{' '}
-              {active.identity
+              {active.numbers
+                ? '본인 신청으로 볼 수 있는 자료인지, 해외 발급·유효기간·생년월일과 제출 동의 범위를 확인했습니다.'
+                : active.identity
                 ? '해외 발급·유효기간·가림 상태를 확인했고, 영문 이름과 성별 표기가 신청 정보와 일치합니다.'
                 : '발급처·유효기간·얼굴·손글씨가 이전 신청 내용과 일치합니다.'}
             </label>

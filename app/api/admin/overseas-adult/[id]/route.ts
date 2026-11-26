@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { OVERSEAS_METHOD } from '@/lib/identity/overseas-adult';
+import { OVERSEAS_METHOD, PREVIOUS_DOCUMENT_METHOD } from '@/lib/identity/overseas-adult';
 import { adultAgeDecision } from '@/lib/age/adult-age';
 import {
   downloadEvidence,
@@ -31,7 +31,10 @@ export async function POST(request: Request, context: RouteContext<'/api/admin/o
     try {
       bytes = await downloadEvidence(id, claim.data.share);
       const form = new FormData();
-      if (claim.data.method === OVERSEAS_METHOD) {
+      if (claim.data.method === OVERSEAS_METHOD && typeof claim.data.numberConsent === 'boolean') {
+        form.set('numberConsent', claim.data.numberConsent ? 'allow' : 'not-present');
+        form.set('photo', new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' }), 'document.jpg');
+      } else if (claim.data.method === PREVIOUS_DOCUMENT_METHOD) {
         const { photo, identity } = unpackDocumentEvidence(bytes);
         form.set('name', identity.name);
         form.set('gender', identity.gender);

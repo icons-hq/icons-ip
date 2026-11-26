@@ -35,7 +35,6 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
       <OverseasAdultRequest
         intakeStatus={result.error ? 'error' : result.data?.domesticVerified ? 'domestic' : result.data?.intakeStatus ?? 'review_paused'}
         request={request}
-        birthDate={auth.profile?.birth_date ?? ''}
         initialLanguage={language && !language.startsWith('ko') ? 'en' : 'ko'}
         next={next}
       />

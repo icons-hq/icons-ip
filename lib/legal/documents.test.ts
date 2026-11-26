@@ -626,6 +626,7 @@ it('한국 시간 11월 26일부터 모든 19금 상품에 적용되는 해외 �
   expect(after.effectiveDate).toBe('2026-11-26');
   expect(after.previousVersion?.articles).toEqual(before.articles);
   expect(JSON.stringify(after.articles)).toContain('모든 19금 상품');
-  expect(JSON.stringify(after.articles)).toContain('가린 해외 신분증');
+  expect(JSON.stringify(after.articles)).toContain('신분증 사진 한 장');
+  expect(JSON.stringify(after.articles)).toContain('번호의 임시 처리에 별도로 동의');
   expect(after.pendingRevision).toBeUndefined();
 });

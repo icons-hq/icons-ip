@@ -1,4 +1,5 @@
-export const OVERSEAS_METHOD = 'overseas_document@2026-11-26';
+export const OVERSEAS_METHOD = 'overseas_photo@2026-11-26';
+export const PREVIOUS_DOCUMENT_METHOD = 'overseas_document@2026-11-26';
 export const OVERSEAS_REVIEW_PATH = '/my/adult-verification/overseas';
 export const OVERSEAS_ADMIN_PATH = '/admin/settings/overseas-adult';
 export const OVERSEAS_PRIVACY_EFFECTIVE_DATE = '2026-11-26';
