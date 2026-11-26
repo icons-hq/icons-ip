@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import sharp from 'sharp';
-import { decryptPhoto, encryptPhoto, readPhoto } from './overseas-evidence.server';
+import { decryptPhoto, encryptPhoto, readPhoto, unpackDocumentEvidence } from './overseas-evidence.server';
 import { OVERSEAS_UPLOAD_LIMIT } from './overseas-adult';
 
 describe('해외 심사 증빙', () => {
@@ -20,11 +20,21 @@ describe('해외 심사 증빙', () => {
       .jpeg()
       .withMetadata()
       .toBuffer();
-    const request = (body: Uint8Array<ArrayBuffer>) =>
-      new Request('http://localhost/test', { method: 'POST', body });
-    const result = await readPhoto(request(new Uint8Array(input)));
-    expect((await sharp(result).metadata()).exif).toBeUndefined();
+    const request = (body: Uint8Array<ArrayBuffer>) => new Request('http://localhost/test', { method: 'POST', body });
+    const photo = await readPhoto(request(new Uint8Array(input)));
+    const sealed = encryptPhoto('doc', photo);
+    const opened = decryptPhoto('doc', sealed.share, sealed.object);
+    expect((await sharp(opened).metadata()).exif).toBeUndefined();
     await expect(readPhoto(request(new Uint8Array([1, 2, 3])))).rejects.toThrow();
     await expect(readPhoto(request(new Uint8Array(OVERSEAS_UPLOAD_LIMIT + 1)))).rejects.toThrow();
+  });
+  it('기존 입력형 신청은 제출 당시 암호문을 읽을 수 있다', () => {
+    const fields = Buffer.from(JSON.stringify({ name: 'Émilie O’Neil', gender: 'X' }));
+    const length = Buffer.alloc(4);
+    length.writeUInt32BE(fields.length);
+    const bytes = Buffer.from('legacy jpeg');
+    const result = unpackDocumentEvidence(Buffer.concat([length, fields, bytes]));
+    expect(result.identity).toEqual({ name: 'Émilie O’Neil', gender: 'X' });
+    expect(result.photo).toEqual(bytes);
   });
 });

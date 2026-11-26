@@ -1,4 +1,5 @@
 import { randomBytes } from 'node:crypto';
+import { OVERSEAS_METHOD, PREVIOUS_DOCUMENT_METHOD } from '@/lib/identity/overseas-adult';
 import { adultAgeDecision } from '@/lib/age/adult-age';
 import {
   downloadEvidence,
@@ -6,6 +7,7 @@ import {
   purgeOverseasEvidence,
   reviewDigest,
   sameOrigin,
+  unpackDocumentEvidence,
 } from '@/lib/identity/overseas-evidence.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
@@ -20,28 +22,38 @@ export async function POST(request: Request, context: RouteContext<'/api/admin/o
   const body = await request.json().catch(() => null);
   const client = await createClient();
   if (body?.action === 'open') {
+    if (body.format !== 'document') return respond(409);
     const token = randomBytes(32).toString('base64url');
     const args = { p_id: id, p_digest: reviewDigest(token) };
     const claim = await client.rpc('open_overseas_adult_review', args);
     if (claim.error || !claim.data?.share) return respond(403);
+    let bytes: Buffer | undefined;
     try {
-      const bytes = await downloadEvidence(id, claim.data.share);
-      const delivered = await client.rpc('deliver_overseas_adult_review', args);
-      if (delivered.error || delivered.data !== true) {
-        bytes.fill(0);
+      bytes = await downloadEvidence(id, claim.data.share);
+      const form = new FormData();
+      if (claim.data.method === OVERSEAS_METHOD && typeof claim.data.numberConsent === 'boolean') {
+        form.set('numberConsent', claim.data.numberConsent ? 'allow' : 'not-present');
+        form.set('photo', new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' }), 'document.jpg');
+      } else if (claim.data.method === PREVIOUS_DOCUMENT_METHOD) {
+        const { photo, identity } = unpackDocumentEvidence(bytes);
+        form.set('name', identity.name);
+        form.set('gender', identity.gender);
+        form.set('photo', new Blob([new Uint8Array(photo)], { type: 'image/jpeg' }), 'document.jpg');
+      } else if (claim.data.challenge) {
+        form.set('legacyCode', claim.data.challenge);
+        form.set('photo', new Blob([new Uint8Array(bytes)], { type: 'image/jpeg' }), 'photo.jpg');
+      } else {
         return respond(410);
       }
-      return new Response(new Uint8Array(bytes), {
-        headers: {
-          ...evidenceHeaders,
-          'Content-Type': 'image/jpeg',
-          'X-Review-Token': token,
-          'X-Review-Challenge': claim.data.challenge,
-          'X-Review-Until': claim.data.until,
-        },
-      });
+      const delivered = await client.rpc('deliver_overseas_adult_review', args);
+      if (delivered.error || delivered.data !== true) return respond(410);
+      return new Response(form, { headers: {
+        ...evidenceHeaders, 'X-Review-Token': token, 'X-Review-Until': claim.data.until,
+      } });
     } catch {
       return respond(503);
+    } finally {
+      bytes?.fill(0);
     }
   }
   if (body?.action === 'check' && typeof body.token === 'string' && /^[A-Za-z0-9_-]{43}$/.test(body.token)) {
