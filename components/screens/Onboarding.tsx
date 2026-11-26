@@ -3,19 +3,12 @@
 import { startTransition, useActionState, type FormEvent } from 'react';
 import { completeOnboardingAction, finishOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
 import { EmailChangePanel, type EmailChangePanelView } from '@/components/screens/EmailChangePanel';
+import { OnboardingConsents } from '@/components/screens/OnboardingConsents';
 import { PhoneVerificationPanel, type PhoneVerificationPanelView } from '@/components/screens/OnboardingPhoneVerification';
 import { WcButton } from '@/components/wc/WcButton';
-import { DEMOGRAPHIC_GENDER_LABELS, DEMOGRAPHIC_GENDERS, DEMOGRAPHIC_NOTICE } from '@/lib/customer-demographics';
-import { LEGAL_DOCUMENT_LABELS, legalDocumentHref, type LegalDocumentSlug } from '@/lib/legal/links';
-import {
-  MARKETING_CHANNEL_FIELDS,
-  MARKETING_CHANNEL_LABELS,
-  MARKETING_CHANNELS,
-  MARKETING_KAKAO_OFFERED_FIELD,
-  marketingConsentNoticeFor,
-  type MarketingChannel,
-  type MarketingChannelChoices,
-} from '@/lib/marketing-consent';
+import { DEMOGRAPHIC_GENDERS, DEMOGRAPHIC_GENDER_LABELS } from '@/lib/customer-demographics';
+import { DEMOGRAPHIC_PRIVACY_ANCHOR, legalDocumentHref } from '@/lib/legal/links';
+import { MARKETING_CHANNELS, type MarketingChannel, type MarketingChannelChoices } from '@/lib/marketing-consent';
 
 interface OnboardingProps {
   birthDate: string;
@@ -56,61 +49,13 @@ function ErrorText({ children, id }: { children?: string; id: string }) {
   );
 }
 
-function TermRow({
-  defaultChecked,
-  errorId,
-  hasError,
-  label,
-  name,
-  required,
-  slug,
-}: {
-  defaultChecked?: boolean;
-  errorId?: string;
-  hasError?: boolean;
-  label: string;
-  name: string;
-  required: boolean;
-  /** 동의 대상 문서. 링크는 label 바깥에 두어야 클릭이 체크박스를 토글하지 않는다. */
-  slug?: LegalDocumentSlug;
-}) {
-  return (
-    <div className="wc-auth__agree-row">
-      <label>
-        <input
-          aria-describedby={hasError ? errorId : undefined}
-          aria-invalid={hasError}
-          defaultChecked={Boolean(defaultChecked)}
-          name={name}
-          type="checkbox"
-        />
-        <span>
-          {label} <em className={required ? 'wc-auth__req' : 'wc-auth__opt'}>{required ? '필수' : '선택'}</em>
-        </span>
-      </label>
-      {slug && (
-        /* 링크 목록으로 훑는 스크린리더에는 "전문 보기"만 두 번 남는다.
-           보이는 문구는 그대로 두고 접근 이름에 문서 이름을 붙여 서로 구분한다(WCAG 2.4.4). */
-        <a
-          aria-label={`${LEGAL_DOCUMENT_LABELS[slug]} 전문 보기`}
-          href={legalDocumentHref(slug)}
-          rel="noreferrer"
-          target="_blank"
-        >
-          전문 보기
-        </a>
-      )}
-    </div>
-  );
-}
-
 /** 버튼 위 오류 요약(QA1 S-T02-02) — 칸 순서대로, 그 칸의 오류 문구로 잇는다. */
 function onboardingFieldErrors(errors: Partial<Record<string, string>> | undefined): { anchor: string; label: string; message: string }[] {
   const fields = [
     { key: 'birthDate', anchor: 'birth-date-error', label: '생년월일' },
+    { key: 'gender', anchor: 'gender-error', label: '성별' },
     { key: 'terms', anchor: 'terms-error', label: '이용약관 동의' },
     { key: 'privacy', anchor: 'privacy-error', label: '개인정보 처리방침 동의' },
-    { key: 'gender', anchor: 'gender-error', label: '통계용 성별' },
   ];
   return fields.flatMap((field) => {
     const message = errors?.[field.key];
@@ -133,8 +78,6 @@ export function Onboarding({
   const [state, action, pending] = useActionState(completeOnboardingAction, emptyState);
   const [finishState, finishAction, finishPending] = useActionState(finishOnboardingAction, emptyState);
   const [birthYear = '', birthMonth = '', birthDay = ''] = birthDate.split('-');
-  const { notice: marketingNotice } = marketingConsentNoticeFor(marketingChannels);
-  const kakaoOffered = marketingChannels.includes('kakao');
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -170,12 +113,7 @@ export function Onboarding({
           <PhoneVerificationPanel context="onboarding" isConfigured={isConfigured} view={phoneVerification} />
           <form action={finishAction} className="wc-auth__form" data-onboarding-finish onSubmit={handleFinish}>
             <input type="hidden" name="next" value={next} />
-            {carriedGender ? (
-              <>
-                <input type="hidden" name="gender" value={carriedGender} />
-                <input type="hidden" name="genderConsent" value="on" />
-              </>
-            ) : null}
+            {carriedGender && <input type="hidden" name="consentedGender" value={carriedGender} />}
             {finishState.errors?.form && (
               <div className="wc-auth__alert" role="alert">
                 {finishState.errors.form}
@@ -265,61 +203,44 @@ export function Onboarding({
             <ErrorText id="birth-date-error">{state.errors?.birthDate}</ErrorText>
           </fieldset>
 
-          <ul className="wc-auth__agree">
-            <li>
-              <TermRow errorId="terms-error" hasError={Boolean(state.errors?.terms)} label="이용약관 동의" name="terms" required slug="terms" />
-              <ErrorText id="terms-error">{state.errors?.terms}</ErrorText>
-            </li>
-            <li>
-              <TermRow errorId="privacy-error" hasError={Boolean(state.errors?.privacy)} label="개인정보 처리방침 동의" name="privacy" required slug="privacy" />
-              <ErrorText id="privacy-error">{state.errors?.privacy}</ErrorText>
-            </li>
-            {/* 마케팅 정보 수신 동의는 수단별 선택이다(LFS와 같은 이메일·SMS 두 줄, 10/14 회의 S4).
-                카카오톡 채널 스위치가 켜지면 카카오톡 줄이 더해진다(1014-010). */}
-            {marketingChannels.map((channel) => (
-              <li key={channel}>
-                <TermRow
-                  defaultChecked={initialMarketing[channel]}
-                  label={`${marketingNotice.title} (${MARKETING_CHANNEL_LABELS[channel]})`}
-                  name={MARKETING_CHANNEL_FIELDS[channel]}
-                  required={false}
-                />
-              </li>
-            ))}
-          </ul>
-          {kakaoOffered ? <input name={MARKETING_KAKAO_OFFERED_FIELD} type="hidden" value="1" /> : null}
-          <p className="onboarding-consent-note">
-            {marketingNotice.summary} {marketingNotice.inApp} {marketingNotice.sms}{kakaoOffered ? ` ${marketingNotice.kakao}` : ''} {marketingNotice.change}
-          </p>
-
-          {/* 선택 성별(10/14 회의 S5). 기본은 미선택이고, 고른 경우에만 별도 수집·이용 동의를 받는다.
-              저장은 온보딩 완료 직후 같은 액션에서 기존 선택 동의 경로로 한다. */}
-          {genderEligible ? (
-            <fieldset
-              aria-describedby={state.errors?.gender ? 'gender-hint gender-error' : 'gender-hint'}
-              className="onboarding-birth-fieldset onboarding-gender-fieldset"
-            >
-              <legend>성별 <em className="wc-auth__opt">선택</em></legend>
-              <span className="onboarding-birth-hint" id="gender-hint">{DEMOGRAPHIC_NOTICE.purpose}</span>
-              <select aria-invalid={Boolean(state.errors?.gender)} aria-label="통계용 성별" defaultValue="" name="gender">
-                <option value="">선택 안 함</option>
-                {DEMOGRAPHIC_GENDERS.map((gender) => (
-                  <option key={gender} value={gender}>{DEMOGRAPHIC_GENDER_LABELS[gender]}</option>
-                ))}
+          {genderEligible && (
+            <div className="wc-auth__field onboarding-gender-fieldset">
+              <div className="wc-auth__field-heading">
+                <label className="wc-auth__label" htmlFor="consented-gender">성별 <em className="wc-auth__opt">선택</em></label>
+                <a
+                  aria-label="성별 수집·이용에 관한 처리방침 보기"
+                  className="wc-auth__policy-link"
+                  href={`${legalDocumentHref('privacy')}#${DEMOGRAPHIC_PRIVACY_ANCHOR}`}
+                  rel="noreferrer"
+                  target="_blank"
+                >
+                  처리방침 보기
+                </a>
+              </div>
+              <select
+                aria-describedby={state.errors?.gender ? 'gender-error' : undefined}
+                aria-invalid={state.errors?.gender ? true : undefined}
+                autoComplete="off"
+                defaultValue=""
+                id="consented-gender"
+                name="consentedGender"
+              >
+                <option value="">제공하지 않음</option>
+                <optgroup label="성별 제공에 동의">
+                  {DEMOGRAPHIC_GENDERS.map((gender) => (
+                    <option key={gender} value={gender}>{DEMOGRAPHIC_GENDER_LABELS[gender]}</option>
+                  ))}
+                </optgroup>
               </select>
-              <label className="onboarding-gender-consent">
-                <input name="genderConsent" type="checkbox" />
-                <span>위 안내에 따라 성별 정보를 수집·이용하는 데 동의합니다. <em className="wc-auth__opt">선택</em></span>
-              </label>
-              <details className="onboarding-gender-notice">
-                <summary>수집 항목·보관·철회 안내</summary>
-                <p>{DEMOGRAPHIC_NOTICE.collected}</p>
-                <p>{DEMOGRAPHIC_NOTICE.retention}</p>
-                <p>{DEMOGRAPHIC_NOTICE.choice}</p>
-              </details>
               <ErrorText id="gender-error">{state.errors?.gender}</ErrorText>
-            </fieldset>
-          ) : null}
+            </div>
+          )}
+
+          <OnboardingConsents
+            errors={state.errors}
+            initialMarketing={initialMarketing}
+            marketingChannels={marketingChannels}
+          />
 
           {state.errors?.form && (
             <div className="wc-auth__alert" role="alert">

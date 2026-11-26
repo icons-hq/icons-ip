@@ -116,7 +116,7 @@ export function LegalDocumentScreen({ document }: { document: LegalDocument }) {
 
         <div className="wc-document__body">
           {document.articles.map((article) => (
-            <section key={article.heading} className="wc-document__article">
+            <section key={article.heading} className="wc-document__article" id={article.id}>
               <h2 className="wc-document__heading">{article.heading}</h2>
               <ArticleBody article={article} />
             </section>
