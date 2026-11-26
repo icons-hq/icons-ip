@@ -144,7 +144,9 @@ it('저장이 거절되면 적어 둔 이름·코드·상위 카테고리를 되
 /* C-06: 카테고리 코드는 자동으로 만들어져 잠겨 있고, 정해 둔 코드가 있을 때만 [직접 바꾸기]로 연다. */
 it('카테고리 코드는 잠겨 있다 — 새 카테고리는 자동 생성, 고치는 카테고리는 저장된 코드를 그대로 보낸다', () => {
   const html = render({ canManagePlatform: false });
-  expect(html).not.toMatch(/<input(?![^>]*type="hidden")[^>]*name="code"/);
+  /* 닫힌 동안 글자 칸은 감춰져 있고 disabled라 제출되지 않는다. 지우지 않고 감추기만 해서, 적어 둔 코드가 [바꾸지 않기]·[자동코드로 두기]로 사라지지 않는다(규칙 7). */
+  expect(html).not.toMatch(/<input(?![^>]*type="hidden")(?![^>]*disabled="")[^>]*name="code"/);
+  expect(html.match(/<input(?=[^>]*name="code")(?=[^>]*disabled="")(?=[^>]*class="[^"]*\bhidden\b)[^>]*>/g)).toHaveLength(2);
   expect(html).toContain('자동 생성 · 입력할 필요 없음');
   expect(html.match(/>직접 바꾸기<\/button>/g)).toHaveLength(2);
   expect(html).toContain('<input type="hidden" name="code" value="life"/>');

@@ -151,6 +151,8 @@ function ParentCategoryField({ categories, editingId, error, onChange, value }: 
 /**
  * 카테고리 코드. 새 카테고리는 저장할 때 자동으로 만들어지므로 칸을 닫아 두고, 정해 둔 코드가 있을 때만 [직접 바꾸기]로 연다(ADR-0048과 같은 방식).
  * 닫혀 있는 동안 새 카테고리는 코드를 보내지 않고(서버가 만든다), 고치는 카테고리는 저장된 코드를 그대로 보낸다.
+ * 입력 칸은 닫아도 화면에서 감추기만 한다(disabled라 제출되지 않는다) — 적어 둔 코드가 [바꾸지 않기]·[자동코드로 두기] 한 번에
+ * 사라지지 않고, 다시 열면 그대로 있다(화면 규칙 7).
  */
 function CategoryCodeField({ category, error, typed }: { category?: AdminCategoryNode; error?: string; typed?: string }) {
   const saved = category?.code ?? '';
@@ -162,10 +164,10 @@ function CategoryCodeField({ category, error, typed }: { category?: AdminCategor
       {open ? null : <span className={CHIP}>{category ? category.code : '자동 생성 · 입력할 필요 없음'}</span>}
       <button aria-expanded={open} className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" onClick={() => setOpen((current) => !current)} type="button">{open ? (category ? '바꾸지 않기' : '자동코드로 두기') : '직접 바꾸기'}</button>
     </span>
-    {open ? <>
-      <Input aria-describedby={`${inputId}-hint`} aria-invalid={error ? 'true' : undefined} className="font-normal" defaultValue={typed ?? saved} id={inputId} maxLength={80} name="code" placeholder="예: stationery-note" required />
-      <span className={HINT} id={`${inputId}-hint`}>영문 소문자·숫자·하이픈(-)만 씁니다.{category ? ' 코드를 바꾸면 예전 코드가 적힌 상품 엑셀은 이 카테고리를 찾지 못합니다.' : ''}</span>
-    </> : <input name="code" type="hidden" value={saved} />}
+    <Input aria-describedby={open ? `${inputId}-hint` : undefined} aria-invalid={error ? 'true' : undefined} className={open ? 'font-normal' : 'hidden font-normal'} defaultValue={typed ?? saved} disabled={!open} id={inputId} maxLength={80} name="code" placeholder="예: stationery-note" required />
+    {open
+      ? <span className={HINT} id={`${inputId}-hint`}>영문 소문자·숫자·하이픈(-)만 씁니다.{category ? ' 코드를 바꾸면 예전 코드가 적힌 상품 엑셀은 이 카테고리를 찾지 못합니다.' : ''}</span>
+      : <input name="code" type="hidden" value={saved} />}
     <FieldError>{error}</FieldError>
   </div>;
 }
