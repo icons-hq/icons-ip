@@ -151,6 +151,29 @@ export function shippingRegionPolicyProblems(policy: ShippingRegionPolicyInput):
   }
   return problems;
 }
+export const MAX_SHIPPING_REGION_FEE = 1000000;
+/** 활성 정책의 '추가료 부과' 줄을 고객 지역명별로 묶는다. 금액 바꾸기(`admin_change_shipping_region_fees`)는 지역명 단위로 금액을 바꾼다. */
+export interface ShippingRegionFeeGroup { regionLabel: string; rowCount: number; minAmount: number; maxAmount: number }
+export function shippingRegionFeeGroups(rules: readonly ShippingRegionRuleInput[]): ShippingRegionFeeGroup[] {
+  const groups = new Map<string, ShippingRegionFeeGroup>();
+  for (const rule of rules) {
+    if (rule.disposition !== 'surcharge' || rule.amount === null) continue;
+    const group = groups.get(rule.regionLabel);
+    if (group) Object.assign(group, { rowCount: group.rowCount + 1, minAmount: Math.min(group.minAmount, rule.amount), maxAmount: Math.max(group.maxAmount, rule.amount) });
+    else groups.set(rule.regionLabel, { regionLabel: rule.regionLabel, rowCount: 1, minAmount: rule.amount, maxAmount: rule.amount });
+  }
+  return [...groups.values()];
+}
+/** 금액 바꾸기 요청 `{지역명: 금액}`. 지역명 100자, 금액은 0~1,000,000원 정수다. 비었거나 형식이 다르면 null. */
+export function parseShippingRegionFees(value: unknown): Record<string, number> | null {
+  if (!object(value)) return null;
+  const entries = Object.entries(value);
+  if (!entries.length || entries.length > MAX_SHIPPING_REGION_RULES) return null;
+  for (const [label, amount] of entries) {
+    if (!label.trim() || !text(label, 100) || typeof amount !== 'number' || !Number.isSafeInteger(amount) || amount < 0 || amount > MAX_SHIPPING_REGION_FEE) return null;
+  }
+  return Object.fromEntries(entries) as Record<string, number>;
+}
 export const SHIPPING_REGION_TSV_HEADER = '우편번호 시작\t우편번호 끝\t주소 시작문구\t지역명\t처리\t추가료';
 export function shippingRegionRulesTsv(rules: readonly ShippingRegionRuleInput[]): string {
   return [SHIPPING_REGION_TSV_HEADER, ...rules.map((rule) => [rule.postalFrom, rule.postalTo, rule.addressPrefix, rule.regionLabel,
