@@ -7,6 +7,8 @@ import { normalizeOrderReference } from '@/lib/checkout';
 import { checkoutDraftHref, normalizeCheckoutDraftId } from '@/lib/checkout-draft';
 import { cartLineIdentityPayload } from '@/lib/checkout-selection';
 import { directCheckoutLinePayload, parseDirectCheckoutEntries } from '@/lib/checkout-buy-now';
+import { ADMIN_PAYMENT_TEST_GOOD_ID } from '@/lib/admin-payment-test';
+import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 
 /*
@@ -206,6 +208,10 @@ export async function createDirectCheckoutDraftAction(baseGoodIdValue: unknown, 
   const owner = await draftOwner();
   if ('error' in owner) return { ok: false, error: owner.error };
   try {
+    if (baseGoodId === ADMIN_PAYMENT_TEST_GOOD_ID) {
+      const access = await (await createClient()).rpc('can_use_admin_payment_test');
+      if (access.error || access.data !== true) return { ok: false, error: 'goods_unavailable' };
+    }
     const { data, error } = await createServiceClient().rpc('service_create_checkout_direct_draft', {
       p_user_id: owner.userId,
       p_base_good_id: baseGoodId,
