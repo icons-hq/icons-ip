@@ -5,6 +5,7 @@ export const OVERSEAS_PRIVACY_EFFECTIVE_DATE = '2026-12-04';
 export const OVERSEAS_UPLOAD_LIMIT = 3 * 1024 * 1024;
 
 export interface OverseasRequest {
+  number: number;
   id: string;
   state: 'draft' | 'uploading' | 'pending' | 'reviewing' | 'purging' | 'closed';
   outcome: 'approved' | 'underage' | 'rejected' | 'expired' | 'cancelled' | null;
@@ -13,6 +14,7 @@ export interface OverseasRequest {
   validUntil: string | null;
 }
 export interface OverseasQueueItem {
+  number: number;
   id: string;
   submittedAt: string;
 }

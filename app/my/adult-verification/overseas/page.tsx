@@ -31,7 +31,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
       <h1 className="wc-mypage__heading">
         해외 신분증 성인 인증 <small lang="en">Overseas ID verification</small>
       </h1>
-      {result.error ? (
+      {result.data?.domesticVerified ? <p>국내 휴대폰 성인 인증이 이미 유효해요. / Your Korean mobile verification is already valid.</p> : result.error ? (
         <p role="alert">
           신청 상태를 불러오지 못했어요. 새로고침해 주세요. / Please refresh to check your request.
         </p>

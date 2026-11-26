@@ -81,6 +81,7 @@ export interface OrderLineGoodInfo {
   imagePath: string | null;
   bg: string | null;
   saleRestriction: 'none' | 'adult';
+  adultReadable?: boolean;
 }
 
 function safeAmount(unit: number, qty: number): number | null {
@@ -156,7 +157,8 @@ export function buildOrderLines(input: {
   return input.items.map((item): OrderLineView => {
     const good = input.goods.get(item.goodId);
     const ipName = (good?.ipId ? input.ipTitles.get(good.ipId) : undefined) ?? null;
-    const adultMasked = good?.saleRestriction === 'adult' && input.adultAccess !== 'full';
+    const adultMasked = good?.saleRestriction === 'adult' && (good.adultReadable === false
+      || (input.adultAccess !== 'full' && !(input.adultAccess === 'scoped' && good.adultReadable === true)));
     const { activeQty, purchaseUnit, regularUnit } = lineValues(item, input.receipt, item.lineId ? input.display?.get(item.lineId) : undefined);
     const canceledQty = item.qty - activeQty;
     return {

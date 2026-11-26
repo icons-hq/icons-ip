@@ -211,7 +211,7 @@ export function OverseasAdultConsole({
                   {queue.map((row) => (
                     <li key={row.id} className="flex flex-wrap items-center justify-between gap-2">
                       <span>
-                        {row.id.slice(0, 8)} ·{' '}
+                        접수번호 {row.number} ·{' '}
                         {new Date(row.submittedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
                       </span>
                       <Button disabled={busy} onClick={() => void open(row.id)}>

@@ -10,7 +10,7 @@ create function pg_temp.assert(ok boolean,label text) returns void language plpg
 begin if ok is distinct from true then raise exception 'overseas test: %',label; end if; end $$;
 insert into auth.users(id,email,aud,role,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 select pg_temp.uid(n),'overseas-'||n||'@example.test','authenticated','authenticated','{}','{}',now(),now() from generate_series(1,3) n;
-update public.profiles set onboarded_at=now(),birth_date='1990-01-01',consents='{"terms":true,"privacy":true}',
+update public.profiles set nickname='합성회원'||right(id::text,1),onboarded_at=now(),birth_date='1990-01-01',consents='{"terms":true,"privacy":true}',
   role=case when id=pg_temp.uid(1) then 'admin' else 'user' end::public.user_role where id in (pg_temp.uid(1),pg_temp.uid(2),pg_temp.uid(3));
 update private.operator_access_state set configured=false where id;
 insert into private.operator_legacy_cohort(profile_id,legacy_role) values(pg_temp.uid(1),'admin') on conflict do nothing;
@@ -18,8 +18,9 @@ insert into auth.sessions(id,user_id,aal,created_at,updated_at) values(pg_temp.u
 insert into auth.mfa_factors(id,user_id,friendly_name,factor_type,status,created_at,updated_at,secret)
 values(pg_temp.uid(12),pg_temp.uid(1),'synthetic','totp','verified',now(),now(),'synthetic');
 insert into public.ips(id,title,vertical_key,published_at) values('overseas-test','검증용','character',now());
-insert into public.goods(id,ip_id,name,price,stock,stock_qty,sale_restriction) values
-  ('overseas-yes','overseas-test','합성 A',1000,'ok',9,'adult'),('overseas-no','overseas-test','합성 B',1000,'ok',9,'adult');
+insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,return_address,is_active) values(pg_temp.uid(55),'overseas-local','합성 출고지','hanjin',1000,'시험 주소',true);
+insert into public.goods(id,ip_id,name,price,stock,stock_qty,origin_id,shipping_fee_type,individual_fee,sale_restriction) values
+  ('overseas-yes','overseas-test','합성 A',1000,'ok',9,pg_temp.uid(55),'policy',0,'adult'),('overseas-no','overseas-test','합성 B',1000,'ok',9,pg_temp.uid(55),'policy',0,'adult');
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)
   select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','overseas-kc-'||md5(id)||'@example.test','{"testFixture":"goods-kc"}',now(),now() from public.goods where ip_id='overseas-test';
 insert into private.operator_memberships(profile_id,manager_role)
@@ -65,6 +66,24 @@ select pg_temp.assert(public.get_my_adult_verification()->>'scope'='selected','s
 select pg_temp.assert((select array_agg(id) from public.goods where id in ('overseas-yes','overseas-no'))=array['overseas-yes'],'product RLS');
 reset role;
 select pg_temp.assert(private.adult_allowed_for_good(pg_temp.uid(2),'overseas-yes') and not private.adult_allowed_for_good(pg_temp.uid(2),'overseas-no'),'purchase scope');
+select pg_temp.actor(2);
+select id as scoped_variant from public.goods_variants where good_id='overseas-yes' and is_default \gset
+select id as denied_variant from public.goods_variants where good_id='overseas-no' and is_default \gset
+set local role authenticated;
+select public.add_cart_selection('overseas-yes',jsonb_build_array(jsonb_build_object('good_id','overseas-yes','variant_id',:'scoped_variant','qty',1,'expected_qty',0)));
+select set_config('test.denied_variant',:'denied_variant',true);
+do $$ begin
+  begin perform public.set_cart_item_quantity('overseas-no',current_setting('test.denied_variant')::uuid,1);
+  exception when check_violation then if sqlerrm='adult_verification_required' then return; end if; raise; end;
+  raise exception 'unapproved SKU added';
+end $$;
+reset role;
+select public.place_order(pg_temp.uid(2),'{"recipientName":"시험","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}'::jsonb,pg_temp.uid(88),'card'::public.order_payment_method) as scoped_order \gset
+select pg_temp.assert((select adult_readable from public.my_order_line_goods(array['overseas-yes'])),'authorized order image');
+select pg_temp.assert(exists(select 1 from public.order_items where order_id=:'scoped_order' and good_id='overseas-yes'),'order created');
+select pg_temp.assert(public.prepare_goods_payment_attempt(pg_temp.uid(2),:'scoped_order','toss')->>'provider'='toss','Toss preparation');
+select public.bind_goods_payment_callback_nonce((select id from public.payment_attempts where ref_id=:'scoped_order'),repeat('9',64));
+select pg_temp.assert(public.claim_goods_payment_attempt('toss',(select provider_order_id from public.payment_attempts where ref_id=:'scoped_order'),repeat('9',64),pg_temp.uid(89))->>'claim_status'='claimed','payment pre-capture DB check');
 -- 다음 출생 연도 경계의 신분증은 판정·파기에 성공해도 권한을 얻지 못한다.
 select pg_temp.actor(3);
 select public.begin_overseas_adult_request() as minor_id \gset
@@ -89,4 +108,6 @@ select * from public.service_overseas_adult_cleanup(:'aborted_id');
 select pg_temp.assert(public.service_finish_overseas_adult_cleanup(:'aborted_id'),'abandoned upload destroyed');
 update public.goods set description='내용 변경' where id='overseas-yes';
 select pg_temp.assert(not private.adult_allowed_for_good(pg_temp.uid(2),'overseas-yes'),'content change requires reclassification');
+select pg_temp.actor(2);
+select pg_temp.assert((select not adult_readable and image_path is null from public.my_order_line_goods(array['overseas-yes'])),'withdrawn product masked in order history');
 rollback;

@@ -78,6 +78,7 @@ export function OverseasAdultRequest({
       )}
       {request && (
         <div className="wc-adult-status" role="status">
+          <p>접수번호 / Request no. {request.number}</p>
           {request.state === 'closed' && request.outcome
             ? request.outcome === 'approved' && !approved
               ? '수동 인증 유효기간 종료 / Manual approval has ended'

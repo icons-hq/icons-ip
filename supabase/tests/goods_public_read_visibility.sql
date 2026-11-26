@@ -357,7 +357,7 @@ set local role authenticated;
 select 1 / case when (
   (select array_agg(id order by id) from public.my_order_line_goods(array['gprv-unpublished','gprv-archived','gprv-adult','gprv-public','gprv-draft']))
     = array['gprv-adult','gprv-archived','gprv-unpublished']
-  and (select sale_restriction = 'adult' and image_path = 'goods/gprv-adult.webp' and ip_id = 'gprv-ip'
+  and (select sale_restriction = 'adult' and image_path is null and not adult_readable and ip_id = 'gprv-ip'
     from public.my_order_line_goods(array['gprv-adult']))
 ) then 1 else 0 end as assert_owner_line_goods_survive_unpublish;
 select pg_temp.gprv_expect_error($sql$select * from public.my_order_line_goods(null)$sql$, 'invalid_order_line_goods');
