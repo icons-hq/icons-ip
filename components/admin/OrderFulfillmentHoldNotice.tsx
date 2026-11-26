@@ -20,7 +20,7 @@ import { formatOrderDateTime } from '@/lib/orders';
 import { statusTone } from '@/lib/admin/status-tone';
 
 /** 사유별 해제 확인창 안내. 해제하면 발주확인·출고지시 대상이 된다는 결과를 말한다. 무엇을 적을지는 입력칸 예시 글이 보인다. */
-const RELEASE_PROMPT_MESSAGES: Record<FulfillmentHoldReason, string> = {
+const RELEASE_PROMPT_MESSAGES: Record<Exclude<FulfillmentHoldReason, 'admin_payment_test'>, string> = {
   test_payment: '실제 돈이 결제되지 않은 테스트 결제입니다. 해제하면 이 주문이 발주확인·출고지시 대상이 됩니다.',
   provider_canceled: '결제사에서 취소된 금액이 있습니다. 해제하면 이 주문이 발주확인·출고지시 대상이 됩니다.',
   deposit_reversed: '은행이 가상계좌 입금을 취소한 결제입니다. 보통은 시스템이 다시 입금되면 보류를 풀고 입금이 없으면 주문을 자동 취소하므로 해제할 필요가 없습니다. 해제하면 시스템이 이 주문을 더 처리하지 않고 발주확인·출고지시 대상이 됩니다.',
@@ -28,7 +28,7 @@ const RELEASE_PROMPT_MESSAGES: Record<FulfillmentHoldReason, string> = {
 };
 
 /** 해제 사유 입력칸의 예시 글. 사유마다 적어야 할 내용이 달라서 그 예를 보인다. */
-const RELEASE_PLACEHOLDERS: Record<FulfillmentHoldReason, string> = {
+const RELEASE_PLACEHOLDERS: Record<Exclude<FulfillmentHoldReason, 'admin_payment_test'>, string> = {
   test_payment: '예: 고객이 11/25 계좌이체로 따로 결제한 것을 확인함',
   provider_canceled: '예: 고객과 통화해 남은 금액으로 출고하기로 함',
   deposit_reversed: '예: 토스페이먼츠 상점관리자에서 입금을 다시 확인함 (11/25 14:02, 31,000원)',
@@ -72,6 +72,7 @@ function HeldOrderNotice({ orderId, orderNumber, holds, canManage }: {
   useClaimPreviewBusy(pending);
 
   async function release(reason: FulfillmentHoldReason) {
+    if (reason === 'admin_payment_test') return;
     const note = await adminPrompt({
       title: `출고 보류 해제 · ${FULFILLMENT_HOLD_LABELS[reason]}`,
       message: `${orderNumber ? `주문 ${orderNumber}\n` : ''}${RELEASE_PROMPT_MESSAGES[reason]}\n${RELEASE_RECORD_NOTE}`,
@@ -102,7 +103,7 @@ function HeldOrderNotice({ orderId, orderNumber, holds, canManage }: {
             {hold.placedAt ? <time className="text-xs text-muted-foreground tabular-nums" dateTime={hold.placedAt}>{formatOrderDateTime(hold.placedAt)}</time> : null}
           </span>
           <p className="text-sm leading-relaxed wrap-anywhere">{fulfillmentHoldGuidance(hold)}</p>
-          {canManage ? <Button disabled={pending} onClick={() => { void release(hold.reason); }} size="sm" variant="outline">
+          {canManage && hold.reason !== 'admin_payment_test' ? <Button disabled={pending} onClick={() => { void release(hold.reason); }} size="sm" variant="outline">
             {pending ? '처리 중' : '사유 적고 보류 해제'}
           </Button> : <>
             <Button aria-describedby={`${orderId}-${hold.reason}-release-lock`} disabled size="sm" variant="outline">사유 적고 보류 해제</Button>

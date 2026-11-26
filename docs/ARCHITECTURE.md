@@ -133,6 +133,8 @@ Cloudflare DNS는 `xsquare.kr`/`www.xsquare.kr`과 옛 `iconsip.com`/`www.iconsi
 
 ### 5.2 카탈로그 (공개 읽기)
 
+관리자 결제 테스트 상품 한 개(`admin-payment-test`)는 항상 초안이다. 관리자 계정은 상품 조회/수정의 **결제 테스트 상품**에서 전용 주소 `/shop/admin-payment-test`를 열고 기존 바로구매 주문서로 결제한다. 재고·금액·결제 승인·취소는 일반 주문과 같은 경로를 쓴다. 테스트 품목이 담긴 주문은 출고를 보류하며 전액 취소하면 보류가 끝난다.
+
 - `ips`·`goods`·`cards`·`events`의 nullable `archived_at`이 soft-delete 진실원이다. 공개 카탈로그·검색·신규 팔로우·구매·예매는 보관 항목을 제외한다.
 - `ips.published_at`(nullable)이 IP 게시 상태의 진실원이다 — `archived_at`이 있으면 보관, 없고 `published_at`도 없으면 초안(등록 중·비공개), 있으면 공개. 신규 IP는 초안으로 시작하고 `admin_create_ip`·`admin_upsert_ip`의 `target_publish` 또는 `admin_set_ip_published`로만 전환하며 `admin.ip.published`/`admin.ip.unpublished`로 감사한다. 공개 카탈로그 로더(`lib/catalog.ts`)와 검색 RPC는 초안 IP와 그 소속 굿즈·카드·이벤트를 보관 필터와 같은 층(앱 로더·security definer RPC)에서 제외한다. 보관 시 공개 시각을 비워 복원은 항상 초안으로 돌아온다. 재노출은 운영자가 확인 후 별도로 공개해야 한다. 굿즈·옵션은 RLS도 같은 경계다(20261118160000) — 익명·회원의 `goods` 직접 SELECT는 게시·미보관·부모 IP 게시·판매 제한 판정 통과(19금은 유효한 성인 인증 본인) 행만, `goods_variants`는 그 부모가 보이는 행만 열고, `catalog.read` 운영자는 전부 읽는다. `ips`·`cards`·`events`의 공개 SELECT는 그대로라 익명 REST가 초안 IP를 읽을 수 있고, 그 후속 범위는 [IP 게시 상태 운영 절차](runbooks/ip-publish-state.md)에 기록한다.
 - `ips.id`는 굿즈·카드·이벤트·팔로우와 과거 거래가 가리키는 내부 참조 ID라 변경하지 않는다. 새 IP의 내부 ID는 사람이 넣지 않는다 — 어드민 등록은 이름·공개 URL만 받고 `admin_create_ip`가 공개 URL로 내부 ID를 발급한다. 다른 IP의 공개 URL·이전 URL·내부 ID와 같은 공개 URL은 거절하므로 내부 ID에 `-2`·`-3`이 붙는 것은 공개 URL이 지운 IP의 내부 ID(퇴역 ID)와 같을 때뿐이다([ADR-0039](adr/0039-ip-internal-id-and-draft-delete.md)). `admin_upsert_ip`의 ID 직접 지정 신규 경로는 스크립트·테스트 호환용으로만 남는다. 공개 경로는 `ips.public_slug`로 분리하며, `ip_public_slug_aliases`에 저장된 이전 slug는 현재 IP로만 영구 redirect하고 다른 IP가 재사용할 수 없다. 공개 URL은 다른 IP의 내부 ID와도 겹칠 수 없다(링크 정규화가 내부 ID와 공개 URL을 같은 이름 공간으로 읽는다). `admin_update_ip_identity`는 staff 재검증·expected slug 경합 가드·`audit_log`를 한 transaction에서 수행한다.
@@ -594,7 +596,7 @@ docs/
 |---|---|
 | 카드 리워드 운영 증거 | 카드 리워드는 2026-11-24 삭제했지만 `pool_odds` 변경과 카드 발급·개봉·회수 이력은 DB에 감사 가능하게 보존한다 |
 | 14+ 가입 기준 | 현재 `birth_date` 자가신고와 목표 `minimum_age_14` 증거를 구분. #188 전에는 강제 완료로 보지 않는다 |
-| 19+ 성인 상품 | 지정 자체 제한 상품은 계정별 해외 수동 심사 증거도 상품 ID와 함께 DB에서 판정한다([운영 절차](runbooks/overseas-adult-review.md)). KCP 휴대폰 본인확인 `adult_19` 증거와 `private.good_sale_restriction_visible` 상세·미디어·구매 gate(ADR-0024). PG 인증으로 대체 금지 |
+| 19+ 성인 상품 | 해외 수동 심사 후 사진 파기가 확인된 계정도 1년간 모든 19금 상품에 접근한다. DB가 열람·장바구니·주문·결제에서 계정의 유효한 증거와 성인 상품 공개 설정을 검사한다([운영 절차](runbooks/overseas-adult-review.md)). KCP 휴대폰 본인확인 `adult_19` 증거와 `private.good_sale_restriction_visible` 상세·미디어·구매 gate(ADR-0024). PG 인증으로 대체 금지 |
 | 전자상거래(청약철회) | `orders`/`refunds` 상태기계 + 환불 RPC |
 | PIPA/청소년보호 | `profiles.consents`·`birth_date`, 최소수집·동의·파기 |
 | UGC 안전 | `reports`/`blocks` + `/admin` 모더레이션 + 게시물 `status` |

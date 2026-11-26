@@ -85,7 +85,7 @@ function StatusPanel({ status }: { status: AdultVerificationStatus }) {
         <p className="wc-adult-status__badge">인증 완료</p>
         <h2 className="wc-adult-status__title">성인 인증이 완료된 계정이에요</h2>
         <p className="wc-adult-status__body">
-          {formatAdultVerificationDate(status.expiresAt)}까지 {status.scope === 'selected' ? '해외 신분증 심사 대상 상품을' : '19금 상품을'} 보고 구매할 수 있어요.
+          {formatAdultVerificationDate(status.expiresAt)}까지 모든 19금 상품을 보고 구매할 수 있어요.
         </p>
       </section>
     );

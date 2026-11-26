@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Archive, Ban, Boxes, CalendarClock, CalendarX, ChevronDown, ExternalLink, Eye, FilePen, Package, PackageMinus, PackageX, Plus, ScanEye, TriangleAlert } from 'lucide-react';
+import { ADMIN_PAYMENT_TEST_PATH } from '@/lib/admin-payment-test';
 import { ShippingRegionExpiryNotice } from '../ShippingRegionExpiryNotice';
 import type { ShippingRegionExpiryState } from '@/lib/admin/shipping-regions';
 import { GOODS_READINESS_STATE_LABELS, unknownGoodsReadiness, type AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
@@ -96,7 +97,7 @@ function goodsSaleStatus(good: AdminGoodSummary, readiness: AdminGoodsReadiness)
 /** 표의 날짜는 같은 폭의 한 표기로 쓴다(2026.11.09, KST). */
 const tableDate = (value: string | null | undefined) => value ? kstDay(new Date(value)).replaceAll('-', '.') : '—';
 
-export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingLinks = false, bulkIdentity }: { data: AdminGoodsListData; shippingRegionExpiry?: ShippingRegionExpiryState; canIssueMarketingLinks?: boolean; bulkIdentity?: GoodsGroupIdentity }) {
+export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingLinks = false, canTestPayment = false, bulkIdentity }: { data: AdminGoodsListData; shippingRegionExpiry?: ShippingRegionExpiryState; canIssueMarketingLinks?: boolean; canTestPayment?: boolean; bulkIdentity?: GoodsGroupIdentity }) {
   const { filters, goods, total, counts, stockCounts, saleStateCounts } = data;
   /* 품절·소량 재고는 재고 건수(stockCounts), 판매 예정·판매중지·판매 종료는 판매 조건 건수(saleStateCounts)에서 읽는다. 못 읽으면 '집계 없음'. */
   const conditionCount = (value: (typeof CONDITION_ITEMS)[number]['value']) => {
@@ -116,6 +117,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         등록·엑셀 작업은 다른 화면처럼 오른쪽 위다. 넓은 화면에서는 셸 제목 줄의 빈자리에 올려 표가 밀리지 않게 한다.
         엑셀은 가는 곳마다 버튼 하나다(올려서 등록·수정 / 내려받기). 내려받기는 지금 검색 조건을 그대로 들고 가고, 그 범위는 말풍선이 말한다. */}
     <div className="flex flex-wrap items-center gap-2 lg:absolute lg:right-0 lg:bottom-full lg:mb-4 print:hidden" data-goods-list="actions">
+      {canTestPayment && <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={ADMIN_PAYMENT_TEST_PATH}>결제 테스트 상품</Link>}
       <Link className={buttonVariants()} data-slot="button" href={`${goodsListHref(filters)}&create=1`}><Plus aria-hidden="true" />상품 등록</Link>
       <Link className={buttonVariants({ variant: 'outline' })} data-goods-list="import" data-slot="button" href="/admin/catalog/goods/import">엑셀로 등록·수정</Link>
       <Link className={buttonVariants({ variant: 'outline' })} data-goods-list="export" data-slot="button" href={goodsListHref(filters).replace('/catalog/goods?', '/catalog/goods/export?')} title="지금 검색 조건에 맞는 상품을 모두 내려받습니다.">엑셀로 내려받기</Link>

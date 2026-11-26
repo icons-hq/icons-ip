@@ -511,6 +511,7 @@ async function saveAdminGood(
     if (error.message.includes('goods_variants_code_key')) return { errors: { [formData.has('variants') ? 'variants' : 'defaultVariantCode']: '이미 사용 중인 옵션코드입니다.' } };
     const erpIdentityError = erpIdentityTakenFailure(error, optionRows, formData.has('variants') ? 'variants' : 'form');
     if (erpIdentityError) return erpIdentityError;
+    if (error.message.includes('payment_test_slug_locked')) return { errors: { id: '결제 테스트 상품 전용 URL입니다. 기존 상품 URL을 유지해 주세요.' } };
     if (error.message.includes('goods_slug_locked')) return { errors: { id: '한 번 공개한 상품의 URL은 변경할 수 없습니다.' } };
     if (error.message.includes('goods_pkey')) return { errors: { id: '이미 사용 중인 URL입니다.' } };
     return catalogWriteIntentFailure(error.message)

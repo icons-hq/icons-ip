@@ -13,10 +13,11 @@ import { ADMIN_SALES_ACCESS_DENIED } from './vocabulary';
  *  - escrow_cancel_requested: 구매자가 토스 구매안전서비스(에스크로) 구매확정 메일에서 취소를 신청했다(ADR-0049).
  *    운영자 전액 취소가 이 결제에서는 결제 취소 대신 에스크로 취소 수락(구매자가 등록한 환불 계좌로 환불)을 부른다.
  */
-export const FULFILLMENT_HOLD_REASONS = ['test_payment', 'provider_canceled', 'deposit_reversed', 'escrow_cancel_requested'] as const;
+export const FULFILLMENT_HOLD_REASONS = ['admin_payment_test', 'test_payment', 'provider_canceled', 'deposit_reversed', 'escrow_cancel_requested'] as const;
 export type FulfillmentHoldReason = typeof FULFILLMENT_HOLD_REASONS[number];
 
 export const FULFILLMENT_HOLD_LABELS: Record<FulfillmentHoldReason, string> = {
+  admin_payment_test: '관리자 결제 테스트 상품',
   test_payment: '테스트 결제',
   provider_canceled: '결제사 취소',
   deposit_reversed: '입금 오류 되돌림',
@@ -142,6 +143,7 @@ const krw = (value: number) => `${value.toLocaleString('ko-KR')}원`;
  * 운영자 전액 취소가 열리지 않으므로 반품 접수 또는 사유 적고 해제다.
  */
 export function fulfillmentHoldGuidance(hold: OrderFulfillmentHold): string {
+  if (hold.reason === 'admin_payment_test') return '실물 배송이 없는 관리자 결제 테스트 상품입니다. 결제 확인을 마치면 주문을 전액 취소해 주세요.';
   const unexplained = hold.unexplainedAmount ?? hold.providerCanceledAmount;
   if (hold.reason === 'deposit_reversed' && hold.depositReversal) return depositReversalGuidance(hold, hold.depositReversal);
   if (hold.reason === 'deposit_reversed') {

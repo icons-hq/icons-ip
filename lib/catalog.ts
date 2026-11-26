@@ -930,7 +930,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .select('id,ip_id,title,mode,status,starts_at,ends_at,location,accent,bg,image_path')
       .is('archived_at', null)
       .order('id'),
-    adultGoods === 'masked' || adultGoods === 'scoped' ? loadMaskedAdultGoodRows(supabase) : Promise.resolve([] as GoodRow[]),
+    adultGoods === 'masked' ? loadMaskedAdultGoodRows(supabase) : Promise.resolve([] as GoodRow[]),
   ]);
 
   if (verticalsResult.error) {

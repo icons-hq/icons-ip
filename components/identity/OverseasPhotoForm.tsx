@@ -149,8 +149,7 @@ export function OverseasPhotoForm({
           checked={consent}
           onChange={(e) => setConsent(e.target.checked)}
         />{' '}
-        불필요한 정보를 가렸으며, 위 사진과 신청 기록의 선택적 수집·이용에 동의해요. / I have covered the extra
-        details and agree to the optional collection and use described above.
+        불필요한 정보를 가렸으며, 모든 19금 상품에 대한 성인 인증을 위해 사진과 신청 기록을 수집·이용하는 데 동의해요. (선택) / I have redacted my ID and agree to the optional collection and use of this photo and request record for age verification for all age-restricted products.
       </label>
       {notice && <p role="alert">{notice}</p>}
       <button

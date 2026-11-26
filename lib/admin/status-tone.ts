@@ -110,7 +110,7 @@ const STATUS_TONES = {
    *  출고를 막는 위험색이다. 에스크로 취소 요청은 구매자의 취소 신청을 우리가 처리할 일이라 클레임 접수(requested)와 같은 경고색이다.
    *  blocked는 사유를 모르는 화면(발송·배송현황의 배송 건)에서 아직 나가지 않은 배송 건의 보류, shipped는 이미 발송된
    *  주문의 보류(출고를 막지 않는 경고)다 */
-  fulfillmentHold: { test_payment: 'danger', provider_canceled: 'danger', deposit_reversed: 'danger', escrow_cancel_requested: 'warning', blocked: 'danger', shipped: 'warning' },
+  fulfillmentHold: { admin_payment_test: 'danger', test_payment: 'danger', provider_canceled: 'danger', deposit_reversed: 'danger', escrow_cancel_requested: 'warning', blocked: 'danger', shipped: 'warning' },
   /** 출고지시 뒤 취소 전 창고 회신 판정 — lib/admin/warehouse-stop(ADR-0046). 회신이 없거나 이미 쓴 회신은 우리가 처리할 일,
    *  이미 출고 회신은 취소를 막는 위험색이다 */
   warehouseStop: { required: 'warning', stopped: 'success', already_shipped: 'danger', used: 'warning', not_applicable: 'neutral' },

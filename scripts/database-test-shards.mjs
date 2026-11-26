@@ -331,6 +331,7 @@ const storefront = [
   sql('cart_retained_until_payment', { admin: true, kc: true }),
   // 바로구매·장바구니 선택 주문·선택 삭제(ADR-0030)는 장바구니 보류 계약(ADR-0026) 바로 뒤다.
   sql('checkout_selection_direct', { admin: true, kc: true }),
+  sql('admin_payment_test_good', { admin: true }),
   // 결제 대기 주문이 잡은 쿠폰을 새 주문이 그 주문을 닫고 쓴다(QA1 S-D2-08, ADR-0030 확장).
   sql('checkout_unpaid_coupon_handoff', { admin: true, kc: true }),
   sql('home_collection_banners', { admin: true }),

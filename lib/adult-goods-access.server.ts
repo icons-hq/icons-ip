@@ -38,7 +38,7 @@ export const getAdultGoodsAccess = cache(async (): Promise<AdultGoodsAccess> => 
     userId ? loadMyAdultVerification() : null,
   ]);
   if (!visibility?.enabled) return 'hidden';
-  if (verification?.status === 'verified' && verification.scope === 'selected') return 'scoped';
+  if (verification?.status === 'verified' && verification.method === 'overseas_manual') return 'full';
   if (!domesticOpen) return 'hidden';
   return verification?.status === 'verified' ? 'full' : 'masked';
 });
