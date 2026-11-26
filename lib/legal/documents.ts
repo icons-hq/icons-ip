@@ -2,6 +2,7 @@ import { kstDay } from '../admin/kst';
 import { OVERSEAS_PRIVACY_EFFECTIVE_DATE } from '../identity/overseas-adult';
 import { BUSINESS_INFO, businessContactWords, type BusinessInfo } from './business-info';
 import {
+  DEMOGRAPHIC_PRIVACY_ANCHOR,
   LEGAL_DOCUMENT_LABELS,
   LEGAL_DOCUMENT_SLUGS,
   legalDocumentHref,
@@ -62,6 +63,7 @@ export interface LegalTable {
 /** 조문 하나의 본문. 렌더 순서는 paragraphs → list → table → closing으로 고정한다.
  *  "다음 각 호" 뒤에 목록이 오고 그 뒤에 마무리 문장이 붙는 법정 문서의 리듬을 이 순서가 그대로 담는다. */
 export interface LegalArticle {
+  id?: string;
   heading: string;
   paragraphs?: string[];
   list?: string[];
@@ -463,7 +465,7 @@ const privacy: LegalDocument = {
             '접속 IP 주소, 브라우저·기기 정보(브라우저 종류, 운영체제 등)와 자동화 프로그램 여부 판단에 쓰이는 브라우저 환경 신호(Cloudflare Turnstile이 처리). 회원가입·가입 확인 메일 재전송·비밀번호 재설정 요청 기록(요청 일시·종류)에는 이메일 주소와 IP 주소를 복원할 수 없게 변환한 값만 남깁니다.',
             '회원가입·로그인·가입 확인 메일 재전송·비밀번호 재설정을 요청할 때',
           ],
-          ['성별·연령 고객 통계 (선택)', '자가 입력 성별, 회원번호, 선택 동의 여부·시각·안내 버전. 연령대는 기존 생년월일로 계산', '설정에서 별도 선택 동의 후 저장한 경우'],
+          ['성별·연령 고객 통계 (선택)', '자가 입력 성별, 회원번호, 선택 동의 여부·시각·안내 버전. 연령대는 기존 생년월일로 계산', '회원가입 또는 설정에서 성별 수집·이용에 동의하고 직접 제공한 경우'],
         ],
       },
     },
@@ -487,8 +489,15 @@ const privacy: LegalDocument = {
       ],
     },
     {
+      id: DEMOGRAPHIC_PRIVACY_ANCHOR,
       heading: '제2조의2 (성별 정보의 선택 수집·이용)',
-      paragraphs: [DEMOGRAPHIC_NOTICE.purpose, DEMOGRAPHIC_NOTICE.collected, DEMOGRAPHIC_NOTICE.retention, DEMOGRAPHIC_NOTICE.choice],
+      paragraphs: [
+        '회원가입 시 성별 제공은 선택 사항이며 기본값은 ‘제공하지 않음’입니다. 회원이 직접 성별을 선택해 가입을 마친 경우에만 해당 성별과 수집·이용 동의를 저장합니다.',
+        DEMOGRAPHIC_NOTICE.purpose,
+        DEMOGRAPHIC_NOTICE.collected,
+        DEMOGRAPHIC_NOTICE.retention,
+        DEMOGRAPHIC_NOTICE.choice,
+      ],
     },
     {
       heading: '제3조 (개인정보의 보유·이용기간)',

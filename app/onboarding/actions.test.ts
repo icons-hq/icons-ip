@@ -362,6 +362,7 @@ describe('completeOnboardingAction optional consents', () => {
     [{ gender: 'female' }, '성별을 저장하려면 수집·이용에 동의해주세요.'],
     [{ genderConsent: 'on' }, '동의하려면 성별을 선택해주세요.'],
     [{ gender: 'unknown', genderConsent: 'on' }, '성별을 다시 선택해주세요.'],
+    [{ consentedGender: 'unknown' }, '성별을 다시 선택해주세요.'],
   ])('rejects an incomplete gender choice %o before any writes', async (fields, message) => {
     const formData = onboardingForm();
     for (const [key, value] of Object.entries(fields)) formData.set(key, value);
@@ -385,8 +386,7 @@ describe('completeOnboardingAction optional consents', () => {
       return { data: null, error: null };
     });
     const formData = onboardingForm();
-    formData.set('gender', 'female');
-    formData.set('genderConsent', 'on');
+    formData.set('consentedGender', 'female');
 
     await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
 
@@ -398,7 +398,10 @@ describe('completeOnboardingAction optional consents', () => {
   });
 
   it('does not save gender without a choice and does not undo completion when the optional save fails', async () => {
-    await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
+    const allConsents = onboardingForm();
+    allConsents.set('marketingSms', 'on');
+    allConsents.set('consentedGender', '');
+    await expect(completeOnboardingAction({}, allConsents)).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
     expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('customer_demographic_state');
 
     mocks.rpc.mockImplementation(async (name: string) => name === 'customer_demographic_state'
@@ -458,8 +461,7 @@ describe('completeOnboardingAction phone verification switch', () => {
         : { data: null, error: null };
     });
     const formData = onboardingForm();
-    formData.set('gender', 'female');
-    formData.set('genderConsent', 'on');
+    formData.set('consentedGender', 'female');
 
     await expect(completeOnboardingAction({}, formData)).resolves.toEqual({ phoneStep: true, carriedGender: 'female' });
     expect(mocks.profilePayloads).toEqual([{ birth_date: '2000-01-01', consents: { terms: true, privacy: true } }]);
@@ -581,7 +583,7 @@ describe('finishOnboardingAction', () => {
   it('completes onboarding after verification and saves the carried gender', async () => {
     phoneState(true);
 
-    await expect(finishOnboardingAction({}, finishForm({ gender: 'female', genderConsent: 'on' }))).rejects.toThrow(
+    await expect(finishOnboardingAction({}, finishForm({ consentedGender: 'female' }))).rejects.toThrow(
       'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
     );
     expect(mocks.profilePayloads).toEqual([]);
