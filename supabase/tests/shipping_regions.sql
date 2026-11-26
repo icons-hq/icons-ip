@@ -248,6 +248,60 @@ reset role;
 select 1/case when (select shipping_fee=9000 and total=19000 from public.orders where id=:'region_bank_order')
   and (select amount=19000 from public.payment_attempts where ref_id=:'region_bank_order') then 1 else 0 end as bank_transfer_uses_same_final_region_fee;
 
+-- 금액 바꾸기: 같은 지역표·기간으로 새 버전을 바로 활성화하고 이전 버전을 같은 트랜잭션에서 중단한다(틈 없음).
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000049302',true);
+set local role authenticated;
+select pg_temp.region_expect_error(format('select public.admin_change_shipping_region_fees(%L,3,%L::jsonb)',
+  :'region_v2'::jsonb->>'id','{"합성 추가료 구간":7000}'),'admin required','42501');
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000049301',true);
+select pg_temp.region_expect_error(format('select public.admin_change_shipping_region_fees(%L,3,%L::jsonb)',:'region_v2'::jsonb->>'id',fees),
+  'shipping_region_fees_invalid','22023')
+  from unnest(array['{}','{"합성 추가료 구간":-1}','{"합성 추가료 구간":1.5}','{"합성 추가료 구간":1000001}','{"합성 추가료 구간":"7000"}','[]']) fees;
+select pg_temp.region_expect_error(format('select public.admin_change_shipping_region_fees(%L,3,%L::jsonb)',
+  :'region_v2'::jsonb->>'id','{"합성 배송 불가 구간":1000}'),'shipping_region_fee_label_unknown','22023');
+select pg_temp.region_expect_error(format('select public.admin_change_shipping_region_fees(%L,3,%L::jsonb)',
+  :'region_v2'::jsonb->>'id','{"합성 추가료 구간":6000}'),'shipping_region_fees_unchanged','22023');
+select pg_temp.region_expect_error(format('select public.admin_change_shipping_region_fees(%L,2,%L::jsonb)',
+  :'region_v2'::jsonb->>'id','{"합성 추가료 구간":7000}'),'shipping_region_policy_changed','PT409');
+select pg_temp.region_expect_error(format('select public.admin_change_shipping_region_fees(%L,4,%L::jsonb)',
+  :'region_active'::jsonb->>'id','{"합성 추가료 구간":7000}'),'shipping_region_policy_not_active','23514');
+select public.admin_change_shipping_region_fees((:'region_v2'::jsonb->>'id')::uuid,3,
+  '{"합성 추가료 구간":7000,"합성 주소 조건 A":1500}'::jsonb) as region_v3 \gset
+reset role;
+select 1/case when :'region_v3'::jsonb->>'status'='active' and (:'region_v3'::jsonb->>'version')::int=(:'region_v2'::jsonb->>'version')::int+1
+  and :'region_v3'::jsonb->>'confirmedAt' is not null
+  and (select status='retired' and revision=4 from private.shipping_region_policies where id=(:'region_v2'::jsonb->>'id')::uuid)
+  and (select starts_at=(select starts_at from private.shipping_region_policies where id=(:'region_v2'::jsonb->>'id')::uuid) and ends_at is null
+    and confirmed_by='00000000-0000-4000-8000-000000049301' from private.shipping_region_policies where id=(:'region_v3'::jsonb->>'id')::uuid)
+  and (select count(*)=1 from private.shipping_region_policies where origin_id='00000000-0000-4000-8000-000000049310' and status='active')
+  and (:'region_v3'::jsonb-'rules'-'id'-'version'-'revision'-'confirmedAt'-'confirmedBy'-'updatedAt')
+    =(:'region_v2'::jsonb-'rules'-'id'-'version'-'revision'-'status'-'confirmedAt'-'confirmedBy'-'updatedAt')||'{"status":"active"}'
+  and (select jsonb_agg(jsonb_build_array(r->>'postalFrom',r->>'postalTo',r->>'addressPrefix',r->>'regionLabel',r->>'disposition',r->'amount') order by o)
+    from jsonb_array_elements(:'region_v3'::jsonb->'rules') with ordinality a(r,o))
+    =(select jsonb_agg(jsonb_build_array(r->>'postalFrom',r->>'postalTo',r->>'addressPrefix',r->>'regionLabel',r->>'disposition',
+      case r->>'regionLabel' when '합성 추가료 구간' then '7000'::jsonb when '합성 주소 조건 A' then '1500'::jsonb else r->'amount' end) order by o)
+    from jsonb_array_elements(:'region_v2'::jsonb->'rules') with ordinality a(r,o))
+  then 1 else 0 end as fee_change_activates_one_new_version_with_same_table_and_period;
+select 1/case when public.quote_goods_shipping_for_address(pg_temp.region_items(array['region-policy-a']),:'region_destination'::jsonb)->>'finalTotalFee'='10000'
+  and public.quote_goods_shipping_for_address(pg_temp.region_items(array['region-policy-a']),:'region_destination'::jsonb)#>>'{groups,0,policyVersion}'=:'region_v3'::jsonb->>'version'
+  and public.quote_goods_shipping_for_address(pg_temp.region_items(array['region-policy-a']),
+    '{"postalCode":"10045","address1":"합성시 검증구 검증로 1"}')->>'finalTotalFee'='4500'
+  and public.quote_goods_shipping_for_address(pg_temp.region_items(array['region-policy-a']),
+    '{"postalCode":"10045","address1":"합성시 다른구 검증로 1"}')->>'finalTotalFee'='5000'
+  and public.quote_goods_shipping_for_address(pg_temp.region_items(array['region-policy-a']),
+    '{"postalCode":"10011","address1":"합성시"}')#>>'{groups,0,regionalContractFee}'='0'
+  and (select shipping_fee=9000 from public.orders where id=:'region_bank_order')
+  and (select shipping_fee_snapshot->>'regionalFee'='6000' and shipping_fee_snapshot->>'policyVersion'=:'region_v2'::jsonb->>'version'
+    from public.order_shipments where order_id=:'region_bank_order')
+  then 1 else 0 end as fee_change_applies_to_new_quotes_only;
+select 1/case when exists(select 1 from public.audit_log where action='admin.shipping_region.fees_changed'
+    and target='shipping-region:'||(:'region_v3'::jsonb->>'id') and diff->>'replacedPolicyId'=:'region_v2'::jsonb->>'id'
+    and diff#>>'{fees,합성 추가료 구간}'='7000' and diff#>>'{after,sourceEvidence}'='TEST-ONLY:carrier-reply-not-real')
+  and has_function_privilege('authenticated','public.admin_change_shipping_region_fees(uuid,integer,jsonb)','execute')
+  and not has_function_privilege('anon','public.admin_change_shipping_region_fees(uuid,integer,jsonb)','execute')
+  and not has_function_privilege('service_role','public.admin_change_shipping_region_fees(uuid,integer,jsonb)','execute')
+  then 1 else 0 end as fee_change_is_audited_and_admin_only;
+
 -- Contract-carrier mismatch blocks after adoption, including a free-only basket.
 update public.fulfillment_origins set default_carrier='region_test' where id='00000000-0000-4000-8000-000000049310';
 select 1/case when public.quote_goods_shipping_for_address(pg_temp.region_items(array['region-free-a']),:'region_destination'::jsonb)#>>'{groups,0,regionStatus}'='carrier_mismatch'

@@ -2,14 +2,15 @@
 
 import { useState, useTransition } from 'react';
 import { ChevronRight } from 'lucide-react';
-import { saveShippingRegionPolicyAction, setShippingRegionPolicyStatusAction } from '@/app/admin/shipping-region-actions';
+import { changeShippingRegionFeesAction, saveShippingRegionPolicyAction, setShippingRegionPolicyStatusAction } from '@/app/admin/shipping-region-actions';
+import { adminConfirm } from '@/lib/admin/confirm';
 import { AdminPageHeader, AdminSectionCard, AdminNotice, AdminStatusBadge } from '../console/AdminKit';
 import { statusTone } from '@/lib/admin/status-tone';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { EditableCarrier } from '@/lib/admin/store-settings';
 import {
-  emptyShippingRegionPolicy, parseShippingRegionPolicyInput, parseShippingRegionRulesTsv, REGION_DISPOSITION_LABELS, shippingRegionPolicyProblems,
-  shippingRegionRulesTsv, type ShippingRegionPolicy, type ShippingRegionPolicyInput, shippingRegionPolicyInEffect, shippingRegionPolicyScheduled, shippingRegionPeriodsOverlap } from '@/lib/admin/shipping-regions';
+  emptyShippingRegionPolicy, MAX_SHIPPING_REGION_FEE, parseShippingRegionPolicyInput, parseShippingRegionRulesTsv, REGION_DISPOSITION_LABELS, shippingRegionFeeGroups, shippingRegionPolicyProblems,
+  shippingRegionRulesTsv, type ShippingRegionFeeGroup, type ShippingRegionPolicy, type ShippingRegionPolicyInput, shippingRegionPolicyInEffect, shippingRegionPolicyScheduled, shippingRegionPeriodsOverlap } from '@/lib/admin/shipping-regions';
 import type { ShippingRegionAdoption } from '@/lib/admin/shipping-regions.server';
 import { formatOrderDateTime } from '@/lib/orders';
 import { krw } from '@/lib/format';
@@ -35,12 +36,70 @@ function policyStatus(policy: ShippingRegionPolicy, now: number) {
   return shippingRegionPolicyScheduled(policy, now) ? { key: 'scheduled', label: '예정' } as const : { key: policy.status, label: STATUS_LABELS[policy.status] } as const;
 }
 
-function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit, onSaved, policies = [], onOpenPolicy, now = 0 }: {
+/*
+ * 적용 중인 정책의 추가료는 지역명 칸의 숫자만 고쳐 바꾼다. 지역표를 다시 붙여넣거나 초안·확인 체크·중단·활성화를
+ * 차례로 누르지 않는다. 서버가 같은 지역표로 새 버전을 바로 적용하고 이전 버전을 함께 중단한다(주문이 막히는 틈 없음).
+ */
+export function ShippingRegionFeeChanger({ policy, onReplaced }: {
+  policy: ShippingRegionPolicy; onReplaced: (policy: ShippingRegionPolicy, replacedId: string, message: string) => void;
+}) {
+  const groups = shippingRegionFeeGroups(policy.rules);
+  const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(groups.map((group) =>
+    [group.regionLabel, group.minAmount === group.maxAmount ? String(group.minAmount) : ''])));
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  if (!groups.length) return null;
+  const current = (group: ShippingRegionFeeGroup) => group.minAmount === group.maxAmount ? krw(group.minAmount) : `${krw(group.minAmount)}~${krw(group.maxAmount)}`;
+  const entries = groups.flatMap((group) => {
+    const raw = (values[group.regionLabel] ?? '').trim();
+    if (!raw) return [];
+    const amount = Number(raw);
+    const valid = /^\d{1,7}$/.test(raw) && amount <= MAX_SHIPPING_REGION_FEE;
+    return group.minAmount === group.maxAmount && group.minAmount === amount ? [] : [{ group, amount, valid }];
+  });
+  const invalid = entries.some((entry) => !entry.valid);
+  async function submit() {
+    if (!entries.length || invalid || pending) return;
+    setError(null);
+    /* 확인창은 전환 밖에서 받는다 — 전환 안에서 띄우면 호스트의 상태 갱신이 전환이 끝날 때까지 미뤄져 확인창이 뜨지 않는다. */
+    const confirmed = await adminConfirm({ title: '추가료 금액 바꾸기', confirmLabel: '금액 바꾸기',
+      message: `${entries.map(({ group, amount }) => `${group.regionLabel} ${current(group)} → ${krw(amount)} (${group.rowCount}줄)`).join('\n')}\n\n지금부터 새 주문에 적용됩니다. 이미 들어온 주문의 배송비는 그대로입니다.` });
+    if (!confirmed) return;
+    startTransition(async () => {
+      try {
+        const result = await changeShippingRegionFeesAction(policy.id, policy.revision, Object.fromEntries(entries.map(({ group, amount }) => [group.regionLabel, amount])));
+        if (result.ok) onReplaced(result.policy, policy.id, result.message); else setError(result.error);
+      } catch { setError('금액을 바꾸지 못했습니다. 다시 시도해주세요.'); }
+    });
+  }
+  return <section className="flex flex-col gap-3 rounded-lg border p-4" data-region-fee-changer="">
+    <h3 className="text-sm font-semibold">추가료 금액</h3>
+    <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13.75rem),1fr))] gap-3">
+      {groups.map((group) => <label className={FIELD_LABEL} key={group.regionLabel}>
+        <span>{group.regionLabel} <span className="font-normal text-muted-foreground">· 지역표 {group.rowCount}줄{group.minAmount === group.maxAmount ? '' : ` · 지금 ${current(group)}`}</span></span>
+        <span className="flex items-center gap-2"><Input className="w-36 text-right tabular-nums" disabled={pending} inputMode="numeric" maxLength={7}
+          placeholder={group.minAmount === group.maxAmount ? undefined : '새 금액'} value={values[group.regionLabel] ?? ''}
+          aria-invalid={entries.some((entry) => entry.group === group && !entry.valid) || undefined}
+          onChange={(event) => { setValues({ ...values, [group.regionLabel]: event.target.value }); setError(null); }} />원</span>
+      </label>)}
+    </div>
+    {invalid ? <p className="text-sm text-destructive" role="alert">추가료는 0원부터 1,000,000원까지 원 단위 숫자로 적어주세요.</p> : null}
+    {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <Button disabled={pending || !entries.length || invalid} onClick={submit} type="button">금액 바꾸기</Button>
+      <p className={NOTE}>바꾸면 지금부터 새 주문에 적용됩니다. 이미 들어온 주문의 배송비는 그대로입니다.</p>
+    </div>
+  </section>;
+}
+
+function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit, onSaved, onReplaced, policies = [], onOpenPolicy, now = 0 }: {
   /** 같은 출고지·택배사의 다른 버전 — 기간 겹침 안내의 근거. */
   policies?: ShippingRegionPolicy[]; onOpenPolicy?: (id: string) => void; now?: number;
   policy: ShippingRegionPolicy | null; origins: GoodsFulfillmentOrigin[]; carriers: EditableCarrier[]; canEdit: boolean;
   initialCopy?: ShippingRegionPolicyInput | null;
   onSaved: (policy: ShippingRegionPolicy, message: string) => void;
+  /** 금액 바꾸기로 새 버전이 이전 버전을 대신했다. */
+  onReplaced?: (policy: ShippingRegionPolicy, replacedId: string, message: string) => void;
 }) {
   const [input, setInput] = useState<ShippingRegionPolicyInput>(() => parseShippingRegionPolicyInput(policy) ?? initialCopy ?? emptyShippingRegionPolicy());
   const [tsv, setTsv] = useState(() => shippingRegionRulesTsv(policy?.rules ?? initialCopy?.rules ?? []));
@@ -80,8 +139,11 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
       <option value="">미확인</option><option value="yes">예</option><option value="no">아니요</option>
     </NativeSelect></label>;
   }
+  /* 끝난 정책은 금액을 바꿔도 적용할 기간이 없다(DB도 shipping_region_policy_expired로 거절). */
+  const feeChangeable = canEdit && policy?.status === 'active' && !(policy.endsAt && Date.parse(policy.endsAt) <= now);
   return <div className="flex min-w-0 flex-col gap-4" data-region-editor="">
-    {canEdit && policy?.status === 'draft' ? <AdminNotice title="이 초안을 확정하는 순서" tone="info">내용을 고쳤다면 먼저 초안 저장 → 저장된 내용과 원본 일치 확인 체크 → 저장된 정책 활성화를 눌러주세요.</AdminNotice> : null}
+    {feeChangeable && policy && onReplaced ? <ShippingRegionFeeChanger policy={policy} onReplaced={onReplaced} /> : null}
+    {canEdit && policy?.status === 'draft' ?<AdminNotice title="이 초안을 확정하는 순서" tone="info">내용을 고쳤다면 먼저 초안 저장 → 저장된 내용과 원본 일치 확인 체크 → 저장된 정책 활성화를 눌러주세요.</AdminNotice> : null}
     <fieldset disabled={pending || readOnly} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
       <legend className="sr-only">지역 배송 정책 입력</legend>
       <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,13.75rem),1fr))] gap-3">
@@ -190,6 +252,12 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
     setPolicies((current) => current.some((row) => row.id === policy.id) ? current.map((row) => row.id === policy.id ? policy : row) : [...current, policy]);
     setSelectedId(policy.id); setCopy(null); setEditorKey((key) => key + 1); setMessage(success); setComposing(false);
   }
+  /* 금액 바꾸기: 서버가 이전 버전을 중단했다. 목록의 이전 줄도 중단으로 맞춘다(리비전은 새로고침 때 서버 값으로 바뀐다). */
+  function replaced(policy: ShippingRegionPolicy, replacedId: string, success: string) {
+    /* 목록은 출고지·택배사별 버전 내림차순이다 — 새 버전을 이전 버전 바로 위에 둔다. */
+    setPolicies((current) => current.flatMap((row) => row.id === replacedId ? [policy, { ...row, status: 'retired' as const, revision: row.revision + 1 }] : [row]));
+    setSelectedId(policy.id); setCopy(null); setEditorKey((key) => key + 1); setMessage(success); setComposing(false);
+  }
   /* 정책을 도입했는데 지금 적용 중인 정책이 없는 출고지 — 이때만 경고한다. 늘 떠 있는 노란 상자는 지금 문제가 있다는 뜻으로 읽히지 않는다. */
   /* 활성이어도 기간 밖이거나 다른 택배사 정책이면 신규 주문이 막힌다 — 견적 판정(`apply_shipping_region_quote`)과 같은 조건으로 말한다. */
   const inEffect = (origin: GoodsFulfillmentOrigin) => carriers.some((carrier) => carrier.code === origin.defaultCarrier && carrier.active) && policies.some((policy) => shippingRegionPolicyInEffect(policy, origin, now.getTime()));
@@ -245,7 +313,7 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
         }}>이 정책으로 새 버전 초안 만들기</Button>}
         {policies.length ? <Button className="ml-auto" onClick={closeEditor} type="button" variant="ghost">닫기</Button> : null}
       </div> : null}
-      <ShippingRegionEditor key={editorKey} policy={selected} initialCopy={copy} origins={origins} carriers={carriers} canEdit={canEdit} onSaved={saved} policies={policies} onOpenPolicy={openPolicy} now={now.getTime()} />
+      <ShippingRegionEditor key={editorKey} policy={selected} initialCopy={copy} origins={origins} carriers={carriers} canEdit={canEdit} onSaved={saved} onReplaced={replaced} policies={policies} onOpenPolicy={openPolicy} now={now.getTime()} />
     </AdminSectionCard>}
   </div>;
 }
