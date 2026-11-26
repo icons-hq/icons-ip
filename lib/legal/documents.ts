@@ -825,29 +825,25 @@ return {terms,privacy,shipping};
 
 export const LEGAL_DOCUMENTS: Record<LegalDocumentSlug, LegalDocument> = createLegalDocuments();
 
-const overseasNotice: LegalRevisionNotice = {
-  announcedDate: '2026-11-26', effectiveDate: OVERSEAS_PRIVACY_EFFECTIVE_DATE, heading: '해외 신분증 성인 인증 선택 신청',
-  changes: [
-    '국내 휴대폰 본인확인이 어려운 회원은 신청 코드, 본인 얼굴과 가린 해외 신분증이 함께 보이는 사진 한 장으로 지정 상품에 대한 수동 심사를 신청할 수 있습니다. 발급처·신분증 사진·생년월일·표시된 유효기간만 확인합니다. 이름·문서번호·기계판독영역·주소·서명·바코드는 제출 전 가립니다.',
-    '신청은 선택 사항이며 별도 동의를 받습니다. 거부해도 일반 상품을 이용할 수 있습니다. 얼굴은 담당자가 눈으로 대조하며 얼굴 특징값을 생성하지 않습니다.',
-    'Vercel 서울 서버에서 사진을 처리하고 Supabase 서울 리전에 암호화해 임시 보관합니다. 신청은 발급 후 24시간, 담당자 열람은 한 번에 최대 5분입니다. 결정·취소·만료·탈퇴 시 접근을 닫고 파일과 복호화에 필요한 값을 파기합니다. 삭제 장애 시 재시도하며 파기를 확인해야 승인됩니다.',
-    '승인 증거는 결정일부터 1년, 그 밖의 결과는 파기 확인 후 30일 이내에 삭제합니다. 기록은 계정과 신청 식별자, 심사자·방식·정책·동의 판, 접수·열람·결정·파기 시각과 결과입니다. 탈퇴 시 계정과의 연결을 해제합니다.',
-  ],
-};
+const overseasPrivacyChanges = [
+  '국내 휴대폰 본인확인이 어려운 회원은 신청 코드, 본인 얼굴과 가린 해외 신분증이 함께 보이는 사진 한 장으로 성인 인증을 신청할 수 있습니다. 승인이 유효한 동안 해당 계정에서 모든 19금 상품을 열람하고 구매할 수 있습니다. 발급처·신분증 사진·생년월일·표시된 유효기간만 확인합니다. 이름·문서번호·기계판독영역·주소·서명·바코드는 제출 전 가립니다.',
+  '신청은 선택 사항이며 별도 동의를 받습니다. 거부해도 일반 상품을 이용할 수 있습니다. 얼굴은 담당자가 눈으로 대조하며 얼굴 특징값을 생성하지 않습니다.',
+  'Vercel 서울 서버에서 사진을 처리하고 Supabase 서울 리전에 암호화해 임시 보관합니다. 신청은 발급 후 24시간, 담당자 열람은 한 번에 최대 5분입니다. 결정·취소·만료·탈퇴 시 접근을 닫고 파일과 복호화에 필요한 값을 파기합니다. 삭제 장애 시 재시도하며 파기를 확인해야 승인됩니다.',
+  '승인 증거는 결정일부터 1년, 그 밖의 결과는 파기 확인 후 30일 이내에 삭제합니다. 기록은 계정과 신청 식별자, 심사자·방식·정책·동의 판, 접수·열람·결정·파기 시각과 결과입니다. 탈퇴 시 계정과의 연결을 해제합니다.',
+];
 
 export function getLegalDocument(slug: string, businessInfo?: BusinessInfo, now = new Date()): LegalDocument | null {
   if (!(LEGAL_DOCUMENT_SLUGS as string[]).includes(slug)) return null;
   const base = (businessInfo ? createLegalDocuments(businessInfo) : LEGAL_DOCUMENTS)[slug as LegalDocumentSlug];
-  if (slug !== 'privacy' || kstDay(now) < overseasNotice.announcedDate) return base;
-  if (kstDay(now) < overseasNotice.effectiveDate) return { ...base, pendingRevision: overseasNotice };
+  if (slug !== 'privacy' || kstDay(now) < OVERSEAS_PRIVACY_EFFECTIVE_DATE) return base;
   const articles = base.articles.map(article => {
-    if (article.heading.startsWith('제1조 ')) return { ...article, closing: [...(article.closing ?? []), ...overseasNotice.changes] };
+    if (article.heading.startsWith('제1조 ')) return { ...article, closing: [...(article.closing ?? []), ...overseasPrivacyChanges] };
     if (article.heading.startsWith('제5조 ') || article.heading.startsWith('제6조 ')) {
       return { ...article, closing: [...(article.closing ?? []),
         '해외 신분증 심사를 선택하면 Vercel, Inc.의 서울 서버가 제출 시 전송된 사진을 일시 처리하고, Supabase, Inc.의 서울 리전이 암호화된 사진과 심사 기록을 보관합니다. 사진 파기 및 기록 보유 기한은 제1조의 해외 신분증 심사 안내를 따릅니다.'] };
     }
     return article;
   });
-  return { ...base, effectiveDate: overseasNotice.effectiveDate, articles, revisionChanges: overseasNotice.changes,
+  return { ...base, effectiveDate: OVERSEAS_PRIVACY_EFFECTIVE_DATE, articles, revisionChanges: overseasPrivacyChanges,
     previousVersion: { effectiveDate: base.effectiveDate, articles: base.articles } };
 }

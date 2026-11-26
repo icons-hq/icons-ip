@@ -171,8 +171,8 @@ describe('loadOrderLineViews', () => {
     expect((await loadOrderLineViews(client, [order()])).get(transactionOrder)?.[0]).toMatchObject({ purchaseAmount: 20000, regularAmount: null });
   });
 
-  it.each([true, false, undefined])('해외 수동 심사는 주문 상품별 확인 결과(%s)를 따른다', async (readable) => {
-    mocks.adult.mockResolvedValue('scoped');
+  it.each([true, false])('인증된 회원의 주문에서도 DB가 열람을 거부한 상품은 가린다 (%s)', async (readable) => {
+    mocks.adult.mockResolvedValue('full');
     const { client } = fakeClient({ goods: { data: [goodRow({ sale_restriction: 'adult', adult_readable: readable })], error: null } });
     const line = (await loadOrderLineViews(client, [order()])).get(transactionOrder)?.[0];
     expect(line?.adultMasked).toBe(readable !== true);

@@ -1,12 +1,11 @@
 'use client';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { setOverseasReviewGood } from '@/app/admin/(shell)/settings/overseas-adult/actions';
 import { AdminSectionCard } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { adminConfirm } from '@/lib/admin/confirm';
-import type { OverseasReviewGood, OverseasQueueItem } from '@/lib/identity/overseas-adult';
+import type { OverseasQueueItem } from '@/lib/identity/overseas-adult';
 
 interface Review {
   id: string;
@@ -26,13 +25,7 @@ function post(id: string, body: Record<string, unknown>, signal?: AbortSignal) {
     signal,
   });
 }
-export function OverseasAdultConsole({
-  queue,
-  goods,
-}: {
-  queue: OverseasQueueItem[] | null;
-  goods: OverseasReviewGood[] | null;
-}) {
+export function OverseasAdultConsole({ queue }: { queue: OverseasQueueItem[] | null }) {
   const router = useRouter();
   const [active, setActive] = useState<Review | null>(null);
   const [birth, setBirth] = useState('');
@@ -143,29 +136,6 @@ export function OverseasAdultConsole({
       router.refresh();
     }
   }
-  async function assignGood(item: OverseasReviewGood) {
-    const text = item.enabled
-      ? '지정을 해제하면 해외 신분증으로 인증한 회원은 이 상품을 구매할 수 없습니다.'
-      : '상품·포장·상세와 IP 계약을 검토해 회사가 자체 제한한 상품이며 해외 수동 확인을 적용할 수 있음을 확인합니다.';
-    if (
-      !(await adminConfirm({
-        title: item.name + ' ' + (item.enabled ? '지정 해제' : '지정'),
-        message: text,
-        confirmLabel: '반영',
-      }))
-    )
-      return;
-    setBusy(true);
-    try {
-      const ok = await setOverseasReviewGood(item.id, !item.enabled);
-      setMessage(ok ? '반영했습니다.' : '상품 지정 상태를 새로고침하고 관리자 권한을 확인해 주세요.');
-      router.refresh();
-    } catch {
-      setMessage('설정을 저장하지 못했습니다. 새로고침해 주세요.');
-    } finally {
-      setBusy(false);
-    }
-  }
   return (
     <>
       {message && <p role="status">{message}</p>}
@@ -199,45 +169,26 @@ export function OverseasAdultConsole({
             </div>
           </div>
         </AdminSectionCard>
-      ) : (
-        <>
-          {queue && (
-            <AdminSectionCard title="심사 대기">
-              {queue.length === 0 ? (
-                <p>대기 중인 신청이 없습니다.</p>
-              ) : (
-                <ul className="grid gap-2">
-                  {queue.map((row) => (
-                    <li key={row.id} className="flex flex-wrap items-center justify-between gap-2">
-                      <span>
-                        접수번호 {row.number} ·{' '}
-                        {new Date(row.submittedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
-                      </span>
-                      <Button disabled={busy} onClick={() => void open(row.id)}>
-                        한 번 열람
-                      </Button>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </AdminSectionCard>
+      ) : queue && (
+        <AdminSectionCard title="심사 대기">
+          {queue.length === 0 ? (
+            <p>대기 중인 신청이 없습니다.</p>
+          ) : (
+            <ul className="grid gap-2">
+              {queue.map((row) => (
+                <li key={row.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    접수번호 {row.number} ·{' '}
+                    {new Date(row.submittedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}
+                  </span>
+                  <Button disabled={busy} onClick={() => void open(row.id)}>
+                    한 번 열람
+                  </Button>
+                </li>
+              ))}
+            </ul>
           )}
-          {goods && (
-            <AdminSectionCard title="수동 인증 적용 상품">
-              <p className="mb-3">회사 자체 제한 상품만 지정해 주세요. 법정·계약상 확인 방법이 따로 있는 상품은 제외합니다.</p>
-              <ul className="grid gap-2">
-                {goods.map((item) => (
-                  <li className="flex items-center justify-between gap-2" key={item.id}>
-                    <span>{item.name}</span>
-                    <Button variant="outline" disabled={busy} onClick={() => void assignGood(item)}>
-                      {item.enabled ? '지정 해제' : '지정'}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </AdminSectionCard>
-          )}
-        </>
+        </AdminSectionCard>
       )}
     </>
   );

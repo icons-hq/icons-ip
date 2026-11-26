@@ -10,10 +10,10 @@
  * 증거로 다시 판정한다.
  */
 
-export type AdultGoodsAccess = 'hidden' | 'masked' | 'scoped' | 'full';
+export type AdultGoodsAccess = 'hidden' | 'masked' | 'full';
 
 export function canReadAdultRows(access?: AdultGoodsAccess) {
-  return access === 'full' || access === 'scoped';
+  return access === 'full';
 }
 
 /** 성인(19금) 상품 공개 설정이 있는 어드민 화면(판매자 정보 → 기능 공개 관리, 관리자 전용). */

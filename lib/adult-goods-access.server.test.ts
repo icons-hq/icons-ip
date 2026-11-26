@@ -36,3 +36,9 @@ it('노출로 설정해도 KCP 인증 기능이 닫혀 있으면 상품을 숨�
   mocks.kcp.mockReturnValue(false);
   expect(await getAdultGoodsAccess()).toBe('hidden');
 });
+
+it('해외 신분증을 승인한 회원은 국내 휴대폰 인증이 닫혀 있어도 모든 19금 상품을 이용한다', async () => {
+  mocks.kcp.mockReturnValue(false);
+  mocks.verification.mockResolvedValue({ status: 'verified', method: 'overseas_manual' });
+  expect(await getAdultGoodsAccess()).toBe('full');
+});
