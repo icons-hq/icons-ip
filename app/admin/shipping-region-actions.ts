@@ -80,6 +80,6 @@ export async function changeShippingRegionFeesAction(id: unknown, revision: unkn
     const policy = parseShippingRegionPolicy(data);
     if (!policy) return { ok: false, error: '바뀐 금액을 확인하지 못했습니다. 페이지를 새로고침해 적용 중인 버전을 확인해주세요.' };
     revalidate();
-    return { ok: true, policy, replacedId: id, message: `추가료를 바꿨습니다(버전 ${policy.version}). 지금부터 새 주문에 적용되고, 이미 들어온 주문의 배송비는 그대로입니다.` };
+    return { ok: true, policy, replacedId: id, message: '추가료를 바꿨습니다. 지금부터 새 주문에 적용되고, 이미 들어온 주문의 배송비는 그대로입니다.' };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '금액을 바꾸지 못했습니다. 다시 시도해주세요.' }; }
 }

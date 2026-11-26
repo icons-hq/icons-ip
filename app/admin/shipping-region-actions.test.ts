@@ -43,7 +43,8 @@ describe('지역 배송 정책 서버 action', () => {
   it('적용 중인 정책의 지역명별 금액만 보내고, 새 버전과 이전 버전 번호를 함께 돌려준다', async () => {
     const next = { ...policy, id: '00000000-0000-4000-8000-000000000002', version: 2, status: 'active', confirmedAt: '2026-11-26T02:00:00Z', confirmedBy: '관리자' };
     mocks.rpc.mockResolvedValue({ data: next, error: null });
-    expect(await changeShippingRegionFeesAction(id, 3, { 도서산간: 3000 })).toMatchObject({ ok: true, policy: next, replacedId: id, message: expect.stringContaining('버전 2') });
+    expect(await changeShippingRegionFeesAction(id, 3, { 도서산간: 3000 })).toMatchObject({ ok: true, policy: next, replacedId: id, message: expect.stringContaining('지금부터 새 주문에 적용') });
+    expect((await changeShippingRegionFeesAction(id, 3, { 도서산간: 3000 })) as { message: string }).not.toMatchObject({ message: expect.stringContaining('버전') });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_change_shipping_region_fees', { p_policy_id: id, p_expected_revision: 3, p_fees: { 도서산간: 3000 } });
     expect(mocks.revalidate).toHaveBeenCalled();
   });
