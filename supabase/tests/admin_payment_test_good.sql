@@ -4,14 +4,14 @@ create function pg_temp.check_result(ok boolean, label text) returns void langua
 begin
   if ok is distinct from true then raise exception 'admin payment test failed: %', label; end if;
 end $$;
-create function pg_temp.expect_unavailable(command text) returns void language plpgsql as $$
+create function pg_temp.expect_unavailable(command text, expected text default 'catalog_item_unavailable') returns void language plpgsql as $$
 begin
   begin execute command;
   exception when check_violation then
-    if sqlerrm = 'catalog_item_unavailable' then return; end if;
+    if sqlerrm = expected then return; end if;
     raise;
   end;
-  raise exception 'expected catalog_item_unavailable';
+  raise exception 'expected %', expected;
 end $$;
 
 select gen_random_uuid() as manager, gen_random_uuid() as member, gen_random_uuid() as staff, gen_random_uuid() as origin \gset
@@ -72,6 +72,9 @@ select pg_temp.check_result(exists(select 1 from public.payment_attempts where i
   and exists(select 1 from public.order_items where order_id=:'purchase' and good_id='admin-payment-test' and qty=1),'Toss order for one unit');
 select pg_temp.check_result('admin_payment_test'=any(private.order_fulfillment_hold_reasons(:'purchase'))
   and exists(select 1 from private.order_fulfillment_held_orders() where order_id=:'purchase'), 'fulfillment held');
+select pg_temp.expect_unavailable($move$update public.goods set id='renamed-test' where id='admin-payment-test'$move$, 'payment_test_slug_locked');
+select pg_temp.expect_unavailable($move$update public.goods set id='admin-payment-test' where id='another-payment-draft'$move$, 'payment_test_slug_locked');
+select pg_temp.check_result('admin_payment_test'=any(private.order_fulfillment_hold_reasons(:'purchase')), 'held after attempted rename');
 update public.profiles set role='user' where id=:'manager';
 select pg_temp.expect_unavailable(format('select public.prepare_goods_payment_attempt(%L,%L,%L)',:'manager',:'purchase','toss'));
 rollback to before_order;
