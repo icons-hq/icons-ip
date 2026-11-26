@@ -5,7 +5,9 @@
 -- 본다: 실행 권한 봉인·운영자 계약, 권한, 필수 안내가 비면 아무것도 남지 않음, 코드 자동·버전 1·바로 사용,
 -- 같은 작업 번호 재전송, 고치면 다음 버전 + 그 템플릿을 쓰는 상품 반영(보관 상품 제외), 다른 사람이 먼저 바꾼 저장 거절,
 -- 내용이 같으면 새 버전 없이 뒤처진 상품만 맞춤, 초안 줄을 그 자리에서 사용으로, 목록(코드마다 한 줄·상품 수), 감사 기록,
--- 상품 저장·상품 엑셀의 '코드·버전' 참조(private.apply_shipping_notice_template_reference)가 옛 버전 번호를 받아도 지금 내용을 적용하는지.
+-- 상품 저장·상품 엑셀의 '코드·버전' 참조(private.apply_shipping_notice_template_reference)가 옛 버전 번호를 받아도 지금 내용을 적용하는지,
+-- 화면의 [상품에 적용](admin_apply_shipping_notice_template, 줄의 id로 적용)이 지금 내용이 아닌 줄을 거절하는지.
+-- 템플릿 저장과 상품에 붙이는 저장이 겹칠 때의 줄 세우기(코드 잠금)는 한 세션으로 볼 수 없어 여기서 보지 않는다(두 세션으로 따로 확인했다).
 begin;
 create function pg_temp.notice_save_expect_error(statement text, expected_message text, expected_code text default null)
 returns void language plpgsql as $$ begin
@@ -16,6 +18,16 @@ returns void language plpgsql as $$ begin
   end;
   raise exception 'Expected rejection: %', expected_message;
 end $$;
+
+-- 예전 버전에 남은 상품을 만든다(보관했다 복원한 상품처럼). 보관해 둔 상품 c(버전 1)의 안내 칸을 그대로 옮긴다.
+-- 적용 함수로는 만들 수 없다 — 지금 내용이 아닌 줄은 적용을 거절한다(15번).
+create function pg_temp.notice_save_fall_behind(target_good text) returns void language sql security definer as $$
+  update public.goods good set
+    shipping_notice_template_id = behind.shipping_notice_template_id,
+    shipping_notice_template_version = behind.shipping_notice_template_version,
+    shipping_notice_snapshot = behind.shipping_notice_snapshot
+  from public.goods behind where good.id = target_good and behind.id = 'notice-save-c';
+$$;
 
 select set_config('request.jwt.claim.sub', '', true);
 insert into auth.users(id, aud, role, email, email_confirmed_at, raw_app_meta_data, raw_user_meta_data, created_at, updated_at) values
@@ -182,8 +194,11 @@ select pg_temp.notice_save_expect_error(format($sql$select public.admin_save_and
   '00000000-0000-4000-8000-00000010a006', %L, %L, '검증 기본 안내', '늦게 온 저장', '받은 날부터 7일 안에 신청하세요.', '', '검증 CS', '02-0000-0000', '')$sql$,
   :'template_v1', :'template_v1_updated'), 'shipping_notice_template_conflict', 'PT409');
 
--- 11. 내용이 같으면 새 버전을 만들지 않는다. 예전 버전으로 돌아가 있던 상품만 지금 내용으로 맞춘다.
-select public.admin_apply_shipping_notice_template('notice-save-a', :'template_v1'::uuid, (select updated_at from public.goods where id = 'notice-save-a'));
+-- 11. 내용이 같으면 새 버전을 만들지 않는다. 예전 버전에 남아 있던 상품만 지금 내용으로 맞춘다.
+select pg_temp.notice_save_fall_behind('notice-save-a');
+select 1 / case when exists(select 1 from public.goods where id = 'notice-save-a' and shipping_notice_template_id = :'template_v1'::uuid
+   and shipping_notice_template_version = 1 and shipping_notice_snapshot->>'shippingNotice' = E'결제 후 2~3일 안에 보냅니다.\n둘째 줄')
+ then 1 else 0 end as assert_fixture_good_is_behind;
 select public.admin_save_and_apply_shipping_notice_template(
   '00000000-0000-4000-8000-00000010a007', :'template_v2'::uuid, :'template_v2_updated'::timestamptz, '검증 기본 안내',
   '결제 후 3일 안에 보냅니다.', '받은 날부터 7일 안에 신청하세요.', '', '검증 CS', '02-0000-0000', 'notice-save@example.test') as unchanged \gset
@@ -193,7 +208,7 @@ select 1 / case when not (:'unchanged'::jsonb->>'changed')::boolean and (:'uncha
  and exists(select 1 from public.goods where id = 'notice-save-a' and shipping_notice_template_id = :'template_v2'::uuid)
  then 1 else 0 end as assert_same_content_only_catches_up_goods;
 -- 목록은 여전히 한 줄(가장 큰 버전)이고, 코드로도 그 한 줄을 읽는다. 쓰는 상품 수는 버전을 가리지 않고 센다.
-select public.admin_apply_shipping_notice_template('notice-save-b', :'template_v1'::uuid, (select updated_at from public.goods where id = 'notice-save-b'));
+select pg_temp.notice_save_fall_behind('notice-save-b');
 select 1 / case when (public.admin_list_shipping_notice_templates('검증 기본')->>'total')::int = 1
  and public.admin_list_shipping_notice_templates('검증 기본')->'rows'->0->>'id' = :'template_v2'
  and (public.admin_list_shipping_notice_templates('', 20, 0, :'template_code')->'rows'->0->>'goodsCount')::int = 2
@@ -235,7 +250,7 @@ select 1 / case when exists(select 1 from public.shipping_notice_templates where
 -- 14. 상품 저장·상품 엑셀이 쓰는 '코드·버전' 참조: 옛 버전 번호가 와도 그 코드의 지금 내용(가장 큰 active 버전)을 적용한다.
 --     템플릿을 고치기 전에 내려받은 상품 엑셀(버전 1이 적혀 있다)을 올려도 그 상품만 고치기 전 안내로 돌아가지 않는다.
 --     이 함수는 상품 저장 안에서만 불린다(어느 롤에도 실행 권한이 없다). 운영자 신원(jwt sub)은 그대로 두고 소유자 롤로 부른다.
---     여기까지: a는 버전 2, b는 버전 1로 돌아가 있고(11번), c는 보관(버전 1), d는 템플릿 없음.
+--     여기까지: a는 버전 2, b는 버전 1에 남아 있고(11번), c는 보관(버전 1), d는 템플릿 없음.
 reset role;
 select 1 / case when not has_function_privilege('authenticated', 'private.apply_shipping_notice_template_reference(text,text,integer)', 'execute')
  and not has_function_privilege('anon', 'private.apply_shipping_notice_template_reference(text,text,integer)', 'execute')
@@ -243,7 +258,7 @@ select 1 / case when not has_function_privilege('authenticated', 'private.apply_
  then 1 else 0 end as assert_reference_function_stays_internal;
 select updated_at as good_a_updated, base_revision as good_a_revision_v2 from public.goods where id = 'notice-save-a' \gset
 select count(*) as good_a_audits from public.audit_log where target = 'goods:notice-save-a' \gset
--- 템플릿을 쓰지 않던 상품 d, 버전 1로 돌아가 있던 상품 b, 이미 버전 2인 상품 a에 모두 (코드, 1)을 보낸다.
+-- 템플릿을 쓰지 않던 상품 d, 버전 1에 남아 있던 상품 b, 이미 버전 2인 상품 a에 모두 (코드, 1)을 보낸다.
 select private.apply_shipping_notice_template_reference('notice-save-d', :'template_code', 1) as reference_d \gset
 select private.apply_shipping_notice_template_reference('notice-save-b', :'template_code', 1) as reference_b \gset
 select private.apply_shipping_notice_template_reference('notice-save-a', :'template_code', 1) as reference_a \gset
@@ -294,4 +309,65 @@ select 1 / case when exists(select 1 from public.goods where id = 'notice-save-f
    and shipping_notice_template_id = :'template_v2'::uuid and shipping_notice_template_version = 2
    and shipping_notice_snapshot->>'shippingNotice' = '결제 후 3일 안에 보냅니다.')
  then 1 else 0 end as assert_good_save_with_old_version_gets_current_content;
+-- 15. 화면의 [상품에 적용](템플릿 줄의 id로 적용): 넘어온 줄이 그 템플릿의 지금 내용(가장 큰 active 버전)일 때만 적용한다.
+--     화면이 연 줄이 그사이 고쳐졌으면 고치기 전 내용을 상품에 넣지 않고 거절한다(PT409). 본문 함수는 안에서만 불린다.
+--     여기까지: a·notice-save-form은 버전 2, b는 다른 템플릿(notice-save-activate 버전 2), d는 템플릿 없음, c는 보관(버전 1).
+select 1 / case when has_function_privilege('authenticated', 'public.admin_apply_shipping_notice_template(text,uuid,timestamptz)', 'execute')
+ and not has_function_privilege('anon', 'public.admin_apply_shipping_notice_template(text,uuid,timestamptz)', 'execute')
+ and not has_function_privilege('service_role', 'public.admin_apply_shipping_notice_template(text,uuid,timestamptz)', 'execute')
+ and not has_function_privilege('authenticated', 'private.apply_shipping_notice_template_current(text,uuid,timestamptz,boolean)', 'execute')
+ and not has_function_privilege('anon', 'private.apply_shipping_notice_template_current(text,uuid,timestamptz,boolean)', 'execute')
+ and not has_function_privilege('service_role', 'private.apply_shipping_notice_template_current(text,uuid,timestamptz,boolean)', 'execute')
+ then 1 else 0 end as assert_apply_entry_is_sealed_and_body_is_internal;
+select pg_temp.notice_save_fall_behind('notice-save-a');
+select base_revision as good_d_revision from public.goods where id = 'notice-save-d' \gset
+-- 옛 줄(버전 1): 템플릿을 쓰지 않던 d, 다른 템플릿을 쓰던 b, 그 옛 줄에 남아 있던 a 어디에도 적용하지 않는다.
+select pg_temp.notice_save_expect_error(format('select public.admin_apply_shipping_notice_template(%L, %L, %L)', good.id, :'template_v1', good.updated_at),
+  'shipping_notice_template_conflict', 'PT409')
+ from public.goods good where good.id in ('notice-save-a', 'notice-save-b', 'notice-save-d') order by good.id;
+select 1 / case when exists(select 1 from public.goods where id = 'notice-save-d' and shipping_notice_template_id is null and base_revision = :good_d_revision)
+ and exists(select 1 from public.goods where id = 'notice-save-b' and shipping_notice_template_id = (:'evidenced'::jsonb->>'id')::uuid)
+ and exists(select 1 from public.goods where id = 'notice-save-a' and shipping_notice_template_id = :'template_v1'::uuid)
+ then 1 else 0 end as assert_outdated_row_is_rejected_and_changes_nothing;
+-- 지금 줄(버전 2)은 적용된다: 템플릿이 없던 d, 예전 버전에 남아 있던 a, 다른 템플릿을 쓰던 b. 이미 버전 2인 상품은 그대로다.
+select public.admin_apply_shipping_notice_template(good.id, :'template_v2'::uuid, good.updated_at)
+ from public.goods good where good.id in ('notice-save-a', 'notice-save-b', 'notice-save-d') order by good.id;
+select updated_at as good_form_updated from public.goods where id = 'notice-save-form' \gset
+select 1 / case when (select count(*) from public.goods where id in ('notice-save-a', 'notice-save-b', 'notice-save-d')
+   and shipping_notice_template_id = :'template_v2'::uuid and shipping_notice_template_version = 2
+   and shipping_notice_snapshot->>'shippingNotice' = '결제 후 3일 안에 보냅니다.') = 3
+ and (public.admin_apply_shipping_notice_template('notice-save-form', :'template_v2'::uuid, :'good_form_updated'::timestamptz)->>'templateVersion')::int = 2
+ and (select updated_at = :'good_form_updated'::timestamptz from public.goods where id = 'notice-save-form')
+ then 1 else 0 end as assert_current_row_is_applied;
+-- 나머지 거절은 전과 같다: 초안 줄(notice-save-activate 버전 3), 상품을 읽은 뒤 누가 고친 경우, 보관한 상품, 없는 줄.
+select pg_temp.notice_save_expect_error(format('select public.admin_apply_shipping_notice_template(%L, %L, %L)', good.id, :'empty_draft'::jsonb->>'id', good.updated_at),
+  'shipping_notice_template_not_active', '23514') from public.goods good where good.id = 'notice-save-d';
+select pg_temp.notice_save_expect_error(format('select public.admin_apply_shipping_notice_template(%L, %L, %L)', good.id, :'template_v2', good.updated_at - interval '1 second'),
+  'good_shipping_notice_conflict', 'PT409') from public.goods good where good.id = 'notice-save-d';
+select pg_temp.notice_save_expect_error(format('select public.admin_apply_shipping_notice_template(%L, %L, %L)', good.id, :'template_v2', good.updated_at),
+  'good_archived', '23514') from public.goods good where good.id = 'notice-save-c';
+select pg_temp.notice_save_expect_error(format('select public.admin_apply_shipping_notice_template(%L, %L, %L)', good.id, '00000000-0000-4000-8000-00000010ffff', good.updated_at),
+  'shipping_notice_template_not_found', 'P0002') from public.goods good where good.id = 'notice-save-d';
+-- 템플릿 떼기(줄 없이 적용)는 전과 같다.
+select public.admin_apply_shipping_notice_template(good.id, null, good.updated_at) from public.goods good where good.id = 'notice-save-d';
+reset role;
+select 1 / case when exists(select 1 from public.goods where id = 'notice-save-d' and shipping_notice_template_id is null and shipping_notice_snapshot is null)
+ and exists(select 1 from private.operator_rpc_contracts c join pg_proc p on p.oid = to_regprocedure(c.signature)
+   where c.signature = 'public.admin_apply_shipping_notice_template(text,uuid,timestamp with time zone)'
+    and c.capability = 'catalog.manage' and c.guard_kind = 'write' and not c.legacy_admin_only and c.body_md5 = md5(p.prosrc))
+ then 1 else 0 end as assert_clear_still_works_and_contract_matches;
+-- 16. 줄 세우기의 장치가 그대로 있는지(동작은 두 세션으로만 볼 수 있어 여기서는 장치만 본다).
+--     템플릿 저장은 코드 잠금을 독점으로, 상품에 붙이는 저장은 같은 잠금을 공유로 잡는다. 템플릿 저장의 상품 조건은
+--     템플릿 표와의 결합이 아니라 예전 버전 목록과의 비교다(결합이면 잠금을 기다린 뒤 바뀐 상품을 놓친다).
+select 1 / case when (select prosrc like '%pg_advisory_xact_lock(hashtextextended(''shipping_notice_template:'' || opened.code, 0))%'
+   and prosrc like '%good.shipping_notice_template_id = any(previous_version_ids)%'
+   and prosrc not like '%good.shipping_notice_template_id in (%'
+  from pg_proc where oid = 'public.admin_save_and_apply_shipping_notice_template(uuid,uuid,timestamptz,text,text,text,text,text,text,text)'::regprocedure)
+ and (select prosrc like '%pg_advisory_xact_lock_shared(hashtextextended(''shipping_notice_template:'' || template.code, 0))%'
+  from pg_proc where oid = 'private.apply_shipping_notice_template_current(text,uuid,timestamptz,boolean)'::regprocedure)
+ and (select prosrc like '%private.apply_shipping_notice_template_current(target_good_id, target_template_id, expected_good_updated_at, false)%'
+  from pg_proc where oid = 'public.admin_apply_shipping_notice_template(text,uuid,timestamptz)'::regprocedure)
+ and (select prosrc like '%private.apply_shipping_notice_template_current(target_good_id, template_id, good_stamp, true)%'
+  from pg_proc where oid = 'private.apply_shipping_notice_template_reference(text,text,integer)'::regprocedure)
+ then 1 else 0 end as assert_ordering_locks_are_in_place;
 rollback;

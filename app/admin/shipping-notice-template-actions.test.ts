@@ -113,6 +113,8 @@ describe('배송 안내 템플릿 저장', () => {
     expect(await reject('42501', 'operator_capability_required')).toBe(PERMISSION);
     expect(await reject('22023', 'invalid_shipping_notice_template')).toContain('칸마다 글자 수를 확인한 뒤');
     expect(await reject('PGRST202', 'Could not find the function')).toBe('저장하지 못했습니다. 적은 내용은 그대로 있습니다. 잠시 뒤 다시 저장해 주세요.');
+    /* 교착(40P01)으로 끝난 저장은 통째로 되돌려졌다. 저장됐는지 모른다고 하지 않고 다시 저장하라고 한다. */
+    expect(await reject('40P01', 'deadlock detected')).toBe('저장하지 못했습니다. 적은 내용은 그대로 있습니다. 잠시 뒤 다시 저장해 주세요.');
   });
 
   it('저장됐는지 알 수 없으면 같은 작업 번호로 다시 확인하게 한다', async () => {
@@ -217,6 +219,26 @@ describe('배송 안내 템플릿을 상품에 적용', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('admin_list_shipping_notice_templates', { p_query: '', p_limit: 1, p_offset: 0, p_code: 'n-abc' });
     expect(applyCalls()).toHaveLength(0);
     expect(mocks.goods).not.toHaveBeenCalled();
+  });
+
+  /*
+   * 앱의 사전 확인과 적용 사이(상품을 차례로 적용하는 동안 포함)에 다른 사람이 템플릿을 고치면, 적용 함수가 상품마다 다시 확인해 거절한다.
+   * 고치기 전 내용을 받은 상품이 '적용했습니다'로 보고되지 않는다.
+   */
+  it('적용하는 사이 템플릿이 고쳐지면 그 상품부터 넣지 않고 멈춘다', async () => {
+    mocks.goods.mockResolvedValue({ data: [good('good-1'), good('good-2'), good('good-3')], error: null });
+    database(() => ({ data: null, error: { code: 'PT409', message: 'shipping_notice_template_conflict' } }));
+    expect(await applyShippingNoticeTemplateToGoodsAction(OPENED, picked('good-1', 'good-2', 'good-3')))
+      .toEqual({ ok: false, error: '다른 사람이 먼저 바꿨습니다. 창을 닫고 목록을 새로고침한 뒤 다시 적용해 주세요.' });
+    expect(applyCalls()).toHaveLength(1);
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    /* 첫 상품은 적용됐고 둘째에서 고쳐진 것을 알았다: 남은 상품은 건드리지 않고, 적용한 수와 멈췄다는 것을 돌려준다. */
+    mocks.rpc.mockReset(); mocks.revalidatePath.mockReset();
+    database((goodId) => goodId === 'good-1' ? { data: {}, error: null } : { data: null, error: { code: 'PT409', message: 'shipping_notice_template_conflict' } });
+    expect(await applyShippingNoticeTemplateToGoodsAction(OPENED, picked('good-1', 'good-2', 'good-3')))
+      .toEqual({ ok: true, result: { applied: 1, unchanged: 0, failed: [], stopped: true } });
+    expect(applyCalls().map(([, args]) => (args as { target_good_id: string }).target_good_id)).toEqual(['good-1', 'good-2']);
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/settings/shipping-notices');
   });
 
   it('일부를 적용한 뒤 끊기면 적용한 수와 멈췄다는 것을 함께 돌려준다', async () => {
