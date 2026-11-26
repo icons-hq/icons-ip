@@ -5,6 +5,8 @@ import { Checkout } from '@/components/screens/Checkout';
 import { addressBookOpenFor } from '@/lib/address-book';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
+import { ADMIN_PAYMENT_TEST_GOOD_ID } from '@/lib/admin-payment-test';
+import { loadAdminPaymentTestGood } from '@/lib/admin-payment-test.server';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 import { loadCheckoutAddressPrefill, loadLatestPendingCheckoutOrderId } from '@/lib/checkout.server';
@@ -87,7 +89,7 @@ export default async function Page({ searchParams }: PageProps) {
   const draft = draftView;
 
   const userId = auth.user.id;
-  const [catalog, addressPrefill, resumeOrderId, couponState, transactionMode, couponPolicy, claimRestrictions] = await Promise.all([
+  const [catalog, addressPrefill, resumeOrderId, couponState, transactionMode, couponPolicy, claimRestrictions, testGood] = await Promise.all([
     getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods })),
     loadCheckoutAddressPrefill(auth.user.id, addressBookOpenFor(auth)),
     loadLatestPendingCheckoutOrderId(auth.user.id),
@@ -100,7 +102,10 @@ export default async function Page({ searchParams }: PageProps) {
       const goodIds = draft ? draft.lines.map(line => line.goodId) : await loadUserCartGoodIds(userId);
       return goodIds ? loadCheckoutClaimRestrictions(goodIds) : null;
     })(),
+    draft?.baseGoodId === ADMIN_PAYMENT_TEST_GOOD_ID ? loadAdminPaymentTestGood() : null,
   ]);
+  if (draft?.baseGoodId === ADMIN_PAYMENT_TEST_GOOD_ID && !testGood) return <DraftUnavailable draft={null} error={false} />;
+  const checkoutGoods = testGood ? [...catalog.goods, testGood] : catalog.goods;
 
   /* 카드 결제 가능 여부는 이 주문서 품목으로 파생한 provider의 gate다 — 19금 굿즈가
      섞이면 RESTRICTED_GOODS_CARD_PROVIDER(지금은 토스, ADR-0053)다. 초안이면 그 줄(장바구니에만 있는 19금 굿즈는 끼지 않는다), 아니면 서버 카트 전체로 판정한다.
@@ -117,13 +122,13 @@ export default async function Page({ searchParams }: PageProps) {
   ) ?? null;
 
   if (transactionMode === 'unavailable') return <main className="wc-root checkout-page"><div className="wrap card"><h1>주문 조건을 확인하지 못했어요</h1><p>잠시 후 다시 확인해주세요.</p><Link href="/cart">장바구니로 돌아가기</Link></div></main>;
-  if (transactionMode === 'transaction') return <GoodsTransactionCheckout key={auth.user.id} accountId={auth.user.id} catalog={{ goods: catalog.goods, ips: catalog.ips }} addressPrefill={addressPrefill}
+  if (transactionMode === 'transaction') return <GoodsTransactionCheckout key={auth.user.id} accountId={auth.user.id} catalog={{ goods: checkoutGoods, ips: catalog.ips }} addressPrefill={addressPrefill}
     resumeOrderId={resumeOrderId} paymentAvailable={paymentAvailable} bankTransferAvailable={await bankTransferCheckoutEnabled()} virtualAccountEnabled={virtualAccountEnabled}
     userCouponId={couponState.selectedUserCouponId} coupons={couponState.coupons} couponPolicy={couponPolicy} paymentFailCode={paymentFailCode} draft={draft} claimRestrictions={claimRestrictions} />;
 
   return (
     <Checkout
-      catalog={{ goods: catalog.goods, ips: catalog.ips }}
+      catalog={{ goods: checkoutGoods, ips: catalog.ips }}
       addressPrefill={addressPrefill}
       resumeOrderId={resumeOrderId}
       /* 위에서 서버 카트 구성으로 파생한 provider의 gate다(19금 굿즈가 섞여도 지금은 토스 — ADR-0053).

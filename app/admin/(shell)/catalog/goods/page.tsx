@@ -6,6 +6,7 @@ import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
 import { isUuid } from '@/lib/uuid';
 import { canAccessAdminScreen, hasAdminCapability } from '@/lib/admin/access';
 import { loadGoodShippingRegionSummaries } from '@/lib/admin/good-shipping-summary.server';
+import { loadAdminPaymentTestGood } from '@/lib/admin-payment-test.server';
 import { randomUUID } from 'node:crypto';
 import { notFound } from 'next/navigation';
 import { GoodScreen } from '@/components/admin/screens/GoodScreen';
@@ -30,9 +31,12 @@ export default async function AdminCatalogGoodsPage({ searchParams }: {
   if (groupCommon && !goodId) notFound();
   if (!creating && !goodId) {
     const client = await createClient();
-    const [data, shippingRegionExpiry, currentSession] = await Promise.all([loadAdminGoodsList(filters), loadAdminShippingRegionExpiry(), client.auth.getSession()]);
+    const [data, shippingRegionExpiry, currentSession, testGood] = await Promise.all([
+      loadAdminGoodsList(filters), loadAdminShippingRegionExpiry(), client.auth.getSession(),
+      auth.role === 'admin' ? loadAdminPaymentTestGood() : null,
+    ]);
     const sessionId = currentSession.data.session?.user.id === auth.user.id ? inquiryDraftSessionId(currentSession.data.session.access_token) : null;
-    return <GoodsListScreen data={data} shippingRegionExpiry={shippingRegionExpiry} canIssueMarketingLinks={hasAdminCapability(auth, 'catalog.manage')} bulkIdentity={sessionId ? { actorId: auth.user.id, sessionId } : undefined} />;
+    return <GoodsListScreen canTestPayment={Boolean(testGood)} data={data} shippingRegionExpiry={shippingRegionExpiry} canIssueMarketingLinks={hasAdminCapability(auth, 'catalog.manage')} bulkIdentity={sessionId ? { actorId: auth.user.id, sessionId } : undefined} />;
   }
   if (!creating && !/^[a-z0-9][a-z0-9-]*$/.test(goodId)) notFound();
 
