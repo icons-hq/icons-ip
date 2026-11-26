@@ -1,3 +1,4 @@
+import { canReadAdultRows } from '@/lib/adult-goods';
 import 'server-only';
 import type { InquiryFile } from './inquiry-files';
 import { loadInquiryMessageFiles } from './inquiry-files.server';
@@ -251,7 +252,7 @@ export async function resolveInquiryLinkTargets(
       .not('ips.published_at', 'is', null)
       // 판매 제한(19금) 상품은 인증 성인에게만 문의 컨텍스트로 이름을 돌려준다 —
       // 인증 전 방문자에게 상품명을 되돌려주는 우회 노출을 막는다(#392·ADR-0024).
-      .in('sale_restriction', adultGoodsRestrictions(await getAdultGoodsAccess() === 'full' ? 'full' : 'hidden'))
+      .in('sale_restriction', adultGoodsRestrictions(canReadAdultRows(await getAdultGoodsAccess()) ? 'full' : 'hidden'))
       .maybeSingle<{ id: string; name: string }>();
     if (data) {
       targets.goodId = data.id;

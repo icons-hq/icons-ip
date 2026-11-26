@@ -79,6 +79,12 @@ export const MEMBERS_ROLES_TOPIC: AdminGuideTopic = {
       screens: [{ href: '/admin/community/members' }, { href: '/admin/sales/purchase-restrictions' }],
     },
     {
+      id: 'overseas-adult',
+      heading: '해외 신분증 성인 인증',
+      paragraphs: ['인증 앱을 등록한 전담자가 가린 신분증과 손글씨 코드를 한 번 열어 확인합니다. 사진을 파기하면 해당 계정에 지정 상품 구매 권한이 생깁니다. 담당자와 자체 제한 상품 지정은 매니저 관리 권한이 있는 운영자가 합니다.'],
+      screens: [{ href: '/admin/settings/overseas-adult', note: '지정 심사자·2단계 인증 필요' }],
+    },
+    {
       id: 'customer-grades',
       heading: '고객등급 조건과 혜택',
       paragraphs: [

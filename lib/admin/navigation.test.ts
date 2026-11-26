@@ -105,7 +105,7 @@ describe('어드민 IA 정의', () => {
     expect(ids('catalog')).toEqual(['goods', 'goods-create', 'goods-groups-create', 'goods-groups', 'goods-import', 'goods-photos', 'categories',
       'erp-items', 'related-goods', 'announcements']);
     expect(ids('cs')).toEqual(['inquiries', 'inquiry-chat', 'qna', 'reviews', 'review-events', 'review-insights', 'faq', 'inquiry-operator-history']);
-    expect(ids('customers')).toEqual(['members', 'customer-grades', 'customer-segments', 'purchase-restrictions']);
+    expect(ids('customers')).toEqual(['overseas-adult', 'members', 'customer-grades', 'customer-segments', 'purchase-restrictions']);
     expect(ids('store')).toEqual(['curations', 'category-display', 'campaigns', 'shopping-stories', 'product-detail-presentation', 'store-presentation']);
     expect(ids('display')).toEqual(['coupon-register', 'coupons', 'discount-promotions', 'store-credit-console', 'marketing-messages', 'notifications', 'emails', 'marketing-links']);
     expect(ids('stats')).toEqual(['stats-sales', 'stats-claims', 'stats-customers', 'stats-traffic', 'stats-marketing', 'benefit-report']);
@@ -138,7 +138,7 @@ describe('어드민 IA 정의', () => {
     for (const [id, href] of before) expect(ADMIN_SCREENS.find((screen) => screen.id === id)?.href).toBe(href);
     expect(ADMIN_SCREENS.find((screen) => screen.id === 'purchase-restrictions')?.label).toBe('판매방해 고객관리');
     expect(ADMIN_SCREENS.filter((screen) => screen.adminOnly).map((screen) => screen.id).sort()).toEqual([
-      'customer-grades', 'feature-visibility', 'goods-attributes', 'operations-switches', 'operator-mfa', 'pg-settlements', 'pii-access-log', 'refund-transfers', 'roles', 'store-credit-console', 'store-credits',
+      'customer-grades', 'feature-visibility', 'goods-attributes', 'operations-switches', 'operator-mfa', 'overseas-adult', 'pg-settlements', 'pii-access-log', 'refund-transfers', 'roles', 'store-credit-console', 'store-credits',
     ]);
   });
 

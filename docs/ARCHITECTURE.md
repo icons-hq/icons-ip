@@ -594,7 +594,7 @@ docs/
 |---|---|
 | 카드 리워드 운영 증거 | 카드 리워드는 2026-11-24 삭제했지만 `pool_odds` 변경과 카드 발급·개봉·회수 이력은 DB에 감사 가능하게 보존한다 |
 | 14+ 가입 기준 | 현재 `birth_date` 자가신고와 목표 `minimum_age_14` 증거를 구분. #188 전에는 강제 완료로 보지 않는다 |
-| 19+ 성인 상품 | KCP 휴대폰 본인확인 `adult_19` 증거와 `private.good_sale_restriction_visible` 상세·미디어·구매 gate(ADR-0024). PG 인증으로 대체 금지 |
+| 19+ 성인 상품 | 지정 자체 제한 상품은 계정별 해외 수동 심사 증거도 상품 ID와 함께 DB에서 판정한다([운영 절차](runbooks/overseas-adult-review.md)). KCP 휴대폰 본인확인 `adult_19` 증거와 `private.good_sale_restriction_visible` 상세·미디어·구매 gate(ADR-0024). PG 인증으로 대체 금지 |
 | 전자상거래(청약철회) | `orders`/`refunds` 상태기계 + 환불 RPC |
 | PIPA/청소년보호 | `profiles.consents`·`birth_date`, 최소수집·동의·파기 |
 | UGC 안전 | `reports`/`blocks` + `/admin` 모더레이션 + 게시물 `status` |

@@ -1,3 +1,4 @@
+import { canReadAdultRows } from '@/lib/adult-goods';
 import 'server-only';
 
 import { createServerClient } from '@supabase/ssr';
@@ -24,7 +25,7 @@ export interface ServerClientOptions {
 /** 성인 인증으로 19금 상품이 열린 방문자만 성인 등급 조회를 자기 세션으로 보낸다. 순환 import를 피해 늦게 읽는다. */
 async function viewerSeesAdultGoods() {
   const { getAdultGoodsAccess } = await import('@/lib/adult-goods-access.server');
-  return (await getAdultGoodsAccess()) === 'full';
+  return canReadAdultRows(await getAdultGoodsAccess());
 }
 
 function fetchWithFirstUserLookupDeadline(url: string, timeoutMs: number): typeof fetch {

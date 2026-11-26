@@ -159,6 +159,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '고객관리',
     icon: 'user',
     screens: [
+      { id: 'overseas-adult', label: '해외 성인 인증', href: '/admin/settings/overseas-adult', status: 'ready', adminOnly: true },
       { id: 'members', label: '회원 관리', href: '/admin/community/members', status: 'ready' },
       { id: 'customer-grades', label: '고객등급 관리', href: '/admin/marketing/customer-grades', status: 'ready', adminOnly: true },
       { id: 'customer-segments', label: '타겟 세그먼트', href: '/admin/marketing/segments', status: 'ready' },
