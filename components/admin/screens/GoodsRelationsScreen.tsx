@@ -19,7 +19,7 @@ import { kstDay } from '@/lib/admin/kst';
  */
 export const GOODS_RELATIONS_COLUMNS = [
   { key: 'title', label: '노출 제목', width: '140px' }, { key: 'kind', label: '유형', width: '120px' }, { key: 'representative', label: '대표 상품', width: '132px' },
-  { key: 'state', label: '전시상태', width: '88px' }, { key: 'customer', label: '고객 화면', width: '168px' }, { key: 'goods', label: '담은 상품', width: '96px' },
+  { key: 'state', label: '게시 상태', width: '88px' }, { key: 'customer', label: '고객 화면', width: '168px' }, { key: 'goods', label: '담은 상품', width: '96px' },
   { key: 'period', label: '전시 기간', width: '156px' }, { key: 'updated', label: '수정일', width: '104px' },
 ];
 const GOODS_RELATIONS_TABLE_CLASS = '[&_table]:min-w-[1004px]';
@@ -33,7 +33,7 @@ export function GoodsRelationsScreen({ data, adultGoodsHidden = false }: {
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-relations">
     <AdminPageHeader title="연관상품 관리" description="상품 상세에서 다른 상품을 소개합니다. 장바구니에 함께 담는 추가구성상품과는 다릅니다." actions={<Link className={buttonVariants()} data-slot="button" href={`${href}&create=1`}><Plus aria-hidden="true" />연관상품 등록</Link>} />
     <ConsoleFilterPanel action={GOODS_RELATIONS_PATH} hiddenFields={{ pageSize: String(filters.pageSize) }}
-      statusFilter={{ label: '전시상태', name: 'state', value: filters.state, options: [{ value: 'all', label: '전체' }, ...GOODS_RELATION_STATES] }}
+      statusFilter={{ label: '게시 상태', name: 'state', value: filters.state, options: [{ value: 'all', label: '전체' }, ...GOODS_RELATION_STATES] }}
       search={{ label: '노출 제목·상품명·상품 자동코드', name: 'q', value: filters.query }} resetHref={GOODS_RELATIONS_PATH}>
       <ConsoleFilterField htmlFor="relation-filter-kind" label="연관상품 유형"><AdminSelect id="relation-filter-kind" name="kind" defaultValue={filters.kind} wrapperClassName="w-44"><option value="all">전체</option>{GOODS_RELATION_KINDS.map(kind => <option key={kind.value} value={kind.value}>{kind.label}</option>)}</AdminSelect></ConsoleFilterField>
     </ConsoleFilterPanel>

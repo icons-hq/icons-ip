@@ -34,7 +34,7 @@ describe('연관상품 상품 고르기(R2)', () => {
     expect(full.rowBlocked?.(good('a'))).toBeNull();
   });
 
-  it('줄마다 편집 화면과 같은 전시상태를 보이고 내부 값은 보이지 않는다', () => {
+  it('줄마다 편집 화면과 같은 게시 상태를 보이고 내부 값은 보이지 않는다', () => {
     expect(relationGoodRowView(good('internal-id', 'draft'))).toEqual({ title: '상품 internal-id', meta: 'SKU-internal-id · 초안', imageUrl: null });
     expect(relationGoodRowView(good('a', 'restricted')).meta).toBe('SKU-a · 공개 · 성인 인증 고객에게만');
     expect(relationGoodRowView(good('a', 'restricted'), true).meta).toBe('SKU-a · 공개 · 성인 상품 · 모든 고객에게 숨김');

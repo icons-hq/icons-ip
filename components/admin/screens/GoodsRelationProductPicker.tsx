@@ -8,7 +8,7 @@ import { AdminPickerDialog, type AdminPickerRowView } from '../console/AdminPick
 
 /*
  * 연관상품에 담을 상품 고르기. 공용 선택창(화면 규칙 1)을 여러 개 고르기로 쓴다: [선택]하면 바로 담기고 [빼기]로 빼며 [완료]로 닫는다.
- * 조회는 연관상품 전용 검색을 쓴다 — 줄마다 전시상태(초안·공개)와 판매 제한 표시를 편집 화면과 같은 판정으로 보여야 해서다.
+ * 조회는 연관상품 전용 검색을 쓴다 — 줄마다 게시 상태(초안·공개)와 판매 제한 표시를 편집 화면과 같은 판정으로 보여야 해서다.
  * 초안 상품도 미리 담을 수 있다(고를 수 없는 항목이 아니라 아직 안 보이는 항목이다). 보관한 상품만 조회에서 빠진다.
  */
 
@@ -19,7 +19,7 @@ export const relationGoodsLoader: AdminPickerLoader<GoodsRelationGood> = async (
   return 'data' in result ? result.data : { error: result.error };
 };
 
-/** 선택창 한 줄: 사진·상품명·상품 자동코드·전시상태. 내부 값(상품 URL)은 보이지 않는다(화면 규칙 8). */
+/** 선택창 한 줄: 사진·상품명·상품 자동코드·게시 상태. 내부 값(상품 URL)은 보이지 않는다(화면 규칙 8). */
 export function relationGoodRowView(good: GoodsRelationGood, adultGoodsHidden = false): AdminPickerRowView {
   return { title: good.name, meta: `${good.code} · ${relationGoodStatusText(good, adultGoodsHidden)}`, imageUrl: good.imagePath ? publicMediaUrl(good.imagePath) : null };
 }

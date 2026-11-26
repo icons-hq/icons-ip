@@ -44,7 +44,7 @@ export async function buildGoodsRelationsWorkbook(snapshot: GoodsRelationsExport
   book.creator = '엑스스퀘어'; book.created = new Date(snapshot.verifiedAt);
   /* 시트·열 이름은 화면의 말과 같다(연관상품·담은 상품·전시 여부·시작 (KST)). 이 파일은 내려받기 전용이라 다시 올려 읽는 머리글이 없다.
      '연관상품 번호'는 두 시트의 줄을 잇는 값이다. */
-  addWorkbookTable(book, '연관상품', [column('연관상품 번호', 'code', 38), column('노출 제목', 'text', 36), column('유형', 'text', 20), column('전시상태', 'text', 12), column('전시 여부', 'text', 10), column('대표 상품 URL', 'code', 24), column('대표 상품 자동코드', 'code', 20), column('대표 상품명', 'text', 36), column('담은 상품수', 'count'), column('공개 상품수', 'count'), column('시작 (KST)', 'date'), column('종료 (KST)', 'date'), column('등록일시', 'date'), column('수정일시', 'date'), column('저장 회차', 'count')], snapshot.rows.map(row => {
+  addWorkbookTable(book, '연관상품', [column('연관상품 번호', 'code', 38), column('노출 제목', 'text', 36), column('유형', 'text', 20), column('게시 상태', 'text', 12), column('전시 여부', 'text', 10), column('대표 상품 URL', 'code', 24), column('대표 상품 자동코드', 'code', 20), column('대표 상품명', 'text', 36), column('담은 상품수', 'count'), column('공개 상품수', 'count'), column('시작 (KST)', 'date'), column('종료 (KST)', 'date'), column('등록일시', 'date'), column('수정일시', 'date'), column('저장 회차', 'count')], snapshot.rows.map(row => {
     const representative = row.goods.find(good => good.id === row.representativeGoodId)!;
     return [row.id, row.title, goodsRelationKindLabel(row), goodsRelationStateLabel(row.state), row.enabled ? '전시' : '전시중지', representative.id, representative.code, representative.name, row.goods.length, row.goods.filter(good => good.public).length,
       kstDateTimeText(row.startsAt) || '제한 없음', kstDateTimeText(row.endsAt) || '제한 없음', kstDateTimeText(row.createdAt), kstDateTimeText(row.updatedAt), row.revision];
@@ -54,7 +54,7 @@ export async function buildGoodsRelationsWorkbook(snapshot: GoodsRelationsExport
     ['화면', '연관상품 관리'],
     ['조회 범위', '현재 검색 조건의 전체 페이지'], ['검색어', snapshot.filters.query || '전체'],
     ['유형', snapshot.filters.kind === 'all' ? '전체' : GOODS_RELATION_KINDS.find(item => item.value === snapshot.filters.kind)!.label],
-    ['전시상태', goodsRelationStateLabel(snapshot.filters.state)], ['정렬', '수정일 최신순, 같은 시각은 연관상품 번호 오름차순'],
+    ['게시 상태', goodsRelationStateLabel(snapshot.filters.state)], ['정렬', '수정일 최신순, 같은 시각은 연관상품 번호 오름차순'],
     ['건수', `연관상품 ${snapshot.rows.length.toLocaleString('ko-KR')}개 · 담은 상품 ${snapshot.rows.reduce((sum, row) => sum + row.goods.length, 0).toLocaleString('ko-KR')}줄`],
     ['조회 시작 (KST)', kstDateTimeText(snapshot.startedAt)], ['내려받은 시각 (KST)', kstDateTimeText(snapshot.verifiedAt)],
     ['파일 한도', `연관상품 ${GOODS_RELATIONS_EXPORT_LIMIT.toLocaleString('ko-KR')}개`],

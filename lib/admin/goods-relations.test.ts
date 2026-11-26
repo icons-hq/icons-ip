@@ -156,7 +156,7 @@ describe('연관상품 전시 기간 되읽기(R6)', () => {
   it('종료가 시작보다 빠르거나 같으면 저장할 수 없다고 그 자리에서 알린다', () => {
     expect(relationPeriodReadback({ enabled: true, startsAt: '2026-12-02T10:00', endsAt: '2026-12-02T10:00' }, now)).toMatchObject({ invalid: true, text: '종료가 시작보다 늦어야 저장할 수 있습니다.' });
   });
-  it('저장 전 전시상태는 목록과 같은 순서로 판정한다(KST 입력)', () => {
+  it('저장 전 게시 상태는 목록과 같은 순서로 판정한다(KST 입력)', () => {
     const state = (enabled: boolean, startsAt: string, endsAt: string) => relationDraftState({ enabled, startsAt, endsAt }, now);
     expect(state(false, '', '')).toBe('stopped');
     expect(state(true, '', '')).toBe('active');

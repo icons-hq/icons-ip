@@ -57,7 +57,7 @@ const REVALIDATION_EXEMPT: Record<string, string> = {
   'app/admin/category-display-actions.ts:saveCategoryDisplayAction': '카테고리 표시 구조는 `/shop` 목록과 메뉴만 바꾼다. 상품 상세·장바구니는 바뀌지 않는다.',
   'app/admin/ip-banner-actions.ts:saveAdminIpHallBannerAction': IP_REASON,
   'app/admin/ip-directory-actions.ts:saveIpDirectoryAction': IP_REASON,
-  'app/admin/ip-publish-actions.ts:revalidateIpPublishSurfaces': 'IP 공개 상태는 IP 목록·상세·홈·이벤트·게임을 바꾸고 그 목록을 이 함수가 직접 갱신한다. 상품 상세·장바구니는 바뀌지 않는다.',
+  'app/admin/ip-publish-actions.ts:revalidateIpPublishSurfaces': 'IP 게시 상태는 IP 목록·상세·홈·이벤트·게임을 바꾸고 그 목록을 이 함수가 직접 갱신한다. 상품 상세·장바구니는 바뀌지 않는다.',
 };
 const partialHits = serverFiles.flatMap((source) =>
   revalidatePathCalls(source)

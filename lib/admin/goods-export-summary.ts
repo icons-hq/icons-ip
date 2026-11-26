@@ -4,7 +4,7 @@ import { GOODS_READINESS_REASONS } from './goods-readiness';
 /** 조건을 되읽을 때 쓰는 이름. 못 읽은 이름은 비워 두면 '지정'이라고만 말한다. */
 export interface GoodsExportFilterNames { ip?: string | null; category?: string | null; origin?: string | null }
 
-/** 전시상태 조건. 기본 조건(보관 제외)도 늘 보여서 보관 상품이 빠졌다는 것이 눈에 띈다. */
+/** 게시 상태 조건. 기본 조건(보관 제외)도 늘 보여서 보관 상품이 빠졌다는 것이 눈에 띈다. */
 const STATUS_LABELS: Record<GoodsListStatus, string> = { active: '보관 제외', all: '보관 포함 전체', draft: '초안', published: '공개', archived: '보관' };
 const PAYMENT_LABELS = { card: '카드 결제 가능', bank: '무통장입금 가능', none: '결제수단 없음' } as const;
 const SALE_TYPE_LABELS = { stock: '일반 재고 상품', preorder: '예약판매 옵션 포함' } as const;

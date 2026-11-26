@@ -274,7 +274,7 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
       ['components/admin/screens/GoodsListScreen.tsx', '엑셀로 내려받기'],
       ['components/admin/screens/GoodsListScreen.tsx', '엑셀로 등록·수정'],
       ['app/admin/(shell)/catalog/goods/export/page.tsx', '엑셀 파일 내려받기'],
-      ['components/admin/GoodsBulkToolbar.tsx', '전시상태 변경'],
+      ['components/admin/GoodsBulkToolbar.tsx', '게시 상태 변경'],
       ['components/admin/GoodsBulkToolbar.tsx', '판매상태 변경'],
       ['components/admin/GoodsBulkToolbar.tsx', '기간 할인'],
       ['components/admin/GoodsBulkToolbar.tsx', 'IP 전체 기간 할인'],

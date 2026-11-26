@@ -7,7 +7,7 @@ import type { AdminPickerLoader } from '@/lib/admin/picker';
 import { AdminPickerDialog, type AdminPickerOption, type AdminPickerPanelProps, type AdminPickerRowView } from './console/AdminPickerDialog';
 
 /*
- * 상품을 고르는 공용 선택창(화면 규칙 1). 사진·상품명·상품 자동코드·카테고리·공개 상태를 보며 20개씩 고른다.
+ * 상품을 고르는 공용 선택창(화면 규칙 1). 사진·상품명·상품 자동코드·카테고리·게시 상태를 보며 20개씩 고른다.
  * 조회는 상품 목록과 같은 검색(보관하지 않은 상품, 등록일 최신순)을 쓴다.
  * 고를 수 없는 상품을 빼야 하는 화면은 그 조건을 건 `load`를 따로 넘긴다(옵션 불러오기: 선택형 옵션이 있는 상품만).
  */
