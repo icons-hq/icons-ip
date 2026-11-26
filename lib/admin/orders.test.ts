@@ -1,17 +1,22 @@
 import { describe, expect, it } from 'vitest';
 import {
+  ADMIN_PAYMENT_METHOD_LABELS,
+  ADMIN_PAYMENT_METHOD_OPTIONS,
   GOODS_PAYMENT_ATTEMPT_STATES,
   GOODS_PAYMENT_ATTEMPT_STATE_LABELS,
   adminVirtualAccountEscrowLabel,
   parseAdminOrderVirtualAccount,
   adminOrderBackHref,
   adminOrderDetailHref,
+  adminOrderPanelHref,
+  adminOrderSearchHref,
   adminOrdersHref,
   isKorpayManualRecoveryState,
   normalizeAdminCancellationDecisionForm,
   normalizeAdminGoodsManualRecoveryForm,
   normalizeAdminOrderFilters,
   normalizeAdminOrderStatusForm,
+  normalizeAdminStaffCancellationForm,
   normalizeAdminOrderTrackingForm, ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURE_LABELS, ADMIN_VIRTUAL_ACCOUNT_REFUND_FAILURES, ADMIN_VIRTUAL_ACCOUNT_REFUND_HINTS, adminTransferEscrowLabel, adminVirtualAccountRefundHint, adminVirtualAccountRefundStateLabel, parseAdminOrderTransferEscrow,
 } from './orders';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
@@ -253,7 +258,7 @@ describe('admin order mutation forms', () => {
     formData.set('reason', '짧음');
     expect(normalizeAdminCancellationDecisionForm(formData, 'reject')).toEqual({
       ok: false,
-      errors: { reason: '거절 사유를 10자 이상 200자 이하로 입력해주세요.' },
+      errors: { reason: '거부 사유를 10자 이상 200자 이하로 적어주세요.' },
     });
   });
 
@@ -408,5 +413,39 @@ describe('가상계좌 입금 대기와 입금 정보', () => {
     expect(adminVirtualAccountEscrowLabel(true)).toBe('적용(구매자가 선택)');
     expect(adminVirtualAccountEscrowLabel(false)).toBe('적용 안 함');
     expect(adminVirtualAccountEscrowLabel(null)).toBe('기록 없음');
+  });
+});
+
+/* 결제수단 값은 card·bank_transfer 둘뿐이다. card에는 토스의 카드·가상계좌·계좌이체가 함께 묶이므로 '카드'라고 부르지 않는다. */
+describe('결제수단 이름', () => {
+  it('card는 토스 결제(카드·가상계좌·계좌이체), bank_transfer는 무통장 입금(직접 이체)이다', () => {
+    expect(ADMIN_PAYMENT_METHOD_LABELS).toEqual({ card: '토스 결제(카드·가상계좌·계좌이체)', bank_transfer: '무통장 입금(직접 이체)' });
+    expect(ADMIN_PAYMENT_METHOD_OPTIONS.map(option => option.value)).toEqual(['', 'card', 'bank_transfer']);
+    expect(ADMIN_PAYMENT_METHOD_OPTIONS[0].label).toBe('전체');
+    expect(JSON.stringify(ADMIN_PAYMENT_METHOD_OPTIONS)).not.toContain('"카드"');
+  });
+});
+
+describe('주문 처리 패널 링크', () => {
+  it('패널까지 여는 링크는 주문번호를 검색어로, 열 주문을 order로 싣는다(번호가 없는 옛 주문만 내부 번호)', () => {
+    expect(adminOrderPanelHref(ORDER_ID, '2026102710000042')).toBe(`/admin/sales/orders?query=2026102710000042&order=${ORDER_ID}`);
+    expect(adminOrderPanelHref(ORDER_ID)).toBe(`/admin/sales/orders?query=${ORDER_ID}&order=${ORDER_ID}`);
+    expect(adminOrderPanelHref(ORDER_ID, null)).toBe(`/admin/sales/orders?query=${ORDER_ID}&order=${ORDER_ID}`);
+    expect(new URL(adminOrderPanelHref(ORDER_ID, '2026102710000042'), 'https://x.test').searchParams.get('order')).toBe(ORDER_ID);
+  });
+
+  it('검색 링크는 그대로 한 주문만 찾는다(패널은 그 줄의 [처리]로 연다)', () => {
+    expect(adminOrderSearchHref(ORDER_ID)).toBe(`/admin/sales/orders?query=${ORDER_ID}`);
+  });
+});
+
+describe('운영자 전액 취소 양식', () => {
+  it('확인란 값은 받지 않는다 — 출고지시가 나간 배송 건은 창고 회신 기록으로 DB가 판정한다', () => {
+    const formData = new FormData();
+    formData.set('orderId', ORDER_ID);
+    formData.set('reasonCode', 'out_of_stock');
+    formData.set('note', '');
+    formData.set('warehouseStopConfirmed', 'confirmed');
+    expect(normalizeAdminStaffCancellationForm(formData)).toEqual({ ok: true, value: { orderId: ORDER_ID, reasonCode: 'out_of_stock', note: null } });
   });
 });

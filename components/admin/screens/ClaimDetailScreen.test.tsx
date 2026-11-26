@@ -1,9 +1,16 @@
 import { shipmentFixture } from '@/lib/orders/shipments.fixture';
+import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
+import { ClaimContactOperations } from '@/components/admin/ClaimContactOperations';
+import { VirtualAccountRefundAccountEntry } from '@/components/admin/VirtualAccountRefundAccountEntry';
+import { sellerClaimReceiptFixture } from '@/lib/admin/seller-claim-intake.fixture';
+import { orderReferenceLabel } from '@/lib/orders';
+import { ClaimActionPanel } from './ClaimActionPanel';
 import { ClaimDetailScreen } from './ClaimDetailScreen';
 import { ClaimProgressSummary } from './ClaimProgressSummary';
+import { CLAIM_DETAIL_HELP } from '@/lib/admin/help/claim-detail';
 
 const NOW = new Date('2026-08-20T06:00:00.000Z');
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
@@ -144,11 +151,11 @@ describe('ClaimDetailScreen', () => {
   });
 
   /* 사람 눈 판정: '환급 기한 재출고 대기'가 버튼처럼 보였고, 교환에 환급이 나오는 것이 이상했다. */
-  it('실제 기한이 계산된 때만 환급 기한을 글자로 적고 알약·버튼 모양을 쓰지 않는다', () => {
+  it('실제 기한이 계산된 때만 환불 기한을 글자로 적고 알약·버튼 모양을 쓰지 않는다', () => {
     const exchange = render({ claim: { ...detail().claim, claimType: 'exchange', stage: 'requested', collectedAt: null } });
-    expect(exchange).not.toContain('환급 기한');
+    expect(exchange).not.toContain('환불 기한');
     const cancel = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null } });
-    expect(cancel).not.toContain('환급 기한');
+    expect(cancel).not.toContain('환불 기한');
     const counted = render().match(/<span[^>]*data-sla-tone="[a-z]+"[^>]*>/)?.[0] ?? '';
     expect(counted).not.toBe('');
     expect(counted).not.toContain('data-slot="badge"');
@@ -165,7 +172,8 @@ describe('ClaimDetailScreen', () => {
   it('돈이 나가는 승인·확정 버튼 바로 앞에 금액을 적는다', () => {
     const toss = { ...detail().payment!, provider: 'toss' };
     const approve = render({ payment: toss, refund: null, claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null } });
-    expect(approve).toMatch(/data-claim-money-at-stake=""[^>]*>(?:(?!<button)[\s\S])*취소 금액(?:(?!<button)[\s\S])*₩43,000/);
+    /* 승인 전에는 결제 금액만 확실하다(앞서 부분 취소한 주문은 그보다 적게 취소된다). 취소 금액은 누르면 뜨는 확인창이 서버에서 읽어 말한다. */
+    expect(approve).toMatch(/data-claim-money-at-stake=""[^>]*>(?:(?!<button)[\s\S])*결제 금액(?:(?!<button)[\s\S])*₩43,000/);
     expect(approve.indexOf('data-claim-money-at-stake')).toBeLessThan(approve.indexOf('value="approve"'));
     const complete = render({ payment: toss, claim: { ...detail().claim, stage: 'processing', status: 'processing' } });
     expect(complete).toMatch(/환불 금액(?:(?!<button)[\s\S])*₩43,000/);
@@ -254,8 +262,9 @@ describe('ClaimDetailScreen', () => {
       { action: 'admin.order.bank_refund_account_viewed', createdAt: NOW.toISOString(), actorName: 'finance', diff: { claimId: 'c1', purpose: 'list_export', revision: 3, exportId: 'export-id-not-rendered' } },
       { action: 'admin.order.bank_refund_account_viewed', createdAt: NOW.toISOString(), actorName: 'cs_lead', diff: { claimId: 'c1', purpose: 'prepare_bank_transfer', revision: 3 } },
     ] });
-    expect(html).toContain('송금 목적 환불계좌 열람 (환불 송금 대기 목록 엑셀)');
-    expect(html).toContain('송금 목적 환불계좌 열람 (요청 상세)');
+    expect(html).toContain('계좌번호 전체 보기 (환불 송금 대기 목록 엑셀)');
+    expect(html).toContain('계좌번호 전체 보기 (요청 상세)');
+    expect(html).not.toContain('환불계좌 열람');
     expect(html).toContain('@finance');
     expect(html).not.toContain('admin.order.bank_refund_account_viewed');
     expect(html).not.toContain('export-id-not-rendered');
@@ -341,7 +350,7 @@ describe('ClaimDetailScreen', () => {
       refund: null,
     });
     expect(html).toContain('승인하고 토스 전액 취소');
-    expect(html).toContain('승인하면 바로 토스 결제 전액을 취소하고 결제사에 결과를 확인합니다.');
+    expect(html).toContain('승인하면 바로 토스 결제를 취소하고 결제사에 결과를 확인합니다.');
   });
 
   /* 2026-10-12 QA-4: 운영자 전액 취소의 헤더는 단순 변심이 아니라 운영 사유다. */
@@ -421,9 +430,10 @@ describe('ClaimDetailScreen', () => {
     const html = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...base.claim, stage: 'completed' }}
       refund={{ ...base.refund!, status: 'done', completedAt: null }} />);
     expect(html).toContain('반품완료');
-    expect(html).toContain('환불 완료 시각 미기록');
-    expect(html).toContain('완료 시각 없음');
-    expect(html).not.toContain('환불 완료 기록됨');
+    expect(html).toContain('환불 완료 시각 없음');
+    expect(html).toContain('완료 시각이 비어 있습니다');
+    /* 완료 시각이 있을 때만 '환불 완료'다. 요청이 처리완료라는 것만으로 환불 완료로 읽지 않는다. */
+    expect(html).not.toContain('>환불 완료</strong>');
     expect(html).toContain('href="#claim-refund"');
     expect(render()).toContain('id="claim-refund" tabindex="-1"');
   });
@@ -442,11 +452,11 @@ describe('ClaimDetailScreen', () => {
   it('교환 재출고와 실제 배송완료 기록을 분리한다', () => {
     const claim = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const, reshippedAt: NOW.toISOString() };
     const pending = renderToStaticMarkup(<ClaimProgressSummary claim={claim} refund={null} />);
-    expect(pending).toContain('재출고 기록됨');
-    expect(pending).toContain('배송완료 미확인');
-    expect(pending).not.toContain('배송완료 확인</strong>');
+    expect(pending).toContain('재출고함');
+    expect(pending).toContain('배송완료 확인 전');
+    expect(pending).not.toContain('배송완료 확인함</strong>');
     const delivered = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...claim, reshipDeliveredAt: NOW.toISOString() }} refund={null} />);
-    expect(delivered).toContain('배송완료 확인');
+    expect(delivered).toContain('배송완료 확인함');
     expect(delivered).not.toContain('환불 기록');
   });
 
@@ -520,9 +530,13 @@ describe('ClaimDetailScreen', () => {
     const html = renderToStaticMarkup(<ClaimProgressSummary claim={claim} refund={null} />);
     expect(html).toContain('반품보류');
     expect(html).toContain('보류 전 수거중');
-    expect(html).toContain('1 / 2개 출고지 확인');
-    expect(html).toContain('전체 회수 확인 전');
+    expect(html).toContain('출고지 2곳 가운데 1곳 회수 확인');
+    expect(html).not.toContain('회수 끝');
     expect(html).toContain('두 번째 출고지 확인 중');
+    /* 회수 생략·배송 분실로 확인 수가 모자라도 서버가 전체 회수를 끝났다고 하면 '회수 끝'을 함께 말한다. */
+    const done = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...claim, collectionComplete: true }} refund={null} />);
+    expect(done).toContain('출고지 2곳 가운데 1곳 회수 확인');
+    expect(done).toContain('회수 끝');
     expect(html).toContain('환불 기록 없음');
     expect(html).not.toContain('<form');
     expect(html).not.toContain('<button');
@@ -531,7 +545,8 @@ describe('ClaimDetailScreen', () => {
   it('회수 기준 미확인을 취소의 회수 불필요로 바꾸지 않는다', () => {
     const claim = { ...detail().claim, claimType: 'cancel' as const, collectionPolicy: null, collectionComplete: true, collections: [] };
     const html = renderToStaticMarkup(<ClaimProgressSummary claim={claim} refund={null} />);
-    expect(html).toContain('회수 기준 확인 필요');
+    expect(html).toContain('회수 정보를 불러오지 못했습니다');
+    expect(html).toContain('새로고침해주세요');
     expect(html).not.toContain('회수 대상 없음');
     const known = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...claim, collectionPolicy: 'origin' }} refund={null} />);
     expect(known).toContain('회수 대상 없음');
@@ -540,12 +555,11 @@ describe('ClaimDetailScreen', () => {
   it.each(['return', 'exchange'] as const)('이전 회수 방식의 %s는 전체 게이트 통과만으로 입고 완료라 표시하지 않는다', claimType => {
     const claim = { ...detail().claim, claimType, stage: 'collecting' as const, collectionPolicy: 'legacy' as const, collectionComplete: true, collectedAt: null };
     const waiting = renderToStaticMarkup(<ClaimProgressSummary claim={claim} refund={null} />);
-    expect(waiting).toContain('회수 미확인');
-    expect(waiting).toContain('입고 확인 기록 없음');
-    expect(waiting).not.toContain('회수 확인 완료');
+    expect(waiting).toContain('입고 확인 전');
+    expect(waiting).not.toContain('입고 확인함');
     const received = renderToStaticMarkup(<ClaimProgressSummary claim={{ ...claim, collectedAt: NOW.toISOString() }} refund={null} />);
-    expect(received).toContain('회수 확인 완료');
-    expect(received).not.toContain('입고 확인 기록 없음');
+    expect(received).toContain('입고 확인함');
+    expect(received).not.toContain('입고 확인 전');
   });
 
   it('각 출고지의 회수 주소·품목·근거를 보여주고 미회수 건만 확인한다', () => {
@@ -576,7 +590,8 @@ describe('ClaimDetailScreen', () => {
     const html = render();
 
     expect(html).toContain('아크릴 블록');
-    expect(html).toContain('Korpay');
+    expect(html).toContain('코페이');
+    expect(html).not.toContain('Korpay');
     expect(html).toContain('43,000');
     expect(html).toContain('LD00000000901');
     expect(html).toContain('maple_fan (buyer@example.com)');
@@ -625,13 +640,17 @@ describe('ClaimDetailScreen', () => {
     expect(html).toContain('국민은행 ***********7890');
     expect(html).toContain('홍**');
     expect(html).not.toContain('1234-567890');
-    expect(html).toContain('요청 종결 또는 교환 전환 후 30일이 지나면 원문을 파기');
+    /* 일부만 보이는 이유와 전체 번호를 보는 길은 칸 이름 옆 "?"가 말한다 — 늘 보이는 글로 적지 않는다. */
+    expect(html).toMatch(/<button[^>]*aria-label="환불계좌 도움말"[^>]*data-admin-help=""/);
+    expect(html).not.toContain('30일이 지나면');
+    expect(CLAIM_DETAIL_HELP.refundAccount.caution).toContain('30일이 지나면 전체 번호는 지워집니다');
   });
 
-  it('입고 확인 뒤에는 환급 기한이 계산된다', () => {
+  it('입고 확인 뒤에는 환불 기한이 계산된다', () => {
     const html = render();
 
-    expect(html).toContain('환급 기한');
+    expect(html).toContain('환불 기한');
+    expect(html).not.toContain('환급 기한');
     expect(html).toContain('data-sla-tone');
   });
 
@@ -814,7 +833,8 @@ describe('부분 반품 칸 — 적대적 리뷰 반영(ADR-0047, 2026-11-19)', 
         returnFeeBasis: null, returnFeeReason: 'seller_fault', refundAmount: 20000, storeCreditRestoreAmount: 0, emptiedShipmentCount: 0 },
       previewError: null, settlement: null, transferConvertible: true,
     }, 'needs_review');
-    expect(html).toContain('[계좌 송금 부분 환불로 전환]으로 환급 기한');
+    expect(html).toContain('[계좌 송금 부분 환불로 전환]으로 환불 기한');
+    expect(html).not.toContain('환급 기한');
     expect(html).toContain('계좌 송금 부분 환불로 전환</button>');
     expect(html).toContain('data-partial-return-transfer-entry');
   });
@@ -830,6 +850,209 @@ describe('부분 반품 칸 — 적대적 리뷰 반영(ADR-0047, 2026-11-19)', 
     expect(html).toContain('data-partial-return-converted');
     expect(html).toContain('계좌 송금으로 돌려주는 부분 반품 환불은 송금 대기에 올라 있습니다');
     expect(html).not.toContain('환불 완료 확정 (');
+  });
+});
+
+/* ── 화면 규칙 PR 3 · C3(상세 틀·요약) ───────────────────────────────────────────────────────────────────────
+ * 상세 화면이 처리 칸·회수 부품·계좌 입력에 넘기는 값은 렌더 결과(HTML)가 아니라 요소의 props로 본다. */
+type TreeElement = ReactElement<Record<string, unknown>>;
+function elementsOf(node: ReactNode): TreeElement[] {
+  if (Array.isArray(node)) return node.flatMap(elementsOf);
+  if (!isValidElement(node)) return [];
+  const element = node as TreeElement;
+  return [element, ...Object.values(element.props).flatMap((value) => elementsOf(value as ReactNode))];
+}
+type ScreenProps = Parameters<typeof ClaimDetailScreen>[0];
+function treeOf(overrides: Partial<AdminClaimDetail> = {}, props: Partial<ScreenProps> = {}) {
+  return ClaimDetailScreen({ partialReturn: null, backHref: '/admin/sales/claims/returns', cancellationForm: null, carriers: CARRIERS, detail: detail(overrides), now: NOW, ...props });
+}
+const find = (tree: ReactNode, type: unknown) => elementsOf(tree).filter((element) => element.type === type);
+const ACTOR = '00000000-0000-4000-8000-000000000001';
+const live = (overrides: Record<string, unknown> = {}) => ({ id: '00000000-0000-4000-8000-000000044098', sequence: 1, reasonCode: 'return', claimId: CLAIM_ID, returnFeeDeduction: 0,
+  state: 'completed', provider: 'toss', refundAmount: 20000, goodsRefundAmount: 20000, shippingRefundAmount: 0, storeCreditRestoreAmount: 0, createdAt: '2026-08-19T08:00:00.000Z',
+  appliedAt: null, completedAt: '2026-08-19T09:00:00.000Z', transferredAt: null, items: [], closedShipmentCount: 0, ...overrides });
+const partialOf = (record: ReturnType<typeof live> | null, extra: Record<string, unknown> = {}) => ({ items: [], refundId: record ? record.id : null, history: record ? [record] : [],
+  preview: null, previewError: null, settlement: null, transferConvertible: false, ...extra }) as unknown as ScreenProps['partialReturn'];
+const progressOf = (html: string) => html.slice(html.indexOf('data-admin-kit="claim-progress"'), html.indexOf('</section>', html.indexOf('data-admin-kit="claim-progress"')));
+
+describe('상세 틀·요약 — 처리 칸 연결', () => {
+  it('처리 칸에 요청번호·주문번호·구매자를 넘기고, 주문이 없으면 주문번호·구매자는 비운다', () => {
+    const [panel] = find(treeOf(), ClaimActionPanel);
+    expect(panel.props).toMatchObject({ claimReference: 'C00012', orderReference: orderReferenceLabel(ORDER_ID, undefined), buyerName: 'maple_fan' });
+    const [noOrder] = find(treeOf({ order: null }), ClaimActionPanel);
+    expect(noOrder.props).toMatchObject({ claimReference: 'C00012', orderReference: null, buyerName: null });
+  });
+
+  it('자동 회수 접수 스위치 값을 처리 칸에 그대로 넘기고, 모르면 꺼진 것이다', () => {
+    expect(find(treeOf(), ClaimActionPanel)[0].props.autoPickupOnApproval).toBe(false);
+    expect(find(treeOf({}, { autoPickupOnApproval: true }), ClaimActionPanel)[0].props.autoPickupOnApproval).toBe(true);
+    expect(find(treeOf({}, { autoPickupOnApproval: false }), ClaimActionPanel)[0].props.autoPickupOnApproval).toBe(false);
+  });
+
+  it('처리 칸이 쓰지 않는 택배사 목록·재출고 상품은 넘기지 않는다', () => {
+    const [panel] = find(treeOf(), ClaimActionPanel);
+    expect('carriers' in panel.props).toBe(false);
+    expect('reshipItems' in panel.props).toBe(false);
+  });
+
+  it.each(['return', 'exchange'] as const)('%s 상세는 회수지·교환품 받을 곳 부품에 요청 유형을 넘긴다', (claimType) => {
+    const [operations] = find(treeOf({ claim: { ...detail().claim, claimType } }, { actorId: ACTOR }), ClaimContactOperations);
+    expect(operations.props.claimType).toBe(claimType);
+  });
+
+  it('가상계좌 환불 계좌 입력에는 화면에 이미 있는 환불 금액만 넘기고, 모르면 넘기지 않는다', () => {
+    const entryOf = (overrides: Partial<AdminClaimDetail>, props: Partial<ScreenProps> = {}) => find(treeOf({ claim: { ...detail().claim, claimType: 'cancel', stage: 'needs_review',
+      lastErrorCode: 'provider_refund_account_required' }, ...overrides }, props), VirtualAccountRefundAccountEntry)[0];
+    /* 환불 기록의 금액(승인 때 정해진 취소 금액). */
+    expect(entryOf({}).props.refundAmount).toBe(43000);
+    expect('refundAmount' in entryOf({ refund: null }).props).toBe(false);
+    /* 부분 반품은 주문 전체 환불 기록이 아니라 살아 있는 원장 줄의 금액이다. 원장이 없거나 읽지 못했으면 넘기지 않는다. */
+    const returned = { claim: { ...detail().claim, claimType: 'return' as const, stage: 'needs_review' as const, lastErrorCode: 'provider_refund_account_required' } };
+    expect(entryOf(returned, { partialReturn: partialOf(live({ state: 'needs_review' })) }).props.refundAmount).toBe(20000);
+    expect('refundAmount' in entryOf(returned, { partialReturn: partialOf(null) }).props).toBe(false);
+    expect('refundAmount' in entryOf(returned, { partialReturn: undefined }).props).toBe(false);
+    expect(entryOf(returned, { partialReturn: null }).props.refundAmount).toBe(43000);
+  });
+});
+
+describe('상세 틀·요약 — 이름과 모르는 값', () => {
+  const at = NOW.toISOString();
+  const entry = (action: string, diff: Record<string, unknown> = {}) => ({ action, createdAt: at, actorName: 'cs_lead', diff });
+
+  it('타임라인은 무통장 환불 칸의 버튼 이름과 같은 말을 쓰고 이전 이름은 쓰지 않는다', () => {
+    const html = render({ timeline: [
+      entry('admin.order.bank_refund_confirm_cancellation'), entry('admin.order.bank_refund_file_transfer'), entry('admin.order.bank_refund_complete_transfer'),
+      entry('admin.order.claim_collected'), entry('admin.order.partial_cancellation_account_viewed'),
+    ] });
+    for (const label of ['무통장 취소 확정 · 재고 복원', '환불 접수 기록', '송금 완료 기록', '입고 확인', '부분 취소 계좌번호 전체 보기']) {
+      expect(html).toContain(`</time> · ${label} · @cs_lead`);
+    }
+    for (const old of ['계좌 송금 접수', '실제 송금 완료 확인', '송금대기', '수거·입고', '환불계좌 열람']) expect(html).not.toContain(old);
+  });
+
+  it('이름이 없는 동작은 영문 코드 대신 기타 처리로 보인다', () => {
+    const html = render({ timeline: [entry('admin.order.brand_new_2027_action')] });
+    expect(html).toContain('</time> · 기타 처리 · @cs_lead');
+    expect(html).not.toContain('brand_new_2027_action');
+  });
+
+  it('주소 고치기는 회수지와 교환품 받을 곳 가운데 어느 쪽인지 말하고, 모르면 둘을 함께 부른다', () => {
+    const html = render({ timeline: [
+      entry('admin.order.claim_contact_changed', { target: 'collection' }), entry('admin.order.claim_contact_changed', { target: 'reshipment' }),
+      entry('admin.order.claim_contact_changed', {}), entry('admin.order.claim_contact_changed', { target: 'other' }),
+    ] });
+    expect(html).toContain('</time> · 회수지 고치기 · @cs_lead');
+    expect(html).toContain('</time> · 교환품 받을 곳 고치기 · @cs_lead');
+    expect(html.match(/<\/time> · 회수지·교환품 받을 곳 고치기 · @cs_lead/g)).toHaveLength(2);
+    expect(html).not.toContain('재배송 주소 정정');
+  });
+
+  it('주문 상태·결제사가 이름표에 없으면 영문 값 대신 확인 필요로 보이고, 결제사 이름은 공용 이름표를 쓴다', () => {
+    const html = render({ order: { ...detail().order!, status: 'mystery_status' }, payment: { ...detail().payment!, provider: 'mystery_pay' } });
+    expect(html).toContain('확인 필요');
+    expect(html).not.toContain('mystery');
+    expect(html).not.toContain('알 수 없음');
+    expect(render({ payment: { ...detail().payment!, provider: null } })).toContain('확인 필요');
+    for (const [provider, label] of [['toss', '토스'], ['nicepay', '나이스페이'], ['korpay', '코페이'], ['bank_transfer', '무통장 입금']] as const) {
+      expect(render({ payment: { ...detail().payment!, provider } })).toContain(label);
+    }
+  });
+
+  it('환불 메모로 부르고, 환불 수단이 없으면 -로 보인다', () => {
+    const memo = render({ refund: { ...detail().refund!, settlementNote: '정산 완료분이라 환불 처리' } });
+    expect(memo).toContain('환불 메모');
+    expect(memo).toContain('정산 완료분이라 환불 처리');
+    expect(memo).not.toContain('상계 메모');
+    const none = render({ refund: { ...detail().refund!, method: null } });
+    expect(none).toMatch(/환불 수단<\/span><span[^>]*>-<\/span>/);
+    expect(none).not.toContain('미접수');
+  });
+
+  it('환불 기록이 없으면 열리지 않았다고 하지 않고 없다고 말한다', () => {
+    const html = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null }, refund: null });
+    expect(html).toContain('아직 환불 기록이 없습니다.');
+    expect(html).not.toContain('열리지 않았습니다');
+  });
+
+  it('이전 방식의 재출고 운송장은 택배사 코드 대신 이름으로 보이고, 모르는 코드는 확인 필요로 보인다', () => {
+    const exchanged = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const, reshipTrackingNumber: 'QA4530000001', reshippedAt: '2026-09-09T00:00:00Z' };
+    expect(render({ claim: { ...exchanged, reshipCarrier: 'hanjin' } })).toContain('한진택배 QA4530000001');
+    const unknown = render({ claim: { ...exchanged, reshipCarrier: 'ghost_carrier' } });
+    expect(unknown).toContain('택배사 확인 필요 QA4530000001');
+    expect(unknown).not.toContain('ghost_carrier');
+  });
+
+  it('판매자 대리 접수 근거는 담당자 이름이 없어도 번호를 내지 않고, 수거 택배사는 이름으로 보인다', () => {
+    const collection = { ...sellerClaimReceiptFixture.collections[0], method: 'customer_sent' as const, carrier: 'hanjin', trackingNumber: 'HJ00000001' };
+    const intake = { ...sellerClaimReceiptFixture, actorName: null, collections: [collection] };
+    const html = render({ sellerIntake: intake });
+    expect(html).toContain('이름 없음');
+    expect(html).not.toContain(sellerClaimReceiptFixture.actorId);
+    expect(html).toContain('수거 운송장: 한진택배 HJ00000001');
+    expect(render({ sellerIntake: { ...intake, collections: [{ ...collection, carrier: 'ghost_carrier' }] } })).toContain('수거 운송장: 확인 필요 HJ00000001');
+  });
+});
+
+describe('상세 틀·요약 — 부분 반품', () => {
+  const screen = (partialReturn: ScreenProps['partialReturn'], overrides: Partial<AdminClaimDetail> = {}, props: Partial<ScreenProps> = {}) => renderToStaticMarkup(
+    <ClaimDetailScreen backHref="/admin/sales/claims/returns" carriers={CARRIERS} cancellationForm={null} detail={detail({ refund: null, ...overrides })} now={NOW}
+      partialReturn={partialReturn} actorId={ACTOR} {...props} />);
+
+  it('주문 전체 환불 기록이 없어도 부분 환불 원장을 환불 요약·환불 칸이 읽는다', () => {
+    const completed = screen(partialOf(live()));
+    expect(progressOf(completed)).toContain('환불 완료');
+    expect(progressOf(completed)).not.toContain('환불 기록 없음');
+    expect(completed).not.toContain('아직 환불 기록이 없습니다');
+    expect(completed).toMatch(/환불 수단<\/span><span[^>]*>결제사 취소<\/span>/);
+    const waiting = screen(partialOf(live({ state: 'awaiting_transfer', provider: 'bank_transfer', completedAt: null })));
+    expect(progressOf(waiting)).toContain('환불 송금 대기');
+    expect(progressOf(waiting)).toContain('재고 복원 완료 · 송금 완료 기록 전');
+    expect(waiting).toMatch(/환불 수단<\/span><span[^>]*>계좌 송금<\/span>/);
+    const filed = screen(partialOf(live({ state: 'processing', completedAt: null })));
+    expect(progressOf(filed)).toContain('환불 접수함');
+    expect(progressOf(filed)).not.toContain('환불 완료');
+    const checking = screen(partialOf(live({ state: 'needs_review', completedAt: null })));
+    expect(progressOf(checking)).toContain('환불 접수함');
+    expect(progressOf(checking)).toContain('환불 확인 필요');
+  });
+
+  it('원장이 아직 없는 부분 반품은 환불 기록 없음으로 둔다', () => {
+    expect(progressOf(screen(partialOf(null)))).toContain('환불 기록 없음');
+  });
+
+  it('주문 전체 요청은 환불 기록을 그대로 읽는다(부분 반품 원장으로 바꿔 읽지 않는다)', () => {
+    const html = renderToStaticMarkup(<ClaimDetailScreen backHref="/x" carriers={CARRIERS} cancellationForm={null} detail={detail({ refund: { ...detail().refund!, completedAt: '2026-08-19T09:00:00.000Z', status: 'done' } })} now={NOW} partialReturn={null} />);
+    expect(progressOf(html)).toContain('환불 완료');
+    expect(html).toContain('₩43,000');
+  });
+
+  it('부분 환불 상태가 이름표에 없으면 영문 값 대신 확인 필요로 보인다', () => {
+    const html = screen(partialOf(live({ state: 'brand_new_state', completedAt: null })));
+    expect(html).toMatch(/<span class="block text-xs text-muted-foreground">확인 필요<\/span>/);
+    /* 속성(data-partial-return-refund)에는 값이 남아도 화면에 보이는 글에는 영문 값이 없다. */
+    expect(html).not.toMatch(/>[^<]*brand_new_state[^<]*</);
+  });
+
+  it('부분 반품 기능이 꺼져 있고 아직 처리할 주문 전체 요청에만 한 줄 안내를 보인다', () => {
+    const text = '이 요청은 주문 전체로만 처리합니다.';
+    const open = screen(null);
+    expect(open).toContain(text);
+    expect(open).toContain('부분 환불을 약속하지 마세요.');
+    /* 끝난 요청·부분 반품·읽지 못한 반품·기능이 켜진 화면에는 같은 글을 되풀이하지 않는다. */
+    expect(screen(null, { claim: { ...detail().claim, stage: 'completed', completedAt: NOW.toISOString() } })).not.toContain(text);
+    expect(screen(partialOf(live()))).not.toContain(text);
+    expect(screen(undefined)).not.toContain(text);
+    expect(screen(null, {}, { partialReturnEnabled: true })).not.toContain(text);
+    expect(screen(null)).not.toContain('주문 단위 전액으로만');
+  });
+
+  it('금액을 계산하지 못한 이유 코드는 문장에 섞지 않고 문의할 때 알려 줄 코드로 한 번만 보인다', () => {
+    const html = screen(partialOf(null, { previewError: 'partial_return_payment_missing' }));
+    expect(html).toContain('부분 반품 환불 금액을 계산하지 못했습니다.');
+    expect(html).toContain('결제 담당자에게 알려주세요.');
+    expect(html).toMatch(/문의할 때 알려 줄 코드 <code[^>]*>partial_return_payment_missing<\/code>/);
+    expect(html).not.toContain('사유 코드');
+    expect(html).not.toContain('개발팀');
   });
 });
 

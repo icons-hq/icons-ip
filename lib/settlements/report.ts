@@ -128,5 +128,31 @@ export function parsePgSettlementReport(value: unknown, filters: PgSettlementFil
 }
 
 export const PG_SETTLEMENT_KIND_LABELS = { approval: '승인', cancel: '취소' } as const;
-export const PG_SETTLEMENT_MATCH_LABELS = { matched: '일치', unlinked: '미연결', mismatch: '불일치' } as const;
-export const PG_SETTLEMENT_FEE_LABELS: Record<string, string> = { BASE: '기본 수수료', INSTALLMENT_DISCOUNT: '카드사·PG 무이자 할부', INSTALLMENT: '상점 무이자 할부', POINT_SAVING: '카드사 포인트', ETC: '기타 수수료' };
+/** 비교 결과의 세 상태 이름. 이유는 아래 `PG_SETTLEMENT_MATCH_REASON_LABELS`가 말한다. */
+export const PG_SETTLEMENT_MATCH_LABELS = { matched: '맞음', unlinked: '연결 안 됨', mismatch: '다름' } as const;
+export const PG_SETTLEMENT_FEE_LABELS: Record<string, string> = { BASE: '기본 수수료', INSTALLMENT_DISCOUNT: '카드사·결제사 무이자 할부', INSTALLMENT: '상점 무이자 할부', POINT_SAVING: '카드사 포인트', ETC: '기타 수수료' };
+/** 처음 보는 수수료 종류는 영문 코드를 보이지 않고 '기타 수수료'로 부른다. */
+export function pgSettlementFeeLabel(type: string): string { return PG_SETTLEMENT_FEE_LABELS[type] ?? '기타 수수료'; }
+
+/**
+ * 비교한 이유(DB `private.pg_settlement_match`가 돌려주는 코드) → 운영자가 읽는 말.
+ * 상태별 코드: 맞음=verified / 연결 안 됨=payment_not_found·payment_not_finalized·unsupported_purpose·transaction_evidence_missing / 나머지는 다름.
+ */
+export const PG_SETTLEMENT_MATCH_REASON_LABELS: Record<string, string> = {
+  verified: '결제·환불 기록과 금액이 같습니다.',
+  payment_not_found: '우리 결제 기록에서 찾지 못했습니다.',
+  payment_not_finalized: '결제 완료 기록이 없습니다.',
+  ambiguous_payment: '같은 결제가 여러 건 기록돼 있습니다.',
+  payment_identity_mismatch: '결제 기록의 정보(결제번호·금액·상태)가 맞지 않습니다.',
+  unsupported_purpose: '주문·예매가 아닌 결제입니다.',
+  reference_mismatch: '주문 기록이 없거나 결제와 맞지 않습니다.',
+  amount_mismatch: '결제사 금액과 우리 결제 금액이 다릅니다.',
+  transaction_evidence_missing: '이 거래의 거래번호가 우리 기록에 없습니다.',
+  integration_binding_mismatch: '다른 정산 계정으로 받은 결제입니다.',
+  integration_binding_missing: '정기결제 연결 기록이 없습니다.',
+  ambiguous_refund: '환불 거래가 여러 건이라 어느 것인지 정할 수 없습니다.',
+  refund_amount_mismatch: '결제사 취소 금액과 우리 환불 금액이 다릅니다.',
+};
+export function pgSettlementMatchReason(reason: string | null): string {
+  return (reason ? PG_SETTLEMENT_MATCH_REASON_LABELS[reason] : undefined) ?? '이유를 알 수 없습니다. 개발 담당자에게 알려 주세요.';
+}

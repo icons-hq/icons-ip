@@ -6,6 +6,7 @@ vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: () => {} }));
 import { bulkConvertClaimTypesAction, convertClaimTypeAction, loadClaimTypeContextAction, readClaimTypeChangeAction } from './claim-type-conversion-actions';
 import { conversionContext as context, conversionRequest as request, conversionReceipt as receipt } from '@/lib/orders/claim-type-conversion.fixture';
+import { CLAIM_CHANGE_CONFLICT_MESSAGE, CLAIM_CHANGE_PERMISSION_MESSAGE, CLAIM_CHANGE_UNKNOWN_MESSAGE } from '@/lib/admin/claim-change-copy';
 beforeEach(() => { vi.clearAllMocks(); mocks.access.mockResolvedValue(true); mocks.rpc.mockResolvedValue({ data: receipt, error: null }); });
 it('판매관리 권한과 정확한 첫 본문으로만 전환하고 새 화면 경로를 갱신한다', async () => {
   expect(await convertClaimTypeAction(request)).toEqual({ receipt });
@@ -18,6 +19,23 @@ it('버전 충돌은 다시 확인하고 늦은 응답·잘못된 receipt는 미
   mocks.rpc.mockResolvedValue({ error: { code: '23505' } }); expect(await convertClaimTypeAction(request)).toMatchObject({ uncertain: true });
   mocks.rpc.mockResolvedValue({ data: { ...receipt, agreement: '다른 합의' } }); expect(await convertClaimTypeAction(request)).toMatchObject({ uncertain: true });
   mocks.rpc.mockRejectedValue(new Error('sensitive account detail')); expect(await convertClaimTypeAction(request)).toMatchObject({ uncertain: true }); expect(mocks.revalidate).not.toHaveBeenCalled();
+});
+it('저장 결과를 모를 때·다른 사람이 먼저 바꿨을 때의 말은 화면 버튼 이름과 같다', async () => {
+  mocks.rpc.mockResolvedValue({ error: { code: 'PT409' } });
+  expect(await convertClaimTypeAction(request)).toEqual({ error: CLAIM_CHANGE_CONFLICT_MESSAGE, conflict: true, uncertain: false });
+  mocks.rpc.mockResolvedValue({ error: { code: '57014', message: 'statement timeout' } });
+  const unknown = await convertClaimTypeAction(request);
+  expect(unknown).toEqual({ error: CLAIM_CHANGE_UNKNOWN_MESSAGE, conflict: false, uncertain: true });
+  expect('error' in unknown && unknown.error).toContain('[저장됐는지 확인]');
+  mocks.rpc.mockRejectedValue(new Error('private detail'));
+  expect(await convertClaimTypeAction(request)).toEqual({ error: CLAIM_CHANGE_UNKNOWN_MESSAGE, uncertain: true });
+  mocks.rpc.mockResolvedValue({ data: { ...receipt, id: context.orderId } });
+  expect(await readClaimTypeChangeAction(request.id)).toMatchObject({ uncertain: true, error: expect.stringContaining('저장 결과가 방금 적은 내용과 맞지 않습니다') });
+  mocks.access.mockResolvedValue(false);
+  expect(await convertClaimTypeAction(request)).toEqual({ error: CLAIM_CHANGE_PERMISSION_MESSAGE });
+  expect(await convertClaimTypeAction({ ...request, agreement: '합' })).toEqual({ error: CLAIM_CHANGE_PERMISSION_MESSAGE });
+  mocks.access.mockResolvedValue(true);
+  expect(await convertClaimTypeAction({ ...request, agreement: '합' })).toEqual({ error: expect.stringContaining('고객 합의 근거를 2~500자로 적어 주세요') });
 });
 it('없는 receipt, 잘못된 operation, 현재 문맥을 구분한다', async () => {
   mocks.rpc.mockResolvedValue({ data: null }); expect(await readClaimTypeChangeAction(request.id)).toEqual({ receipt: null });
@@ -34,7 +52,6 @@ function bulkForm(claimIds: string[], overrides: Record<string, string> = {}) {
   form.set('claimType', 'return');
   for (const id of claimIds) form.append('claimIds', id);
   form.set('agreement', AGREEMENT);
-  form.set('confirmed', 'true');
   for (const [key, value] of Object.entries(overrides)) form.set(key, value);
   return form;
 }
@@ -81,7 +98,7 @@ it('이미 다른 유형이거나 전환할 수 없는 건은 저장하지 않�
   stubBulkRpc({ [request.claimId]: { claimType: 'exchange' } });
   let state = await bulkConvertClaimTypesAction({}, bulkForm([request.claimId, SECOND]));
   expect(state.results?.map((result) => [result.outcome, result.message])).toEqual([
-    ['failed', '반품 요청이 아닙니다. 해당 목록에서 처리해주세요.'],
+    ['failed', '이미 교환 요청이라 바꾸지 않았습니다. 목록을 새로고침해 주세요.'],
     ['done', '교환 요청으로 전환했습니다.'],
   ]);
   expect(convertCalls()).toHaveLength(1);
@@ -89,7 +106,7 @@ it('이미 다른 유형이거나 전환할 수 없는 건은 저장하지 않�
   mocks.rpc.mockClear();
   stubBulkRpc({ [request.claimId]: { allowed: false, blocker: 'claim_conversion_reshipped' } });
   state = await bulkConvertClaimTypesAction({}, bulkForm([request.claimId]));
-  expect(state.results?.[0]).toMatchObject({ outcome: 'failed', message: '이미 교환품을 재출고하여 반품으로 전환할 수 없습니다.' });
+  expect(state.results?.[0]).toMatchObject({ outcome: 'failed', message: '교환품을 이미 재출고해서 반품으로 바꿀 수 없습니다.' });
   expect(convertCalls()).toHaveLength(0);
 });
 
@@ -100,7 +117,7 @@ it('교환→반품은 저장된 계좌가 없는 무통장 건만 상세로 돌
   });
   const state = await bulkConvertClaimTypesAction({}, bulkForm([request.claimId, SECOND], { claimType: 'exchange' }));
   expect(state.results?.map((result) => [result.outcome, result.message])).toEqual([
-    ['failed', '무통장 주문을 반품으로 전환하려면 환불계좌가 필요합니다. 요청번호를 눌러 상세에서 입력해주세요.'],
+    ['failed', '무통장 주문을 반품으로 바꾸려면 환불계좌가 필요합니다. 요청번호를 눌러 상세에서 입력해 주세요.'],
     ['done', '반품 요청으로 전환했습니다.'],
   ]);
   expect(convertCalls()).toEqual([expect.objectContaining({ p_claim_id: SECOND, p_to_type: 'return', p_refund_account: null })]);
@@ -109,25 +126,24 @@ it('교환→반품은 저장된 계좌가 없는 무통장 건만 상세로 돌
 it('버전 충돌·불확실한 저장은 실패로 알리고 화면을 갱신하지 않는다', async () => {
   stubBulkRpc({}, () => ({ data: null, error: { code: 'PT409', message: 'claim_changed' } }));
   let state = await bulkConvertClaimTypesAction({}, bulkForm([request.claimId]));
-  expect(state.results?.[0]).toMatchObject({ outcome: 'failed', message: '다른 처리가 먼저 진행됐습니다. 최신 상태를 확인한 뒤 다시 실행해주세요.' });
+  expect(state.results?.[0]).toMatchObject({ outcome: 'failed', message: '다른 사람이 먼저 바꿨습니다. 목록을 새로고침한 뒤 다시 실행해 주세요.' });
 
   stubBulkRpc({}, () => ({ data: null, error: { code: '57014', message: 'statement timeout' } }));
   state = await bulkConvertClaimTypesAction({}, bulkForm([request.claimId]));
-  expect(state.results?.[0]).toMatchObject({ outcome: 'failed', message: '저장 결과를 확인하지 못했습니다. 요청번호를 눌러 현재 유형을 확인해주세요.' });
+  expect(state.results?.[0]).toMatchObject({ outcome: 'failed', message: '저장됐는지 확인하지 못했습니다. 요청번호를 눌러 지금 유형을 확인해 주세요.' });
 
   stubBulkRpc({}, () => ({ data: { ...receipt, agreement: '다른 합의' }, error: null }));
   state = await bulkConvertClaimTypesAction({}, bulkForm([request.claimId]));
-  expect(state.results?.[0]).toMatchObject({ outcome: 'failed', message: '저장 결과를 확인하지 못했습니다. 요청번호를 눌러 현재 유형을 확인해주세요.' });
+  expect(state.results?.[0]).toMatchObject({ outcome: 'failed', message: '저장됐는지 확인하지 못했습니다. 요청번호를 눌러 지금 유형을 확인해 주세요.' });
   expect(mocks.revalidate).not.toHaveBeenCalled();
 });
 
-it('권한이 없거나 합의 확인·근거가 없거나 취소 목록이면 아무 건도 건드리지 않는다', async () => {
+it('권한이 없거나 합의 근거가 없거나 취소 목록이면 아무 건도 건드리지 않는다', async () => {
   stubBulkRpc();
-  expect(await bulkConvertClaimTypesAction({}, bulkForm([request.claimId], { confirmed: 'false' }))).toEqual({ error: '선택한 건 모두 고객과 합의했는지 확인해주세요.' });
   expect(await bulkConvertClaimTypesAction({}, bulkForm([request.claimId], { agreement: '한' }))).toEqual({ error: '고객 합의 근거를 2자 이상 500자 이하로 입력해주세요.' });
   expect(await bulkConvertClaimTypesAction({}, bulkForm([request.claimId], { claimType: 'cancel' }))).toEqual({ error: '반품과 교환 요청만 서로 전환할 수 있습니다.' });
   mocks.access.mockResolvedValue(false);
-  expect(await bulkConvertClaimTypesAction({}, bulkForm([request.claimId]))).toEqual({ error: '현재 계정과 판매관리 권한을 확인해주세요.' });
+  expect(await bulkConvertClaimTypesAction({}, bulkForm([request.claimId]))).toEqual({ error: CLAIM_CHANGE_PERMISSION_MESSAGE });
   expect(mocks.rpc).not.toHaveBeenCalled();
   expect(mocks.rows).not.toHaveBeenCalled();
 });

@@ -16,7 +16,8 @@ vi.mock('@/lib/admin/pii-access-log.server', () => ({ notePiiAccess: mocks.note 
 vi.mock('@/lib/admin/claims.server', () => ({ getAdminClaimConsoleData: mocks.list }));
 vi.mock('@/lib/admin/claim-preview.server', () => ({ loadAdminClaimWorkspace: mocks.workspace }));
 /* 반품 자동 회수 접수·반품입고 회신 칸(QNA-032·QNA-034)은 스위치가 꺼진 상태로 읽는다 — 목록은 지금과 같다. */
-vi.mock('@/lib/admin/claim-return-operations.server', () => ({ loadClaimReturnOperations: async () => ({ pickup: { enabled: false }, intake: { enabled: false } }) }));
+const operations = vi.hoisted(() => ({ value: { pickup: { enabled: false }, intake: { enabled: false } } as unknown }));
+vi.mock('@/lib/admin/claim-return-operations.server', () => ({ loadClaimReturnOperations: async () => operations.value }));
 vi.mock('next/navigation', () => ({
   notFound: () => { throw new Error('notFound'); },
   redirect: (href: string) => { throw new Error(`redirect:${href}`); },
@@ -43,6 +44,7 @@ function workspace(claimType = 'return') {
 }
 
 beforeEach(() => {
+  operations.value = { pickup: { enabled: false }, intake: { enabled: false } };
   vi.resetAllMocks();
   mocks.gate.mockResolvedValue({ user: { id: 'staff-1' }, operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, isStaff: true, role: 'staff' });
   mocks.list.mockResolvedValue({ claimType: 'return', counts: {}, filters: {}, pageSize: 20, rows: [], total: 0 });
@@ -125,4 +127,17 @@ it.each(['cancels', 'returns', 'exchanges'])('ADR-0028: %s 목록은 kit 화면�
   expect(named(tree, 'ClaimPreviewKitDialog')).toBeDefined();
   expect(named(tree, 'ClaimQueueScreen')).toBeUndefined();
   expect(named(tree, 'ClaimPreviewDialog')).toBeUndefined();
+});
+
+/* L-09: 반품·교환 승인 확인창은 자동 회수 접수가 켜져 있을 때만 '택배사에 회수가 접수됩니다'를 말한다. 스위치 값은 목록이 이미 읽는다. */
+it.each([[false, 'returns'], [true, 'returns'], [true, 'exchanges']] as const)('자동 회수 접수 스위치(%s)를 %s 목록 화면에 넘긴다', async (enabled, slug) => {
+  operations.value = { pickup: enabled ? { enabled: true, failed: 0, pending: 0, items: [] } : { enabled: false }, intake: { enabled: false } };
+  const tree = await Page({ params: Promise.resolve({ claimType: slug }), searchParams: Promise.resolve({ stage: 'open' }) } as never);
+  expect(named(tree, 'ClaimQueueKitScreen')?.props.autoPickupEnabled).toBe(enabled);
+});
+
+it('취소 목록은 회수가 없어 자동 회수 접수를 읽지 않고 꺼진 것으로 넘긴다', async () => {
+  operations.value = { pickup: { enabled: true, failed: 0, pending: 0, items: [] }, intake: { enabled: false } };
+  const tree = await Page({ params: Promise.resolve({ claimType: 'cancels' }), searchParams: Promise.resolve({ stage: 'open' }) } as never);
+  expect(named(tree, 'ClaimQueueKitScreen')?.props.autoPickupEnabled).toBe(false);
 });

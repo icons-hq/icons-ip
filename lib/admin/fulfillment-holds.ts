@@ -155,12 +155,12 @@ export function fulfillmentHoldGuidance(hold: OrderFulfillmentHold): string {
   }
   if (!hold.outboundBlocked) {
     if (hold.reason === 'test_payment') {
-      return '토스 테스트 키로 승인된(실제 돈이 결제되지 않은) 결제인데 이미 발송된 주문입니다. 배송완료 처리는 막지 않습니다. 물건을 돌려받으려면 반품을 접수하고, 그대로 두기로 했다면 사유를 적고 보류를 해제하세요.';
+      return '토스 테스트 결제로 승인된(실제 돈이 결제되지 않은) 주문인데 이미 발송됐습니다. 배송완료 처리는 막지 않습니다. 물건을 돌려받으려면 반품을 접수하고, 그대로 두기로 했다면 사유를 적고 보류를 해제하세요.';
     }
     return `이미 발송된 주문인데 결제사에서 취소된 금액${unexplained !== null ? `(${krw(unexplained)})` : ''}이 시스템에 기록돼 있지 않습니다. 배송완료 처리는 막지 않습니다. 물건을 돌려받으려면 반품을 접수하고, 고객과 합의해 그대로 두기로 했다면 사유를 적고 보류를 해제하세요. 운영자 전액 취소는 발송 전 주문에서만 열립니다.`;
   }
   if (hold.reason === 'test_payment') {
-    return '운영 환경에서 토스 테스트 키로 승인된 결제입니다. 실제 돈이 결제되지 않았으므로 출고하지 마세요. 고객 주문이면 운영자 전액 취소로 주문을 닫고(재고·쿠폰이 돌아갑니다), 리허설 주문이면 그대로 두어도 출고되지 않습니다.';
+    return '운영 사이트에서 토스 테스트 결제로 승인된 주문입니다. 실제 돈이 결제되지 않았으므로 출고하지 마세요. 고객 주문이면 운영자 전액 취소로 주문을 닫고(재고·쿠폰이 돌아갑니다), 리허설 주문이면 그대로 두어도 출고되지 않습니다.';
   }
   const full = hold.paymentAmount !== null && hold.providerCanceledAmount !== null && hold.providerCanceledAmount >= hold.paymentAmount;
   const amount = unexplained !== null ? ` ${krw(unexplained)}` : '';
@@ -197,7 +197,7 @@ function depositReversalGuidance(hold: OrderFulfillmentHold, progress: DepositRe
     case 'provider_refunded':
       return '은행이 가상계좌 입금을 취소한 결제인데, 결제사에서 이 결제가 환불 처리돼 있습니다(상점관리자 직접 환불 등). 출고하지 마세요. 토스페이먼츠 상점관리자에서 환불 내역을 확인한 뒤 운영자 전액 취소로 주문을 닫으세요.';
     case 'cancellation_pending':
-      return '은행이 가상계좌 입금을 취소한 결제에 처리 대기 중인 취소·반품 요청이 있어 시스템이 주문을 닫지 않았습니다. 출고하지 마세요. 클레임 화면에서 그 요청을 처리하면 결제 없이 취소가 끝납니다(입금된 돈이 없어 환불 계좌는 필요 없습니다).';
+      return '은행이 가상계좌 입금을 취소한 결제에 처리 대기 중인 취소·반품 요청이 있어 시스템이 주문을 닫지 않았습니다. 출고하지 마세요. 취소·반품·교환 관리에서 그 요청을 처리하면 결제 없이 취소가 끝납니다(입금된 돈이 없어 환불 계좌는 필요 없습니다).';
     default:
       return '은행이 가상계좌 입금을 취소했고 입금 기한까지 다시 입금되지 않았는데, 시스템이 주문을 자동으로 취소하지 못했습니다. 출고하지 마세요. 운영자 전액 취소로 주문을 닫으세요(계좌가 반납돼 환불 없이 취소되고 재고·쿠폰·적립금이 돌아갑니다).';
   }
@@ -205,12 +205,12 @@ function depositReversalGuidance(hold: OrderFulfillmentHold, progress: DepositRe
 
 /** 해제 결과 오류 코드 → 문구. */
 export function fulfillmentHoldReleaseError(code?: string | null, message?: string | null): string {
-  if (code === '42501' || message?.includes('operator_capability_required')) return '주문 관리 권한이 필요합니다. 로그인 계정을 확인해주세요.';
-  if (message?.includes('fulfillment_hold_not_active')) return '이미 해제된 보류입니다. 화면을 새로고침해 현재 상태를 확인해주세요.';
-  if (code === 'PT409' || message?.includes('fulfillment_hold_operation_conflict')) return '같은 요청이 다른 내용으로 처리되었습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
-  if (message?.includes('invalid_fulfillment_hold_release')) return '해제 사유를 5자 이상 500자 이하로 입력해주세요.';
+  if (code === '42501' || message?.includes('operator_capability_required')) return '이 작업을 할 권한이 없습니다. 주문 처리 권한이 있는 계정으로 로그인했는지 확인해주세요.';
+  if (message?.includes('fulfillment_hold_not_active')) return '이미 해제된 보류입니다. 화면을 새로고침해 지금 상태를 확인해주세요.';
+  if (code === 'PT409' || message?.includes('fulfillment_hold_operation_conflict')) return '이미 다른 내용으로 처리됐습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
+  if (message?.includes('invalid_fulfillment_hold_release')) return '해제 사유를 5자 이상 500자 이하로 적어주세요.';
   if (message?.includes('order_not_found')) return '주문을 찾을 수 없습니다.';
-  return '보류를 해제하지 못했습니다. 화면을 새로고침해 현재 상태를 확인한 뒤 다시 시도해주세요.';
+  return '보류를 해제하지 못했습니다. 화면을 새로고침해 지금 상태를 확인한 뒤 다시 시도해주세요.';
 }
 
 /** 보류 배지 문구. 출고를 막는 보류와 발송 뒤 경고를 글자로도 나눈다. */

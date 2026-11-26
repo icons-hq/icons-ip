@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useId, useState } from 'react';
-import { previewOrderClaimBulkStepAction, runOrderClaimBulkCollectionsAction, runOrderClaimBulkRefundsAction } from '@/app/admin/claim-bulk-step-actions';
+import { bulkDecideOrderClaimsAction } from '@/app/admin/claim-actions';
+import { previewOrderClaimBulkApprovalAction, previewOrderClaimBulkStepAction, runOrderClaimBulkCollectionsAction, runOrderClaimBulkRefundsAction } from '@/app/admin/claim-bulk-step-actions';
 import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Checkbox } from '@/components/admin/kit/ui/checkbox';
@@ -14,12 +15,16 @@ import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { STOCK_DISPOSITION_LABELS } from '@/lib/admin/defective-stock';
 import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
 import {
+  ADMIN_CLAIM_BULK_ACTION_LABELS,
+  ADMIN_CLAIM_BULK_AUTOMATED_NAMES,
+  ADMIN_CLAIM_BULK_OUTCOME_LABELS,
   ADMIN_CLAIM_BULK_STEP_LABELS,
   adminClaimBulkCollectTargetKey,
   adminClaimBulkCollectTargetLabel,
   adminClaimBulkContinuation,
   adminClaimBulkDefectiveItemIds,
   adminClaimBulkSummary,
+  type AdminClaimBulkApproveRow,
   type AdminClaimBulkCollectRow,
   type AdminClaimBulkResult,
   type AdminClaimBulkState,
@@ -30,7 +35,7 @@ import {
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { krw } from '@/lib/format';
 import { returnFeeDeductionRowNote } from '@/lib/claims/return-fee-deduction';
-import type { OrderClaimType } from '@/lib/orders/claims';
+import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimType } from '@/lib/orders/claims';
 import { ClaimBulkReshipDialog } from './ClaimBulkReshipDialog';
 import { ClaimKitBulkResult } from './ClaimKitBulkResult';
 
@@ -47,10 +52,15 @@ import { ClaimKitBulkResult } from './ClaimKitBulkResult';
  *
  * 후행 트랙: 반품배송비 차감(T12a)은 환불 행의 금액·합계(서버 값)와 이 창의 금액 문구를, 불량 재고 분리(T14b)는 환불
  * 확인창의 품목별 '판매 재고 복원/불량' 선택을 이 파일의 RefundStep에 더한다.
+ *
+ * 취소 일괄 승인(ApproveStep)도 같은 틀이다. 승인하는 즉시 결제사에 전액 취소가 나가므로 환불 확정 창처럼 건수·취소 금액 합계·
+ * 건너뛰는 건과 이유를 서버가 읽어 먼저 보이고, 실행은 지금 그대로 목록의 일괄 결정 액션(bulkDecideOrderClaimsAction)이 건마다 단건
+ * 경로를 탄다.
  */
 
 export interface ClaimBulkStepSession {
-  step: AdminClaimBulkStep;
+  /** 'approve'는 취소 일괄 승인의 확인창이다(결제사 취소를 바로 요청하므로 금액·건너뛰는 건을 먼저 보인다). */
+  step: AdminClaimBulkStep | 'approve';
   claimIds: string[];
   /** 창을 연 때의 KST 오늘. 입고일 기본값과 상한이다. */
   today: string;
@@ -144,14 +154,17 @@ function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }
 
   useEffect(() => {
     let alive = true;
-    previewOrderClaimBulkStepAction({ claimType, step: session.step, claimIds: session.claimIds }).then(
+    const load = session.step === 'approve'
+      ? previewOrderClaimBulkApprovalAction({ claimType, claimIds: session.claimIds })
+      : previewOrderClaimBulkStepAction({ claimType, step: session.step, claimIds: session.claimIds });
+    load.then(
       (state) => { if (!alive) return; if (state.preview) setPreview(state.preview); else setLoadError(state.error ?? PREVIEW_LOST); },
       () => { if (alive) setLoadError(PREVIEW_LOST); },
     );
     return () => { alive = false; };
   }, [claimType, session]);
 
-  const title = `${ADMIN_CLAIM_BULK_STEP_LABELS[session.step]} · 선택 ${session.claimIds.length}건`;
+  const title = `${session.step === 'approve' ? `${ORDER_CLAIM_TYPE_LABELS[claimType]} ${ADMIN_CLAIM_BULK_ACTION_LABELS.approve}` : ADMIN_CLAIM_BULK_STEP_LABELS[session.step]} · 선택 ${session.claimIds.length}건`;
 
   async function runCollect(rows: AdminClaimBulkCollectRow[]) {
     const items = rows.filter((row) => row.blocker === null)
@@ -185,6 +198,24 @@ function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }
     finish(ran, excluded);
   }
 
+  /* 승인은 지금 그대로 목록의 일괄 결정 액션이 건마다 단건 경로를 탄다. 이 창은 확인한 건만 보내고, 시간이 모자라 남은 건은 같은 확인 아래 이어서 보낸다. */
+  async function runApprove(rows: AdminClaimBulkApproveRow[]) {
+    const items = rows.filter((row) => row.blocker === null).map((row) => ({ claimId: row.claimId }));
+    if (items.length === 0) return;
+    setRunning(true);
+    const ran = await runClaimBulkInChunks(items, (pending) => {
+      const data = new FormData();
+      data.set('claimType', claimType);
+      for (const item of pending) data.append('claimIds', item.claimId);
+      data.set('decision', 'approve');
+      data.set('note', '');
+      return bulkDecideOrderClaimsAction({}, data);
+    }, setProgress);
+    const excluded = rows.filter((row) => row.blocker !== null)
+      .map((row) => ({ claimId: row.claimId, reference: row.reference === '확인 불가' ? null : row.reference, message: row.blocker ?? '' }));
+    finish(ran, excluded);
+  }
+
   function finish(ran: { results: AdminClaimBulkResult[]; error: string | null }, excluded: { claimId: string; reference: string | null; message: string }[]) {
     const merged = mergeClaimBulkResults(session.claimIds, excluded, ran.results);
     setResult(ran.error ? { ...merged, error: ran.error } : merged);
@@ -200,8 +231,8 @@ function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }
       <DialogHeader>
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>{session.step === 'collect'
-          ? '고른 요청의 출고지 입고를 한 번에 확인합니다. 환급 기한은 실제 입고일부터 셉니다.'
-          : '결제사 취소가 겹치지 않게 한 건씩 순서대로 확정합니다. 금액과 제외 사유는 이 창을 열 때 새로 불러온 값입니다.'}</DialogDescription>
+          ? `고른 요청의 출고지 입고를 한 번에 확인합니다.${claimType === 'return' ? ' 환불 기한은 실제 입고일부터 셉니다.' : ''}`
+          : `결제사 취소가 겹치지 않게 한 건씩 순서대로 ${session.step === 'approve' ? '승인' : '확정'}합니다. 금액과 건너뛰는 이유는 이 창을 열 때 새로 불러온 값입니다.`}</DialogDescription>
       </DialogHeader>
       {result ? <>
         {result.error ? <AdminNotice role="alert" tone="danger">{adminClaimCopy(result.error)}</AdminNotice> : null}
@@ -216,7 +247,8 @@ function ClaimBulkPreviewDialog({ claimType, onClose, previewHrefBase, session }
           onReceivedOn={setReceivedOn} onRun={() => { void runCollect(preview.rows); }} onToggle={(key, checked) => setUnchecked((previous) => ({ ...previous, [key]: !checked }))}
           progress={progress} receivedId={receivedId} receivedOn={receivedOn} rows={preview.rows} running={running} today={session.today} unchecked={unchecked}
         />
-          : <RefundStep defective={defective} onDefective={(id, value) => setDefective((previous) => ({ ...previous, [id]: value }))} onRun={() => { void runRefund(preview.rows); }} progress={progress} preview={preview} running={running} />}
+          : preview.step === 'approve' ? <ApproveStep onRun={() => { void runApprove(preview.rows); }} preview={preview} progress={progress} running={running} />
+            : <RefundStep defective={defective} onDefective={(id, value) => setDefective((previous) => ({ ...previous, [id]: value }))} onRun={() => { void runRefund(preview.rows); }} progress={progress} preview={preview} running={running} />}
     </DialogContent>
   </Dialog>;
 }
@@ -257,7 +289,7 @@ export function CollectStep({ evidence, evidenceId, inputError, onEvidence, onRe
     </div>
     <div className="overflow-x-auto rounded-lg border">
       <Table>
-        <TableHeader><TableRow><TableHead scope="col">요청번호</TableHead><TableHead scope="col">회수 확인할 출고지</TableHead><TableHead scope="col">제외 · 남는 출고지</TableHead></TableRow></TableHeader>
+        <TableHeader><TableRow><TableHead scope="col">요청번호</TableHead><TableHead scope="col">회수 확인할 출고지</TableHead><TableHead scope="col">{ADMIN_CLAIM_BULK_OUTCOME_LABELS.excluded} · 남는 출고지</TableHead></TableRow></TableHeader>
         <TableBody>
           {rows.map((row) => <TableRow data-claim-bulk-blocked={row.blocker ? '' : undefined} key={row.claimId}>
             <TableCell className="tabular-nums">{row.reference}</TableCell>
@@ -280,7 +312,7 @@ export function CollectStep({ evidence, evidenceId, inputError, onEvidence, onRe
     {running ? <p className="text-sm text-muted-foreground" role="status">처리 중… 한 건씩 순서대로 확인합니다({progress}건 끝). 창을 닫지 마세요.</p> : null}
     <DialogFooter>
       <p className="mr-auto self-center text-sm" data-claim-bulk-summary="">
-        <strong>{claimCount}건</strong> · 출고지 {originCount}곳 · 입고일 <span className="tabular-nums">{receivedOn || '-'}</span>{excludedCount > 0 ? ` · 제외 ${excludedCount}건` : ''}
+        <strong>{claimCount}건</strong> · 출고지 {originCount}곳 · 입고일 <span className="tabular-nums">{receivedOn || '-'}</span>{excludedCount > 0 ? ` · ${ADMIN_CLAIM_BULK_OUTCOME_LABELS.excluded} ${excludedCount}건` : ''}
       </p>
       <Button disabled={running || originCount === 0} onClick={onRun}>{claimCount}건 회수 확인 (입고일 {receivedOn || '-'})</Button>
     </DialogFooter>
@@ -300,20 +332,25 @@ export function RefundStep({ defective = {}, onDefective, onRun, preview, progre
   const excluded = rows.filter((row) => row.blocker !== null);
   /* 반품배송비 차감(ADR-0031): 환불 금액은 서버가 이미 뺀 값이다. 차감하는 행이 있을 때만 안내를 더한다. */
   const deducted = rows.some((row) => row.blocker === null && Boolean(row.deductionAmount));
+  /* 결제사가 부분 취소를 받지 않으면 반품배송비를 못 빼고 전액이 환불된다. 그때 합계가 얼마까지 늘 수 있는지 서버가 준 차감액으로 말한다(부분 반품은 해당 없음). */
+  const deductionExtra = rows.reduce((sum, row) => sum + (row.blocker === null && !row.partialReturn && row.amount !== null ? row.deductionAmount ?? 0 : 0), 0);
   /* 부분 반품(ADR-0047, CLM-136): 금액은 고른 상품 몫이고 그 금액만 부분 취소한다. */
   const partial = rows.some((row) => row.blocker === null && row.partialReturn);
   return <div className="flex min-w-0 flex-col gap-4" data-claim-bulk-refund="">
     <AdminNotice title="확정하면 되돌릴 수 없습니다" tone="warning">
-      토스·나이스페이 결제는 한 건씩 순서대로 결제사에 전액 취소를 요청하고 결제사 조회로 확인합니다. 확인되면 주문 취소·재고
+      {ADMIN_CLAIM_BULK_AUTOMATED_NAMES} 결제는 한 건씩 순서대로 결제사에 전액 취소를 요청하고 결제사 조회로 확인합니다. 확인되면 주문 취소·재고
       복원과 환불 완료 기록이 함께 끝납니다. 입고완료 건은 환불 접수를 먼저 기록합니다. 일부가 실패해도 이미 취소된
       건은 되돌리지 않고 건별 결과로 보여 줍니다.
-      {deducted ? ' 단순 변심 반품은 반품배송비를 뺀 환불 금액만 부분 취소합니다. 결제사가 그 결제의 부분 취소를 받지 않으면 전액 환불하고 반품배송비는 배송비 청구로 따로 받습니다.' : null}
+      {deducted ? ' 단순 변심 반품은 반품배송비를 뺀 환불 금액만 부분 취소합니다.' : null}
       {partial ? ' 부분 반품은 전액 취소가 아니라 고객이 고른 상품 몫(표의 환불 금액)만 부분 취소하고 남은 상품은 그대로 둡니다. 결제사가 부분 취소를 받지 않으면 요청이 확인 필요로 남고 상세의 "부분 반품" 칸에서 처리합니다.' : null}
     </AdminNotice>
     <div className="flex flex-col gap-1 rounded-lg border bg-muted/40 px-3 py-2.5" data-claim-bulk-refund-total="">
       <p className="text-sm">처리 <strong className="tabular-nums">{totals.count}건</strong> · 환불 합계 <strong className="text-base tabular-nums">{krw(totals.amount)}</strong></p>
       {totals.byProvider.map((entry) => <p className="text-xs text-muted-foreground" key={entry.label}>{entry.label} {entry.count}건 · <span className="tabular-nums">{krw(entry.amount)}</span></p>)}
-      {excluded.length > 0 ? <p className="text-xs text-muted-foreground">제외 {excluded.length}건 — 사유는 아래 표와 처리 결과에 남습니다.</p> : null}
+      {deductionExtra > 0 ? <p className="text-xs text-muted-foreground" data-claim-bulk-refund-full="">
+        결제사가 부분 취소를 받지 않는 결제는 반품배송비를 빼지 않고 전액을 환불해 합계가 최대 <span className="tabular-nums">{krw(totals.amount + deductionExtra)}</span>까지 늘 수 있습니다. 못 뺀 반품배송비는 배송비 청구로 따로 받습니다.
+      </p> : null}
+      {excluded.length > 0 ? <p className="text-xs text-muted-foreground">{ADMIN_CLAIM_BULK_OUTCOME_LABELS.excluded} {excluded.length}건 — 이유는 아래 표와 처리 결과에 남습니다.</p> : null}
     </div>
     <div className="overflow-x-auto rounded-lg border">
       <Table>
@@ -323,7 +360,7 @@ export function RefundStep({ defective = {}, onDefective, onRun, preview, progre
             <TableCell className="tabular-nums">{row.reference}</TableCell>
             <TableCell>{row.providerLabel}</TableCell>
             <TableCell className="text-right tabular-nums">{row.amount === null ? '-' : krw(row.amount)}{row.partialReturn ? <span className="block text-xs text-muted-foreground" data-claim-bulk-partial-return="">부분 반품 · 고른 상품 몫</span> : null}{row.deductionAmount ? <span className="block text-xs text-muted-foreground" data-claim-bulk-refund-deduction="">{returnFeeDeductionRowNote(row.deductionAmount)}</span> : null}</TableCell>
-            <TableCell className="whitespace-normal">{row.blocker ? <span className="text-muted-foreground">제외 · {adminClaimCopy(row.blocker)}</span> : '확정'}</TableCell>
+            <TableCell className="whitespace-normal">{row.blocker ? <span className="text-muted-foreground">{ADMIN_CLAIM_BULK_OUTCOME_LABELS.excluded} · {adminClaimCopy(row.blocker)}</span> : '확정'}</TableCell>
           </TableRow>,
           ...(!row.blocker && row.items && row.items.some((item) => item.state !== 'recorded') && onDefective ? [<TableRow data-claim-bulk-stock="" key={`${row.claimId}-stock`}>
             <TableCell className="whitespace-normal bg-muted/30" colSpan={4}>
@@ -348,6 +385,52 @@ export function RefundStep({ defective = {}, onDefective, onRun, preview, progre
     <DialogFooter>
       <Button className="h-auto min-h-8 whitespace-normal" disabled={running || totals.count === 0} onClick={onRun} variant="danger">
         {totals.count}건 환불 완료 확정 (합계 {krw(totals.amount)})
+      </Button>
+    </DialogFooter>
+  </div>;
+}
+
+/**
+ * 취소 일괄 승인 확인창의 본문. 환불 확정 확인창과 같은 모양이다 — 승인할 건수·취소 금액 합계(결제 방식별)와 건너뛰는 건·이유를
+ * 서버가 읽은 값 그대로 보이고, 확정 버튼에 같은 건수·합계를 적는다. 승인하면 결제사 전액 취소가 바로 나가므로 되돌릴 수 없다.
+ */
+export function ApproveStep({ onRun, preview, progress, running }: {
+  onRun: () => void;
+  preview: Extract<AdminClaimBulkStepPreview, { step: 'approve' }>;
+  progress: number;
+  running: boolean;
+}) {
+  const { rows, totals } = preview;
+  const skipped = rows.filter((row) => row.blocker !== null);
+  return <div className="flex min-w-0 flex-col gap-4" data-claim-bulk-approve="">
+    <AdminNotice title="승인하면 되돌릴 수 없습니다" tone="warning">
+      {ADMIN_CLAIM_BULK_AUTOMATED_NAMES} 결제는 승인하는 즉시 결제사에 전액 취소를 요청하고, 결제사 조회로 확인되면 주문 취소·재고 복원과 환불 기록이 함께 끝납니다.
+      무통장 입금·코페이 결제는 승인만 하고 환불은 따로 진행합니다. 한 건씩 순서대로 처리하며, 일부가 실패해도 이미 취소된 건은 되돌리지 않고 건별 결과로 보여 줍니다.
+    </AdminNotice>
+    <div className="flex flex-col gap-1 rounded-lg border bg-muted/40 px-3 py-2.5" data-claim-bulk-approve-total="">
+      <p className="text-sm">승인 <strong className="tabular-nums">{totals.count}건</strong> · 취소 금액 합계 <strong className="text-base tabular-nums">{krw(totals.amount)}</strong></p>
+      {totals.byProvider.map((entry) => <p className="text-xs text-muted-foreground" key={entry.label}>
+        {entry.label} {entry.count}건{entry.amount > 0 ? <> · <span className="tabular-nums">{krw(entry.amount)}</span></> : null} — {entry.providerCancel ? '결제사에 취소 요청' : '승인만'}
+      </p>)}
+      {skipped.length > 0 ? <p className="text-xs text-muted-foreground">{ADMIN_CLAIM_BULK_OUTCOME_LABELS.excluded} {skipped.length}건 — 이유는 아래 표와 처리 결과에 남습니다.</p> : null}
+    </div>
+    <div className="overflow-x-auto rounded-lg border">
+      <Table>
+        <TableHeader><TableRow><TableHead scope="col">요청번호</TableHead><TableHead scope="col">결제</TableHead><TableHead className="text-right" scope="col">취소 금액</TableHead><TableHead scope="col">처리</TableHead></TableRow></TableHeader>
+        <TableBody>
+          {rows.map((row) => <TableRow data-claim-bulk-blocked={row.blocker ? '' : undefined} key={row.claimId}>
+            <TableCell className="tabular-nums">{row.reference}</TableCell>
+            <TableCell>{row.providerLabel}</TableCell>
+            <TableCell className="text-right tabular-nums">{row.amount === null ? '-' : krw(row.amount)}</TableCell>
+            <TableCell className="whitespace-normal">{row.blocker ? <span className="text-muted-foreground">{ADMIN_CLAIM_BULK_OUTCOME_LABELS.excluded} · {adminClaimCopy(row.blocker)}</span> : row.effect}</TableCell>
+          </TableRow>)}
+        </TableBody>
+      </Table>
+    </div>
+    {running ? <p className="text-sm text-muted-foreground" role="status">처리 중… 결제사 취소를 한 건씩 순서대로 확인합니다({progress}건 끝). 창을 닫지 마세요.</p> : null}
+    <DialogFooter>
+      <Button className="h-auto min-h-8 whitespace-normal" disabled={running || totals.count === 0} onClick={onRun} variant="danger">
+        {totals.count}건 취소 승인{totals.amount > 0 ? ` (합계 ${krw(totals.amount)})` : ''}
       </Button>
     </DialogFooter>
   </div>;

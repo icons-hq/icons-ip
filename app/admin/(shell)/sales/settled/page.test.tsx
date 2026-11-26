@@ -18,7 +18,9 @@ const mocks = vi.hoisted(() => ({
   settled: vi.fn(async () => ({ filters: {}, pageSize: 20, rows: [], total: 0 })),
   orders: vi.fn(async () => ({ items: [], filters: {}, pageSize: 20, total: 0 })),
   preview: vi.fn(async () => ({ kind: 'not_found' })),
+  policy: vi.fn(async (): Promise<Record<string, unknown> | null> => ({ revision: 3, autoEnabled: true, autoAfterDays: 8, buyerExtensionDays: null, evidence: '', updatedAt: '2026-11-01T00:00:00Z' })),
 }));
+vi.mock('@/lib/admin/purchase-confirmation-policy.server', () => ({ getPurchaseConfirmationPolicy: mocks.policy }));
 vi.mock('@/lib/admin/order-preview.server', () => ({ loadAdminOrderPreview: mocks.preview }));
 /* 목록과 주문 상세 팝업(S36-075)은 Fragment의 같은 자리에 둔다 — 첫째가 목록, 둘째가 팝업(없으면 null)이다. */
 const listOf = (page: unknown) => ((page as { props: { children: unknown[] } }).props.children[0]) as { type: unknown; props: Record<string, unknown> };
@@ -52,6 +54,7 @@ describe('AdminSalesSettledPage', () => {
     mocks.settledScreen.mockClear();
     mocks.settled.mockClear();
     mocks.orders.mockClear();
+    mocks.policy.mockClear();
   });
 
   it('로그인 전에는 거래확정 경로를 next로 실어 로그인으로 보낸다', async () => {
@@ -61,6 +64,7 @@ describe('AdminSalesSettledPage', () => {
       AdminSalesSettledPage({ searchParams: Promise.resolve({}) }),
     ).rejects.toThrow('NEXT_REDIRECT:/login?next=%2Fadmin%2Fsales%2Fsettled');
     expect(mocks.settled).not.toHaveBeenCalled();
+    expect(mocks.policy).not.toHaveBeenCalled();
   });
 
   it('일반 사용자에게는 주문을 읽기 전에 화면을 감춘다', async () => {
@@ -75,6 +79,7 @@ describe('AdminSalesSettledPage', () => {
       AdminSalesSettledPage({ searchParams: Promise.resolve({}) }),
     ).rejects.toThrow('NEXT_NOT_FOUND');
     expect(mocks.settled).not.toHaveBeenCalled();
+    expect(mocks.policy).not.toHaveBeenCalled();
   });
 
   it('searchParams를 정규화해 로더에 넘기고 결과를 그대로 렌더한다', async () => {
@@ -93,7 +98,18 @@ describe('AdminSalesSettledPage', () => {
     expect(listOf(screen).props).toEqual({
       data: { filters: {}, pageSize: 20, rows: [], total: 0 },
       exportRequestId: expect.any(String),
+      autoConfirmation: { enabled: true, afterDays: 8 },
     });
+  });
+
+  /* 목록 머리의 '자동 거래확정 켜짐/꺼짐' 버튼은 저장된 정책에서 읽는다. 읽지 못해도 목록은 열리고 그 자리에 '불러오지 못함'을 보인다. */
+  it('자동 거래확정 상태를 정책에서 읽어 넘기고, 읽지 못하면 null로 넘긴다', async () => {
+    mocks.policy.mockResolvedValueOnce({ revision: 1, autoEnabled: false, autoAfterDays: null, buyerExtensionDays: null, evidence: '', updatedAt: '2026-11-01T00:00:00Z' });
+    expect(listOf(await AdminSalesSettledPage({ searchParams: Promise.resolve({}) })).props.autoConfirmation).toEqual({ enabled: false, afterDays: null });
+    mocks.policy.mockResolvedValueOnce(null);
+    const page = await AdminSalesSettledPage({ searchParams: Promise.resolve({}) });
+    expect(listOf(page).props.autoConfirmation).toBeNull();
+    expect(listOf(page).type).toBe(mocks.settledScreen);
   });
 
   it('`?orderId=`가 있으면 거래확정 목록 위에 같은 조건으로 돌아가는 주문 상세 팝업을 둔다 (S36-075)', async () => {

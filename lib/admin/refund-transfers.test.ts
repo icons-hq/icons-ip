@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseRefundTransferPage, refundTransferDetailHref, refundTransferPartialLabel, refundTransferPageNumber, refundTransferRowKey, refundTransfersHref } from './refund-transfers';
+import { parseRefundTransferPage, refundTransferDetailHref, refundTransferPartialLabel, refundTransferPageNumber, refundTransferRecordPlace, refundTransferRowKey, refundTransferTypeLabel, refundTransfersHref } from './refund-transfers';
 
 const row = { claimId: 'a1010000-0000-4000-8000-000000000001', orderId: 'a1010000-0000-4000-8000-000000000002',
   reference: 1, claimType: 'return', amount: 12000, confirmedAt: '2026-10-14T06:00:00+00:00', filedAt: null,
@@ -52,6 +52,13 @@ describe('무통장 재고 부족 부분 취소 송금 대기(ADR-0032)', () => 
     expect(returned.kind === 'partial_cancellation' && refundTransferPartialLabel(returned)).toEqual({ label: '2차 부분 반품', kind: '부분 반품' });
     expect(stockout.kind === 'partial_cancellation' && refundTransferPartialLabel(stockout)).toEqual({ label: '3차 부분 취소', kind: '부분 취소' });
     expect(parseRefundTransferPage({ ...data(), rows: [{ ...partial, reasonCode: 'exchange' }] }, 1)).toBeNull();
+  });
+  it('화면의 유형 칸은 차수까지 말하고, 송금을 기록하는 화면은 요청과 부분 환불이 다르다', () => {
+    const page = parseRefundTransferPage({ ...data(), rows: [{ ...row }, { ...partial, reasonCode: 'return', gift: true },
+      { ...partial, partialCancellationId: 'a1010000-0000-4000-8000-000000000005', sequence: 3 }] }, 1)!;
+    expect(page.rows.map(refundTransferTypeLabel)).toEqual(['선물 · 반품', '선물 · 부분 반품 2차', '부분 취소 3차']);
+    expect(page.rows.map(refundTransferRecordPlace)).toEqual(['요청 상세', '주문 상세', '주문 상세']);
+    expect(refundTransferTypeLabel({ ...page.rows[0], claimType: 'cancel', gift: false } as typeof page.rows[0])).toBe('취소');
   });
   it('같은 부분 취소가 두 번 오면 받지 않는다', () => {
     expect(parseRefundTransferPage({ ...data(), rows: [partial, partial] }, 1)).toBeNull();

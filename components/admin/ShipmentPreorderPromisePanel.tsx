@@ -4,6 +4,8 @@ import { useEffect, useState, useTransition, type FormEvent } from 'react';
 import {
   changeShipmentPreorderDateAction, readShipmentPreorderPromiseAction, type ShipmentPreorderPromise, type ShipmentPromiseChange,
 } from '@/app/admin/preorder-shipment-actions';
+import { kstToday } from '@/components/admin/console/date-presets';
+import { adminConfirm, type AdminConfirmRequest } from '@/lib/admin/confirm';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { formatOrderDateTime } from '@/lib/orders';
 import { Button } from '@/components/admin/kit/ui/button';
@@ -14,15 +16,32 @@ import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 /* 예약 발송 일정 카드(템플릿 룩, ADR-0028). */
 const FIELD_CLASS = 'flex w-full min-w-0 flex-col gap-1.5 [&>span]:text-sm [&>span]:font-medium';
 
-function PromiseEditor({ promise, onSaved }: { promise: ShipmentPreorderPromise; onSaved: (message: string) => void }) {
+/**
+ * [발송 예정일 바꾸기]의 확인창. 바뀐 예정일은 고객 주문 화면에 바로 보이는데 고객에게 알림은 가지 않는다 —
+ * 화면에 보이지 않는 이 결과만 말한다(주문 당시 예정일과 이전 변경 이력은 그대로 남는다).
+ */
+export function preorderDateConfirmRequest({ from, to }: { from: string | null; to: string }): AdminConfirmRequest {
+  return {
+    title: '발송 예정일을 바꿀까요?',
+    message: `${goodsShipDateLabel(from)} → ${goodsShipDateLabel(to)}\n고객 주문 화면에 바뀐 예정일이 바로 보입니다. 고객에게 알림은 가지 않습니다.`,
+    confirmLabel: '예정일 바꾸기', cancelLabel: '돌아가기',
+  };
+}
+
+export function PromiseEditor({ promise, onSaved }: { promise: ShipmentPreorderPromise; onSaved: (message: string) => void }) {
   const [date, setDate] = useState(promise.expectedShipDate ?? '');
   const [reason, setReason] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   useClaimPreviewBusy(pending); /* 목록 위 주문 상세 팝업(S36-075)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
-  function save(event: FormEvent<HTMLFormElement>) {
+  /* 같은 날짜로는 바꿀 수 없다(바뀐 게 없으면 서버도 '이미 같은 날짜'로 끝낸다). 지난 날짜는 달력에서 고를 수 없게 막는다. */
+  const unchanged = date === (promise.expectedShipDate ?? '');
+  const lockNote = !date || unchanged ? '다른 날짜를 고르면 누를 수 있습니다.' : !reason.trim() ? '바꾸는 이유를 적으면 누를 수 있습니다.' : null;
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setError(null);
+    if (pending || lockNote) return;
     const data = new FormData(event.currentTarget);
+    if (!await adminConfirm(preorderDateConfirmRequest({ from: promise.expectedShipDate, to: date }))) return;
     startTransition(async () => {
       const result = await changeShipmentPreorderDateAction(data);
       if (result.ok) onSaved(result.message); else setError(result.error);
@@ -31,14 +50,17 @@ function PromiseEditor({ promise, onSaved }: { promise: ShipmentPreorderPromise;
   return <form className="flex w-full flex-col items-start gap-2.5" onSubmit={save}>
     <input type="hidden" name="orderId" value={promise.orderId} /><input type="hidden" name="shipmentId" value={promise.shipmentId} /><input type="hidden" name="updatedAt" value={promise.updatedAt} />
     <label className={FIELD_CLASS}><span>새 발송 예정일</span>
-      <Input className="w-44" name="expectedShipDate" type="date" value={date} onChange={(event) => setDate(event.target.value)} required disabled={pending} />
+      <Input className="w-44" name="expectedShipDate" type="date" min={kstToday()} value={date} onChange={(event) => setDate(event.target.value)} required disabled={pending} />
     </label>
-    <label className={FIELD_CLASS}><span>변경 사유</span>
-      <Textarea name="reason" rows={2} maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} required disabled={pending} />
+    <label className={FIELD_CLASS}><span>바꾸는 이유 (필수)</span>
+      <Textarea name="reason" rows={2} maxLength={2000} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="예: 공장 입고가 늦어져 일정을 미룸" required disabled={pending} />
+      <small className="text-xs font-normal text-muted-foreground">변경 이력과 발송관리의 지연 메모에 보입니다.</small>
     </label>
-    <small className="text-xs text-muted-foreground">바꾼 일정은 주문 화면에 바로 보이고, 고객에게 따로 알림은 가지 않습니다. 주문 당시 예정일과 이전 변경 이력은 그대로 남습니다.</small>
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
-    <Button type="submit" disabled={pending}>{pending ? '기록 중…' : '발송 예정일 변경 기록'}</Button>
+    <div className="flex flex-wrap items-center gap-2">
+      <Button type="submit" disabled={pending || Boolean(lockNote)}>{pending ? '바꾸는 중…' : '발송 예정일 바꾸기'}</Button>
+      {!pending && lockNote ? <small className="text-xs text-muted-foreground" data-promise-lock-note="">{lockNote}</small> : null}
+    </div>
   </form>;
 }
 

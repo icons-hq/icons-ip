@@ -48,6 +48,8 @@ function form(fields: Record<string, string> = {}) {
   return formData;
 }
 
+const STAFF_DENIED = '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';
+
 describe('startAdminOrderCancellationAction', () => {
   beforeEach(() => {
     mocks.adminState = { isConfigured: true, user: { id: 'staff-1', email: 'staff@icons.gg' }, role: 'staff', isStaff: true, operatorAccess: legacyOperatorAccessFixture() };
@@ -61,14 +63,16 @@ describe('startAdminOrderCancellationAction', () => {
   it('시작 RPC가 만든 요청을 staff actor로 곧바로 결제사 전액 취소까지 실행한다', async () => {
     const state = await startAdminOrderCancellationAction({}, form({ warehouseStopConfirmed: 'confirmed', note: '심사 창 테스트 결제' }));
 
+    /* 화면에 확인란이 없다. DB는 그 값을 근거로 보지 않고(시그니처 호환용) 창고 회신 기록으로 판정하므로, 브라우저가 보낸 값은 받지 않는다. */
     expect(mocks.rpc).toHaveBeenCalledWith('admin_start_order_cancellation', {
       p_note: '심사 창 테스트 결제',
       p_order_id: ORDER_ID,
       p_reason_code: 'test_payment_cleanup',
-      p_warehouse_stop_confirmed: true,
+      p_warehouse_stop_confirmed: false,
     });
     expect(mocks.reconcile).toHaveBeenCalledWith({ requestId: REQUEST_ID, actorId: 'staff-1' });
-    expect(state.message).toContain('토스 전액 취소를 확인하고 주문 취소를 마쳤습니다');
+    /* 결제사가 토스든 나이스페이든 같은 문장이다. */
+    expect(state.message).toContain('결제 전액 취소를 확인하고 주문 취소를 마쳤습니다');
     expect(JSON.stringify(mocks.rpc.mock.calls)).not.toContain('browser-must-not-control-this');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/sales/claims/cancels');
   });
@@ -128,7 +132,11 @@ describe('startAdminOrderCancellationAction', () => {
 
     const state = await startAdminOrderCancellationAction({}, form());
 
-    expect(state.errors?.form).toContain('provider_cancel_failed');
+    /* 환불이 됐는지 모른다는 사실과 다음 할 일을 먼저 말하고, 코드는 끝에 문의용으로 한 번만 붙는다. */
+    expect(state.errors?.form).toContain('고객 환불이 끝났는지 아직 확인되지 않았고');
+    expect(state.errors?.form).toContain('결제사 취소에 실패했습니다');
+    expect(state.errors?.form?.endsWith('문의할 때 알려 줄 코드: provider_cancel_failed')).toBe(true);
+    expect(state.errors?.form).not.toContain('(provider_cancel_failed)');
     // 실패하면 요청은 결제확인필요가 된다. 그때 주문 패널 버튼은 [상태 다시 확인]이고,
     // 취소 관리 요청 상세에는 [환불 완료 확정]이 그려진다 — 화면에 있는 버튼만 가리킨다.
     expect(state.errors?.form).toContain(`[${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}]`);
@@ -163,14 +171,14 @@ describe('startAdminOrderCancellationAction', () => {
 
   it('staff role alone cannot start cancellation without sales.manage', async()=>{
     mocks.adminState.operatorAccess=undefined;
-    expect(await startAdminOrderCancellationAction({},form())).toEqual({errors:{form:'관리자 권한이 필요합니다.'}});
+    expect(await startAdminOrderCancellationAction({},form())).toEqual({errors:{form:STAFF_DENIED}});
     expect(mocks.rpc).not.toHaveBeenCalled();expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 
   it('비staff는 DB 게이트 전에 차단한다', async () => {
     mocks.adminState = { isConfigured: true, user: { id: 'fan-1', email: 'fan@icons.gg' }, role: 'user', isStaff: false };
 
-    await expect(startAdminOrderCancellationAction({}, form())).resolves.toEqual({ errors: { form: '관리자 권한이 필요합니다.' } });
+    await expect(startAdminOrderCancellationAction({}, form())).resolves.toEqual({ errors: { form: STAFF_DENIED } });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });

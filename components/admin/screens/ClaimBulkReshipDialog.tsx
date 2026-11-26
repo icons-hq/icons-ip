@@ -7,14 +7,15 @@ import { claimContactJournalKey } from '@/components/admin/ClaimContactOperation
 import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope } from '@/components/claim-contact/ClaimContactSession';
 import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
-import { Checkbox } from '@/components/admin/kit/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/admin/kit/ui/dialog';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
+import { adminConfirm } from '@/lib/admin/confirm';
 import {
   ADMIN_CLAIM_BULK_RESHIP_LIMIT,
+  ADMIN_CLAIM_BULK_STEP_LABELS,
   adminClaimBulkReshipRowError,
   adminClaimBulkSummary,
   type AdminClaimBulkReshipClaim,
@@ -28,10 +29,13 @@ import {
   CLAIM_BULK_RESHIP_AUTH_CHANGED,
   CLAIM_BULK_RESHIP_EXPIRED,
   CLAIM_BULK_RESHIP_PENDING_EXCLUDED,
+  claimBulkReshipConfirmation,
   registerClaimReshipments,
+  reshipOptionName,
   reshipRowKey,
   type ClaimBulkReshipContext,
   type ClaimBulkReshipDraft,
+  type ClaimBulkReshipSummaryClaim,
 } from '@/lib/admin/claim-bulk-reship';
 import { fetchClaimContactContext, readOrSealClaimContactOperation, recordClaimReshipmentV2 } from '@/lib/claim-contact/client';
 import { ClaimKitBulkResult } from './ClaimKitBulkResult';
@@ -45,9 +49,12 @@ import { ClaimKitBulkResult } from './ClaimKitBulkResult';
  * 다시 받아, 처음 확인한 주소와 같을 때만 이어서 보낸다(첫 재출고 뒤 재배송지 정정은 막혀 있다). 확인한 지 10분이 지나면
  * 보내지 않는다.
  *
+ * '주소가 같습니다'·'발송 정보를 확인했습니다' 체크는 두지 않는다 — [재출고 등록]을 누르면 받는 분·주소와 출고지마다의 택배사·운송장·상품을
+ * 되읽어 주는 확인창이 같은 확인을 하고, 재고가 움직이고 교환이 끝난다는 결과도 거기서 말한다(`claimBulkReshipConfirmation`).
+ *
  * 요청번호(작업 id)는 상세 화면과 같은 탭 저장소 키에 남긴다. 응답을 잃으면 같은 작업 id로 결과를 읽고, 저장되지 않았으면
  * 그 작업을 종료(seal)한다 — 늦게 도착한 요청이 다른 재출고와 겹치지 않는다. 결과를 끝내 읽지 못하면 요청번호를 남겨
- * 두고, 그 요청의 상세가 [저장 결과 확인]을 띄운다. 회수 생략(하자·오배송, 근거 사진)의 결정은 상세에서만 한다 — 결정한
+ * 두고, 그 요청의 상세가 [저장됐는지 확인]을 띄운다. 회수 생략(하자·오배송, 근거 사진)의 결정은 상세에서만 한다 — 결정한
  * 배송 건은 이 표에서 재출고할 수 있고 DB가 그 결정대로 회수품 재고를 복원하지 않는다. 요청별 처리 순서와 실패 처리는
  * lib/admin/claim-bulk-reship.ts(시험으로 고정)에 있고, 이 화면은 주소 확인·입력·결과만 다룬다.
  *
@@ -105,7 +112,7 @@ export function ClaimBulkReshipDialog({ claimIds, onClose, previewHrefBase }: {
   return <Dialog disablePointerDismissal onOpenChange={(open) => { if (!open && !running) onClose(result); }} open>
     <DialogContent className="max-h-[calc(100dvh-4rem)] overflow-y-auto sm:max-w-4xl" data-claim-bulk-step="reship" showCloseButton={!running}>
       <DialogHeader>
-        <DialogTitle>선택 건 재출고 · 선택 {claimIds.length}건</DialogTitle>
+        <DialogTitle>{ADMIN_CLAIM_BULK_STEP_LABELS.reship} · 선택 {claimIds.length}건</DialogTitle>
         <DialogDescription>
           회수를 확인한 출고지마다 택배사·운송장을 넣고 한 번에 등록합니다. 최종 주소는 요청마다 이 창에서 확인하며, 한 번에
           {` ${ADMIN_CLAIM_BULK_RESHIP_LIMIT}`}건까지 엽니다.
@@ -148,12 +155,13 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
   const [contexts, setContexts] = useState<Record<string, ContextState>>(() => Object.fromEntries(load.claims
     .filter((claim) => pendingOperation(claim)).map((claim) => [claim.claimId, { status: 'unavailable', message: CLAIM_BULK_RESHIP_PENDING_EXCLUDED, pendingOperation: true } as const])));
   const [drafts, setDrafts] = useState<Record<string, RowDraft>>(() => initialDrafts(load));
-  const [destinationConfirmed, setDestinationConfirmed] = useState(false);
-  const [dispatchConfirmed, setDispatchConfirmed] = useState(false);
   const [phase, setPhase] = useState<'idle' | 'loading' | 'running'>('idle');
   const [error, setError] = useState('');
   const [progress, setProgress] = useState(0);
   const alive = useRef(true);
+  /* 확인창을 기다리는 사이 주소가 지워졌는지(탭을 가렸거나 10분이 지남) 알아보려고 지금 주소 상태를 따로 들고 있는다. */
+  const latestContexts = useRef(contexts);
+  useEffect(() => { latestContexts.current = contexts; });
   const hasPrivate = Object.values(contexts).some((context) => context.status === 'ready');
   useAdminLeaveGuard({ dirty: phase === 'running' || hasPrivate, message: phase === 'running' ? RUNNING_LEAVE : PRIVATE_LEAVE });
 
@@ -164,7 +172,6 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
       if (document.visibilityState === 'visible') return;
       setContexts((current) => (Object.values(current).some((context) => context.status === 'ready')
         ? Object.fromEntries(Object.entries(current).filter(([, context]) => context.status === 'unavailable' && context.pendingOperation)) : current));
-      setDestinationConfirmed(false);
     };
     document.addEventListener('visibilitychange', hide);
     return () => { alive.current = false; document.removeEventListener('visibilitychange', hide); };
@@ -181,7 +188,6 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
     const timer = window.setTimeout(() => {
       setContexts((current) => Object.fromEntries(Object.entries(current).map(([claimId, context]) => [claimId,
         context.status === 'ready' && Date.parse(context.expiresAt) <= Date.now() ? { status: 'unavailable', message: CLAIM_BULK_RESHIP_EXPIRED } : context])));
-      setDestinationConfirmed(false);
     }, Math.max(0, nextExpiry - Date.now()));
     return () => window.clearTimeout(timer);
   }, [nextExpiry, phase]);
@@ -189,7 +195,7 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
   async function loadAddresses() {
     const ticket = scope.capture();
     if (!ticket || phase !== 'idle') return;
-    setPhase('loading'); setError(''); setDestinationConfirmed(false);
+    setPhase('loading'); setError('');
     const pending = new Set(load.claims.filter((claim) => pendingOperation(claim)).map((claim) => claim.claimId));
     setContexts(Object.fromEntries(load.claims.map((claim) => [claim.claimId, pending.has(claim.claimId)
       ? { status: 'unavailable', message: CLAIM_BULK_RESHIP_PENDING_EXCLUDED, pendingOperation: true } as const : { status: 'loading' } as const])));
@@ -235,7 +241,32 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
       }
     }
     if (readyRows === 0) { setError('최종 주소를 불러온 요청이 없습니다. [최종 주소 불러오기]를 먼저 눌러주세요.'); return; }
-    if (!destinationConfirmed || !dispatchConfirmed) { setError('최종 주소와 실제 발송 정보를 확인했다고 체크해주세요.'); return; }
+    /* 받는 분·주소와 출고지마다의 택배사·운송장·상품을 되읽고, 재고가 움직이고 교환이 끝난다는 결과를 말한다. */
+    const summary: ClaimBulkReshipSummaryClaim[] = [];
+    for (const claim of readyClaims) {
+      const context = contexts[claim.claimId];
+      if (context?.status !== 'ready') continue;
+      summary.push({
+        reference: claim.reference,
+        recipient: context.address.recipientName,
+        address: `(${context.address.postalCode}) ${context.address.address1} ${context.address.address2}`.trim(),
+        rows: claim.rows.map((row) => {
+          const draft = drafts[reshipRowKey(claim.claimId, row.shipmentId)];
+          return {
+            origin: originLabel(row),
+            carrierLabel: load.carriers.find((carrier) => carrier.code === draft.carrier)?.label ?? draft.carrier,
+            trackingNumber: draft.trackingNumber.trim().toUpperCase(),
+            items: row.items.map((item) => ({
+              name: reshipOptionName(item.options.find((option) => option.id === draft.items[item.orderItemId])?.label ?? item.name),
+              qty: item.qty,
+            })),
+          };
+        }),
+      });
+    }
+    if (!await adminConfirm(claimBulkReshipConfirmation(summary))) return;
+    /* 확인창을 기다리는 사이 탭을 가려 주소가 지워졌거나 확인 시간이 지났으면 보내지 않는다. */
+    if (!alive.current || latestContexts.current !== contexts) { setError('확인하는 사이 주소가 지워졌습니다. [최종 주소 불러오기]를 누른 뒤 다시 등록해주세요.'); return; }
     const ticket = scope.capture();
     if (!ticket) return;
     setError(''); setPhase('running'); onRunning(true); setProgress(0);
@@ -272,7 +303,7 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
     }
     /* 표가 도중에 다시 그려져도(로그인 세션 교체) 결과는 창에 넘긴다 — 이미 등록한 줄을 결과에서 잃지 않는다.
        주소는 처리가 끝나면 바로 지운다. 결과표에는 요청번호·출고지·결과만 남는다. */
-    setContexts({}); setDestinationConfirmed(false); setDispatchConfirmed(false);
+    setContexts({});
     const all = [...results, ...excludedResults(load)];
     const ordered = load.claims.flatMap((claim) => all.filter((entry) => entry.claimId === claim.claimId))
       .concat(all.filter((entry) => !load.claims.some((claim) => claim.claimId === entry.claimId)));
@@ -335,17 +366,6 @@ function ReshipTable({ identity, load, onDone, onRunning, scope }: {
         })}
       </section>;
     })}
-    <div className="flex flex-col gap-2">
-      <label className="flex items-start gap-2 leading-relaxed">
-        <Checkbox checked={destinationConfirmed} className="mt-0.5" disabled={busy || !hasPrivate} onCheckedChange={(value) => setDestinationConfirmed(!!value)} />
-        <span>위에 보인 최종 주소가 요청마다 실제로 발송할 주소와 같습니다.</span>
-      </label>
-      <label className="flex items-start gap-2 leading-relaxed">
-        <Checkbox checked={dispatchConfirmed} className="mt-0.5" disabled={busy} onCheckedChange={(value) => setDispatchConfirmed(!!value)} />
-        <span>출고지마다 전체 수량과 실제 발송 정보(택배사·운송장·상품)를 확인했습니다.</span>
-      </label>
-      <p className="text-xs text-muted-foreground">출고지마다 회수한 상품의 재고를 복원하고 고른 상품으로 재출고합니다. 모든 출고지를 보내면 교환이 종결됩니다. 결제금액은 유지됩니다.</p>
-    </div>
     {error ? <p className="text-destructive" role="alert">{adminClaimCopy(error)}</p> : null}
     {phase === 'running' ? <p className="text-muted-foreground" role="status">재출고를 한 줄씩 등록하는 중입니다({progress}줄 끝). 창을 닫지 마세요.</p> : null}
     <DialogFooter>

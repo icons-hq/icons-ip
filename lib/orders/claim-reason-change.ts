@@ -1,4 +1,8 @@
 import { isUuid } from '@/lib/uuid';
+import {
+  CLAIM_CHANGE_CONFLICT_MESSAGE, CLAIM_CHANGE_NOT_FOUND_MESSAGE, CLAIM_CHANGE_PERMISSION_MESSAGE,
+  CLAIM_CHANGE_REQUEST_MISMATCH_MESSAGE, CLAIM_CHANGE_UNKNOWN_MESSAGE,
+} from '@/lib/admin/claim-change-copy';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
 import { isOrderClaimStage, isOrderClaimType, type OrderClaimStage, type OrderClaimType } from './claims';
 import { krwAmountWords } from '@/lib/format';
@@ -45,6 +49,12 @@ const reasonType = (value: unknown): value is OrderWithdrawalReasonType => typeo
 const controls = /[\u0000-\u001f\u007f]/;
 const text = (value: unknown, max: number): value is string => typeof value === 'string' && [...value].length >= 1 && [...value].length <= max;
 const clean = (value: unknown, min: number, max: number): value is string => text(value, max) && [...value].length >= min && value.trim() === value && !controls.test(value);
+
+/** 입력 제한. 요청 검증과 화면 칸의 제한이 같은 값을 쓴다(DB `admin_change_order_claim_reason`의 char_length 범위와 같다). */
+export const CLAIM_REASON_TEXT_MAX = 200;
+export const CLAIM_REASON_AGREEMENT_MIN = 2;
+export const CLAIM_REASON_AGREEMENT_MAX = 500;
+export const CLAIM_REASON_INPUT_ERROR = `고객용 설명은 1~${CLAIM_REASON_TEXT_MAX}자, 정정 사유는 ${CLAIM_REASON_AGREEMENT_MIN}~${CLAIM_REASON_AGREEMENT_MAX}자로 적어 주세요. 줄바꿈은 넣을 수 없습니다.`;
 
 /** Explicit projection prevents private staff evidence from crossing customer props. */
 export function parseClaimReasonHistory(value: unknown): ClaimReasonHistory[] | null {
@@ -97,7 +107,7 @@ export function normalizeClaimReasonRequest(value: unknown): ClaimReasonRequest 
     || value.confirmed !== true || typeof value.feeReviewed !== 'boolean' || typeof value.reason !== 'string' || typeof value.agreement !== 'string'
     || controls.test(value.reason) || controls.test(value.agreement)) return null;
   const reason = value.reason.trim(); const agreement = value.agreement.trim();
-  if (!clean(reason, 1, 200) || !clean(agreement, 2, 500)) return null;
+  if (!clean(reason, 1, CLAIM_REASON_TEXT_MAX) || !clean(agreement, CLAIM_REASON_AGREEMENT_MIN, CLAIM_REASON_AGREEMENT_MAX)) return null;
   return { id: value.id.toLowerCase(), actorId: value.actorId.toLowerCase(), claimId: value.claimId.toLowerCase(), revision: value.revision,
     reasonType: value.reasonType, reason, agreement, confirmed: true, feeReviewed: value.feeReviewed };
 }
@@ -119,24 +129,25 @@ export function claimReasonReceiptMatches(receipt: ClaimReasonReceipt, request: 
     && receipt.toReasonType === request.reasonType && receipt.toReason === request.reason && receipt.agreement === request.agreement && receipt.feeReviewed === request.feeReviewed;
 }
 export function claimReasonError(code?: string, message?: string): string {
-  if (code === '42501') return '현재 계정과 판매관리 권한을 확인해주세요. 다른 계정에서 연 요청은 다시 열어야 합니다.';
-  if (code === 'PT409') return '다른 처리가 먼저 진행됐습니다. 입력을 보존한 채 최신 요청을 확인해주세요.';
+  if (code === '42501') return CLAIM_CHANGE_PERMISSION_MESSAGE;
+  if (code === 'PT409') return CLAIM_CHANGE_CONFLICT_MESSAGE;
   const known: Record<string, string> = {
-    claim_not_found: '해당 요청을 찾을 수 없습니다.', invalid_claim_reason_change: '고객용 설명 1~200자, 협의 근거 2~500자와 확인 항목을 입력해주세요.',
+    claim_not_found: CLAIM_CHANGE_NOT_FOUND_MESSAGE,
+    invalid_claim_reason_change: CLAIM_REASON_INPUT_ERROR,
     claim_reason_type_unavailable: '반품·교환 요청의 사유만 정정할 수 있습니다. 취소 요청은 사유를 바꾸지 않습니다.',
     claim_reason_stage_unavailable: '접수·검토·수거중·입고완료 단계(보류 포함)에서만 사유를 정정할 수 있습니다. 반품은 [환불 접수] 전까지 정정합니다.',
     claim_reason_reshipped: '교환품 재출고가 시작되어 사유를 정정할 수 없습니다.',
-    claim_reason_finance_started: '환불 접수나 주문 취소·환급 처리가 시작되어 사유를 정정할 수 없습니다. 환불 금액은 접수할 때 정해져 바뀌지 않습니다.',
-    claim_reason_fee_review_required: '기존 비용 기록과 정정할 사유의 정합성을 확인해주세요.',
-    claim_reason_original_deadline_expired: '원래 접수일을 기준으로 새 사유의 신청 기한을 벗어납니다. 기존 사유를 유지하고 별도로 상담해주세요.',
-    claim_reason_request_conflict: '처음 보낸 내용과 다른 요청입니다. 같은 요청의 저장 결과를 확인해주세요.',
+    claim_reason_finance_started: '환불 접수나 주문 취소·환불 처리가 시작되어 사유를 정정할 수 없습니다. 환불 금액은 접수할 때 정해져 바뀌지 않습니다.',
+    claim_reason_fee_review_required: '운영 확인액이 새 사유와 맞는지 확인한 뒤 다시 저장해 주세요.',
+    claim_reason_original_deadline_expired: '원래 접수일을 기준으로 새 사유의 신청 기한이 지났습니다. 사유는 그대로 두고 고객과 따로 상담해 주세요.',
+    claim_reason_request_conflict: CLAIM_CHANGE_REQUEST_MISMATCH_MESSAGE,
   };
-  return known[message ?? ''] ?? '저장 결과를 확인하지 못했습니다. 같은 요청의 결과를 확인해주세요.';
+  return known[message ?? ''] ?? CLAIM_CHANGE_UNKNOWN_MESSAGE;
 }
 
 /* 반품이 [환불 접수]를 지나 사유 정정 단계를 벗어난 상태(보류는 처리중·결제확인필요에서 걸린 보류만 여기까지 온다). */
 const RETURN_REFUND_FILED_STAGES = new Set<OrderClaimStage>(['processing', 'needs_review', 'completed', 'on_hold']);
-export const CLAIM_REASON_RETURN_REFUND_FILED_MESSAGE = '환불 접수(또는 주문 취소·환급 처리)가 시작되어 사유를 바꿀 수 없습니다. 반품배송비와 환불 금액은 [환불 접수] 때 정해져 바뀌지 않습니다. '
+export const CLAIM_REASON_RETURN_REFUND_FILED_MESSAGE = '환불 접수(또는 주문 취소·환불 처리)가 시작되어 사유를 바꿀 수 없습니다. 반품배송비와 환불 금액은 [환불 접수] 때 정해져 바뀌지 않습니다. '
   + '실제 하자·오배송인데 이미 뺀 반품배송비를 돌려줘야 하면 결제 담당에게 요청해주세요. 결제 담당이 개발 담당과 함께 결제사에서 남은 금액을 취소하고 환불 기록을 맞춥니다.';
 
 /**

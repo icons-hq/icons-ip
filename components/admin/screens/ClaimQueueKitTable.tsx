@@ -2,7 +2,7 @@
 
 import { Subscribe, type ColumnDef, type RowSelectionState, type SortingState, type Table as CoreTable } from '@tanstack/react-table';
 import { unstable_rethrow, useRouter } from 'next/navigation';
-import { startTransition, useActionState, useId, useMemo, useRef, useState, useTransition, type FormEvent } from 'react';
+import { startTransition, useActionState, useId, useMemo, useState, useTransition, type FormEvent } from 'react';
 import { bulkDecideOrderClaimsAction } from '@/app/admin/claim-actions';
 import { bulkConvertClaimTypesAction } from '@/app/admin/claim-type-conversion-actions';
 import { DataTable } from '@/components/admin/kit/data-table/data-table';
@@ -15,6 +15,7 @@ import { ConsoleTableSettings, type ConsoleTableSettingsColumn } from '@/compone
 import type { DataTableFeatures } from '@/components/admin/kit/lib/data-table-features';
 import { ActionBar, ActionBarClose, ActionBarGroup, ActionBarItem, ActionBarSelection, ActionBarSeparator } from '@/components/admin/kit/ui/action-bar';
 import Link from 'next/link';
+import { AdminLabelWithHelp } from '@/components/admin/console/AdminHelpTip';
 import { ConsoleFilterActions, ConsoleFilterField, CONSOLE_FILTER_CARD_CLASS } from '@/components/admin/console/ConsoleFilterPanel';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Checkbox } from '@/components/admin/kit/ui/checkbox';
@@ -31,15 +32,21 @@ import {
   ADMIN_CLAIM_BULK_STEP_LABELS,
   adminClaimBulkConversionLabel,
   adminClaimBulkConversionTarget,
+  adminClaimBulkDecisionBlocker,
+  adminClaimBulkDecisionUnavailable,
+  adminClaimBulkNeedsPreview,
   adminClaimBulkSteps,
   normalizeAdminClaimBulkConversionForm,
   planAdminClaimBulkSubmit,
   type AdminClaimBulkDecision,
+  type AdminClaimBulkPick,
+  type AdminClaimBulkSkip,
   type AdminClaimBulkState,
   type AdminClaimBulkStep,
 } from '@/lib/admin/claim-bulk';
 import {
   ADMIN_CLAIM_PAGE_SIZE,
+  DEFAULT_ADMIN_CLAIM_STAGE,
   adminClaimHref,
   adminClaimTodayKst,
   adminClaimReasonOptions,
@@ -49,13 +56,14 @@ import {
   type AdminClaimReasonFilter,
   type AdminClaimStageFilter,
 } from '@/lib/admin/claims';
+import { CLAIM_QUEUE_HELP } from '@/lib/admin/help/claim-queue';
 import type { SalesListSort } from '@/lib/admin/sales-list';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
-import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimType } from '@/lib/orders/claims';
+import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimStage, type OrderClaimType } from '@/lib/orders/claims';
 import { X } from 'lucide-react';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { statusTone } from '@/lib/admin/status-tone';
-import { ClaimBulkStepDialog, type ClaimBulkStepSession } from './ClaimBulkStepDialog';
+import { ClaimBulkStepDialog, mergeClaimBulkResults, type ClaimBulkStepSession } from './ClaimBulkStepDialog';
 import { ClaimKitBulkResult } from './ClaimKitBulkResult';
 import { ClaimPreviewLink } from './ClaimPreviewDialog';
 import { adminConfirm } from '@/lib/admin/confirm';
@@ -68,8 +76,11 @@ export { ClaimKitBulkResult } from './ClaimKitBulkResult';
  *
  * 판정은 바뀌지 않는다: 조회는 서버가 `admin_search_order_claims_console`로, 처리는
  * `bulkDecideOrderClaimsAction`과 `bulkConvertClaimTypesAction`이 한 건씩 기존 단건 경로로 한다.
- * 단계 일괄 처리(회수 확인·환불 완료 확정·재출고, 1027T-033·SHEET-049·SHEET-052)는 확인창(ClaimBulkStepDialog)이
- * 서버가 계산한 건수·합계·제외 사유를 보이고 한 건씩 단건 경로를 태운다. 이 파일은 화면만 바꾼다.
+ * 단계 일괄 처리(회수 확인·환불 완료 확정·재출고, 1027T-033·SHEET-049·SHEET-052)와 취소 승인은 확인창(ClaimBulkStepDialog)이
+ * 서버가 계산한 건수·합계·건너뛰는 건과 이유를 보이고 한 건씩 단건 경로를 태운다. 이 파일은 화면만 바꾼다.
+ *
+ * 승인·검토중·거부(반품·교환 승인 포함)는 확인창 한 번을 거친다. 지금 단계에서 그 결정을 쓸 수 없는 건은 누른 뒤 거절하지
+ * 않고 확인창에서 미리 빼 '건너뜀'과 이유로 결과표에 남긴다(`planAdminClaimBulkSubmit`).
  *
  * 목록 조건은 기존 URL 계약(`adminClaimHref`)을 그대로 쓴다. 표가 바꾼 페이지·정렬·필터는
  * `hrefFor`가 그 계약의 href로 옮기고 서버가 다시 그린다(components/admin/kit/use-console-table.ts).
@@ -84,7 +95,10 @@ export interface ClaimKitRow {
   order: string;
   type: string;
   reason: string;
+  /** 단계 이름(어드민 표기). */
   stage: string;
+  /** 단계 값. 일괄 처리가 지금 단계에서 쓸 수 있는지 보내기 전에 가르는 데 쓴다. */
+  stageKey: OrderClaimStage;
   buyer: string;
   amount: number;
   amountLabel: string;
@@ -199,13 +213,18 @@ function OneLine({ value }: { value: string }) {
  * 1440 화면(표 폭 1,100px)에 유형을 뺀 열이 모두 들어오는 폭이다(합계 1,096px). 번호·금액·날짜는 값이 잘리지 않는 최소 폭이고,
  * 이름·사유처럼 긴 값만 잘린다. 유형은 세 목록 모두 값이 한 가지라(유형별 조회) 기본으로 숨긴다.
  */
-/** 환급 기한은 반품의 약관 기한이다. 취소·교환에서는 같은 칸이 처리 진행을 말한다. */
+/** 환불 기한은 반품의 약관 기한이다. 취소·교환에서는 같은 칸이 처리 진행을 말한다. */
 function claimDeadlineLabel(claimType: OrderClaimType): string {
-  return claimType === 'return' ? '환급 기한' : '처리 기한';
+  return claimType === 'return' ? '환불 기한' : '처리 기한';
+}
+
+/** 기한이 있는 반품 목록은 칸 이름 옆 "?"가 언제부터 세는지 말한다(예전에는 표 아래 약관 문단이었다). */
+function deadlineHeader(claimType: OrderClaimType) {
+  const label = claimDeadlineLabel(claimType);
+  return claimType === 'return' ? <AdminLabelWithHelp help={CLAIM_QUEUE_HELP.refundDue} label={label}>{label}</AdminLabelWithHelp> : label;
 }
 
 function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<DataTableFeatures, ClaimKitRow>[] {
-  const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const { reason: reasonOptions, stage: stageOptions } = claimKitFilterOptions(claimType);
   return [
     {
@@ -243,7 +262,7 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       enableColumnFilter: true,
       enableSorting: false,
       header: ({ column }) => <DataTableColumnHeader column={column} label="사유" />,
-      meta: { label: `${typeLabel}사유`, variant: 'select', options: reasonOptions },
+      meta: { label: '사유', variant: 'select', options: reasonOptions },
       cell: ({ row }) => <OneLine value={row.original.reason} />,
       size: 112,
     },
@@ -252,18 +271,17 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       accessorKey: 'stage',
       enableColumnFilter: true,
       enableSorting: false,
-      header: ({ column }) => <DataTableColumnHeader column={column} label="상태" />,
-      meta: { label: `${typeLabel}처리상태`, variant: 'select', options: stageOptions },
-      /* 행은 표시 문구만 들고 오므로 이 열의 보기표로 단계를 되찾아 색을 정한다(같은 표를 쓰는 문구라 어긋나지 않는다). */
-      cell: ({ row }) => <AdminStatusBadge tone={statusTone('claim', stageOptions.find((option) => option.label === row.original.stage)?.value)}>{row.original.stage}</AdminStatusBadge>,
+      header: ({ column }) => <DataTableColumnHeader column={column} label="처리 상태" />,
+      meta: { label: '처리 상태', variant: 'select', options: stageOptions },
+      cell: ({ row }) => <AdminStatusBadge tone={statusTone('claim', row.original.stageKey)}>{row.original.stage}</AdminStatusBadge>,
       size: 120,
     },
     { id: 'buyer', accessorKey: 'buyer', enableSorting: false, header: '구매자', meta: { label: '구매자' }, cell: ({ row }) => <OneLine value={row.original.buyer} />, size: 96 },
     {
       id: 'amount',
       accessorKey: 'amount',
-      header: ({ column }) => <DataTableColumnHeader column={column} label="주문금액" />,
-      meta: { label: '주문금액' },
+      header: ({ column }) => <DataTableColumnHeader column={column} label="결제금액" />,
+      meta: { label: '결제금액' },
       cell: ({ row }) => <span className="tabular-nums">{row.original.amountLabel}</span>,
       size: 100,
     },
@@ -276,9 +294,9 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       meta: { label: dateLabel, variant: 'date', filter: 'range' },
       size: 140,
     },
-    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: claimDeadlineLabel(claimType), meta: { label: claimDeadlineLabel(claimType) }, cell: ({ row }) => <span className={SLA_TONE_CLASS} data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 90 },
-    { id: 'refund', accessorKey: 'refund', enableSorting: false, header: '환불 수단', meta: { label: '환불 수단' }, cell: ({ row }) => row.original.refund ?? <span className="text-muted-foreground">미접수</span>, size: 86 },
-    { id: 'handler', accessorKey: 'handler', enableSorting: false, header: '처리자', meta: { label: '처리자' }, cell: ({ row }) => row.original.handler ? <OneLine value={row.original.handler} /> : <span className="text-muted-foreground">미배정</span>, size: 76 },
+    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: () => deadlineHeader(claimType), meta: { label: claimDeadlineLabel(claimType) }, cell: ({ row }) => <span className={SLA_TONE_CLASS} data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 90 },
+    { id: 'refund', accessorKey: 'refund', enableSorting: false, header: '환불 수단', meta: { label: '환불 수단' }, cell: ({ row }) => row.original.refund ?? <span className="text-muted-foreground">-</span>, size: 86 },
+    { id: 'handler', accessorKey: 'handler', enableSorting: false, header: '처리자', meta: { label: '처리자' }, cell: ({ row }) => row.original.handler ? <OneLine value={row.original.handler} /> : <span className="text-muted-foreground">-</span>, size: 76 },
   ];
 }
 
@@ -286,8 +304,8 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
 function preferenceColumnsFor(claimType: OrderClaimType): readonly ConsoleTableSettingsColumn[] {
   return [
     { key: 'reference', label: '요청번호' }, { key: 'order', label: '주문번호' }, { key: 'type', label: '유형', defaultVisible: false },
-    { key: 'reason', label: '사유' }, { key: 'stage', label: '상태' }, { key: 'buyer', label: '구매자' },
-    { key: 'amount', label: '주문금액' }, { key: 'requested', label: '접수일' },
+    { key: 'reason', label: '사유' }, { key: 'stage', label: '처리 상태' }, { key: 'buyer', label: '구매자' },
+    { key: 'amount', label: '결제금액' }, { key: 'requested', label: '접수일' },
     /* 취소·교환의 기한 칸은 '회수 없음'·'재출고 대기'뿐이고, 교환에는 환불이 없다 — 그 목록에서는 기본으로 숨긴다(조회항목 설정에서 켠다). */
     { key: 'sla', label: claimDeadlineLabel(claimType), ...(claimType !== 'return' ? { defaultVisible: false } : {}) },
     { key: 'refund', label: '환불 수단', ...(claimType === 'exchange' ? { defaultVisible: false } : {}) },
@@ -328,52 +346,43 @@ function ClaimSearchFields({ field, fieldOptions, onField, onQuery, query, typeL
       maxLength={100}
       onChange={(event) => onQuery(event.target.value)}
       onKeyDown={(event) => { if (event.key === 'Enter' && event.nativeEvent.isComposing) event.preventDefault(); }}
-      placeholder="주문번호 · 요청번호 · 구매자 · 수령인 · 상품 URL"
+      placeholder="주문번호 · 요청번호 · 구매자 · 수령인"
       value={query}
     />
   </div>;
 }
 
-const CUSTOM_REASON = '__custom';
 const ALL_OPTION = '__all';
 
 /**
- * 거부 사유(R7) — kit 판. ClaimRejectionReasonField와 같은 규칙: 유형에 맞는 확정 문장만 고를 수 있고,
- * '직접 입력'을 고르면 칸을 비우고 입력 칸으로 옮긴다. 사유 칸의 Enter는 아무 버튼도 누르지 않는다(팝오버
- * 안에 실행 버튼이 따로 있다). 한글 조합을 끝내는 Enter는 막지 않는다 — 조합 확정을 방해하지 않게 한다.
+ * 거부 사유(R7) — kit 판. ClaimRejectionReasonField와 같은 규칙: 유형에 맞는 확정 문장만 보이고, 문장을 누르면 사유 칸에
+ * 채워진다(고쳐 쓸 수 있다). 문장이 한두 개뿐이라 드롭다운 대신 문장 자체를 버튼으로 둔다. 사유 칸의 Enter는 아무 버튼도 누르지
+ * 않는다(팝오버 안에 실행 버튼이 따로 있다). 한글 조합을 끝내는 Enter는 막지 않는다 — 조합 확정을 방해하지 않게 한다.
  */
 function KitRejectionReasonField({ claimType, onChange, value }: { claimType: OrderClaimType; onChange: (value: string) => void; value: string }) {
   const inputId = useId();
-  const inputRef = useRef<HTMLInputElement>(null);
   const presets = adminClaimRejectionPresets(claimType);
-  const items = [{ value: CUSTOM_REASON, label: '직접 입력' }, ...presets.map((preset) => ({ value: preset, label: preset }))];
   return <div className="flex flex-col gap-3">
-    <div className="flex flex-col gap-1.5">
-      <Label>자주 쓰는 거부 사유</Label>
-      <Select
-        items={items}
-        onValueChange={(next) => {
-          const preset = typeof next === 'string' && next !== CUSTOM_REASON ? next : '';
-          onChange(preset);
-          if (!preset) inputRef.current?.focus();
-        }}
-        value={presets.includes(value) ? value : CUSTOM_REASON}
-      >
-        <SelectTrigger aria-label="자주 쓰는 거부 사유" className="w-full"><SelectValue /></SelectTrigger>
-        <SelectContent>
-          {items.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
-        </SelectContent>
-      </Select>
+    <div className="flex flex-col gap-1.5" role="group" aria-label="자주 쓰는 거부 사유">
+      <span className="text-sm font-medium">자주 쓰는 거부 사유</span>
+      {presets.map((preset) => <Button
+        aria-pressed={value === preset}
+        className="h-auto justify-start py-1.5 text-left whitespace-normal"
+        key={preset}
+        onClick={() => onChange(preset)}
+        size="sm"
+        type="button"
+        variant={value === preset ? 'secondary' : 'outline'}
+      >{preset}</Button>)}
     </div>
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={inputId}>거부 사유</Label>
+      <Label htmlFor={inputId}>거부 사유 (필수)</Label>
       <Input
         id={inputId}
         maxLength={200}
         onChange={(event) => onChange(event.target.value)}
         onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.preventDefault(); }}
-        placeholder="10~200자"
-        ref={inputRef}
+        placeholder="10~200자 · 위 문장을 누르면 채워집니다"
         value={value}
       />
       <p className="text-xs text-muted-foreground">선택한 건 모두에 씁니다. 구매자에게 그대로 전달됩니다.</p>
@@ -382,41 +391,37 @@ function KitRejectionReasonField({ claimType, onChange, value }: { claimType: Or
 }
 
 /**
- * 반품↔교환 일괄 전환 입력(10/27 회의 14:52 · MD-0032·0033). 상세의 전환 창과 같은 고객 합의 근거·동의를
- * 받는다. 환불계좌는 건마다 달라 여기서 받지 않는다 — 계좌가 필요한 건은 결과표에 남고 상세에서 입력한다.
+ * 반품↔교환 일괄 전환 입력(10/27 회의 14:52 · MD-0032·0033). 상세의 전환 창과 같은 고객 합의 근거를 받는다. 합의했다는 체크는
+ * 어디에도 저장되지 않아 두지 않는다 — 고객과 합의한 내용을 근거 글에 적는 것이 확인이다. 환불계좌는 건마다 달라 여기서
+ * 받지 않는다 — 계좌가 필요한 건은 결과표에 남고 상세에서 입력한다.
  */
-function KitConversionFields({ agreement, confirmed, count, needsAccountNotice, onAgreement, onConfirmed, targetLabel }: {
+function KitConversionFields({ agreement, needsAccountNotice, onAgreement }: {
   agreement: string;
-  confirmed: boolean;
-  count: number;
   needsAccountNotice: boolean;
   onAgreement: (value: string) => void;
-  onConfirmed: (value: boolean) => void;
-  targetLabel: string;
 }) {
   const inputId = useId();
-  return <div className="flex flex-col gap-3">
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={inputId}>고객 합의 근거</Label>
-      <Input
-        id={inputId}
-        maxLength={500}
-        onChange={(event) => onAgreement(event.target.value)}
-        onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.preventDefault(); }}
-        placeholder="상담 일시, 참조번호와 합의한 내용을 적어주세요."
-        value={agreement}
-      />
-      <p className="text-xs text-muted-foreground">선택한 건 모두에 같은 내용으로 기록합니다. 기존 접수일, 수거 내역, 보류 사유와 배송비 기록은 유지됩니다. 배송비 차액은 고객과 별도로 확인해주세요.</p>
-      {needsAccountNotice ? <p className="text-xs text-muted-foreground">환불계좌가 없는 무통장 주문은 전환되지 않고 결과표에 남습니다. 요청번호를 눌러 상세에서 입력해주세요.</p> : null}
-    </div>
-    <label className="flex items-start gap-2 text-sm leading-relaxed">
-      <Checkbox checked={confirmed} className="mt-0.5" onCheckedChange={(value) => onConfirmed(!!value)} />
-      <span>선택한 {count}건 모두 고객과 {targetLabel} 전환 및 배송비 처리에 합의했습니다.</span>
-    </label>
+  return <div className="flex flex-col gap-1.5">
+    <Label htmlFor={inputId}>고객 합의 근거 (필수)</Label>
+    <Input
+      id={inputId}
+      maxLength={500}
+      onChange={(event) => onAgreement(event.target.value)}
+      onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.preventDefault(); }}
+      placeholder="상담 일시, 참조번호와 합의한 내용을 적어주세요."
+      value={agreement}
+    />
+    <p className="text-xs text-muted-foreground">선택한 건 모두에 같은 내용으로 기록합니다. 접수일과 회수 기록은 그대로입니다. 배송비가 달라지면 고객에게 따로 알려 주세요.</p>
+    {needsAccountNotice ? <p className="text-xs text-muted-foreground">환불계좌가 없는 무통장 주문은 바뀌지 않고 결과표에 남습니다. 요청번호를 눌러 상세에서 입력해주세요.</p> : null}
   </div>;
 }
 
+/** 일괄 결정에서 처음부터 뺀 건. 결과표에 '건너뜀'과 이유로 이어 붙이려고 고른 순서와 함께 들고 있는다. */
+interface PreSkipped { order: string[]; skipped: AdminClaimBulkSkip[] }
+const NO_PRE_SKIPPED: PreSkipped = { order: [], skipped: [] };
+
 export function ClaimQueueKitTable({
+  autoPickupEnabled = false,
   claimType,
   dateFieldOptions,
   filters,
@@ -425,6 +430,8 @@ export function ClaimQueueKitTable({
   searchFieldOptions,
   total,
 }: {
+  /** 반품 자동 회수 접수 스위치(QNA-032). 켜져 있으면 반품·교환 승인 확인창이 택배사에 회수가 접수된다고 말한다. */
+  autoPickupEnabled?: boolean;
   claimType: OrderClaimType;
   dateFieldOptions: readonly Option[];
   filters: AdminClaimFilters;
@@ -445,16 +452,16 @@ export function ClaimQueueKitTable({
   const [rejectOpen, setRejectOpen] = useState(false);
   const [convertOpen, setConvertOpen] = useState(false);
   const [agreement, setAgreement] = useState('');
-  const [convertConfirmed, setConvertConfirmed] = useState(false);
   /* 단계 일괄 처리 확인창과 그 결과. 결과는 창을 닫으면 아래 결과표로 넘어온다. */
   const [stepSession, setStepSession] = useState<ClaimBulkStepSession | null>(null);
   const [stepResult, setStepResult] = useState<AdminClaimBulkState | null>(null);
+  const [preSkipped, setPreSkipped] = useState<PreSkipped>(NO_PRE_SKIPPED);
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const convertFrom = claimType === 'cancel' ? null : claimType;
   const convertTo = convertFrom ? adminClaimBulkConversionTarget(convertFrom) : null;
   /* 열 머리글·필터 이름은 적용된 기간 기준을 따른다(초안이 아니라 지금 보이는 목록의 기준). */
   const appliedDateField = filters.dateField ?? 'requested';
-  const dateLabel = dateFieldOptions.find((option) => option.value === appliedDateField)?.label ?? '요청일';
+  const dateLabel = dateFieldOptions.find((option) => option.value === appliedDateField)?.label ?? '접수일';
   /*
    * 열 정의는 유형·기간 기준이 바뀔 때만 새로 만든다. flexRender는 셀 함수를 컴포넌트로 그리므로 열이 새로
    * 만들어지면 모든 셀이 다시 마운트되고, 상세 팝업을 연 요청번호 링크도 교체돼 닫은 뒤 포커스를 돌려줄 곳이
@@ -504,19 +511,35 @@ export function ClaimQueueKitTable({
   const eligible = new Set(rows.filter((row) => row.selectable).map((row) => row.id));
   const selectedIds = Object.keys(selection).filter((id) => selection[id] && eligible.has(id));
   const overLimit = selectedIds.length > ADMIN_CLAIM_BULK_LIMIT;
+  /* 고른 요청과 그 단계. 지금 단계에서 그 결정을 쓸 수 없는 건은 눌러 보기 전에 가를 수 있다. */
+  const rowsById = new Map(rows.map((row) => [row.id, row]));
+  const picks: AdminClaimBulkPick[] = selectedIds.flatMap((id) => {
+    const row = rowsById.get(id);
+    return row ? [{ id, reference: row.reference, stage: row.stageKey }] : [];
+  });
+  const readyCount = (decision: AdminClaimBulkDecision) => picks.filter((pick) => adminClaimBulkDecisionBlocker(decision, pick.stage) === null).length;
+  /* 고른 건이 모두 그 결정을 쓸 수 없으면 버튼을 잠그고 이유를 title에 둔다. */
+  const unavailable = (decision: AdminClaimBulkDecision) => selectedIds.length > 0 && readyCount(decision) === 0 ? adminClaimBulkDecisionUnavailable(decision) : null;
 
   async function decide(decision: AdminClaimBulkDecision) {
     if (deciding) return;
-    const plan = await planAdminClaimBulkSubmit({ claimType, count: selectedIds.length, decision, note }, adminConfirm);
+    /* 취소 승인은 승인하는 즉시 결제사에 취소를 요청한다 — 서버가 읽은 금액·건너뛰는 건을 먼저 보이는 확인창으로 연다. */
+    if (adminClaimBulkNeedsPreview(claimType, decision)) {
+      if (readyCount(decision) === 0) { setClientError(adminClaimBulkDecisionUnavailable(decision)); return; }
+      openStep('approve');
+      return;
+    }
+    const plan = await planAdminClaimBulkSubmit({ claimType, picks, decision, note, autoPickup: autoPickupEnabled }, adminConfirm);
     if (plan.kind === 'invalid') { setClientError(plan.error); return; }
     setClientError('');
     if (plan.kind === 'dismissed') return;
     const formData = new FormData();
     formData.set('claimType', claimType);
-    for (const id of selectedIds) formData.append('claimIds', id);
+    for (const id of plan.claimIds) formData.append('claimIds', id);
     formData.set('decision', plan.decision);
     formData.set('note', note);
     setRejectOpen(false);
+    setPreSkipped({ order: picks.map((pick) => pick.id), skipped: plan.skipped });
     startTransition(() => run(formData));
   }
 
@@ -527,18 +550,16 @@ export function ClaimQueueKitTable({
     for (const id of selectedIds) formData.append('claimIds', id);
     formData.set('decision', ADMIN_CLAIM_BULK_CONVERT);
     formData.set('agreement', agreement);
-    formData.set('confirmed', convertConfirmed ? 'true' : 'false');
     const checked = normalizeAdminClaimBulkConversionForm(formData);
     if (!checked.ok) { setClientError(checked.error); return; }
     setClientError('');
     setConvertOpen(false);
-    /* 동의는 실행마다 새로 받는다. 시간 예산으로 남은 건을 다시 실행할 때도 다시 체크한다. */
-    setConvertConfirmed(false);
+    setPreSkipped(NO_PRE_SKIPPED);
     startTransition(() => run(formData));
   }
 
-  /* 확인창을 연다. 확인할 내용(건수·출고지·금액·제외 사유)은 창이 서버에서 읽는다. 입고일 기본값은 연 날의 KST 오늘이다. */
-  function openStep(step: AdminClaimBulkStep) {
+  /* 확인창을 연다. 확인할 내용(건수·출고지·금액·건너뛰는 건)은 창이 서버에서 읽는다. 입고일 기본값은 연 날의 KST 오늘이다. */
+  function openStep(step: AdminClaimBulkStep | 'approve') {
     if (deciding || stepSession) return;
     const limit = step === 'reship' ? ADMIN_CLAIM_BULK_RESHIP_LIMIT : ADMIN_CLAIM_BULK_LIMIT;
     if (selectedIds.length > limit) { setClientError(`한 번에 ${limit}건까지 처리할 수 있습니다. 선택을 줄여 다시 실행해주세요.`); return; }
@@ -578,7 +599,7 @@ export function ClaimQueueKitTable({
     });
   }
 
-  /* 기간 빠른 선택은 기간 기준(요청일 등)을 그대로 두고 기간 초안만 채운다. 기존 화면의 프리셋과 같은 KST 기간이다. */
+  /* 기간 빠른 선택은 기간 기준(접수일 등)을 그대로 두고 기간 초안만 채운다. 기존 화면의 프리셋과 같은 KST 기간이다. */
   const draftRange = draftColumnFilters.find((filter) => filter.id === 'requested')?.value;
   const draftFrom = Array.isArray(draftRange) ? msToDay(draftRange[0]) : null;
   const draftTo = Array.isArray(draftRange) ? msToDay(draftRange[1]) : null;
@@ -588,12 +609,14 @@ export function ClaimQueueKitTable({
 
   const error = clientError || state.error;
   const busy = pending || searching;
+  /* 일괄 결정(승인·검토중·거부)에서 처음부터 뺀 건은 서버가 모르는 건이라, 돌아온 결과표에 '건너뜀'과 이유로 고른 순서대로 이어 붙인다. */
+  const decisionResult = state.results && preSkipped.skipped.length > 0 ? mergeClaimBulkResults(preSkipped.order, preSkipped.skipped, state.results) : state;
 
   return <div className="flex min-w-0 flex-col gap-3" data-admin-kit="claims-table" data-pending={busy ? 'true' : undefined}>
     <form aria-label={`${typeLabel} 요청 조회 조건`} className={CONSOLE_FILTER_CARD_CLASS} data-console-filters="" onSubmit={applyConditions}>
       <ClaimSearchFields field={draftField} fieldOptions={searchFieldOptions} onField={setDraftField} onQuery={setDraftQuery} query={draftQuery} typeLabel={typeLabel} />
       <div className="flex flex-wrap items-end gap-3">
-        {([['reason', `${typeLabel}사유`, reasonSelectItems], ['stage', `${typeLabel}처리상태`, stageSelectItems]] as const).map(([columnId, label, items]) => {
+        {([['reason', '사유', reasonSelectItems], ['stage', '처리 상태', stageSelectItems]] as const).map(([columnId, label, items]) => {
           const current = draftColumnFilters.find((filter) => filter.id === columnId)?.value;
           const value = Array.isArray(current) && typeof current[0] === 'string' ? current[0] : ALL_OPTION;
           return <ConsoleFilterField htmlFor={`${filterId}-${columnId}`} key={columnId} label={label}>
@@ -625,7 +648,7 @@ export function ClaimQueueKitTable({
         viewOptions={<ConsoleTableSettings columns={PREFERENCE_COLUMNS_BY_TYPE[claimType]} onSave={savePreferences} preferences={preferences} />}
       />
       <ConsoleFilterActions>
-        <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={adminClaimHref(claimType, { ...filters, dateField: undefined, field: undefined, from: null, page: 1, query: '', reasonType: 'all', stage: 'all', to: null })}>초기화</Link>
+        <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={adminClaimHref(claimType, { ...filters, dateField: undefined, field: undefined, from: null, page: 1, query: '', reasonType: 'all', stage: DEFAULT_ADMIN_CLAIM_STAGE, to: null })}>초기화</Link>
         <Button disabled={busy} type="submit" variant="soft">검색</Button>
       </ConsoleFilterActions>
     </form>
@@ -633,7 +656,7 @@ export function ClaimQueueKitTable({
         결과표가 목록 끝(첫 화면 밖)에 붙지 않게 한다(QA2 S-T11a-02). */}
     {overLimit ? <p className="text-sm text-destructive" role="alert">한 번에 {ADMIN_CLAIM_BULK_LIMIT}건까지 처리할 수 있습니다. 선택을 줄여주세요.</p> : null}
     {error && !rejectOpen && !convertOpen ? <p className="text-sm text-destructive" role="alert">{adminClaimCopy(error)}</p> : null}
-    <ClaimKitBulkResult previewHrefBase={currentHref} state={stepResult ?? state} />
+    <ClaimKitBulkResult previewHrefBase={currentHref} state={stepResult ?? decisionResult} />
     {/* 처리 막대는 체크하면 화면 아래에 뜬다. 체크 전에는 같은 버튼을 흐리게 보여 어디서 처리하는지 알린다(발주 화면의 '선택 주문 0건'과 같은 약속). */}
     {selectedIds.length === 0 ? <div aria-label="일괄 처리(요청을 체크하면 쓸 수 있습니다)" className="flex flex-wrap items-center gap-1.5" data-claims-bulk-idle="" role="group">
       <span className="text-xs text-muted-foreground">0건 선택</span>
@@ -665,13 +688,15 @@ export function ClaimQueueKitTable({
       </ActionBarSelection>
       <ActionBarSeparator />
       <ActionBarGroup className="flex-wrap justify-center">
+        {/* 고른 건이 모두 지금 단계에서 쓸 수 없는 결정이면 버튼을 잠그고 이유를 둔다. 일부만 안 되면 확인창이 그 건을 이유와 함께 뺀다. */}
         {(['approve', 'review'] as const).map((decision) => <ActionBarItem
-          disabled={deciding || overLimit}
+          disabled={deciding || overLimit || unavailable(decision) !== null}
           key={decision}
           onSelect={(event) => { event.preventDefault(); return decide(decision); }}
+          title={unavailable(decision) ?? undefined}
           variant={decision === 'approve' ? 'default' : 'secondary'}
         >{ADMIN_CLAIM_BULK_ACTION_LABELS[decision]}</ActionBarItem>)}
-        {/* 단계 처리(회수 확인·환불 완료 확정·재출고)는 확인창에서 건수·금액·제외 사유를 본 뒤 실행한다. */}
+        {/* 단계 처리(회수 확인·환불 완료 확정·재출고)는 확인창에서 건수·금액·건너뛰는 건을 본 뒤 실행한다. */}
         {adminClaimBulkSteps(claimType).map((step) => <ActionBarItem
           disabled={deciding || stepSession !== null || overLimit}
           key={step}
@@ -685,25 +710,22 @@ export function ClaimQueueKitTable({
           <PopoverContent className="w-96 max-w-[calc(100vw-1rem)]" side="top">
             <KitConversionFields
               agreement={agreement}
-              confirmed={convertConfirmed}
-              count={selectedIds.length}
               needsAccountNotice={convertTo === 'return'}
               onAgreement={setAgreement}
-              onConfirmed={setConvertConfirmed}
-              targetLabel={ORDER_CLAIM_TYPE_LABELS[convertTo]}
             />
             {clientError ? <p className="text-sm text-destructive" role="alert">{clientError}</p> : null}
-            <Button disabled={deciding || !convertConfirmed} onClick={convert}>선택 {selectedIds.length}건 {ORDER_CLAIM_TYPE_LABELS[convertTo]} 전환</Button>
+            <Button disabled={deciding} onClick={convert}>{selectedIds.length}건 {ORDER_CLAIM_TYPE_LABELS[convertTo]}으로 바꾸기</Button>
           </PopoverContent>
         </Popover> : null}
         <Popover onOpenChange={(open) => { setClientError(''); setRejectOpen(open); }} open={rejectOpen}>
-          <PopoverTrigger render={<ActionBarItem disabled={deciding || overLimit} onSelect={(event) => event.preventDefault()} variant="destructive" />}>
+          <PopoverTrigger render={<ActionBarItem disabled={deciding || overLimit || unavailable('reject') !== null} onSelect={(event) => event.preventDefault()} title={unavailable('reject') ?? undefined} variant="destructive" />}>
             {ADMIN_CLAIM_BULK_ACTION_LABELS.reject}
           </PopoverTrigger>
           <PopoverContent className="w-96" side="top">
             <KitRejectionReasonField claimType={claimType} onChange={setNote} value={note} />
+            {readyCount('reject') < selectedIds.length ? <p className="text-xs text-muted-foreground">선택한 {selectedIds.length}건 중 {selectedIds.length - readyCount('reject')}건은 지금 단계에서 거부할 수 없어 건너뜁니다.</p> : null}
             {clientError ? <p className="text-sm text-destructive" role="alert">{clientError}</p> : null}
-            <Button disabled={deciding} onClick={() => decide('reject')} variant="destructive">선택 {selectedIds.length}건 거부</Button>
+            <Button disabled={deciding} onClick={() => decide('reject')} variant="destructive">{readyCount('reject')}건 {ADMIN_CLAIM_BULK_ACTION_LABELS.reject}</Button>
           </PopoverContent>
         </Popover>
       </ActionBarGroup>

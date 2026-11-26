@@ -7,48 +7,56 @@ import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
 import { sameGoodsTerms } from '@/lib/admin/goods-transaction-terms';
+import { CHANGED_BY_OTHER, SAVE_UNKNOWN_MESSAGE, TEMPLATE_LATEST_UNREAD_MESSAGE } from '@/lib/admin/goods-template-save';
 import {
-  SHIPPING_SETTINGS_PATH, parseShippingSettingsApplyInput, parseShippingSettingsIdentity, parseShippingSettingsOperationContext,
+  SHIPPING_SETTINGS_GOOD_LIMIT, SHIPPING_SETTINGS_PATH, SHIPPING_SETTINGS_RUNTIME_REJECTED, parseShippingSettingsApplyInput, parseShippingSettingsIdentity, parseShippingSettingsOperationContext,
   parseShippingSettingsOperationReceipt, parseShippingSettingsSaveRequest, shippingSettingsReceiptMatches, shippingSettingsChargeGroup,
   type ShippingSettingsApplyInput, type ShippingSettingsCandidates, type ShippingSettingsIdentity, type ShippingSettingsOperationContext,
   type ShippingSettingsOperationReceipt, type ShippingSettingsPreview, type ShippingSettingsSaveRequest, type ShippingSettingsTemplate,
 } from '@/lib/admin/shipping-settings-templates';
-import { parseShippingSettingsPreview, parseShippingSettingsTemplate, searchShippingSettingsGoods } from '@/lib/admin/shipping-settings-templates.server';
+import { loadShippingSettingsOutdatedGoods, parseShippingSettingsPreview, parseShippingSettingsTemplate, searchShippingSettingsGoods } from '@/lib/admin/shipping-settings-templates.server';
 
-export type ShippingSettingsActionResult<T> = { data: T } | { error: string; uncertain?: boolean; conflict?: boolean; authChanged?: boolean };
-const invalid = () => ({ error: '입력한 값이나 화면의 기준 버전이 맞지 않아 처리하지 않았습니다. 새로고침해 최신 내용을 확인한 뒤 다시 시도해주세요.' });
-const denied = () => ({ error: '로그인 상태나 상품관리 권한이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.', authChanged: true });
-const unknown = () => ({ error: '처리 결과가 불확실합니다. 같은 요청의 저장 결과를 확인해주세요.', uncertain: true });
+/**
+ * `uncertain`: 저장·적용됐는지 모른다(화면이 [저장됐는지 확인]을 보인다). `changed`: 다른 사람이 템플릿을 먼저 바꿨다(화면이 두 길을 보인다).
+ * 둘 다 아니면 저장·적용되지 않은 것이 확실하다.
+ */
+export type ShippingSettingsActionResult<T> = { data: T } | { error: string; uncertain?: boolean; conflict?: boolean; changed?: boolean; authChanged?: boolean };
+const invalid = () => ({ error: '화면의 내용이 지금 저장된 내용과 맞지 않아 처리하지 않았습니다. 화면을 새로고침한 뒤 다시 해 주세요.' });
+const denied = () => ({ error: '로그인이 끊겼거나 상품 관리 권한이 바뀌었습니다. 지금 로그인한 계정으로 화면을 새로고침해 주세요.', authChanged: true });
+const unknown = () => ({ error: SAVE_UNKNOWN_MESSAGE, uncertain: true });
 async function authorize(identity: ShippingSettingsIdentity) {
   const access = await requireAdminActionAccess(SHIPPING_SETTINGS_PATH, { capability: 'catalog.manage' });
   if (!access || access.user.id !== identity.expectedActorId) return null;
   const client = await createClient(), claims = await client.auth.getClaims();
   return !claims.error && claims.data?.claims.sub === access.user.id && claims.data.claims.session_id === identity.expectedSessionId ? client : null;
 }
-function failure(code: string | undefined, message: string): Exclude<ShippingSettingsActionResult<never>, { data: never }> {
+/** DB가 거절한 이유를 운영자가 고칠 수 있는 말로 바꾼다. `saving`은 템플릿 저장(편집 창)에서 부른 경우다 — 다른 사람이 먼저 바꾼 것을 두 길로 풀게 알린다. */
+function failure(code: string | undefined, message: string, saving = false): Exclude<ShippingSettingsActionResult<never>, { data: never }> {
   if (code === '42501' || code === '28000') return denied();
   if (!['PT409', '22023', '23514', '23503', 'P0002', '23505', '55000'].includes(code ?? '')) return unknown();
+  const preview = '미리보기를 다시 만들어 주세요.';
   const messages: [string, string][] = [
-    ['shipping_charge_group_origin_mismatch', '묶음그룹과 적용할 출고지가 다릅니다. 같은 출고지의 그룹을 지정하거나 배정을 해제해주세요.'],
-    ['shipping_charge_group_unavailable', '묶음그룹을 사용할 수 없습니다. 그룹의 사용 상태와 출고지를 확인해주세요.'],
-    ['shipping_charge_group_changed', '묶음그룹이 변경되었습니다. 기존 요청의 결과를 확인한 뒤 미리보기를 다시 만들어주세요.'],
-    ['shipping_settings_preview_upgrade_required', '수령 방식과 묶음배송 설정을 확인할 수 있도록 화면을 새로 열고 미리보기를 다시 만들어주세요.'],
-    ['origin_unavailable', '선택한 출고지가 없거나 사용 중지 상태입니다. 배송정보 관리에서 사용 중인 출고지인지 확인해주세요.'],
-    ['origin_changed', '출고지 정책이 변경되었습니다. 기존 요청을 확인한 뒤 미리보기를 다시 만들어주세요.'],
-    ['template_changed', '템플릿이 변경되었습니다. 기존 요청을 확인한 뒤 최신 저장본과 비교해주세요.'],
-    ['template_unavailable', '사용 가능한 템플릿이 아닙니다. 사용 상태를 확인해주세요.'],
-    ['goods_changed', '선택 상품이나 배송 조건이 변경되었습니다. 기존 요청을 확인한 뒤 미리보기를 다시 만들어주세요.'],
-    ['goods_unavailable', '삭제되었거나 보관된 상품이 포함되어 있습니다. 선택 상품을 다시 확인해주세요.'],
-    ['owner', '합산군의 다른 상품에 적용할 수 없습니다. 미리보기에 표시된 원상품에서 확인해주세요.'],
-    ['collect', '출고지의 착불 수납 조건이 준비되지 않았거나 변경되었습니다. 출고지 정책을 확인해주세요.'],
-    ['request_conflict', '같은 요청번호에 다른 입력이 연결되어 있습니다. 원래 요청의 저장 결과를 확인해주세요.'],
-    ['operation_conflict', '같은 요청번호에 다른 입력이 연결되어 있습니다. 원래 요청의 저장 결과를 확인해주세요.'],
-    ['shipping_settings_retry', '다른 처리가 진행 중입니다. 같은 요청의 저장 결과를 먼저 확인해주세요.'],
-    ['operation_sealed', '이 요청은 종료되었습니다. 최신 내용을 확인하고 새 요청을 만들어주세요.'],
-    ['feature_disabled', '수량별·착불 설정을 적용할 수 없습니다. 현재 상품 거래 설정을 확인해주세요.'],
-    ['checkout_contract_upgrade_required', '지금은 수량별·착불 설정을 사용할 수 없습니다. 운영 설정을 확인해주세요.'],
+    ['shipping_charge_group_origin_mismatch', '묶음그룹의 출고지가 템플릿의 출고지와 다릅니다. 같은 출고지의 묶음그룹을 고르거나, 묶음그룹에서 빼도록 템플릿을 고쳐 주세요.'],
+    ['shipping_charge_group_unavailable', '고른 묶음그룹을 쓸 수 없습니다. 배송정보 관리에서 묶음그룹이 사용 상태인지, 출고지가 템플릿과 같은지 확인해 주세요.'],
+    ['shipping_charge_group_changed', `묶음그룹이 그사이 바뀌었습니다. ${preview}`],
+    ['shipping_settings_preview_upgrade_required', `화면이 오래됐습니다. 새로고침한 뒤 ${preview}`],
+    ['origin_unavailable', '고른 출고지가 없거나 사용 안 함 상태입니다. 배송정보 관리에서 출고지를 사용으로 바꾸거나 다른 출고지를 골라 주세요.'],
+    ['origin_changed', `출고지 설정이 그사이 바뀌었습니다. ${preview}`],
+    ['template_changed', saving ? `${CHANGED_BY_OTHER} 적은 내용은 그대로 있습니다.` : `템플릿이 그사이 바뀌었습니다. ${preview}`],
+    ['template_unavailable', '사용 안 함 상태인 템플릿은 상품에 적용할 수 없습니다. 템플릿을 사용으로 바꾼 뒤 다시 적용해 주세요.'],
+    ['goods_changed', `고른 상품이나 그 상품의 배송 설정이 그사이 바뀌었습니다. ${preview}`],
+    ['goods_unavailable', '삭제했거나 보관한 상품이 들어 있습니다. 상품을 다시 골라 주세요.'],
+    ['goods_aggregation_policy_owned_by_source', `원상품에서 나눈 상품은 원상품에서 바꿔야 합니다. ${preview}`],
+    ['collect', '출고지가 착불을 받을 준비가 돼 있지 않거나 그사이 바뀌었습니다. 배송정보 관리에서 출고지의 착불 조건을 확인해 주세요.'],
+    ['request_conflict', '앞서 누른 저장과 내용이 달라 이어서 처리하지 못했습니다. 화면을 새로고침한 뒤 다시 해 주세요.'],
+    ['operation_conflict', '앞서 누른 저장과 내용이 달라 이어서 처리하지 못했습니다. 화면을 새로고침한 뒤 다시 해 주세요.'],
+    ['shipping_settings_retry', '다른 사람이 같은 템플릿이나 상품을 저장하는 중입니다. 잠시 뒤 다시 눌러 주세요.'],
+    ['transaction_runtime_disabled', SHIPPING_SETTINGS_RUNTIME_REJECTED],
+    ['feature_disabled', SHIPPING_SETTINGS_RUNTIME_REJECTED],
+    ['checkout_contract_upgrade_required', SHIPPING_SETTINGS_RUNTIME_REJECTED],
   ];
-  return { error: messages.find(([key]) => message.includes(key))?.[1] ?? '처리하지 못했습니다. 새로고침해 최신 상태를 확인한 뒤 다시 시도해주세요.',
+  return { error: messages.find(([key]) => message.includes(key))?.[1] ?? '처리하지 못했습니다. 화면을 새로고침한 뒤 다시 해 주세요.',
+    changed: saving && message.includes('shipping_settings_template_changed'),
     uncertain: false, conflict: code === 'PT409' || code === '23505' };
 }
 function refresh(receipt: ShippingSettingsOperationReceipt) {
@@ -61,7 +69,7 @@ export async function saveShippingSettingsTemplateAction(raw: ShippingSettingsSa
   try {
     const client = await authorize(input); if (!client) return denied();
     const { data, error } = await client.rpc(input.settings.chargeGroup || input.settings.fulfillment ? 'admin_save_shipping_settings_template_v3' : 'admin_save_shipping_settings_template_v2', { p_request: input });
-    if (error) return failure(error.code, error.message);
+    if (error) return failure(error.code, error.message, true);
     const receipt = parseShippingSettingsOperationReceipt(data);
     if (!receipt || !shippingSettingsReceiptMatches(receipt, input)) return unknown();
     if (receipt.state === 'sealed') return { data: receipt };
@@ -75,12 +83,12 @@ export async function readShippingSettingsTemplateAction(templateId: string, ide
   try {
     const client = await authorize(identity); if (!client) return denied();
     const { data, error } = await client.from('shipping_settings_templates').select('id,name,revision,enabled,settings,created_at,updated_at').eq('id', templateId).maybeSingle();
-    if (error) return { error: '최신 템플릿을 읽지 못했습니다. 현재 입력은 유지됩니다.' };
+    if (error) return { error: TEMPLATE_LATEST_UNREAD_MESSAGE };
     if (data === null) return { data: null };
     const template = parseShippingSettingsTemplate({ id: data.id, name: data.name, revision: data.revision, enabled: data.enabled,
       settings: data.settings, createdAt: data.created_at, updatedAt: data.updated_at });
-    return template?.id === templateId ? { data: template } : { error: '최신 템플릿 내용을 확인하지 못했습니다. 현재 입력은 유지됩니다. 잠시 뒤 다시 불러와주세요.' };
-  } catch (error) { unstable_rethrow(error); return { error: '최신 템플릿을 읽지 못했습니다. 현재 입력은 유지됩니다.' }; }
+    return template?.id === templateId ? { data: template } : { error: TEMPLATE_LATEST_UNREAD_MESSAGE };
+  } catch (error) { unstable_rethrow(error); return { error: TEMPLATE_LATEST_UNREAD_MESSAGE }; }
 }
 export async function findShippingSettingsGoodsAction(query: string, page: number, identity: ShippingSettingsIdentity): Promise<ShippingSettingsActionResult<ShippingSettingsCandidates>> {
   if (typeof query !== 'string' || query.length > 100 || !Number.isSafeInteger(page) || page < 1 || page > 100000 || !parseShippingSettingsIdentity(identity)) return invalid();
@@ -88,6 +96,20 @@ export async function findShippingSettingsGoodsAction(query: string, page: numbe
     if (!await authorize(identity)) return denied();
     return { data: await searchShippingSettingsGoods(query.trim(), page, identity) };
   } catch (error) { unstable_rethrow(error); return { error: '상품을 불러오지 못했습니다. 다시 검색해주세요.' }; }
+}
+/**
+ * 템플릿을 고친 뒤 다시 적용하지 않은 상품(읽기 전용). 한 번에 적용할 수 있는 100개까지의 상품과 그런 상품의 전체 수를 돌려준다.
+ * 목록의 [다시 적용]이 이 상품들로 바로 미리보기를 만든다.
+ */
+export async function findShippingSettingsOutdatedGoodsAction(templateId: string, identity: ShippingSettingsIdentity): Promise<ShippingSettingsActionResult<{ ids: string[]; total: number }>> {
+  if (!isUuid(templateId) || !parseShippingSettingsIdentity(identity)) return invalid();
+  const failed = { error: '다시 적용할 상품을 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.' };
+  try {
+    const client = await authorize(identity); if (!client) return denied();
+    const { data, error } = await client.from('shipping_settings_templates').select('revision').eq('id', templateId).maybeSingle();
+    if (error || !data || !Number.isSafeInteger(data.revision)) return failed;
+    return { data: await loadShippingSettingsOutdatedGoods(templateId, data.revision, SHIPPING_SETTINGS_GOOD_LIMIT) };
+  } catch (error) { unstable_rethrow(error); return failed; }
 }
 export async function previewShippingSettingsTemplateAction(templateId: string, goodIds: string[], identity: ShippingSettingsIdentity): Promise<ShippingSettingsActionResult<ShippingSettingsPreview>> {
   if (!isUuid(templateId) || !parseShippingSettingsIdentity(identity) || !Array.isArray(goodIds) || goodIds.length < 1 || goodIds.length > 100
@@ -100,10 +122,10 @@ export async function previewShippingSettingsTemplateAction(templateId: string, 
     const preview = parseShippingSettingsPreview(data);
     if (!preview || preview.actorId !== identity.expectedActorId || preview.sessionId !== identity.expectedSessionId || preview.template.id !== templateId
       || preview.goods.length !== goodIds.length || new Set(preview.goods.map(row => row.id)).size !== goodIds.length || preview.goods.some(row => !goodIds.includes(row.id))) {
-      return { error: '미리보기 결과를 확인하지 못했습니다. 미리보기를 다시 만들어주세요.' };
+      return { error: '미리보기를 읽지 못했습니다. 미리보기를 다시 만들어 주세요.' };
     }
     return { data: preview };
-  } catch (error) { unstable_rethrow(error); return { error: '미리보기를 불러오지 못했습니다. 다시 확인해주세요.' }; }
+  } catch (error) { unstable_rethrow(error); return { error: '미리보기를 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.' }; }
 }
 export async function applyShippingSettingsTemplateAction(raw: ShippingSettingsApplyInput): Promise<ShippingSettingsActionResult<ShippingSettingsOperationReceipt>> {
   const input = parseShippingSettingsApplyInput(raw); if (!input) return invalid();

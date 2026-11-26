@@ -20,7 +20,8 @@ vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPrevie
 vi.mock('@/lib/admin/bank-transfer-refund-account', () => ({ requestBankRefundAccount: mocks.view }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe() {} } } }; } } }) }));
 import { BankTransferRefund } from './BankTransferRefund';
-import { BANK_REFUND_LABELS, bankRefundRecoveryKey, type BankRefundContext, type BankRefundKind, type BankRefundRecovery, type BankRefundRequest } from '@/lib/admin/bank-transfer-refund';
+import { BANK_REFUND_FIELDS, BANK_REFUND_LABELS, bankRefundRecoveryKey, type BankRefundContext, type BankRefundKind, type BankRefundRecovery, type BankRefundRequest } from '@/lib/admin/bank-transfer-refund';
+import { stubAdminConfirm } from '@/lib/admin/confirm.test-support';
 
 const identity = { actorId: 'b1920000-0000-4000-8000-000000000001', sessionId: 'b1920000-0000-4000-8000-000000000002',
   orderId: 'b1920000-0000-4000-8000-000000000003', claimId: 'b1920000-0000-4000-8000-000000000004' };
@@ -34,6 +35,7 @@ const context: BankRefundContext = { actorId: identity.actorId, orderId: identit
 const rawAccount = { bankName: '합성은행', accountNumber: '123-4567-890', accountHolder: '합성예금주' };
 type Element = ReactElement<Record<string, unknown>>;
 let nodes: Element[], storage: Map<string, string>;
+let confirm = stubAdminConfirm(true);
 const text = (node: ReactNode): string => Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join('');
 const memory = () => JSON.stringify([...hooks.frames.values()].map(frame => frame.values));
 function render() {
@@ -48,7 +50,7 @@ function render() {
   for (const [key, frame] of hooks.frames) if (!seen.has(key)) { for (const effect of frame.effects.values()) effect.cleanup?.(); hooks.frames.delete(key); }
 }
 function effects() { for (const frame of hooks.frames.values()) for (const effect of frame.jobs.splice(0)) effect(); }
-async function flush() { for (let i = 0; i < 8; i++) { await Promise.resolve(); render(); effects(); } }
+async function flush() { for (let i = 0; i < 24; i++) { await Promise.resolve(); render(); effects(); } }
 function authenticate(actor = identity.actorId, session = identity.sessionId) { mocks.auth?.('SIGNED_IN', { user: { id: actor }, access_token: `x.${Buffer.from(JSON.stringify({ session_id: session })).toString('base64url')}.x` }); }
 function change(label: string, value: string | boolean) {
   render(); const parent = nodes.find(node => node.type === 'label' && text(node).startsWith(label))!;
@@ -57,11 +59,14 @@ function change(label: string, value: string | boolean) {
   (input.props.onChange as (event: unknown) => void)({ target: { value, checked: value } });
 }
 function click(label: string) { render(); const button = nodes.find(node => node.type === 'button' && text(node) === label); expect(button, label).toBeDefined(); expect(button!.props.disabled, label).not.toBe(true); (button!.props.onClick as () => void)(); }
+/* 근거·메모 두 칸만 채운다(칸 이름은 단계마다 다르다). 시각은 '지금'이 기본이고 확인 체크는 없다. */
 function fill() {
-  click('현재 시각 입력'); change('확인 증빙', evidence); change('처리 메모', note);
-  render(); const checkbox = nodes.find(node => node.type === 'input' && node.props.type === 'checkbox')!;
-  (checkbox.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+  render(); const inputs = nodes.filter(node => node.type === 'input' && node.props.maxLength === 300);
+  expect(inputs).toHaveLength(2);
+  (inputs[0].props.onChange as (event: unknown) => void)({ target: { value: evidence } });
+  (inputs[1].props.onChange as (event: unknown) => void)({ target: { value: note } });
 }
+const localMinute = (iso: string) => { const at = Date.parse(iso); return new Date(at - new Date(at).getTimezoneOffset() * 60_000).toISOString().slice(0, 16); };
 function submit() { render(); const callback = nodes.find(node => node.type === 'form')!.props.onSubmit as (event: unknown) => void; callback({ preventDefault() {} }); return callback; }
 function dispose() { for (const frame of hooks.frames.values()) for (const effect of frame.effects.values()) effect.cleanup?.(); hooks.frames.clear(); nodes = []; }
 function makeReceipt(original: BankRefundRecovery, state = 'recorded') { return { operationId: original.operationId, actorId: original.actorId, orderId: original.orderId, claimId: original.claimId,
@@ -75,18 +80,51 @@ beforeEach(async () => {
   vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'visible' }));
   mocks.save.mockResolvedValue({ error: '응답 유실', uncertain: true }); mocks.read.mockResolvedValue({ receipt: null });
   mocks.view.mockImplementation(async (input: { viewId: string; revision: number }) => ({ account: { ...rawAccount, viewId: input.viewId, actorId: identity.actorId, orderId: identity.orderId, claimId: identity.claimId, revision: input.revision, viewedAt: NOW } }));
+  confirm = stubAdminConfirm(true);
   await mount();
 });
-afterEach(() => { dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); });
+afterEach(() => { confirm.restore(); dispose(); vi.useRealTimers(); vi.unstubAllGlobals(); });
 
-it('현재시각은 같은 분의 접수 시각 이후 밀리초까지 보존한다', async () => {
+it('시각은 지금이 기본이고, 누른 시각을 밀리초까지 보내 같은 분의 접수 시각보다 늦다', async () => {
   fill(); render();
-  const input = nodes.find(node => node.type === 'input' && node.props.type === 'datetime-local')!;
-  expect(input.props.step).toBe('0.001');
-  expect(new Date(input.props.value as string).toISOString()).toBe(NOW);
+  expect(nodes.some(node => node.type === 'input' && node.props.type === 'datetime-local')).toBe(false);
+  expect(nodes.some(node => node.type === 'input' && node.props.type === 'checkbox')).toBe(false);
   submit(); await flush();
   expect(mocks.save.mock.calls[0][0].occurredAt).toBe(NOW);
   expect(Date.parse(mocks.save.mock.calls[0][0].occurredAt)).toBeGreaterThan(Date.parse(FILED));
+  expect(mocks.save.mock.calls[0][0].confirmed).toBe(true);
+});
+it('다른 시각을 분 단위로 적으면 앞 단계와 같은 분은 앞 단계 바로 뒤로 맞추고, [지금으로]로 되돌린다', async () => {
+  click('다른 시각 적기'); render();
+  const input = nodes.find(node => node.type === 'input' && node.props.type === 'datetime-local')!;
+  expect(input.props.min).toBe(localMinute(FILED)); expect(input.props.required).toBe(true);
+  change(BANK_REFUND_FIELDS.complete_transfer.time, localMinute(FILED)); fill(); submit(); await flush();
+  expect(mocks.save.mock.calls[0][0].occurredAt).toBe('2026-10-14T06:03:20.124Z');
+  expect(confirm.mock.calls[0][0]).toContain('송금한 시각: 2026. 10. 14. 15:03');
+  await mount(); click('다른 시각 적기'); click('지금으로'); render();
+  expect(nodes.some(node => node.type === 'input' && node.props.type === 'datetime-local')).toBe(false);
+});
+it('확인창은 금액·가린 계좌·되돌릴 수 없음을 말하고, 돌아가면 기록하지 않고 적은 내용을 그대로 둔다', async () => {
+  confirm.restore(); confirm = stubAdminConfirm(false);
+  fill(); submit(); await flush();
+  expect(confirm).toHaveBeenCalledOnce();
+  const asked = confirm.mock.calls[0][0];
+  for (const part of ['보낸 금액: 12,000원', `받는 계좌: ${context.maskedAccount} (예금주 ${context.maskedHolder})`, '이 버튼은 돈을 보내지 않고 기록만 남깁니다', '되돌릴 수 없습니다', '결제한 분에게 환불합니다']) expect(asked, part).toContain(part);
+  expect(asked).not.toContain(rawAccount.accountNumber);
+  expect(mocks.save).not.toHaveBeenCalled(); expect(storage.size).toBe(0);
+  expect(nodes.filter(node => node.type === 'input' && node.props.maxLength === 300).map(node => node.props.value)).toEqual([evidence, note]);
+  expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(false);
+  /* 돌아간 뒤 다시 누르면 다시 묻는다. */
+  confirm.restore(); confirm = stubAdminConfirm(true); submit(); await flush();
+  expect(confirm).toHaveBeenCalledOnce(); expect(mocks.save).toHaveBeenCalledOnce();
+});
+it('순서 표시는 취소와 반품이 다르고 끝난 단계에는 시각을 보인다', async () => {
+  const steps = () => { render(); return nodes.filter(node => node.type === 'li').map(node => `${text(node)}|${String(node.props['data-bank-refund-step'])}`); };
+  expect(steps()).toEqual(['1. 환불 접수 · 2026. 10. 14. 15:03|done', '2. 취소 확정 · 2026. 10. 14. 15:03|done', '3. 은행에서 송금한 뒤 완료 기록 · 지금 할 일|current']);
+  await mount({ ...context, claimType: 'cancel', phase: 'not_confirmed', confirmedAt: null, filedAt: null, confirmBlocker: null,
+    fileBlocker: 'bank_refund_confirmation_required', completeBlocker: 'bank_refund_confirmation_required' });
+  expect(steps()).toEqual(['1. 취소 확정 · 지금 할 일|current', '2. 환불 접수|waiting', '3. 은행에서 송금한 뒤 완료 기록|waiting']);
+  expect(nodes.some(node => text(node).includes('이 화면에서 돈을 보내지 않습니다'))).toBe(false);
 });
 it.each(['confirm_cancellation', 'file_transfer', 'complete_transfer'] as const)('%s 성공은 해당 단계만 안내하고 원문 증빙을 해제한다', async (kind: BankRefundKind) => {
   await mount({ ...context, confirmBlocker: kind === 'confirm_cancellation' ? null : context.confirmBlocker,
@@ -96,8 +134,10 @@ it.each(['confirm_cancellation', 'file_transfer', 'complete_transfer'] as const)
   expect(nodes.some(node => node.type === 'legend' && text(node) === BANK_REFUND_LABELS[kind])).toBe(true);
   fill(); submit(); await flush();
   expect(mocks.save.mock.calls[0][0].kind).toBe(kind); expect(storage.size).toBe(0); expect(mocks.refresh).toHaveBeenCalledTimes(1);
-  const expected = kind === 'confirm_cancellation' ? '취소를 확정하고 재고를 복원했습니다. 환불은 송금대기로 남아 있습니다.'
-    : kind === 'file_transfer' ? '계좌 송금 접수를 기록했습니다. 실제 송금 후 완료 증빙을 남겨주세요.' : '실제 송금 증빙을 기록하고 환불을 완료했습니다.';
+  /* 반품은 환불 접수 → 취소 확정 → 송금 완료 순서라, 끝난 단계마다 다음에 누를 버튼을 말한다. */
+  const expected = kind === 'confirm_cancellation' ? '취소를 확정하고 재고를 복원했습니다. 은행에서 송금한 뒤 [송금 완료 기록]을 남겨주세요.'
+    : kind === 'file_transfer' ? '환불 접수를 기록했습니다. 다음은 [취소 확정 · 재고 복원]입니다.' : '송금 완료를 기록했습니다. 환불이 끝났습니다.';
+  expect(confirm).toHaveBeenCalledOnce();
   expect(nodes.some(node => node.props.role === 'status' && text(node) === expected)).toBe(true);
   expect(memory()).not.toContain(evidence); expect(memory()).not.toContain(note);
 });
@@ -108,20 +148,21 @@ it('연속 제출과 응답 유실 후 재시도는 같은 작업과 증빙을 �
   const metadata = JSON.parse(storage.get(bankRefundRecoveryKey(identity))!);
   expect(Object.keys(metadata).sort()).toEqual(['version', 'actorId', 'sessionId', 'orderId', 'claimId', 'operationId', 'revision', 'amount', 'kind'].sort());
   expect(JSON.stringify(metadata)).not.toContain(evidence); expect(JSON.stringify(metadata)).not.toContain(note);
-  change('확인 증빙', '변경을 시도한 내용'); mocks.save.mockResolvedValueOnce({ error: '최신 상태 필요', conflict: true });
-  click('같은 내용으로 다시 요청'); await flush();
-  expect(mocks.save.mock.calls[1][0]).toEqual(original); expect(storage.size).toBe(1);
+  change('송금 증빙', '변경을 시도한 내용'); mocks.save.mockResolvedValueOnce({ error: '최신 상태 필요', conflict: true });
+  click('같은 내용으로 다시 저장'); await flush();
+  /* 다시 보내는 것은 이미 확인한 내용이라 다시 묻지 않는다. */
+  expect(mocks.save.mock.calls[1][0]).toEqual(original); expect(storage.size).toBe(1); expect(confirm).toHaveBeenCalledOnce();
   expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(true);
   const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true);
 });
 it('새로고침은 증빙 없이 원작업을 조회·봉인하고 새 입력을 연다', async () => {
   fill(); submit(); await flush(); const original = mocks.save.mock.calls[0][0]; await mount();
   expect(memory()).not.toContain(evidence); expect(memory()).not.toContain(note);
-  expect(nodes.some(node => node.type === 'button' && text(node) === '같은 내용으로 다시 요청')).toBe(false);
-  click('이전 처리 결과 확인'); await flush(); expect(mocks.read.mock.calls[0][0].operationId).toBe(original.operationId);
+  expect(nodes.some(node => node.type === 'button' && text(node) === '같은 내용으로 다시 저장')).toBe(false);
+  click('저장됐는지 확인'); await flush(); expect(mocks.read.mock.calls[0][0].operationId).toBe(original.operationId);
   expect(JSON.stringify(mocks.read.mock.calls)).not.toContain(evidence); expect(mocks.save).toHaveBeenCalledTimes(1);
   mocks.read.mockResolvedValueOnce({ receipt: makeReceipt(original, 'sealed') });
-  click('미처리 요청 종료 후 새로 입력'); await flush(); expect(mocks.read.mock.calls[1][1]).toBe(true); expect(storage.size).toBe(0);
+  click('그만두고 다시 하기'); await flush(); expect(mocks.read.mock.calls[1][1]).toBe(true); expect(storage.size).toBe(0);
   expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(false);
 });
 it('충돌은 원입력을 덮어쓰지 않고 최신 상태를 명시적으로 다시 읽을 수 있다', async () => {
@@ -132,12 +173,12 @@ it('충돌은 원입력을 덮어쓰지 않고 최신 상태를 명시적으로 
   fill(); submit(); await flush(); expect(mocks.save.mock.calls[1][0].revision).toBe(9);
 });
 it.each(['timer', 'visibility', 'close', 'logout', 'unmount'])('계좌 원문은 dialog 메모리에만 있으며 %s 후 제거한다', async mode => {
-  click('환불계좌 원문 확인'); await flush(); expect(mocks.showModal).toHaveBeenCalledTimes(1);
+  click('계좌번호 전체 보기'); await flush(); expect(mocks.showModal).toHaveBeenCalledTimes(1);
   expect(nodes.some(node => node.type === 'dialog' && text(node).includes(rawAccount.accountNumber))).toBe(true);
   expect(JSON.stringify([...storage.values()])).not.toContain(rawAccount.accountNumber);
   if (mode === 'timer') vi.advanceTimersByTime(60001);
   else if (mode === 'visibility') { Object.assign(document, { visibilityState: 'hidden' }); document.dispatchEvent(new Event('visibilitychange')); }
-  else if (mode === 'close') click('계좌정보 닫기');
+  else if (mode === 'close') click('닫기');
   else if (mode === 'logout') window.dispatchEvent(new Event('icons:inquiry-drafts:signed-out'));
   else dispose();
   if (mode !== 'unmount') await flush();
@@ -146,24 +187,24 @@ it.each(['timer', 'visibility', 'close', 'logout', 'unmount'])('계좌 원문은
   expect(vi.getTimerCount()).toBe(0);
 });
 it.each(['actor', 'session', 'logout'])('늦은 계좌 응답은 %s 변경 후 화면과 저장소에 반영하지 않는다', async mode => {
-  const pending = deferred(); mocks.view.mockReturnValueOnce(pending.promise); click('환불계좌 원문 확인'); await flush();
+  const pending = deferred(); mocks.view.mockReturnValueOnce(pending.promise); click('계좌번호 전체 보기'); await flush();
   if (mode === 'actor') authenticate(other); else if (mode === 'session') authenticate(identity.actorId, other); else window.dispatchEvent(new Event('icons:inquiry-drafts:signed-out'));
   pending.resolve({ account: { ...rawAccount, viewId: other, ...identity, viewedAt: NOW, revision: 7 } }); await flush();
   expect(nodes.some(node => node.type === 'dialog')).toBe(false); expect(memory()).not.toContain(rawAccount.accountNumber); expect(storage.size).toBe(0);
 });
 it('계좌 조회 실패와 다른 작업 receipt는 원문이나 성공 상태로 바꾸지 않는다', async () => {
-  mocks.view.mockResolvedValueOnce({ error: '계좌 조회 실패' }); click('환불계좌 원문 확인'); await flush();
+  mocks.view.mockResolvedValueOnce({ error: '계좌 조회 실패' }); click('계좌번호 전체 보기'); await flush();
   expect(nodes.some(node => node.type === 'dialog')).toBe(false); expect(memory()).not.toContain(rawAccount.accountNumber);
   mocks.save.mockImplementationOnce(async (original: BankRefundRequest) => ({ receipt: { ...makeReceipt(original), claimId: other } }));
   fill(); submit(); await flush(); expect(storage.size).toBe(1); expect(mocks.refresh).not.toHaveBeenCalled();
-  expect(nodes.some(node => node.props.role === 'alert' && text(node).includes('이 처리와 맞지 않습니다'))).toBe(true);
+  expect(nodes.some(node => node.props.role === 'alert' && text(node).includes('이 기록과 맞지 않습니다'))).toBe(true);
 });
 
 /* m27 G4-5: 목록 위 클레임 팝업(R8) 안에서 무통장 환불 기록을 기다리는 동안 팝업이 닫히지 않게 알린다. */
 it('환불 기록을 기다리는 동안 팝업에 처리 중을 알린다', async () => {
   const pending = deferred(); mocks.save.mockReturnValueOnce(pending.promise);
   render(); expect(busy).toHaveBeenLastCalledWith(false);
-  fill(); submit(); render();
+  fill(); submit(); await flush();
   expect(busy).toHaveBeenLastCalledWith(true);
   pending.resolve({ error: '응답 유실', uncertain: true }); await flush();
   expect(busy).toHaveBeenLastCalledWith(false);
@@ -172,25 +213,29 @@ it('환불 기록을 기다리는 동안 팝업에 처리 중을 알린다', asy
 /* 원장 재작업 알려진 후속 2: 재고 부족 부분 취소 뒤의 송금액은 남은 잔액이고, 잔액 0원이면 송금 없이 닫힌다고 말한다. */
 it('부분 취소 뒤에는 주문 금액이 아니라 송금할 환불액(남은 잔액)을 보인다', async () => {
   await mount({ ...context, amount: 12000, partialRefund: { refundedAmount: 9500, refundAmount: 2500 } });
-  expect(nodes.some(node => node.type === 'strong' && text(node) === '송금할 환불액: ₩2,500')).toBe(true);
-  expect(nodes.some(node => node.type === 'strong' && text(node).includes('환불 전액'))).toBe(false);
-  expect(nodes.some(node => node.props['data-bank-refund-partial'] === '' && text(node) === '앞선 재고 부족 부분 취소로 9,500원을 이미 환불했습니다. 송금할 환불액은 남은 잔액입니다.')).toBe(true);
-  expect(nodes.some(node => node.type === 'span' && text(node) === '등록된 환불계좌로 표시된 환불액(₩2,500)의 실제 송금이 완료된 것을 확인했습니다.')).toBe(true);
+  expect(nodes.some(node => node.type === 'strong' && text(node) === '송금할 금액: ₩2,500')).toBe(true);
+  expect(nodes.some(node => node.props['data-bank-refund-partial'] === '' && text(node) === '앞선 재고 부족 부분 취소로 9,500원을 이미 환불했습니다. 송금할 금액은 남은 잔액입니다.')).toBe(true);
+  /* 체크 칸이 말하던 금액은 확인창이 말한다 — 요청에 싣는 대조 금액은 주문 금액 그대로다. */
+  fill(); submit(); await flush();
+  expect(confirm.mock.calls[0][0]).toContain('보낸 금액: 2,500원 (앞선 부분 취소로 9,500원은 이미 환불)');
+  expect(mocks.save.mock.calls[0][0].amount).toBe(12000);
 });
 it('잔액 0원 취소 확정은 송금대기가 아니라 송금 없이 마친다고 안내한다', async () => {
   const zero: BankRefundContext = { ...context, phase: 'not_confirmed', stage: 'processing', confirmedAt: null, filedAt: null, confirmBlocker: null,
     fileBlocker: 'bank_refund_confirmation_required', completeBlocker: 'bank_refund_confirmation_required', amount: 12000,
     partialRefund: { refundedAmount: 12000, refundAmount: 0 } };
   await mount(zero);
-  expect(nodes.some(node => node.type === 'strong' && text(node) === '송금할 환불액: ₩0')).toBe(true);
+  expect(nodes.some(node => node.type === 'strong' && text(node) === '송금할 금액: ₩0')).toBe(true);
+  expect(nodes.filter(node => node.type === 'li').map(node => text(node))).toEqual(['1. 취소 확정 · 지금 할 일']);
   expect(nodes.some(node => text(node) === '취소 확정 전')).toBe(true);
   expect(nodes.some(node => node.props['data-bank-refund-partial'] === '' && text(node).includes('결제 12,000원을 모두 환불했습니다'))).toBe(true);
-  expect(nodes.some(node => node.type === 'span' && text(node) === '주문 전체의 취소 확정 근거를 확인했습니다. 재고를 복원하고, 돌려줄 잔액이 없어 송금 없이 환불 0원으로 마칩니다.')).toBe(true);
   mocks.save.mockImplementation(async (original: BankRefundRequest) => ({ receipt: makeReceipt(original) }));
   mocks.load.mockResolvedValue({ context: { ...zero, phase: 'completed', stage: 'completed', confirmedAt: FILED, confirmBlocker: 'bank_refund_payment_unavailable' } });
   fill(); submit(); await flush();
+  expect(confirm.mock.calls[0][0]).toContain('더 보낼 돈이 없어 송금 없이 환불 0원으로 끝납니다. 되돌릴 수 없습니다.');
+  expect(confirm.mock.calls[0][0]).not.toContain('환불 송금 대기에 남습니다');
   expect(mocks.save.mock.calls[0][0].kind).toBe('confirm_cancellation');
   expect(nodes.some(node => node.props.role === 'status' && text(node) === '취소를 확정하고 재고를 복원했습니다. 돌려줄 잔액이 없어 송금 없이 환불을 마쳤습니다.')).toBe(true);
   expect(nodes.some(node => text(node) === '송금 없이 완료')).toBe(true);
-  expect(nodes.some(node => text(node).includes('송금대기로 남'))).toBe(false);
+  expect(nodes.some(node => text(node).includes('송금 대기'))).toBe(false);
 });

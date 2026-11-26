@@ -9,7 +9,8 @@ import {
   type ConsoleGridRow,
 } from '@/components/admin/console';
 import { adminListExportHref } from '@/lib/admin/list-export';
-import { adminUnpaidAttemptStateLabel, adminUnpaidHref, type AdminUnpaidConsoleData } from '@/lib/admin/unpaid';
+import { ADMIN_ORDER_STATUS_LABELS, adminOrderDetailHref, adminOrdersHref, normalizeAdminOrderFilters } from '@/lib/admin/orders';
+import { adminUnpaidAttemptStateLabel, adminUnpaidHref, adminUnpaidStateFilterOptions, type AdminUnpaidConsoleData } from '@/lib/admin/unpaid';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { SALES_SORT_OPTIONS } from '@/lib/admin/sales-list';
 import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect } from '@/components/admin/sales/SalesConsole';
@@ -17,6 +18,7 @@ import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminK
 import { statusTone } from '@/lib/admin/status-tone';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
+import { isUuid } from '@/lib/uuid';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import {
   bankTransferDeadlineImminent,
@@ -59,6 +61,7 @@ export function UnpaidScreen({
   const { deposits, filters, pageSize, rows, total } = data;
   const selected = rows.find((row) => row.id === filters.selectedOrderId) ?? null;
   const currentHref = adminUnpaidHref(filters);
+  const pendingOrdersHref = adminOrdersHref(normalizeAdminOrderFilters({ status: 'pending' }));
 
   const gridRows: ConsoleGridRow[] = rows.map((row) => {
     const deadline = `${bankTransferDeadlineLabel(row.expiresAt, now.getTime())}${row.extendedAt ? ' · 연장됨' : ''}`;
@@ -91,12 +94,16 @@ export function UnpaidScreen({
 
   return (
     <div className="flex min-w-0 flex-col gap-4 text-sm" data-admin-unpaid="">
-      <SalesGuide title="미결제 무통장 주문의 입금 여부를 확인할 수 있습니다.">
-        <p>입금확인코드·안내된 입금자명·금액을 실제 입금 내역과 대조한 뒤 입금 확인을 처리합니다. 기한 연장과 취소는 주문을 선택해 처리합니다.</p>
+      {/* 이 화면의 범위를 보이는 줄에 둔다 — 가상계좌 입금을 기다리는 주문을 찾으러 온 운영자가 빈 목록만 보고 돌아가지 않게 한다. */}
+      <SalesGuide title="회사 계좌로 받는 무통장 입금 주문만 보여 줍니다. 무통장입금(가상계좌) 주문은 입금되면 자동으로 확인됩니다.">
+        <p>
+          입금확인코드·안내된 입금자명·입금액을 통장 내역과 맞춰 본 뒤 처리합니다. 가상계좌 입금을 기다리는 주문은{' '}
+          <Link href={pendingOrdersHref}>{ADMIN_VOCABULARY.orderSearch}의 {ADMIN_ORDER_STATUS_LABELS.pending}</Link>에서 봅니다.
+        </p>
       </SalesGuide>
       <SalesFilterPanel currentHref={currentHref} id="sales-unpaid" search={{ value: filters.query, name: 'q', placeholder: '입금확인코드 · 주문번호 · 구매자' }}>
         <SalesFilterField label="결제상태" htmlFor="sales-unpaid-state"><SalesSelect id="sales-unpaid-state" name="state" value={filters.state ?? ''}
-          options={[{value:'',label:'전체'},{value:'prepared',label:'입금 대기'},{value:'confirming',label:'확정 처리중'},{value:'needs_review',label:'결제 확인 필요'},{value:'unknown',label:'결제 확인 필요(결과 미확인)'},{value:'missing',label:'결제 기록 없음'}]} /></SalesFilterField>
+          options={adminUnpaidStateFilterOptions()} /></SalesFilterField>
       </SalesFilterPanel>
       <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
       <SalesResultsHeader currentHref={currentHref} total={total} pageSize={pageSize} sort={filters.sort ?? 'oldest'}
@@ -104,7 +111,7 @@ export function UnpaidScreen({
         <AdminListExportButton href={adminListExportHref('unpaid', currentHref)} total={total} />
       </SalesResultsHeader>
       <ConsoleGrid
-        caption="미결제 무통장 주문 목록"
+        caption="무통장 입금 대기 주문 목록"
         preferencesKey="sales-unpaid"
         columns={COLUMNS}
         emptyLabel="입금을 기다리는 무통장 주문이 없습니다."
@@ -121,7 +128,8 @@ export function UnpaidScreen({
       </div>
 
       {selected ? (
-        <UnpaidActionsPanel order={selected} />
+        /* key: 다른 주문을 고르면 적던 근거·지난 처리 결과가 그 주문으로 넘어가지 않게 패널을 새로 연다. */
+        <UnpaidActionsPanel detailHref={adminOrderDetailHref(selected.id)} key={selected.id} now={now.getTime()} order={selected} />
       ) : (
         <p className="text-muted-foreground">
           목록에서 주문을 고르면 입금 확인·기한 연장·즉시 취소를 처리할 수 있습니다.
@@ -134,6 +142,7 @@ export function UnpaidScreen({
         <AdminNotice role="status" tone="warning">
           고른 주문이 목록에 없습니다. 이미 처리됐을 수 있어요.{' '}
           <Link className="font-medium underline underline-offset-4" href={adminUnpaidHref({ ...filters, selectedOrderId: null })}>목록으로</Link>
+          {isUuid(filters.selectedOrderId) ? <>{' · '}<Link className="font-medium underline underline-offset-4" href={adminOrderDetailHref(filters.selectedOrderId)}>주문 상세에서 처리 결과 확인</Link></> : null}
         </AdminNotice>
       )}
     </div>

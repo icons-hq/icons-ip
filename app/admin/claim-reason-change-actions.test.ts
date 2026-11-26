@@ -6,6 +6,8 @@ vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: () => {} }));
 import { changeClaimReasonAction, loadClaimReasonContextAction, readClaimReasonChangeAction } from './claim-reason-change-actions';
 import { reasonContext as context, reasonReceipt as receipt, reasonRequest as request } from '@/lib/orders/claim-reason-change.fixture';
+import { CLAIM_CHANGE_CONFLICT_MESSAGE, CLAIM_CHANGE_PERMISSION_MESSAGE, CLAIM_CHANGE_UNKNOWN_MESSAGE } from '@/lib/admin/claim-change-copy';
+import { CLAIM_REASON_INPUT_ERROR } from '@/lib/orders/claim-reason-change';
 beforeEach(() => { vi.clearAllMocks(); mocks.access.mockResolvedValue({ user: { id: context.actorId } }); mocks.rpc.mockResolvedValue({ data: receipt, error: null }); });
 it('현재 계정과 고정 입력을 정정 RPC로만 전달한다', async () => {
   expect(await changeClaimReasonAction(request)).toEqual({ receipt });
@@ -34,4 +36,20 @@ it('무변경 결과는 고객 알림이나 화면 재검증을 추가하지 않
   mocks.rpc.mockResolvedValue({ data: noOp });
   expect(await changeClaimReasonAction({ ...request, reason: context.reason, reasonType: context.reasonType })).toEqual({ receipt: noOp });
   expect(mocks.revalidate).not.toHaveBeenCalled();
+});
+it('화면 버튼 이름과 같은 말로 알린다: 다른 사람이 먼저 바꿨음, 저장됐는지 확인, 칸마다 글자 수', async () => {
+  mocks.rpc.mockResolvedValue({ error: { code: 'PT409' } });
+  expect(await changeClaimReasonAction(request)).toEqual({ error: CLAIM_CHANGE_CONFLICT_MESSAGE, conflict: true, uncertain: false });
+  mocks.rpc.mockResolvedValue({ error: { code: '57014', message: 'statement timeout' } });
+  const unknown = await changeClaimReasonAction(request);
+  expect(unknown).toEqual({ error: CLAIM_CHANGE_UNKNOWN_MESSAGE, conflict: false, uncertain: true });
+  expect('error' in unknown && unknown.error).toContain('[저장됐는지 확인]');
+  mocks.rpc.mockRejectedValue(new Error('private detail'));
+  expect(await changeClaimReasonAction(request)).toEqual({ error: CLAIM_CHANGE_UNKNOWN_MESSAGE, uncertain: true });
+  mocks.rpc.mockClear();
+  expect(await changeClaimReasonAction({ ...request, reason: '가'.repeat(201) })).toEqual({ error: CLAIM_REASON_INPUT_ERROR });
+  expect(await changeClaimReasonAction({ ...request, agreement: '가' })).toEqual({ error: CLAIM_REASON_INPUT_ERROR });
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  mocks.access.mockResolvedValue(null);
+  expect(await changeClaimReasonAction(request)).toEqual({ error: CLAIM_CHANGE_PERMISSION_MESSAGE });
 });

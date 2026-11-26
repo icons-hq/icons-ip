@@ -53,7 +53,7 @@ export interface ShipmentConsoleData {
  autoDelivery?:boolean;
 }
 export interface ShipmentExportData {shipments:{id:string;shipmentNumber?:string|null;orderNumber?:string|null;updatedAt:string;originId:string;originName:string;shippingFee:number;shippingCollectFee?:number;pack?:import('./shipment-packs').ShipmentPackSummary|null;isGift?:boolean;collector?:import('@/lib/goods-transaction').GoodsTransactionCollector|null;template:string;columns:ShipmentExportColumn[];lines:import('./shipment-workbook').ShipmentExportLine[]}[]}
-/** 양식·사용 여부는 출고지별 내려받기 버튼의 표시 기준입니다. 기본 택배사는 행 운송장 칸이 미리 고릅니다. */
+/** 양식·사용 여부는 출고지별 내려받기 버튼의 표시 기준입니다. 기본 택배사는 줄의 운송장 칸이 미리 고릅니다. */
 export interface ShipmentConsoleOrigin {id:string;name:string;template?:string;active?:boolean;defaultCarrier?:string|null}
 const one=(value:string|string[]|undefined)=>typeof value==='string'?value.trim():'';
 function date(value:string){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;const d=new Date(value+'T00:00:00Z');return !Number.isNaN(d.valueOf())&&d.toISOString().slice(0,10)===value?value:null;}
@@ -91,13 +91,13 @@ export function shipmentMutationError(code:string):string{
   invalid_warehouse_order_reference:'주문번호(쇼핑몰)에 엑스스퀘어 출고 파일의 전체 주문번호를 그대로 유지해주세요.',
   invalid_item_order_reference:'상품주문번호에 엑스스퀘어 출고 파일의 전체 상품주문번호를 유지해주세요.',
   shipment_item_not_found:'상품주문번호에 연결된 배송 건을 찾을 수 없습니다. 엑스스퀘어에서 내려받은 출고 파일의 상품주문번호를 고치지 않고 올렸는지 확인해주세요.',
-  item_tracking_identity_unresolved:'상품주문번호를 확인할 수 없는 행이 있습니다. 파일의 모든 상품주문번호를 고친 뒤 다시 등록해주세요.',
+  item_tracking_identity_unresolved:'상품주문번호를 확인할 수 없는 줄이 있습니다. 파일의 상품주문번호를 모두 고친 뒤 다시 등록해주세요.',
   shipment_item_export_mismatch:'상품주문과 배송 품목이 맞지 않습니다. 그 사이 주문이 바뀌었을 수 있으니 목록을 새로고침한 뒤 다시 처리해주세요.',
   shipment_price_allocation_missing:'주문 당시 상품별 금액 배분 기록을 찾지 못했습니다. 주문 상세의 할인·적립금 배분을 확인하고, 비어 있으면 개발 담당자에게 알려주세요.',
-  conflicting_shipment_tracking:'같은 주문에 서로 다른 운송장이 있습니다. 해당 주문의 모든 행을 함께 확인해주세요.',
-  shipment_tracking_conflict:'이미 다른 운송장으로 발송된 배송 건입니다. 회신 파일로 덮어쓰지 않습니다. 정정은 주문 통합검색의 운송장 수정에서 해주세요.',
+  conflicting_shipment_tracking:'같은 주문에 서로 다른 운송장이 있습니다. 그 주문의 줄을 모두 함께 확인해주세요.',
+  shipment_tracking_conflict:'이미 다른 운송장으로 발송된 배송 건입니다. 회신 파일로 덮어쓰지 않습니다. 고치려면 주문통합검색의 [운송장 수정]에서 해주세요.',
   // 운송장 중복·형식(SHP-030~032). DB 등록 판정(private.assert_tracking_registrable)이 모든 진입 경로에서 같은 코드를 낸다.
-  tracking_number_in_use:'다른 주문의 배송 건(대표·추가 운송장 또는 교환 재출고)에 이미 등록된 운송장번호입니다. 회신 파일의 번호가 다른 주문과 뒤바뀌었거나 예전 회신을 다시 올린 것은 아닌지 확인해주세요. 창고에 확인해 같은 상자가 맞으면 발송 대기 행의 [중복 확인 후 등록] 또는 주문 상세의 "중복 확인 후 운송장 등록"에서 사유를 적고 등록합니다.',
+  tracking_number_in_use:'다른 주문의 배송 건(대표·추가 운송장 또는 교환 재출고)에 이미 등록된 운송장번호입니다. 회신 파일의 번호가 다른 주문과 뒤바뀌었거나 예전 회신을 다시 올린 것은 아닌지 확인해주세요. 창고에 확인해 같은 상자가 맞으면, 발송 대기 줄의 운송장 칸이나 주문통합검색의 [운송장 수정]에 이 번호를 넣었을 때 그 자리에 열리는 [중복 확인 후 등록]에서 사유를 적고 등록합니다.',
   tracking_duplicate_reason_required:'같은 상자로 확인한 사유를 입력해주세요(500자 이내). 감사 기록에 남습니다.',
   tracking_duplicate_not_needed:'지금은 다른 주문이 쓰는 번호가 아닙니다. 일반 등록·운송장 수정으로 저장해주세요.',
   invalid_tracking_duplicate:'중복 확인 후 등록할 배송 건을 다시 선택해주세요.',
@@ -121,8 +121,8 @@ export function shipmentMutationError(code:string):string{
  if(warehouseErrors[code])return warehouseErrors[code];
  if(code.startsWith('production_'))return productionError(undefined,code);
  if(code.startsWith('shipment_pack_'))return shipmentPackError(code);
- const known:Record<string,string>={shipment_reference_required:'배송 건이 여러 개이거나 번호가 겹칩니다. 전체 배송건번호로 등록해주세요.',shipment_not_found:'배송 건을 찾을 수 없습니다. 배송건번호를 확인하거나 목록을 새로고침해주세요.',invalid_shipment_reference:'배송건번호 형식이 맞지 않습니다. 화면에 보이는 16자리 배송건번호를 그대로 넣어주세요.',duplicate_shipment_reference:'앞선 행과 같은 배송 건입니다.',invalid_shipment_transition:'지금 상태에서는 처리할 수 없는 배송 건입니다. 신규주문이면 먼저 발주확인하고, 이미 발송·배송완료·취소된 건인지 목록을 새로고침해 확인해주세요.',tracking_required:'택배사와 운송장번호를 모두 입력해주세요.',invalid_tracking_input:'운송장번호 형식이 맞지 않습니다. 하이픈을 뺀 8~30자리 영숫자로 입력해주세요.',inactive_shipping_carrier:'현재 사용 중인 택배사를 선택해주세요.',order_not_shipped:'발송된 배송 건만 운송장을 정정할 수 있습니다.','order cancellation in progress':'취소·반품·교환 처리가 진행 중입니다. 주문 상세를 확인해주세요.','order fulfillment hold':'출고 보류 중인 주문입니다(결제 확인 필요). 주문 상세의 출고 보류 안내를 확인해주세요.',delivery_method_evidence_required:'퀵·방문수령은 주문 상세의 인계·수령 확인에서 처리해주세요.',preorder_allocation_required:'예약 품목의 입고 확인이 아직 끝나지 않았습니다. 상품 편집의 예약판매에서 이 주문을 골라 [선택한 예약 주문 입고 확인]을 먼저 눌러주세요.'};
- return known[code]??'처리하지 못했습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
+ const known:Record<string,string>={shipment_reference_required:'배송 건이 여러 개이거나 번호가 겹칩니다. 전체 배송건번호로 등록해주세요.',shipment_not_found:'배송 건을 찾을 수 없습니다. 배송건번호를 확인하거나 목록을 새로고침해주세요.',invalid_shipment_reference:'배송건번호 형식이 맞지 않습니다. 화면에 보이는 16자리 배송건번호를 그대로 넣어주세요.',duplicate_shipment_reference:'앞선 줄과 같은 배송 건입니다.',invalid_shipment_transition:'지금 상태에서는 처리할 수 없는 배송 건입니다. 신규주문이면 먼저 발주확인하고, 이미 발송·배송완료·취소된 건인지 목록을 새로고침해 확인해주세요.',tracking_required:'택배사와 운송장번호를 모두 입력해주세요.',invalid_tracking_input:'운송장번호 형식이 맞지 않습니다. 하이픈을 뺀 8~30자리 영숫자로 입력해주세요.',inactive_shipping_carrier:'현재 사용 중인 택배사를 선택해주세요.',order_not_shipped:'발송된 배송 건만 운송장을 정정할 수 있습니다.','order cancellation in progress':'취소·반품·교환 처리가 진행 중입니다. 주문 상세를 확인해주세요.','order fulfillment hold':'출고 보류 중인 주문입니다(결제 확인 필요). 주문 상세의 출고 보류 안내를 확인해주세요.',delivery_method_evidence_required:'퀵·방문수령은 주문 상세의 인계·수령 확인에서 처리해주세요.',preorder_allocation_required:'예약 품목의 입고 확인이 아직 끝나지 않았습니다. 상품 편집의 예약판매에서 이 주문을 골라 [선택한 예약 주문 입고 확인]을 먼저 눌러주세요.'};
+ return known[code]??'처리하지 못했습니다. 다른 사람이 먼저 처리했을 수 있습니다. 목록을 새로고침해 배송 상태를 본 뒤 다시 해주세요.';
 }
 /** Older in-process projections may omit delivery; a present invalid value fails closed. */
 export function isParcelShipment(row:Pick<ShipmentConsoleRow,'delivery'>):boolean{return row.delivery===undefined||row.delivery?.method==='parcel';}

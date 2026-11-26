@@ -53,7 +53,7 @@ it('택배 외 발송처리는 켜진 택배 외 방법만 보이고, 합포장 
   const methods = nodes(render()).find(node => node.type === NativeSelect)!;
   expect(methods.props.value).toBe('quick');
   expect(nodes(methods.props.children as ReactNode).map(node => node.props.value)).toEqual(['quick']);
-  expect(text(render())).toContain('합포장에 묶인 배송 건은 방법을 바꿀 수 없습니다');
+  expect(text(render())).toContain('건너뜀 합포장에 묶인 배송 건은 방법을 바꿀 수 없습니다');
   /* 고객이 택배를 골랐으므로 사유가 없으면 누를 수 없다. */
   expect(button('1건 발송처리').props.disabled).toBe(true);
 });
@@ -69,13 +69,30 @@ it('처리 대상 표에 목록에서 넘겨받은 수령인·상품을 함께 �
   expect(html).toContain('목록 밖 배송 건');
 });
 
-it('방문수령 완료 위치 안내는 주문 조회 권한이 없으면 발송관리 행의 인계·수령 확인을 가리킨다(QA 라운드 1b)', async () => {
+it('방문수령을 고를 때만 완료 위치를 말하고, 주문 조회 권한이 없으면 발송관리 줄의 인계·수령 확인을 가리킨다(QA 라운드 1b)', async () => {
   await open();
-  mocks.index = 0; mocks.refIndex = 0;
   const html = (canReadOrders: boolean) => { mocks.index = 0; mocks.refIndex = 0; return text(ShipmentConsoleDeliveryDialog({ shipmentIds: [FIRST, SECOND], mode: 'dispatch', onClose, onDone, canReadOrders }) as Element); };
+  /* 퀵을 고른 동안에는 방문수령 안내가 없다 — 고르면 필요한 말만 보인다. 돈 결과 한 줄은 늘 있다. */
+  expect(html(true)).not.toContain('방문수령은 방식만 바꿉니다');
+  expect(html(true)).toContain('배송비·결제 금액은 바뀌지 않습니다.');
+  mocks.states = []; mocks.refs = []; mocks.effects = [];
+  mocks.read.mockResolvedValue({ ok: true, options: { ...options, policies: [{ ...options.policies[0], method: 'pickup' }] } });
+  await open();
   expect(html(true)).toContain('주문 상세에서 완료합니다');
-  expect(html(false)).toContain("발송관리 행의 '인계·수령 확인'에서 완료합니다");
+  expect(html(false)).toContain("발송관리 줄의 '인계·수령 확인'에서 완료합니다");
   expect(html(false)).not.toContain('주문 상세');
+});
+
+/* 화면 규칙 8·'글보다 화면': 운영 조건의 내부 버전 번호를 보이지 않고, 인계 시각은 창을 연 시각으로 채워 둔다. */
+it('운영 조건의 버전 번호를 보이지 않고 인계 시각을 지금으로 채워 둔다', async () => {
+  await open();
+  const shown = text(render());
+  expect(shown).toContain('김포 · 담당 퀵 담당 · 인계 장소 1층');
+  expect(shown).not.toContain('버전');
+  const occurred = nodes(render()).find(node => node.props.type === 'datetime-local')!;
+  expect(String(occurred.props.value)).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+  /* 누를 수 없는 버튼 옆에 이유를 말한다. */
+  expect(shown).toContain('바꾸는 이유를 적으면 누를 수 있습니다.');
 });
 
 it('사유와 인계 근거를 받아 보낼 건만 같은 요청 번호로 보내고, 일부 실패는 표 위 알림과 팝업에 남긴다', async () => {
@@ -88,7 +105,8 @@ it('사유와 인계 근거를 받아 보낼 건만 같은 요청 번호로 보�
   expect(request).toMatchObject({ targets: [{ shipmentId: FIRST, updatedAt: '2026-11-11T00:00:00.123456+00:00' }], method: 'quick', reason: '고객 전화 요청',
     handoff: { operatorName: '출고 담당', providerName: '퀵 업체', providerPhone: '02-1234-5678', handoffReference: '인계 메모', occurredAt: '2026-11-11T09:30:00.000Z' } });
   expect(request.operationId).toMatch(/^[0-9a-f-]{36}$/);
-  expect(onDone).toHaveBeenCalledWith({ tone: 'warning', message: expect.stringContaining('실패 1건 · 제외 1건') });
+  /* 조건이 안 맞아 보내지 않은 건은 일괄 변경(GoodsBulkToolbar)과 같은 말 '건너뜀'으로 센다. */
+  expect(onDone).toHaveBeenCalledWith({ tone: 'warning', message: expect.stringContaining('실패 1건 · 건너뜀 1건') });
   expect(onClose).not.toHaveBeenCalled(); expect(mocks.refresh).not.toHaveBeenCalled();
   /* 결과 요약은 별도 부품이라 그 부품을 그려 본다. */
   const summary = nodes(render()).find(node => typeof node.type === 'function' && (node.type as { name?: string }).name === 'DispatchReceipt')!;
@@ -113,7 +131,7 @@ it('결과를 모른 채 끊긴 요청은 같은 내용이면 같은 요청 번�
   fillHandoff();
   mocks.apply.mockRejectedValueOnce(new Error('network'));
   (button('1건 발송처리').props.onClick as () => void)(); await Promise.all(mocks.work);
-  expect(text(render())).toContain('같은 요청으로 확인합니다');
+  expect(text(render())).toContain('같은 내용으로 다시 누르면 두 번 처리되지 않습니다');
   mocks.apply.mockResolvedValue({ ok: true, receipt: { operationId: 'op', method: 'quick', results: [], changed: 0, handedOff: 1, failed: 0, replayed: true } });
   (button('1건 발송처리').props.onClick as () => void)(); await Promise.all(mocks.work);
   expect(mocks.apply.mock.calls[1][0].operationId).toBe(mocks.apply.mock.calls[0][0].operationId);

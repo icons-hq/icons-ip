@@ -101,20 +101,35 @@ export function adminUnpaidHref(filters: Partial<AdminUnpaidFilters>) {
 
 /**
  * attempt 상태를 운영자 문구로. `prepared`가 정상적인 입금 대기이고, 그 밖의
- * 값은 확정이 중간에 멈춘 것이라 눈에 띄어야 한다. 화면과 목록 엑셀이 같은 말을 쓴다.
+ * 값은 확정이 중간에 멈춘 것이라 눈에 띄어야 한다. 화면(표·결제상태 조건)과 목록 엑셀이 같은 말을 쓴다.
+ * 표의 상태와 조건의 선택지는 이 표 하나에서 이름을 가져온다 — 같은 상태를 두 이름으로 부르지 않는다.
  */
 const ATTEMPT_STATE_LABELS: Record<string, string> = {
   prepared: '입금 대기',
-  confirming: '확정 처리중',
+  confirming: '입금 확인 처리 중',
   needs_review: '결제 확인 필요',
-  unknown: '결제 확인 필요',
+  unknown: '결과 미확인',
   /* 토스 가상계좌 입금 대기(ADR-0049). 이 목록은 자체 계좌 무통장 주문만 싣지만, 시도 상태를 모르는 값으로 보이지 않게 이름을 둔다. */
   awaiting_deposit: '입금 대기(가상계좌)',
 };
 
 export function adminUnpaidAttemptStateLabel(state: string | null) {
   if (!state) return '결제 기록 없음';
-  return ATTEMPT_STATE_LABELS[state] ?? state;
+  /* 모르는 값은 영문 상태값을 그대로 내보이지 않는다. 이름이 있는 값만 골라 읽는다(Object.prototype 이름이 상태로 읽히지 않게). */
+  return Object.hasOwn(ATTEMPT_STATE_LABELS, state) ? ATTEMPT_STATE_LABELS[state]! : '확인 필요';
+}
+
+/**
+ * 결제상태 조건의 선택지. 값은 목록 조회가 받는 상태와 같고(`normalizeAdminUnpaidFilters`), 이름은 표의 상태 이름과 같은 표에서 가져온다.
+ * 결제 기록이 없는 주문(`missing`)은 시도 상태가 비어 있는 줄이다.
+ */
+const STATE_FILTER_VALUES = ['prepared', 'confirming', 'needs_review', 'unknown', 'missing'] as const;
+
+export function adminUnpaidStateFilterOptions(): readonly { value: string; label: string }[] {
+  return [
+    { value: '', label: '전체' },
+    ...STATE_FILTER_VALUES.map((value) => ({ value, label: adminUnpaidAttemptStateLabel(value === 'missing' ? null : value) })),
+  ];
 }
 
 export type AdminUnpaidFormResult<T> =

@@ -10,7 +10,7 @@ vi.mock('@/app/admin/claim-actions', () => ({
   recordOrderClaimCollectionAction: vi.fn(),
   recordOrderClaimOriginCollectionAction: vi.fn(),
   recordOrderClaimRefundAction: vi.fn(),
-  recordOrderClaimReshipmentAction: vi.fn(),
+  readOrderClaimApprovalAmountAction: vi.fn(),
   planClaimDefectiveStockAction: vi.fn(),
   planExchangeDefectiveStockAction: vi.fn(),
   retryClaimDefectiveStockAction: vi.fn(),
@@ -31,7 +31,7 @@ const ITEM_B = 'bbbb0002-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 function props(overrides: Partial<ClaimActionPanelProps> = {}): ClaimActionPanelProps {
   return {
-    cancellationForm: null, carriers: [], claimId: CLAIM_ID, claimType: 'return', collectionComplete: true, collectionPolicy: 'legacy',
+    cancellationForm: null, claimId: CLAIM_ID, claimType: 'return', collectionComplete: true, collectionPolicy: 'legacy',
     collectedAt: '2026-11-12T00:00:00.000Z', collections: [], heldFrom: null, orderId: ORDER_ID, paymentProvider: 'toss',
     recordedRefundMethod: null, refundCompleted: false, refundFiled: true, refundLedgerOpen: true, stage: 'processing', refundAmount: 30000,
     ...overrides,
@@ -103,7 +103,7 @@ describe('ClaimActionPanel — 품목별 재고 처리', () => {
     /* 기록이 끝났으면 상태 칸은 지금 문구 그대로다. */
     const clean = render({ stage: 'completed', refundCompleted: true, defectiveStock: stock({ pending: 0, frozen: true }) });
     expect(clean).not.toContain('data-claim-workspace-attention');
-    expect(clean).toContain('반품과 환불 완료 기록을 확인했습니다.');
+    expect(clean).toContain('반품과 환불이 모두 끝났습니다.');
   });
 
   it('재고가 정해진 뒤(주문 canceled·무통장 취소 확정)에는 선택 칸·저장 양식을 그리지 않는다', () => {

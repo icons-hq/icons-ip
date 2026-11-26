@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/app/admin/claim-return-actions', () => ({ previewClaimReturnIntakeAction: vi.fn(), confirmClaimReturnIntakeAction: vi.fn(), retryClaimReturnPickupAction: vi.fn() }));
 vi.mock('@/app/admin/claim-actions', () => ({ recordOrderClaimOriginCollectionAction: vi.fn() }));
-import { ClaimReturnOperationsPanel } from './ClaimReturnOperationsPanel';
+import { ClaimReturnOperationsPanel, returnIntakeConfirmation } from './ClaimReturnOperationsPanel';
 import { ClaimOriginCollection } from './ClaimOriginCollection';
 import { CLAIM_RETURN_OPERATIONS_OFF } from '@/lib/admin/claim-return-pickup';
 import type { AdminClaimCollection } from '@/lib/admin/claims.server';
@@ -35,6 +35,25 @@ describe('반품 회수 운영 칸', () => {
     expect(html).toContain('등록 전 확인');
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>입고 확정<\/button>/u);
     expect(html).not.toContain('자동 수거 실패');
+  });
+});
+
+/* L-18: 입고 확정은 kit AlertDialog를 직접 쓰지 않고 다른 확인과 같은 adminConfirm으로 묻는다. 건수·입고일 범위·환불 기한이 입고일부터 세는 것·되돌릴 수 없음을 말한다. */
+describe('반품입고 회신의 입고 확정 확인창', () => {
+  it('건수와 파일의 입고일 범위를 말하고, 되돌릴 수 없다는 것과 환불 기한 기산점을 알린다', () => {
+    const request = returnIntakeConfirmation([{ receivedOn: '2026-11-10' }, { receivedOn: '2026-11-12' }, { receivedOn: '2026-11-11' }]);
+    expect(request).toMatchObject({ title: '3건을 입고완료로 확정할까요?', confirmLabel: '입고 확정', cancelLabel: '돌아가기' });
+    expect(request.message).toContain('입고일은 2026-11-10부터 2026-11-12까지입니다.');
+    expect(request.message).toContain('반품의 환불 기한은 건마다 그 입고일부터 셉니다.');
+    expect(request.message).toContain('확정한 입고는 되돌릴 수 없고, 처리 이력의 근거에 파일과 줄 번호가 남습니다.');
+  });
+  it('입고일이 하나면 그 날짜만 적는다', () => {
+    expect(returnIntakeConfirmation([{ receivedOn: '2026-11-10' }, { receivedOn: '2026-11-10' }]).message).toContain('입고일은 2026-11-10입니다.');
+  });
+  it('이 확인창은 kit AlertDialog를 쓰지 않는다', () => {
+    const html = renderToStaticMarkup(<ClaimReturnOperationsPanel operations={{ pickup: { enabled: false }, intake: { enabled: true, columns } }} />);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>입고 확정<\/button>/u);
+    expect(html).not.toContain('role="alertdialog"');
   });
 });
 

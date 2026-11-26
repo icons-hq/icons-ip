@@ -11,9 +11,12 @@ import { useShipmentConsoleActions } from './ShipmentConsoleContext';
 import { ShipmentTrackingDuplicateForm } from '@/components/admin/ShipmentTrackingDuplicateForm';
 
 /*
- * 발송 대기 행의 택배사·운송장 칸(S36-072, "그 자리 저장"). 창고 회신 파일과 같은 등록 경로라
- * 합포장은 묶음 전체에 적용되고 이미 발송된 운송장은 덮어쓰지 않는다. 등록에 성공한 행은 배송 중으로
+ * 발송 대기 줄의 택배사·운송장 칸(S36-072, "그 자리 저장"). 창고 회신 파일과 같은 등록 경로라
+ * 합포장은 묶음 전체에 적용되고 이미 발송된 운송장은 덮어쓰지 않는다. 등록에 성공한 줄은 배송중으로
  * 넘어가 목록에서 빠지므로 결과 문구는 표 위 알림으로 올린다.
+ *
+ * 버튼 이름은 누르면 일어나는 일인 [발송처리]다 — 운송장만 적어 두는 것이 아니라 바로 배송중으로 바뀌고 고객에게 발송 안내 메일이 간다.
+ * 하루에 수십 번 누르고 배송현황의 [발송 되돌리기]로 되돌릴 수 있어 확인창은 두지 않는다. 보낸 메일은 회수되지 않는다는 사실은 표의 처리 막대가 한 줄로 말한다.
  */
 export function ShipmentConsoleRowTracking({ shipmentId, reference, carriers, defaultCarrier }: {
   shipmentId: string;
@@ -58,14 +61,14 @@ export function ShipmentConsoleRowTracking({ shipmentId, reference, carriers, de
         setTracking('');
         router.refresh();
       } catch {
-        setError('등록 결과를 확인하지 못했습니다. 목록을 새로고침해 배송 상태를 확인해주세요.');
+        setError('발송처리됐는지 확인하지 못했습니다. 목록을 새로고침해 이 배송 건이 아직 발송 대기에 있는지 본 뒤 다시 눌러주세요.');
       }
     });
   }
 
   if (!carriers.length) return <span className="text-xs text-muted-foreground">사용 중인 택배사가 없습니다.</span>;
-  /* 1440 화면에서 표가 넘치지 않게 택배사 위, 운송장·등록 아래로 쌓는다. */
-  return <div className="flex w-40 min-w-0 flex-col gap-1"><form className="flex w-40 min-w-0 flex-col gap-1" data-shipment-row-tracking="" noValidate onSubmit={submit}>
+  /* 1440 화면에서 표가 넘치지 않게 택배사 위, 운송장·[발송처리] 아래로 쌓는다. */
+  return <div className="flex w-44 min-w-0 flex-col gap-1"><form className="flex w-44 min-w-0 flex-col gap-1" data-shipment-row-tracking="" noValidate onSubmit={submit}>
     <NativeSelect aria-label={`배송 건 ${reference} 택배사`} className="w-full" disabled={pending} id={`${fieldId}-carrier`} onChange={(event) => setCarrier(event.target.value)} size="sm" value={carrier}>
       <option value="">택배사 선택</option>
       {carriers.map((option) => <option key={option.code} value={option.code}>{option.label}</option>)}
@@ -74,7 +77,7 @@ export function ShipmentConsoleRowTracking({ shipmentId, reference, carriers, de
       <Input aria-describedby={error ? `${fieldId}-error` : undefined} aria-invalid={error ? true : undefined} aria-label={`배송 건 ${reference} 운송장번호`} autoComplete="off"
         className="h-7 min-w-0 flex-1 px-2 text-xs tabular-nums md:text-xs" disabled={pending} id={`${fieldId}-tracking`} maxLength={40} onChange={(event) => setTracking(event.target.value)}
         placeholder="운송장번호" spellCheck={false} value={tracking} />
-      <Button disabled={pending} size="xs" type="submit">{pending ? '등록 중' : '등록'}</Button>
+      <Button aria-label={`배송 건 ${reference} 발송처리`} disabled={pending} size="xs" type="submit">{pending ? '처리 중' : '발송처리'}</Button>
     </div>
     {error ? <p className="text-xs text-destructive" id={`${fieldId}-error`} role="alert">{error}</p> : null}
     {notice ? <p className="text-xs text-success" role="status">{notice}</p> : null}

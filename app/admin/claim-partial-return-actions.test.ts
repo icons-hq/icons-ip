@@ -161,11 +161,18 @@ describe('결제사 거절 뒤 계좌 송금 부분 환불로 전환(ADR-0047, �
     ['짧은 사유', { reason: '짧음' }, '사유를 5~500자'],
     ['계좌번호 형식', { accountNumber: '12' }, '환불계좌'],
     ['예금주 없음', { accountHolder: '' }, '환불계좌'],
-    ['확인 체크 없음', { confirmed: null }, '확인했다는 항목'],
   ])('%s는 RPC 전에 거절한다', async (_label, patch, message) => {
     const state = await convertPartialReturnToTransferAction({}, convertForm(patch));
     expect(state.error).toContain(message);
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  /* '확인했습니다' 체크는 화면의 확인창(금액·결과)이 대신한다 — 값이 오지 않아도 사유와 계좌가 맞으면 전환한다. */
+  it('확인 체크 값이 없어도 사유·계좌가 맞으면 전환한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: { id: REFUND_ID, state: 'awaiting_transfer', refundAmount: 10_000, replayed: false }, error: null });
+    const state = await convertPartialReturnToTransferAction({}, convertForm({ confirmed: null }));
+    expect(state.message).toContain('계좌 송금 부분 환불(10,000원)로 바꿨습니다');
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
   });
 
   it('결제 담당(레거시 관리자)이 아니면 거절한다', async () => {

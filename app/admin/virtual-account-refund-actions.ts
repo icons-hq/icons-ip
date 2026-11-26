@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { notePiiAccess } from '@/lib/admin/pii-access-log.server';
-import { normalizeAdminRefundAccountEntry, VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS, virtualAccountRefundAccountEntryMessage } from '@/lib/admin/virtual-account-refund-account';
+import { adminRefundAccountEntryProblem, normalizeAdminRefundAccountEntry, VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS, virtualAccountRefundAccountEntryMessage } from '@/lib/admin/virtual-account-refund-account';
 import { retryVirtualAccountRefund } from '@/lib/orders/virtual-account-refund-retry.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
@@ -46,7 +46,9 @@ export async function resolveVirtualAccountRefundAction(input: { orderId: string
   return { ok: true, message: '환불 송금을 처리 완료로 표시했습니다. 시스템 상태의 \'환불 송금 확인 필요\'에서 빠집니다.' };
 }
 
-export type VirtualAccountRefundAccountSaveResult = { ok: true; message: string } | { ok: false; error: string };
+/** uncertain: 저장됐는지 모른다 — 화면은 같은 내용·같은 작업 번호로 [저장됐는지 확인]을 누르게 한다(같은 번호는 DB가 같은 결과를 돌려준다). */
+export type VirtualAccountRefundAccountSaveResult = { ok: true; message: string } | { ok: false; error: string; uncertain?: boolean };
+const UNKNOWN_SAVE: VirtualAccountRefundAccountSaveResult = { ok: false, error: VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS.unknown, uncertain: true };
 
 /**
  * 운영자가 전화 등으로 받은 가상계좌 환급 계좌를 대신 입력한다(sales.manage — 환불 처리·[상태 다시 확인]과 같은 권한, ADR-0049 결정 5 보강
@@ -59,7 +61,8 @@ export async function saveVirtualAccountRefundAccountAction(input: unknown): Pro
   const claimPath = entry ? `/admin/sales/claims/${entry.claimType === 'return' ? 'returns' : 'cancels'}/${entry.claimId}` : '/admin/sales/claims/cancels';
   const auth = await requireAdminActionAccess(claimPath, { capability: 'sales.manage' });
   if (!auth) return { ok: false, error: VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS.operator_capability_required };
-  if (!entry) return { ok: false, error: VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS.invalid_entry };
+  // 어느 칸이 왜 안 되는지 말한다(화면이 저장 전에 같은 검사를 한다 — 여기는 그 검사를 지나친 요청의 안내).
+  if (!entry) return { ok: false, error: adminRefundAccountEntryProblem(input) ?? VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS.invalid_entry };
   let claimType: 'cancel' | 'return';
   try {
     const supabase = await createClient();
@@ -72,17 +75,18 @@ export async function saveVirtualAccountRefundAccountAction(input: unknown): Pro
       p_reason: entry.reason,
     });
     if (error) {
-      return { ok: false, error: VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS[error.message] ?? VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS.unknown };
+      const known = error.message !== 'unknown' && Object.hasOwn(VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS, error.message) ? VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS[error.message] : null;
+      return known ? { ok: false, error: known } : UNKNOWN_SAVE;
     }
     const receipt = data as { state?: unknown; claimId?: unknown; orderId?: unknown; claimType?: unknown } | null;
     if (!receipt || receipt.state !== 'saved' || receipt.claimId !== entry.claimId || receipt.orderId !== entry.orderId
       || (receipt.claimType !== 'cancel' && receipt.claimType !== 'return')) {
-      return { ok: false, error: VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS.unknown };
+      return UNKNOWN_SAVE;
     }
     claimType = receipt.claimType;
   } catch (error) {
     unstable_rethrow(error);
-    return { ok: false, error: VIRTUAL_ACCOUNT_REFUND_ACCOUNT_ENTRY_ERRORS.unknown };
+    return UNKNOWN_SAVE;
   }
   // 계좌는 저장됐다 — 접속기록(정정)은 실패해도 결과를 바꾸지 않는다(DB 감사 기록이 따로 있다).
   await notePiiAccess({ actorId: auth.user.id, action: 'correct', surface: 'refund_account', path: claimPath, subjectKind: 'claim',

@@ -58,6 +58,23 @@ export const ADMIN_ORDER_STATUS_LABELS: Record<AdminOrderStatus, string> = {
   canceled: '취소',
 };
 
+/**
+ * 주문의 결제수단 값(`card`·`bank_transfer`)의 화면 이름. 값은 둘뿐이라 `card`에는 결제사 결제 전부가 묶인다 —
+ * 토스의 카드·가상계좌·계좌이체가 모두 `card`로 남는다. 그래서 '카드'라고 부르지 않고 사실대로 부른다.
+ * 가상계좌만 따로 거르려면 결제수단을 나눠 저장해야 한다(이름만 고친 이번 정리의 범위 밖).
+ */
+export const ADMIN_PAYMENT_METHOD_LABELS = {
+  card: '토스 결제(카드·가상계좌·계좌이체)',
+  bank_transfer: '무통장 입금(직접 이체)',
+} as const;
+
+/** 결제수단 조회 조건의 선택지(주문통합검색·상품주문별 조회). */
+export const ADMIN_PAYMENT_METHOD_OPTIONS = [
+  { value: '', label: '전체' },
+  { value: 'card', label: ADMIN_PAYMENT_METHOD_LABELS.card },
+  { value: 'bank_transfer', label: ADMIN_PAYMENT_METHOD_LABELS.bank_transfer },
+] as const;
+
 export const GOODS_PAYMENT_ATTEMPT_STATES = [
   'prepared',
   'confirming',
@@ -723,12 +740,12 @@ export function normalizeAdminCancellationDecisionForm(
 ): AdminOrderFormResult<{ requestId: string; reason?: string }> {
   const requestId = readFormString(formData, 'requestId').toLowerCase();
   const errors: AdminOrderFieldErrors = {};
-  if (!isUuid(requestId)) errors.requestId = '청약철회 요청을 찾을 수 없습니다.';
+  if (!isUuid(requestId)) errors.requestId = '취소 요청을 찾을 수 없습니다. 화면을 새로고침한 뒤 다시 눌러주세요.';
 
   if (decision === 'reject') {
     const reason = readFormString(formData, 'reason');
     if (reason.length < 10 || reason.length > 200) {
-      errors.reason = '거절 사유를 10자 이상 200자 이하로 입력해주세요.';
+      errors.reason = '거부 사유를 10자 이상 200자 이하로 적어주세요.';
     }
     if (Object.keys(errors).length) return { ok: false, errors };
     return { ok: true, value: { requestId, reason } };
@@ -804,7 +821,6 @@ export function normalizeAdminStaffCancellationForm(
   orderId: string;
   reasonCode: AdminStaffCancellationReason;
   note: string | null;
-  warehouseStopConfirmed: boolean;
 }> {
   const orderId = readFormString(formData, 'orderId').toLowerCase();
   const reasonCode = readFormString(formData, 'reasonCode');
@@ -824,7 +840,6 @@ export function normalizeAdminStaffCancellationForm(
       orderId,
       reasonCode: reasonCode as AdminStaffCancellationReason,
       note: note.length ? note : null,
-      warehouseStopConfirmed: formData.get('warehouseStopConfirmed') === 'confirmed',
     },
   };
 }
@@ -846,7 +861,7 @@ export function normalizeAdminGoodsManualRecoveryForm(
     errors.attemptId = '결제 시도를 찾을 수 없습니다.';
   }
   if (!isUuid(requestId)) {
-    errors.requestId = '청약철회 요청을 찾을 수 없습니다.';
+    errors.requestId = '취소 요청을 찾을 수 없습니다. 화면을 새로고침한 뒤 다시 눌러주세요.';
   }
   if (attestation !== 'provider_cancel_confirmed') {
     errors.operatorAttestation = '결제사 원장에서 전액 취소를 확인해야 합니다.';
@@ -902,11 +917,21 @@ export function adminOrderDetailHref(orderId: string, filters?: AdminOrderFilter
 }
 
 /**
- * 주문 통합검색에서 한 주문의 주문 패널을 여는 링크. 취소 재확인([처리 상태 확인]·
- * [상태 다시 확인])과 운영자 전액 취소는 이 패널에만 있다("상세 열기" 새 탭 화면에는 없다).
+ * 주문 통합검색에서 한 주문만 찾는 링크. 주문 처리 패널은 목록에서 주문을 고를 때(`order`) 열리므로,
+ * 이 링크로 들어오면 그 한 줄의 [처리]를 눌러 연다. 패널까지 한 번에 열려면 `adminOrderPanelHref`를 쓴다.
  */
 export function adminOrderSearchHref(orderId: string) {
   return `/admin/sales/orders?query=${encodeURIComponent(orderId)}`;
+}
+
+/**
+ * 주문 통합검색에서 한 주문의 처리 패널까지 여는 링크. 취소 재확인([처리 상태 확인]·[상태 다시 확인])과 운영자 전액 취소는
+ * 이 패널에만 있다("상세 열기" 새 탭 화면에는 없다). 검색어는 화면에 보이므로 주문번호를 쓰고(번호가 없는 옛 주문만 내부 번호),
+ * 열 주문은 `order`로 가리킨다.
+ */
+export function adminOrderPanelHref(orderId: string, orderNumber?: string | null) {
+  const query = typeof orderNumber === 'string' && orderNumber ? orderNumber : orderId;
+  return `/admin/sales/orders?query=${encodeURIComponent(query)}&order=${encodeURIComponent(orderId)}`;
 }
 
 /** 거래확정 목록처럼 주문 콘솔이 아닌 화면에서도 같은 상세 링크를 쓴다. */

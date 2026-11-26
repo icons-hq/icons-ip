@@ -45,6 +45,13 @@ describe('출고 보류 안내', () => {
     expect(partial).toContain('사유를 적고 보류를 해제');
   });
 
+  it('테스트 결제 안내는 \'테스트 키\' 같은 개발 말 대신 테스트 결제라고 말한다', () => {
+    expect(fulfillmentHoldGuidance(testHold as never)).toContain('토스 테스트 결제로 승인된 주문입니다');
+    expect(fulfillmentHoldGuidance({ ...testHold, outboundBlocked: false } as never)).toContain('토스 테스트 결제로 승인된');
+    expect(fulfillmentHoldGuidance(testHold as never)).not.toContain('테스트 키');
+    expect(fulfillmentHoldGuidance({ ...testHold, outboundBlocked: false } as never)).not.toContain('테스트 키');
+  });
+
   it('이미 발송된 주문의 보류는 경고다 — 운영자 전액 취소 대신 반품 접수 또는 사유 적고 해제를 말하고 배지도 나눈다', () => {
     const shipped = { ...canceledHold, outboundBlocked: false } as never;
     expect(fulfillmentHoldGuidance(shipped)).toContain('배송완료 처리는 막지 않습니다');
@@ -59,7 +66,8 @@ describe('출고 보류 안내', () => {
   });
 
   it('해제 오류·출고 거절 문구', () => {
-    expect(fulfillmentHoldReleaseError('42501')).toContain('권한');
+    expect(fulfillmentHoldReleaseError('42501')).toContain('이 작업을 할 권한이 없습니다');
+    expect(fulfillmentHoldReleaseError('PT409', 'fulfillment_hold_operation_conflict')).not.toContain('요청');
     expect(fulfillmentHoldReleaseError('23514', 'fulfillment_hold_not_active')).toContain('이미 해제된');
     expect(fulfillmentHoldReleaseError('PT409', 'fulfillment_hold_operation_conflict')).toContain('다른 내용');
     expect(fulfillmentHoldReleaseError('22023', 'invalid_fulfillment_hold_release')).toContain('5자 이상');
@@ -136,7 +144,7 @@ describe('입금 오류 되돌림 처리 상태', () => {
     expect(review('lookup_failed')).toContain('환불 계좌 필요 없음');
     expect(review('payment_mismatch')).toContain('결제 담당자');
     expect(review('provider_refunded')).toContain('환불 내역');
-    expect(review('cancellation_pending')).toContain('클레임 화면');
+    expect(review('cancellation_pending')).toContain('취소·반품·교환 관리에서 그 요청을 처리하면');
     expect(review('close_failed')).toContain('운영자 전액 취소');
   });
 });

@@ -12,18 +12,18 @@ export async function loadGoodShippingRegionSummaries(origins: GoodsFulfillmentO
     return origins.map((origin) => {
       const adoption = adoptions.find((row) => row.originId === origin.id);
       if (!adoption || Date.parse(adoption.managedFrom) > now) return {
-        originId: origin.id, checkedAt, label: '지역 추가료 정책 없음 · 기본 배송비만 적용',
-        detail: '아직 지역 추가료 정책을 쓰지 않는 출고지입니다. 지역 추가료가 0원으로 확인됐다는 뜻은 아닙니다.',
+        originId: origin.id, checkedAt, label: '지역별 추가배송비 안 씀 · 기본 배송비만 받음',
+        detail: '제주·도서산간도 다른 지역과 같은 배송비로 주문받는 출고지입니다.',
       };
       const policy = policies.filter((row) => row.originId === origin.id && row.carrierCode === origin.defaultCarrier
         && row.status === 'active' && row.startsAt && Date.parse(row.startsAt) <= now && (!row.endsAt || Date.parse(row.endsAt) > now))
         .sort((a, b) => Date.parse(b.startsAt!) - Date.parse(a.startsAt!))[0];
-      if (!policy) return { originId: origin.id, checkedAt, label: '지역 배송 정책 확인 필요', detail: '현재 출고지·택배사·기간에 적용할 활성 정책이 없습니다. 정책 설정을 확인해주세요.' };
-      const flag = (value: boolean | null) => value === true ? '추가료 적용' : value === false ? '추가료 면제' : '확인 필요';
-      return { originId: origin.id, checkedAt, label: policy.name || '지역 배송 정책',
-        detail: `출고지 정책 상품 ${flag(policy.chargePolicyGoods)} · 무료배송 상품 ${flag(policy.chargeFreeGoods)} · 개별 배송비 상품 ${flag(policy.chargeIndividualGoods)}. ${policy.waivePolicyThreshold ? '출고지 무료 기준 충족 시 추가료 면제.' : '출고지 무료 기준과 추가료는 별도.'} 최종 금액은 주문 주소와 택배사 사용 상태를 확인해 확정합니다.` };
+      if (!policy) return { originId: origin.id, checkedAt, label: '적용 중인 지역별 추가배송비 없음', detail: '이 출고지는 지금 새 주문이 막혀 있습니다. 지역별 추가배송비 관리에서 새로 만들어 적용해 주세요.' };
+      const flag = (value: boolean | null) => value === true ? '추가배송비 받음' : value === false ? '추가배송비 안 받음' : '확인 필요';
+      return { originId: origin.id, checkedAt, label: policy.name || '지역별 추가배송비',
+        detail: `‘출고지 정책 따름’ 상품 ${flag(policy.chargePolicyGoods)} · ‘무료배송’ 상품 ${flag(policy.chargeFreeGoods)} · ‘개별 배송비’ 상품 ${flag(policy.chargeIndividualGoods)}. ${policy.waivePolicyThreshold ? '무료 배송 기준 금액을 채우면 추가배송비도 받지 않습니다.' : '무료 배송 기준 금액을 채워도 추가배송비는 받습니다.'} 금액은 주문할 때 배송지에 따라 정해집니다.` };
     });
   } catch {
-    return origins.map((origin) => ({ originId: origin.id, checkedAt, label: '지역 추가료 확인 필요', detail: '지역 배송 정책을 불러오지 못했습니다. 미확인 상태이며 0원으로 간주하지 않습니다.' }));
+    return origins.map((origin) => ({ originId: origin.id, checkedAt, label: '지역별 추가배송비 확인 필요', detail: '지역별 추가배송비를 불러오지 못했습니다. 추가배송비가 없다는 뜻이 아니니 새로고침해 다시 확인해 주세요.' }));
   }
 }

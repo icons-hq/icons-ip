@@ -1,17 +1,21 @@
 /**
- * 결제 취소 확정 실패 코드를 운영자 말로 옮긴다. 코드는 DB·가이드 계약이라 지우지 않고 뒤에 함께 적는다.
+ * 결제 취소 확정 실패 코드를 운영자 말로 옮긴다. 문장은 무슨 일이 있었고 다음에 무엇을 하는지만 말한다.
+ * 코드는 DB·가이드 계약이라 지우지 않되 문장에 섞지 않고, '문의할 때 알려 줄 코드'로 한 번만 붙인다.
  * 코드별 조치 근거: 가이드 '취소·반품·교환 관리'의 결제사 확인 오류 코드.
  */
 type PaymentCancelErrorCopy = { label: string; next: string };
 
+/** 코드 앞에 붙이는 말. 화면은 이 말과 코드를 작은 글로 한 번만 보인다(`splitAdminSupportCode`). */
+export const ADMIN_SUPPORT_CODE_LABEL = '문의할 때 알려 줄 코드';
+
 const RETRY: PaymentCancelErrorCopy = { label: '결제사 응답을 받지 못했습니다', next: '잠시 뒤 [환불 완료 확정]을 다시 눌러주세요.' };
-const HAND_OVER = '다시 눌러도 같은 결과가 나오니 결제 담당자에게 넘겨주세요.';
+const HAND_OVER = '다시 눌러도 같은 결과가 나오니 결제 담당자에게 넘겨주세요. 요청번호와 코드를 함께 알려주면 됩니다.';
 
 const COPY: Record<string, PaymentCancelErrorCopy> = {
   provider_unavailable: RETRY,
   provider_cancel_ambiguous: RETRY,
-  provider_cancel_rejected: { label: '결제사가 취소를 거절했습니다', next: '결제 담당자가 원인을 해소한 뒤 [환불 완료 확정]을 눌러주세요.' },
-  provider_cancel_failed: { label: '결제사 취소에 실패했습니다', next: '결제 담당자에게 원인 확인을 요청한 뒤 [환불 완료 확정]으로 다시 시도해주세요.' },
+  provider_cancel_rejected: { label: '결제사가 취소를 거절했습니다', next: '결제 담당자에게 요청번호와 코드를 알려주세요. 결제 담당자가 결제사 관리자 화면에서 거절 사유를 확인해 해결한 뒤 [환불 완료 확정]을 다시 누릅니다.' },
+  provider_cancel_failed: { label: '결제사 취소에 실패했습니다', next: '결제 담당자에게 요청번호와 코드를 알려 원인 확인을 요청한 뒤 [환불 완료 확정]을 다시 눌러주세요.' },
   provider_merchant_mismatch: { label: '엑스스퀘어 상점의 결제가 아닙니다', next: HAND_OVER },
   provider_payment_not_found: { label: '결제사에서 이 결제를 찾지 못했습니다', next: HAND_OVER },
   provider_identity_mismatch: { label: '결제 정보가 일치하지 않습니다', next: HAND_OVER },
@@ -63,19 +67,44 @@ const COPY: Record<string, PaymentCancelErrorCopy> = {
   },
 };
 
-const UNKNOWN: PaymentCancelErrorCopy = { label: '결제사 확인에 실패했습니다', next: '가이드의 취소·반품·교환 관리에서 코드별 조치를 확인해주세요.' };
+/* 이름표에 없는 코드. 가이드를 찾아보라고 하지 않고 지금 할 일을 말한다. */
+const UNKNOWN: PaymentCancelErrorCopy = {
+  label: '결제사 확인에 실패했습니다',
+  next: '[환불 완료 확정]을 한 번 더 눌러주세요. 같은 안내가 다시 나오면 결제 담당자에게 요청번호와 코드를 알려주세요.',
+};
 
 export function adminPaymentCancelErrorCopy(code: string): PaymentCancelErrorCopy {
   return COPY[code] ?? UNKNOWN;
 }
 
-/** 목록·상세의 한 줄 표시. 예: `결제사 응답을 받지 못했습니다 (provider_unavailable)` */
-export function adminPaymentCancelErrorLabel(code: string): string {
-  return `${adminPaymentCancelErrorCopy(code).label} (${code})`;
+const SUPPORT_CODE_MARK = ` ${ADMIN_SUPPORT_CODE_LABEL}: `;
+
+/** 문장 끝에 코드를 한 번 붙인다. 문장 안의 괄호에 코드를 넣지 않는다. */
+export function withAdminSupportCode(message: string, code: string): string {
+  return `${message}${SUPPORT_CODE_MARK}${code}`;
 }
 
-/** 처리 직후 알림. 환불이 끝났는지 모르는 상태임을 먼저 말한다. */
+/**
+ * `withAdminSupportCode`로 붙인 코드를 문장에서 떼어 낸다. 화면이 문장은 그대로, 코드는 작은 글로 따로 그릴 때 쓴다.
+ * 코드가 없는 문장은 그대로 돌려준다.
+ */
+export function splitAdminSupportCode(message: string): { text: string; code: string | null } {
+  const at = message.lastIndexOf(SUPPORT_CODE_MARK);
+  if (at < 0) return { text: message, code: null };
+  const code = message.slice(at + SUPPORT_CODE_MARK.length).trim();
+  return /^[a-z0-9_]{1,80}$/u.test(code) ? { text: message.slice(0, at), code } : { text: message, code: null };
+}
+
+/** 목록·상세의 한 줄 표시. 예: `결제사 응답을 받지 못했습니다 · 문의할 때 알려 줄 코드: provider_unavailable` */
+export function adminPaymentCancelErrorLabel(code: string): string {
+  return `${adminPaymentCancelErrorCopy(code).label} ·${SUPPORT_CODE_MARK}${code}`;
+}
+
+/** 처리 직후 알림. 환불이 끝났는지 모르는 상태임을 먼저 말하고, 다음에 할 일로 끝낸다. */
 export function adminPaymentCancelFailureMessage(code: string): string {
   const copy = adminPaymentCancelErrorCopy(code);
-  return `결제 취소를 확정하지 못했습니다 — ${copy.label}. 고객 환불이 끝났는지 아직 확인되지 않았고, 주문과 재고는 그대로입니다. ${copy.next} (${code})`;
+  return withAdminSupportCode(
+    `결제 취소를 확정하지 못했습니다 — ${copy.label}. 고객 환불이 끝났는지 아직 확인되지 않았고, 주문과 재고는 그대로입니다. ${copy.next}`,
+    code,
+  );
 }

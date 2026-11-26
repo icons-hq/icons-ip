@@ -6,7 +6,7 @@ import { recordPiiAccess } from '@/lib/admin/pii-access-log.server';
 import { normalizeClaimRefundAccountIdentity } from '@/lib/orders/claim-refund-account';
 import { isUuid } from '@/lib/uuid';
 import { transactionExactKeys, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
-import { bankRefundError, parseBankRefundAccountView, type BankRefundAccountView, type BankRefundFailure, type BankRefundIdentity } from './bank-transfer-refund';
+import { BANK_REFUND_ACCOUNT_FAILED, BANK_REFUND_VIEW_ACCOUNT_LABEL, bankRefundError, parseBankRefundAccountView, type BankRefundAccountView, type BankRefundFailure, type BankRefundIdentity } from './bank-transfer-refund';
 
 async function authorized(identity: BankRefundIdentity) {
   const auth = await requireAdminActionAccess('/admin/sales/claims/cancels', { capability: 'sales.manage', adminOnly: true });
@@ -24,15 +24,19 @@ export async function viewBankRefundAccount(input: unknown): Promise<{ account: 
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_view_bank_transfer_refund_account', { ...identityArgs(identity), p_view_id: input.viewId, p_expected_revision: input.revision });
-    if (error) return bankRefundError(error.code === '23505' ? 'PT409' : error.code, error.message);
+    if (error) {
+      /* 계좌를 읽지 못한 것은 저장 결과와 무관하다 — 이유를 아는 오류만 그대로 보이고 나머지는 문구만 '다시 눌러 달라'로 바꾼다(응답 분류는 그대로). */
+      const failure = bankRefundError(error.code === '23505' ? 'PT409' : error.code, error.message);
+      return failure.uncertain ? { ...failure, error: BANK_REFUND_ACCOUNT_FAILED } : failure;
+    }
     const account = parseBankRefundAccountView(data);
     if (!account || account.viewId !== input.viewId || account.actorId !== identity.actorId || account.orderId !== identity.orderId
-      || account.claimId !== identity.claimId || account.revision !== input.revision) return { error: '열람 기록이 남은 계좌정보를 받지 못해 보여 주지 않았습니다. 잠시 뒤 다시 눌러주세요.' };
+      || account.claimId !== identity.claimId || account.revision !== input.revision) return { error: BANK_REFUND_ACCOUNT_FAILED };
     /* 계좌 원문 확인은 개인정보 접속기록(원문 확인)이 남아야 돌려준다. 같은 확인 번호로 다시 열면 DB 열람 영수증은 그대로다. */
     try {
       await recordPiiAccess({ actorId: identity.actorId, action: 'reveal', surface: 'refund_account', path: '/api/admin/bank-transfer-refund-account',
         subjectKind: 'claim', subjectIds: [identity.claimId], detail: { viewId: input.viewId } });
-    } catch { return { error: '개인정보 접속기록을 남기지 못해 계좌정보를 보여 주지 않았습니다. 잠시 후 다시 확인해주세요.' }; }
+    } catch { return { error: `개인정보 접속기록을 남기지 못해 계좌정보를 보여 주지 않았습니다. 잠시 뒤 [${BANK_REFUND_VIEW_ACCOUNT_LABEL}]를 다시 눌러주세요.` }; }
     return { account };
-  } catch (error) { unstable_rethrow(error); return { error: '환불계좌를 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.' }; }
+  } catch (error) { unstable_rethrow(error); return { error: BANK_REFUND_ACCOUNT_FAILED }; }
 }

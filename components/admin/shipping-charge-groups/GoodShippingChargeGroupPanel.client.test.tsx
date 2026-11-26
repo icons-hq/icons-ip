@@ -27,7 +27,7 @@ vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigur
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => {
   mocks.auth = callback; return { data: { subscription: { unsubscribe: mocks.unsubscribe } } }; } } }) }));
 import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-tools';
-import { shippingChargeGroupOperationContext, type ShippingChargeGroupGoodData, type ShippingChargeGroupOperationReceipt } from '@/lib/admin/shipping-charge-groups';
+import { SHIPPING_CHARGE_GROUP_RUNTIME_OFF, shippingChargeGroupOperationContext, type ShippingChargeGroupGoodData, type ShippingChargeGroupOperationReceipt } from '@/lib/admin/shipping-charge-groups';
 import { chargeAdminFixtures, chargeIdentity as identity, chargeIds as ids } from '@/test/fixtures/shipping-charge-groups';
 import { GoodShippingChargeGroupAssignmentEditor, GoodShippingChargeGroupPanel } from '../GoodShippingChargeGroupPanel';
 import { ShippingChargeGroupField } from '../ShippingChargeGroupField';
@@ -66,7 +66,7 @@ function choose(group = chargeAdminFixtures().group as ShippingChargeGroupGoodDa
   (picker().props.onChange as (id: string | null, group: unknown) => void)(group?.id ?? null, group);
 }
 async function mount() { node(); effects(); await flush(); }
-async function prepare() { choose(); click('배정 미리보기'); await flush(); }
+async function prepare() { choose(); click('바뀌는 내용 보기'); await flush(); }
 function seedPending() {
   const context = shippingChargeGroupOperationContext(chargeAdminFixtures().assign);
   storageValues.set(`icons:shipping-charge-group-operation:v1:${ids.actor}:${ids.session}:${ids.group}:assign`, JSON.stringify(context));
@@ -90,17 +90,29 @@ afterEach(() => { cleanup(); scope.dispose(); vi.unstubAllGlobals(); });
 
 it('초기 조회는 현재 상품·세션에 결속되고 조회가 끝날 때까지 parent를 잠근다', async () => {
   const pending = deferred<unknown>(); mocks.get.mockReturnValueOnce(pending.promise); node(); effects(); await flush();
-  expect(mocks.get).toHaveBeenCalledExactlyOnceWith('good-a', identity); expect(mocks.busy).toHaveBeenLastCalledWith(true); expect(button('배정 미리보기').props.disabled).toBe(true);
+  expect(mocks.get).toHaveBeenCalledExactlyOnceWith('good-a', identity); expect(mocks.busy).toHaveBeenLastCalledWith(true); expect(button('바뀌는 내용 보기').props.disabled).toBe(true);
   pending.resolve({ data: goodData() }); await flush(); expect(mocks.busy).toHaveBeenLastCalledWith(false); expect(picker().props.value).toBeNull(); expect(mocks.preview).not.toHaveBeenCalled();
 });
-it('섹션 제목이 말하는 "별도로 저장합니다"를 본문에서 되풀이하지 않는다', async () => {
-  await mount(); const shown = text(node()); expect(shown).not.toContain('별도로 저장합니다'); expect(shown).toContain('출고지를 바꾸려면 배정을 먼저 해제하거나');
+it('섹션 제목이 말하는 "별도로 저장합니다"를 본문에서 되풀이하지 않고, 출고지를 바꾸는 길은 묶음그룹에 든 상품에만 말한다', async () => {
+  await mount(); let shown = text(node()); expect(shown).not.toContain('별도로 저장합니다'); expect(shown).not.toContain('출고지를 바꾸려면');
+  cleanup(); mocks.get.mockResolvedValueOnce({ data: goodData(true) }); await mount(); shown = text(node());
+  expect(shown).toContain('출고지를 바꾸려면 묶음그룹에서 먼저 빼거나, 배송정보 템플릿으로 출고지와 묶음그룹을 함께 바꿔 주세요.');
+  expect(shown).not.toMatch(/배정|합산군|묶음배송|운영 설정을 확인/);
+});
+it('쇼핑몰 설정이 꺼져 있으면 누구에게 요청하는지 말하고 바꾸지 못하게 잠근다', async () => {
+  const data = goodData(); data.runtimeEnabled = false; mocks.get.mockResolvedValueOnce({ data }); await mount();
+  expect(text(node())).toContain(SHIPPING_CHARGE_GROUP_RUNTIME_OFF); expect(text(node())).not.toContain('운영 설정을 확인');
+  expect(button('바뀌는 내용 보기').props.disabled).toBe(true); expect(picker().props.disabled).toBe(true);
+});
+it('함께 묶인 상품이 있으면 몇 개가 같이 바뀌는지만 말한다', async () => {
+  const data = goodData(); data.good = { ...data.good, familyGoodIds: ['good-a', 'child-1', 'child-2'], effectiveCount: 3 }; mocks.get.mockResolvedValueOnce({ data }); await mount();
+  expect(text(node())).toContain('함께 묶인 상품 2개도 같은 묶음그룹을 씁니다.');
 });
 it('명시 선택 후 fresh preview의 full guard·공유 범위를 한 번만 전송한다', async () => {
   const { preview, guard, origin } = chargeAdminFixtures(), familyGoodIds = ['good-a', 'child'];
   mocks.preview.mockResolvedValueOnce({ data: { ...preview, goods: [{ ...preview.goods[0], familyGoodIds, effectiveCount: 2 }] } });
   await mount(); await prepare(); expect(mocks.preview).toHaveBeenCalledExactlyOnceWith(ids.group, ['good-a'], identity);
-  const save = button('이 배정으로 저장'); (save.props.onClick as () => void)(); (save.props.onClick as () => void)(); await flush();
+  const save = button('이대로 저장'); (save.props.onClick as () => void)(); (save.props.onClick as () => void)(); await flush();
   expect(mocks.assign).toHaveBeenCalledOnce(); expect(mocks.assign.mock.calls[0][0]).toMatchObject({ ...identity, command: 'assign', groupId: ids.group,
     expectedRevision: 1, origins: [origin], goods: [{ ...guard, familyGoodIds }] });
   expect(storageValues.size).toBe(1); expect(Object.keys(JSON.parse([...storageValues.values()][0]))).toHaveLength(6); expect(mocks.busy).toHaveBeenLastCalledWith(true);
@@ -110,65 +122,73 @@ it.each(['shipping_charge_group_origin_unavailable', 'collect_contract_not_ready
   mocks.get.mockResolvedValueOnce({ data }); mocks.preview.mockResolvedValueOnce({ data: { actorId: ids.actor, sessionId: ids.session, group: null,
     runtimeEnabled: true, canAssign: true, origins: [data.origin], canManageRegional: false,
     goods: [{ ...data.good, blocker: null, beforeGroup: summary, afterGroup: null }] } });
-  await mount(); choose(null); click('배정 미리보기'); await flush(); expect(mocks.preview).toHaveBeenCalledExactlyOnceWith(null, ['good-a'], identity);
-  click('이 배정으로 저장'); await flush(); expect(mocks.assign.mock.calls[0][0]).toMatchObject({ groupId: null, expectedRevision: 0, origins: [data.origin] });
+  await mount(); choose(null); click('바뀌는 내용 보기'); await flush(); expect(mocks.preview).toHaveBeenCalledExactlyOnceWith(null, ['good-a'], identity);
+  click('이대로 저장'); await flush(); expect(mocks.assign.mock.calls[0][0]).toMatchObject({ groupId: null, expectedRevision: 0, origins: [data.origin] });
 });
 it('출고지 없는 미지정 원상품은 origins 빈 배열의 noop clear 미리보기가 가능하다', async () => {
   const data = goodData(); data.good.originId = null; data.good.blocker = 'shipping_charge_group_origin_unavailable'; data.origin = null;
   mocks.get.mockResolvedValueOnce({ data }); mocks.preview.mockResolvedValueOnce({ data: { actorId: ids.actor, sessionId: ids.session, group: null,
     runtimeEnabled: true, canAssign: true, origins: [], canManageRegional: false, goods: [{ ...data.good, blocker: null, beforeGroup: null, afterGroup: null }] } });
-  await mount(); click('배정 미리보기'); await flush(); click('이 배정으로 저장'); await flush();
+  await mount(); click('바뀌는 내용 보기'); await flush(); click('이대로 저장'); await flush();
   expect(mocks.assign.mock.calls[0][0]).toMatchObject({ groupId: null, expectedRevision: 0, origins: [], goods: [{ id: 'good-a', originId: null }] });
 });
 it('합산군 자식은 읽기 전용이고 변경 callback과 미리보기 handler도 거부한다', async () => {
   const data = goodData(); data.good = { ...data.good, ownerGoodId: 'owner', editable: false, blocker: 'goods_aggregation_policy_owned_by_source', familyGoodIds: ['good-a', 'owner'], effectiveCount: 2 };
   mocks.get.mockResolvedValueOnce({ data }); await mount(); expect(picker().props.readOnly).toBe(true); expect(picker().props.disabled).toBe(true);
-  choose(); expect(picker().props.value).toBeNull(); (button('배정 미리보기').props.onClick as () => void)(); await flush(); expect(mocks.preview).not.toHaveBeenCalled();
+  choose(); expect(picker().props.value).toBeNull(); (button('바뀌는 내용 보기').props.onClick as () => void)(); await flush(); expect(mocks.preview).not.toHaveBeenCalled();
 });
 it('상호 잠금은 선택·미리보기·재조회와 이미 만든 미리보기 저장 handler에 적용한다', async () => {
   await mount(); props = { ...props, disabledReason: '다른 설정 저장 중' }; choose(); expect(picker().props.value).toBeNull();
-  (button('배정 미리보기').props.onClick as () => void)(); (button('최신 배정 불러오기').props.onClick as () => void)(); await flush();
+  (button('바뀌는 내용 보기').props.onClick as () => void)(); (button('지금 묶음그룹 불러오기').props.onClick as () => void)(); await flush();
   expect(mocks.get).toHaveBeenCalledOnce(); expect(mocks.preview).not.toHaveBeenCalled();
   props = { ...props, disabledReason: '' }; await prepare(); props = { ...props, disabledReason: '다른 설정 저장 중' };
-  expect(button('이 배정으로 저장').props.disabled).toBe(true); (button('이 배정으로 저장').props.onClick as () => void)(); expect(mocks.assign).not.toHaveBeenCalled();
+  expect(button('이대로 저장').props.disabled).toBe(true); (button('이대로 저장').props.onClick as () => void)(); expect(mocks.assign).not.toHaveBeenCalled();
 });
 /* T3a-7 근본 정리: 상품 편집기가 패널 위에 공통 잠금 안내를 보이면 패널은 같은 이유를 다시 그리지 않는다. 잠금은 그대로다. */
 it('이유 문장 표시를 끄면 본문에 이유를 그리지 않고 잠금은 유지한다', async () => {
   await mount(); props = { ...props, disabledReason: '다른 설정 저장 중' }; expect(text(node())).toContain('다른 설정 저장 중');
   props = { ...props, showDisabledReason: false }; expect(text(node())).not.toContain('다른 설정 저장 중');
-  expect(button('배정 미리보기').props.disabled).toBe(true); expect(button('최신 배정 불러오기').props.disabled).toBe(true);
+  expect(button('바뀌는 내용 보기').props.disabled).toBe(true); expect(button('지금 묶음그룹 불러오기').props.disabled).toBe(true);
   choose(); expect(picker().props.value).toBeNull();
 });
-it('서버 preview 차단은 버튼과 handler 모두 닫는다', async () => {
+it('서버 preview 차단은 버튼과 handler 모두 닫고, 저장할 수 없는 까닭과 고칠 곳을 말한다', async () => {
   const { preview } = chargeAdminFixtures(); mocks.preview.mockResolvedValueOnce({ data: { ...preview, canAssign: false,
     goods: [{ ...preview.goods[0], blocker: 'collect_contract_not_ready' }] } });
-  await mount(); await prepare(); expect(button('이 배정으로 저장').props.disabled).toBe(true); (button('이 배정으로 저장').props.onClick as () => void)(); expect(mocks.assign).not.toHaveBeenCalled();
+  await mount(); await prepare(); expect(button('이대로 저장').props.disabled).toBe(true); (button('이대로 저장').props.onClick as () => void)(); expect(mocks.assign).not.toHaveBeenCalled();
+  expect(text(node())).toContain('저장할 수 없습니다. 출고지가 착불을 받을 준비가 돼 있지 않습니다. 배송정보 관리에서 출고지의 착불 조건을 먼저 준비해 주세요.');
+});
+/* DB가 이유를 들어 거절하면 그 일을 끝내고(뒤늦게 처리되지 않게), 낡은 미리보기를 지워 다시 만들게 한다. */
+it('저장되지 않은 것이 확실하면 이유를 보이고 미리보기를 다시 만들게 한다', async () => {
+  mocks.assign.mockResolvedValueOnce({ error: '그사이 상품의 묶음그룹이 바뀌었습니다. 상품을 다시 고르거나 미리보기를 다시 만들어 주세요.', uncertain: false, conflict: true, changed: true });
+  await mount(); await prepare(); click('이대로 저장'); await flush(); await flush();
+  expect(mocks.seal).toHaveBeenCalledOnce(); expect(storageValues.size).toBe(0); expect(button('이대로 저장')).toBeUndefined();
+  expect(text(node())).toContain('그사이 상품의 묶음그룹이 바뀌었습니다.'); expect(button('바뀌는 내용 보기').props.disabled).not.toBe(true); expect(mocks.busy).toHaveBeenLastCalledWith(false);
 });
 it.each(['actor', 'session', 'good', 'group'] as const)('다른 %s 미리보기는 저장 기준으로 받아들이지 않는다', async kind => {
   const { preview } = chargeAdminFixtures(), wrong = structuredClone(preview);
   if (kind === 'actor') wrong.actorId = ids.other; if (kind === 'session') wrong.sessionId = ids.other;
   if (kind === 'good') wrong.goods[0].id = 'other-good'; if (kind === 'group') wrong.group!.id = ids.other;
   mocks.preview.mockResolvedValueOnce({ data: wrong }); await mount(); await prepare();
-  expect(button('이 배정으로 저장')).toBeUndefined(); expect(text(node())).toContain('맞지 않는 미리보기'); expect(mocks.assign).not.toHaveBeenCalled();
+  expect(button('이대로 저장')).toBeUndefined(); expect(text(node())).toContain('지금 고른 것과 맞지 않는 미리보기가 돌아왔습니다. [바뀌는 내용 보기]를 다시 눌러 주세요.'); expect(mocks.assign).not.toHaveBeenCalled();
 });
 it('서버 미리보기의 full guard가 불완전하면 저장 입력을 만들지 않는다', async () => {
   const { preview } = chargeAdminFixtures(); mocks.preview.mockResolvedValueOnce({ data: { ...preview, goods: [{ ...preview.goods[0], assignmentVersionId: ids.assignment }] } });
-  await mount(); await prepare(); expect(button('이 배정으로 저장').props.disabled).toBe(true); expect(text(node())).toContain('저장 기준을 확인하지 못했습니다');
+  await mount(); await prepare(); expect(button('이대로 저장').props.disabled).toBe(true); expect(text(node())).toContain('미리보기를 읽지 못해 저장할 수 없습니다.');
 });
 it('재조회 실패는 이전 미리보기와 저장 권한을 폐기하고 미지정으로 표시하지 않는다', async () => {
-  await mount(); await prepare(); mocks.get.mockRejectedValueOnce(new Error('network')); click('최신 배정 불러오기'); await flush();
-  expect(picker()).toBeUndefined(); expect(button('이 배정으로 저장')).toBeUndefined(); expect(button('배정 미리보기').props.disabled).toBe(true); expect(mocks.assign).not.toHaveBeenCalled();
+  await mount(); await prepare(); mocks.get.mockRejectedValueOnce(new Error('network')); click('지금 묶음그룹 불러오기'); await flush();
+  expect(picker()).toBeUndefined(); expect(button('이대로 저장')).toBeUndefined(); expect(button('바뀌는 내용 보기').props.disabled).toBe(true); expect(mocks.assign).not.toHaveBeenCalled();
 });
 it('reload 뒤 journal은 재전송하지 않고 같은 UUID 읽기·봉인 후 다시 조회한다', async () => {
-  await mount(); await prepare(); click('이 배정으로 저장'); await flush(); const request = mocks.assign.mock.calls[0][0]; cleanup(); await mount();
-  click('저장 결과 확인'); await flush(); expect(mocks.read).toHaveBeenCalledExactlyOnceWith(shippingChargeGroupOperationContext(request)); expect(storageValues.size).toBe(1);
+  await mount(); await prepare(); click('이대로 저장'); await flush(); const request = mocks.assign.mock.calls[0][0]; cleanup(); await mount();
+  click('저장됐는지 확인'); await flush(); expect(mocks.read).toHaveBeenCalledExactlyOnceWith(shippingChargeGroupOperationContext(request)); expect(storageValues.size).toBe(1);
   mocks.seal.mockResolvedValueOnce({ data: { ...chargeAdminFixtures().sealed, operationId: request.operationId, command: 'assign', expectedRevision: 1 } });
-  click('미처리 요청 종료'); await flush(); expect(storageValues.size).toBe(0); expect(mocks.assign).toHaveBeenCalledOnce(); expect(mocks.get).toHaveBeenCalledTimes(3);
-  expect(button('이 배정으로 저장')).toBeUndefined(); expect(mocks.busy).toHaveBeenLastCalledWith(false);
+  click('그만두고 다시 하기'); await flush(); expect(storageValues.size).toBe(0); expect(mocks.assign).toHaveBeenCalledOnce(); expect(mocks.get).toHaveBeenCalledTimes(3);
+  expect(button('이대로 저장')).toBeUndefined(); expect(mocks.busy).toHaveBeenLastCalledWith(false);
 });
 it('초기 조회 중 recovery는 막고 receipt callback이 경합하면 새 readback만 적용한다', async () => {
   seedPending(); const old = deferred<unknown>(), latest = deferred<unknown>(); mocks.get.mockReturnValueOnce(old.promise).mockReturnValueOnce(latest.promise);
-  node(); effects(); await flush(); expect(button('저장 결과 확인').props.disabled).toBe(true); (button('저장 결과 확인').props.onClick as () => void)(); expect(mocks.read).not.toHaveBeenCalled();
+  node(); effects(); await flush(); expect(button('저장됐는지 확인').props.disabled).toBe(true); (button('저장됐는지 확인').props.onClick as () => void)(); expect(mocks.read).not.toHaveBeenCalled();
   const pending = all(rawNode()).find(item => typeof item.type === 'function' && item.type.name === 'PendingAssignment')!;
   (pending.props.onReceipt as (value: ShippingChargeGroupOperationReceipt) => void)(chargeAdminFixtures().assigned); await flush(); expect(mocks.get).toHaveBeenCalledTimes(2);
   latest.resolve({ data: goodData(true) }); await flush(); expect(picker().props.value).toBe(ids.group);
@@ -176,7 +196,7 @@ it('초기 조회 중 recovery는 막고 receipt callback이 경합하면 새 re
 });
 it('확정 영수증 뒤 readback 동안 parent busy가 잠시 해제되지 않는다', async () => {
   seedPending(); await mount(); const latest = deferred<unknown>(); mocks.get.mockReturnValueOnce(latest.promise); mocks.read.mockResolvedValueOnce({ data: chargeAdminFixtures().assigned }); mocks.busy.mockClear();
-  click('저장 결과 확인'); await flush(); expect(storageValues.size).toBe(0); expect(mocks.busy).toHaveBeenLastCalledWith(true); expect(mocks.busy.mock.calls.some(([value]) => value === false)).toBe(false);
+  click('저장됐는지 확인'); await flush(); expect(storageValues.size).toBe(0); expect(mocks.busy).toHaveBeenLastCalledWith(true); expect(mocks.busy.mock.calls.some(([value]) => value === false)).toBe(false);
   latest.resolve({ data: goodData(true) }); await flush(); expect(mocks.busy).toHaveBeenLastCalledWith(false);
 });
 it.each(['auth', 'unmount'] as const)('%s 뒤 도착한 초기 조회는 화면과 parent 상태를 되살리지 않는다', async kind => {
@@ -187,8 +207,8 @@ it.each(['auth', 'unmount'] as const)('%s 뒤 도착한 초기 조회는 화면�
   expect(mocks.busy).toHaveBeenCalledTimes(before); if (kind === 'auth') expect(picker()).toBeUndefined(); else expect(mocks.busy).toHaveBeenLastCalledWith(false);
 });
 it('계정 전환 뒤 늦은 미리보기는 저장 입력을 만들지 않는다', async () => {
-  await mount(); const pending = deferred<unknown>(); mocks.preview.mockReturnValueOnce(pending.promise); choose(); click('배정 미리보기'); scope.authenticate(ids.actor, ids.other);
-  pending.resolve({ data: chargeAdminFixtures().preview }); await flush(); expect(button('이 배정으로 저장')).toBeUndefined(); expect(mocks.assign).not.toHaveBeenCalled();
+  await mount(); const pending = deferred<unknown>(); mocks.preview.mockReturnValueOnce(pending.promise); choose(); click('바뀌는 내용 보기'); scope.authenticate(ids.actor, ids.other);
+  pending.resolve({ data: chargeAdminFixtures().preview }); await flush(); expect(button('이대로 저장')).toBeUndefined(); expect(mocks.assign).not.toHaveBeenCalled();
 });
 it('언마운트 뒤 보관된 receipt callback은 재조회와 parent 알림을 만들지 않는다', async () => {
   seedPending(); await mount(); const pending = all(rawNode()).find(item => typeof item.type === 'function' && item.type.name === 'PendingAssignment')!;

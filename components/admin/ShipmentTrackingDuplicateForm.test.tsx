@@ -11,9 +11,11 @@ describe('중복 확인 후 운송장 등록 양식 (SHP-030)', () => {
     const html = renderToStaticMarkup(<ShipmentTrackingDuplicateForm compact shipmentId="s" reference="2026111830000001" carriers={carriers}
       fixed={{ carrier: 'hanjin', trackingNumber: '100000000001' }} />);
     expect(html).toContain('aria-label="배송 건 2026111830000001 중복 확인 후 운송장 등록"');
-    expect(html).toContain('한진택배 100000000001은(는) 다른 주문이 쓰는 번호입니다');
+    /* 숫자 끝소리로 조사를 고른다('은(는)'처럼 둘 다 적지 않는다). */
+    expect(html).toContain('한진택배 100000000001은 다른 주문이 쓰는 번호입니다');
+    expect(html).not.toContain('은(는)');
     expect(html).not.toContain('택배사 선택');
-    expect(html).toContain('같은 상자로 확인한 사유');
+    expect(html).toContain('같은 상자로 확인한 사유 (필수 · 감사 기록에 남습니다)');
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>중복 확인 후 등록<\/button>/);
   });
   it('주문 상세에서는 택배사·운송장번호를 함께 받는다', () => {

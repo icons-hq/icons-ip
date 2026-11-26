@@ -5,8 +5,9 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn(async () => ({ rpc
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
 vi.mock('@/lib/admin/revalidate-goods.server', () => ({ revalidateGoodsSurfaces: mocks.revalidateGoods }));
-import { applyShippingSettingsTemplateAction, findShippingSettingsGoodsAction, previewShippingSettingsTemplateAction, readShippingSettingsOperationAction,
+import { applyShippingSettingsTemplateAction, findShippingSettingsGoodsAction, findShippingSettingsOutdatedGoodsAction, previewShippingSettingsTemplateAction, readShippingSettingsOperationAction,
   readShippingSettingsTemplateAction, saveShippingSettingsTemplateAction, sealShippingSettingsOperationAction } from './shipping-settings-template-actions';
+import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { shippingFixtures, shippingIdentity as identity, shippingIds as ids } from '@/test/fixtures/shipping-settings';
 import { shippingChargeSettingsFixtures } from '@/test/fixtures/shipping-settings-charge-groups';
 
@@ -100,6 +101,24 @@ describe('배송 정책 저장·적용과 실제 결과 결속', () => {
     const result = await applyShippingSettingsTemplateAction(shippingFixtures().apply);
     expect(result).toMatchObject({ uncertain: false, conflict: true }); expect(JSON.stringify(result)).not.toContain('internal-secret');
   });
+  it('결과를 모를 때는 낱말 표의 문장으로, 다른 사람이 먼저 바꾼 저장은 두 길을 고르게 알린다', async () => {
+    const { save, apply } = shippingFixtures();
+    mocks.rpc.mockResolvedValueOnce({ error: { code: 'XX000', message: 'boom' } });
+    expect(await saveShippingSettingsTemplateAction(save)).toEqual({ error: SAVE_UNKNOWN_MESSAGE, uncertain: true });
+    mocks.rpc.mockResolvedValueOnce({ error: { code: 'PT409', message: 'shipping_settings_template_changed' } });
+    expect(await saveShippingSettingsTemplateAction(save)).toEqual({ error: '다른 사람이 먼저 바꿨습니다. 적은 내용은 그대로 있습니다.', changed: true, uncertain: false, conflict: true });
+    /* 상품에 적용하던 중이면 적은 내용이 없다. 미리보기를 다시 만들게 한다. */
+    mocks.rpc.mockResolvedValueOnce({ error: { code: 'PT409', message: 'shipping_settings_template_changed' } });
+    expect(await applyShippingSettingsTemplateAction(apply)).toEqual({ error: '템플릿이 그사이 바뀌었습니다. 미리보기를 다시 만들어 주세요.', changed: false, uncertain: false, conflict: true });
+    mocks.rpc.mockResolvedValueOnce({ error: { code: '23514', message: 'shipping_settings_origin_unavailable' } });
+    expect(await saveShippingSettingsTemplateAction(save)).toMatchObject({ uncertain: false, changed: false, error: expect.stringContaining('배송정보 관리에서 출고지를 사용으로 바꾸거나') });
+  });
+  it.each(['checkout_contract_upgrade_required', 'transaction_runtime_disabled'])('%s는 운영 설정을 확인하라고 하지 않고 누구에게 요청하는지 말한다', async message => {
+    mocks.rpc.mockResolvedValue({ error: { code: '23514', message } });
+    const result = await applyShippingSettingsTemplateAction(shippingFixtures().apply);
+    expect(result).toMatchObject({ uncertain: false, error: expect.stringContaining('개발 담당자에게 요청해 주세요.') });
+    expect(JSON.stringify(result)).not.toContain('운영 설정');
+  });
   it.each(['collect_contract_not_ready', 'goods_aggregation_policy_owned_by_source', 'checkout_contract_upgrade_required'])('%s를 새 금전 정책으로 우회하지 않는다', async message => {
     mocks.rpc.mockResolvedValue({ error: { code: 'PT409', message } });
     expect(await applyShippingSettingsTemplateAction(shippingFixtures().apply)).toMatchObject({ uncertain: false, conflict: true });
@@ -113,8 +132,9 @@ describe('배송 정책 저장·적용과 실제 결과 결속', () => {
 describe('묶음그룹 배정과 배송 템플릿 v3 결과 결속', () => {
   it.each(['preserve', 'replace'] as const)('수령 설정 %s의 실제 적용 버전이 맞는지 확인하고 복구한다', async mode => {
     const f = shippingChargeSettingsFixtures('preserve');
+    /* 적용 근거·확인 체크 없이 보낸다(20261127105000). */
     const fulfillment = mode === 'preserve' ? { mode } : { mode, policy: { mode: 'no_delivery' as const,
-      methods: [{ method: 'none' as const, feeAmount: 0, feeBasis: 'per_order' as const, installationFee: 0 }], publicNote: '직접 전달', evidence: '전달 계약 확인', confirmed: true as const } };
+      methods: [{ method: 'none' as const, feeAmount: 0, feeBasis: 'per_order' as const, installationFee: 0 }], publicNote: '직접 전달' } };
     const settings = { ...f.settings, fulfillment }, template = { ...f.template, settings };
     const input = { ...f.apply, goods: f.apply.goods.map(g => ({ ...g, fulfillmentRevision: 2 })) };
     const receipt = { ...f.applied, template, fulfillmentVersion: 1, goods: f.applied.goods.map(g => ({ ...g, fulfillmentRevision: mode === 'replace' ? 3 : 2 })) };
@@ -202,5 +222,33 @@ describe('결과 조회·미처리 봉인과 최신 저장본', () => {
     mocks.current.mockResolvedValueOnce(ok(null)); expect(await readShippingSettingsTemplateAction(ids.template, identity)).toEqual({ data: null });
     mocks.allowed = false; expect(await readShippingSettingsTemplateAction(ids.template, identity)).toMatchObject({ authChanged: true });
     expect(mocks.from).toHaveBeenCalledTimes(2);
+  });
+});
+describe('고친 뒤 다시 적용하지 않은 상품 찾기', () => {
+  /** 템플릿 한 건과 goods 조회를 흉내 낸다. goods 조회에 건 조건은 `filters`에 남는다. */
+  function tables(templateRow: unknown, goods: unknown, filters: Record<string, unknown> = {}) {
+    mocks.from.mockImplementation((table: string) => {
+      if (table !== 'goods') return { select: () => ({ eq: () => ({ maybeSingle: async () => templateRow }) }) };
+      const query = { select: () => query, eq: (column: string, value: unknown) => { filters[`eq:${column}`] = value; return query; }, is: () => query,
+        lt: (column: string, value: unknown) => { filters[`lt:${column}`] = value; return query; }, order: () => query,
+        limit: (count: number) => { filters.limit = count; return query; }, then: (resolve: (value: unknown) => unknown) => Promise.resolve(goods).then(resolve) };
+      return query;
+    });
+    return filters;
+  }
+  it('지금 저장된 템플릿보다 앞선 내용이 적용된 상품을 100개까지 돌려준다', async () => {
+    const filters = tables(ok({ revision: 5 }), { data: [{ id: 'good-1' }, { id: 'good-2' }], count: 140, error: null });
+    expect(await findShippingSettingsOutdatedGoodsAction(ids.template, identity)).toEqual({ data: { ids: ['good-1', 'good-2'], total: 140 } });
+    expect(filters).toEqual({ 'eq:shipping_settings_template_id': ids.template, 'lt:shipping_settings_template_revision': 5, limit: 100 });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('권한이 바뀌었거나 읽지 못하면 상품을 돌려주지 않는다', async () => {
+    tables(ok(null), { data: [], count: 0, error: null });
+    expect(await findShippingSettingsOutdatedGoodsAction(ids.template, identity)).toEqual({ error: '다시 적용할 상품을 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.' });
+    tables(ok({ revision: 5 }), { data: null, count: null, error: { message: 'secret' } });
+    expect(JSON.stringify(await findShippingSettingsOutdatedGoodsAction(ids.template, identity))).not.toContain('secret');
+    expect(await findShippingSettingsOutdatedGoodsAction('not-a-uuid', identity)).toHaveProperty('error');
+    mocks.allowed = false;
+    expect(await findShippingSettingsOutdatedGoodsAction(ids.template, identity)).toMatchObject({ authChanged: true });
   });
 });

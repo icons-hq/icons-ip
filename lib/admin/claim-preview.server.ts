@@ -4,6 +4,7 @@ import { loadAdminClaimPartialReturn, loadPartialReturnPolicy } from '@/lib/orde
 import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
 import { loadClaimDefectiveStock } from '@/lib/admin/defective-stock.server';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
+import { loadClaimReturnOperations } from '@/lib/admin/claim-return-operations.server';
 import { getBusinessInfo } from '@/lib/legal/business-info.server';
 import { orderReferenceLabel } from '@/lib/orders';
 import { buildKorpayCancellationForm } from '@/lib/orders/claims';
@@ -17,6 +18,10 @@ import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
  *
  * 코페이 취소 접수는 API가 아니라 이메일이다(#208). 결제가 코페이일 때만 양식을 만든다 —
  * 상호명이 비어 있으면 지어내지 않고 "확인 필요"로 남긴다.
+ *
+ * `autoPickupOnApproval`은 반품·교환을 승인하면 택배사에 회수가 자동으로 접수되는지(자동 회수 접수 스위치)다. 목록 화면이 읽는
+ * `loadClaimReturnOperations`와 같은 값이고, 회수가 없는 취소는 읽지 않는다. 읽지 못하면 꺼진 것으로 본다(목록과 같다) —
+ * 처리 칸은 켜져 있을 때만 승인 전에 '택배사에 회수가 접수됩니다'를 묻는다.
  */
 export async function loadAdminClaimWorkspace(claimId: string) {
   const [detail, carriers] = await Promise.all([
@@ -24,6 +29,10 @@ export async function loadAdminClaimWorkspace(claimId: string) {
     getShippingCarrierRegistry(),
   ]);
   if (!detail) return null;
+  /* 유형을 안 뒤 바로 시작하고, 아래 조회와 함께 돌다가 마지막에 기다린다. */
+  const autoPickup = detail.claim.claimType === 'cancel'
+    ? Promise.resolve(false)
+    : loadClaimReturnOperations().then((operations) => operations.pickup.enabled, () => false);
   /* 반품 품목별 재고 처리 선택(QNA-035). 읽지 못하면 null이라 선택 칸 없이 지금처럼 전부 복원한다. */
   const defectiveStock = detail.claim.claimType === 'return'
     ? (await loadClaimDefectiveStock([claimId]))[0] ?? null
@@ -50,5 +59,8 @@ export async function loadAdminClaimWorkspace(claimId: string) {
     })
     : null;
 
-  return { detail, carriers, cancellationForm, defectiveStock, partialReturn, partialReturnEnabled: partialReturnPolicy.enabled };
+  return {
+    detail, carriers, cancellationForm, defectiveStock, partialReturn, partialReturnEnabled: partialReturnPolicy.enabled,
+    autoPickupOnApproval: await autoPickup,
+  };
 }

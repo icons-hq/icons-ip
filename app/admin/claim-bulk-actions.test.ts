@@ -4,6 +4,7 @@ import { bulkDecideOrderClaimsAction } from './claim-actions';
 import { AdminClaimDetailLoadError } from '@/lib/admin/claim-transaction-snapshot';
 import {
   loadOrderClaimBulkReshipmentsAction,
+  previewOrderClaimBulkApprovalAction,
   previewOrderClaimBulkStepAction,
   runOrderClaimBulkCollectionsAction,
   runOrderClaimBulkRefundsAction,
@@ -394,10 +395,81 @@ describe('단계 일괄 확인창(previewOrderClaimBulkStepAction)', () => {
   it('목록에 없는 단계·권한 없음·잘못된 선택은 사실을 읽지 않는다', async () => {
     expect(await previewOrderClaimBulkStepAction({ claimType: 'cancel', step: 'collect', claimIds: [ID(1)] })).toEqual({ error: '처리할 작업을 선택해주세요.' });
     expect(await previewOrderClaimBulkStepAction({ claimType: 'exchange', step: 'refund', claimIds: [ID(1)] })).toEqual({ error: '처리할 작업을 선택해주세요.' });
+    /* 취소 승인의 확인창은 단계 처리(회수 확인·환불 완료 확정·재출고)가 아니라 전용 읽기 액션이 연다. */
+    expect(await previewOrderClaimBulkStepAction({ claimType: 'cancel', step: 'approve', claimIds: [ID(1)] })).toEqual({ error: '처리할 작업을 선택해주세요.' });
     expect((await previewOrderClaimBulkStepAction({ claimType: 'return', step: 'refund', claimIds: ['not-a-uuid'] })).error).toContain('선택한 요청을 확인하지 못했습니다');
     mocks.getCurrentAdminAuthState.mockResolvedValue({ isConfigured: true, user: { id: 'u' }, isStaff: false, role: 'fan' });
     expect(await previewOrderClaimBulkStepAction({ claimType: 'return', step: 'refund', claimIds: [ID(1)] })).toEqual({ error: '관리자 권한이 필요합니다.' });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});
+
+/*
+ * 취소 일괄 승인 확인창(previewOrderClaimBulkApprovalAction, L-08). 승인은 하는 즉시 결제사에 전액 취소를 요청하므로 환불 확정
+ * 확인창과 같은 읽기 값(admin_order_claim_bulk_context)으로 건수·취소 금액 합계·건너뛰는 건과 이유를 먼저 보인다. 아무것도 바꾸지 않는다.
+ */
+describe('취소 승인 확인창(previewOrderClaimBulkApprovalAction)', () => {
+  const cancelFact = (n: number, overrides: Fact = {}) => fact(n, { claimType: 'cancel', stage: 'requested', refundBlocker: 'claim_not_approved', ...overrides });
+
+  it('승인할 수 있는 건만 세어 취소 금액 합계를 내고, 이미 승인했거나 보류·종결된 건은 이유와 함께 뺀다', async () => {
+    stepRpc(new Map([
+      [ID(1), cancelFact(1)],
+      [ID(2), cancelFact(2, { stage: 'in_review', paymentProvider: 'nicepay' })],
+      [ID(3), cancelFact(3, { stage: 'processing', refundBlocker: null })],
+      [ID(4), cancelFact(4, { stage: 'on_hold' })],
+      [ID(5), cancelFact(5, { stage: 'completed' })],
+      [ID(6), cancelFact(6, { claimType: 'return' })],
+    ]));
+    const state = await previewOrderClaimBulkApprovalAction({ claimType: 'cancel', claimIds: [1, 2, 3, 4, 5, 6, 7].map(ID) });
+    if (state.preview?.step !== 'approve') throw new Error('approve preview expected');
+    expect(state.preview.rows.map((row) => [row.reference, row.providerLabel, row.amount, row.blocker])).toEqual([
+      ['C00001', '토스페이먼츠', 10000, null],
+      ['C00002', '나이스페이', 20000, null],
+      ['C00003', '토스페이먼츠', 30000, '이미 승인한 요청입니다.'],
+      ['C00004', '토스페이먼츠', 40000, '보류 중인 요청입니다. 보류를 푼 뒤 승인해주세요.'],
+      ['C00005', '토스페이먼츠', 50000, '이미 처리가 끝난 요청입니다.'],
+      ['C00006', '토스페이먼츠', 60000, '취소 요청이 아닙니다. 해당 목록에서 처리해주세요.'],
+      ['확인 불가', '결제 없음', null, '클레임을 찾을 수 없습니다.'],
+    ]);
+    expect(state.preview.totals).toEqual({
+      count: 2, amount: 30000,
+      byProvider: [{ label: '토스페이먼츠', count: 1, amount: 10000, providerCancel: true }, { label: '나이스페이', count: 1, amount: 20000, providerCancel: true }],
+    });
+    /* 읽기만 한다: 사실을 읽는 RPC 하나뿐이고 결정·결제사 취소는 부르지 않는다. */
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_order_claim_bulk_context']);
+    expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
+  });
+
+  it('금액은 환불 확정 확인창과 같은 값(refundAmount)이고, 무통장·코페이·결제 없음은 승인만 한다고 알린다', async () => {
+    stepRpc(new Map([
+      [ID(1), cancelFact(1, { refundAmount: 25000 })],
+      [ID(2), cancelFact(2, { paymentProvider: 'bank_transfer' })],
+      [ID(3), cancelFact(3, { paymentProvider: 'korpay' })],
+      [ID(4), cancelFact(4, { paymentProvider: null, refundAmount: null })],
+    ]));
+    const state = await previewOrderClaimBulkApprovalAction({ claimType: 'cancel', claimIds: [1, 2, 3, 4].map(ID) });
+    if (state.preview?.step !== 'approve') throw new Error('approve preview expected');
+    expect(state.preview.rows.map((row) => [row.amount, row.providerCancel, row.blocker])).toEqual([[25000, true, null], [20000, false, null], [30000, false, null], [null, false, null]]);
+    expect(state.preview.rows[0].effect).toBe('승인하고 토스 전액 취소를 요청합니다');
+    expect(state.preview.rows[1].effect).toContain('계좌 송금');
+    expect(state.preview.rows[3].effect).toContain('결제 전 주문');
+    /* 결제가 없는 주문은 금액 없이 건수만 센다. */
+    expect(state.preview.totals).toMatchObject({ count: 4, amount: 75000 });
+  });
+
+  it('취소 목록 밖·권한 없음·잘못된 선택은 사실을 읽지 않는다', async () => {
+    expect((await previewOrderClaimBulkApprovalAction({ claimType: 'return', claimIds: [ID(1)] })).error).toBe('목록을 새로고침한 뒤 다시 실행해주세요.');
+    expect((await previewOrderClaimBulkApprovalAction({ claimType: 'cancel', claimIds: ['not-a-uuid'] })).error).toContain('선택한 요청을 확인하지 못했습니다');
+    expect((await previewOrderClaimBulkApprovalAction({ claimType: 'cancel', claimIds: [] })).error).toBe('처리할 요청을 선택해주세요.');
+    mocks.getCurrentAdminAuthState.mockResolvedValue({ isConfigured: true, user: { id: 'u' }, isStaff: false, role: 'fan' });
+    expect(await previewOrderClaimBulkApprovalAction({ claimType: 'cancel', claimIds: [ID(1)] })).toEqual({ error: '관리자 권한이 필요합니다.' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('사실을 읽지 못하면 확인창을 열지 않고 새로고침을 안내한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'boom' } });
+    expect(await previewOrderClaimBulkApprovalAction({ claimType: 'cancel', claimIds: [ID(1)] }))
+      .toEqual({ error: '선택한 요청을 읽지 못했습니다. 새로고침한 뒤 다시 실행해주세요.' });
   });
 });
 
@@ -436,7 +508,7 @@ describe('일괄 환불 완료 확정(runOrderClaimBulkRefundsAction)', () => {
     expect(state.results?.map((result) => result.outcome)).toEqual(['failed', 'excluded']);
     expect(state.results?.[0].message).toContain('확인한 금액(₩10,000)과 지금 환불 금액(₩15,000)이 달라');
     expect(state.results?.[1].message).toContain('무통장 입금 결제는 결제사 취소가 없습니다');
-    expect(state.summary).toBe('처리됨 0건 · 실패 1건 · 제외 1건');
+    expect(state.summary).toBe('처리됨 0건 · 실패 1건 · 건너뜀 1건');
     expect(mocks.loadAdminClaimDetail).not.toHaveBeenCalled();
     expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
   });
@@ -482,7 +554,7 @@ describe('일괄 환불 완료 확정(runOrderClaimBulkRefundsAction)', () => {
     expect(state.results?.map((result) => result.outcome)).toEqual(['failed', 'failed', 'failed']);
     expect(state.results?.[0].message).toContain('결제 기록(거래 영수증)과 맞지 않아 처리하지 않았습니다');
     expect(state.results?.[1].message).toContain('결제 기록(거래 영수증)을 읽지 못해');
-    expect(state.results?.[2].message).toContain('상계·정산 메모는 앞뒤 공백 없이 300자 이내로');
+    expect(state.results?.[2].message).toContain('환불 메모는 앞뒤 공백 없이 300자 이내로');
     expect(state.results?.every((result) => !result.message.includes('환불 기록을 남기지 못했습니다'))).toBe(true);
     /* 읽기에서 멈춘 건은 결제사 취소를 시작하지 않았다. */
     expect(mocks.reconcileOrderCancellation).toHaveBeenCalledTimes(1);

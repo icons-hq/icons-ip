@@ -13,7 +13,7 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   },
   useTransition: () => [hooks.pending, (action: () => Promise<void>) => { hooks.pending = true; hooks.jobs.push(action().finally(() => { hooks.pending = false; })); }],
 }));
-vi.mock('@/app/admin/shipping-region-actions', () => ({ changeShippingRegionFeesAction: mocks.change, saveShippingRegionPolicyAction: vi.fn(), setShippingRegionPolicyStatusAction: vi.fn() }));
+vi.mock('@/app/admin/shipping-region-actions', () => ({ changeShippingRegionFeesAction: mocks.change, saveShippingRegionPolicyAction: vi.fn(), applyShippingRegionPolicyAction: vi.fn(), endShippingRegionPolicyAction: vi.fn() }));
 import { ShippingRegionFeeChanger } from './ShippingRegionsScreen';
 import { Button } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
@@ -33,17 +33,18 @@ const policy = {
   version: 1, revision: 2, status: 'active', confirmedAt: '2026-11-26T01:56:00Z', confirmedBy: '관리자', updatedAt: '2026-11-26T01:56:00Z',
 } satisfies ShippingRegionPolicy;
 const onReplaced = vi.fn();
-const render = () => { hooks.index = 0; return nodes(ShippingRegionFeeChanger({ policy, onReplaced })); };
+let originName: string | undefined;
+const render = () => { hooks.index = 0; return nodes(ShippingRegionFeeChanger({ policy, originName, onReplaced })); };
 const inputs = (tree: Element[]) => tree.filter((node) => node.type === Input);
 const button = (tree: Element[]) => tree.find((node) => node.type === Button && text(node.props.children as ReactNode) === '금액 바꾸기')!;
 const type = (index: number, value: string) => { (inputs(render())[index].props.onChange as (event: { target: { value: string } }) => void)({ target: { value } }); };
 async function press() { await (button(render()).props.onClick as () => Promise<void>)(); await Promise.all(hooks.jobs); }
 
 let confirm: ReturnType<typeof stubAdminConfirm>;
-beforeEach(() => { hooks.values = []; hooks.jobs = []; hooks.pending = false; vi.resetAllMocks(); confirm = stubAdminConfirm(true); });
+beforeEach(() => { hooks.values = []; hooks.jobs = []; hooks.pending = false; originName = undefined; vi.resetAllMocks(); confirm = stubAdminConfirm(true); });
 afterEach(() => confirm.restore());
 
-describe('적용 중인 지역 정책의 추가료 금액 바꾸기', () => {
+describe('적용 중인 설정의 추가배송비 금액 바꾸기', () => {
   it('지역명별 금액 칸을 지금 금액으로 채우고, 바뀐 금액이 없으면 누를 수 없다', () => {
     const tree = render();
     expect(inputs(tree).map((node) => node.props.value)).toEqual(['1000', '']);
@@ -55,32 +56,33 @@ describe('적용 중인 지역 정책의 추가료 금액 바꾸기', () => {
     expect(button(render()).props.disabled).toBe(true);
   });
 
-  it('바꿀 금액을 확인창에 보이고, 확인하면 바뀐 지역명만 서버에 보낸다', async () => {
+  it('어느 출고지의 무엇을 얼마로 바꾸는지 확인창에 보이고, 확인하면 바뀐 지역명만 서버에 보낸다', async () => {
     const next = { ...policy, id: '00000000-0000-4000-8000-000000000102', version: 2, revision: 1 };
-    mocks.change.mockResolvedValue({ ok: true, policy: next, message: '추가료를 바꿨습니다.' });
+    mocks.change.mockResolvedValue({ ok: true, policy: next, message: '추가배송비를 바꿨습니다.' });
+    originName = '합성 출고지';
     type(0, '3000');
     expect(button(render()).props.disabled).toBe(false);
     await press();
     expect(confirm).toHaveBeenCalledTimes(1);
-    expect(confirm.mock.calls[0][0]).toContain('합성 도서 ₩1,000 → ₩3,000 (2줄)');
-    expect(confirm.mock.calls[0][0]).toContain('이미 들어온 주문의 배송비는 그대로입니다');
+    expect(confirm.mock.calls[0][0].split('\n')).toEqual(['합성 출고지 · 합성 도서 정책', '합성 도서 ₩1,000 → ₩3,000 (2줄)', '',
+      '지금부터 새 주문에 적용됩니다. 아직 결제하지 않은 장바구니·주문서에도 적용되고, 이미 들어온 주문의 배송비는 그대로입니다.']);
     expect(mocks.change).toHaveBeenCalledWith(policy.id, 2, { '합성 도서': 3000 });
-    expect(onReplaced).toHaveBeenCalledWith(next, policy.id, '추가료를 바꿨습니다.');
+    expect(onReplaced).toHaveBeenCalledWith(next, policy.id, '추가배송비를 바꿨습니다.');
   });
 
   it('금액이 여럿인 지역명은 새 금액을 적어야 보내고, 숫자가 아니면 막는다', async () => {
     type(1, '12a');
     let tree = render();
     expect(button(tree).props.disabled).toBe(true);
-    expect(text(tree[0])).toContain('원 단위 숫자로 적어주세요');
+    expect(text(tree[0])).toContain('추가배송비는 0원부터 1,000,000원까지 원 단위 숫자로 적어 주세요.');
     type(1, '1000001');
     expect(button(render()).props.disabled).toBe(true);
     type(1, '4000');
-    mocks.change.mockResolvedValue({ ok: false, error: '다른 관리자가 먼저 정책을 바꿨습니다.' });
+    mocks.change.mockResolvedValue({ ok: false, error: '다른 사람이 먼저 바꿨습니다.' });
     await press();
     expect(mocks.change).toHaveBeenCalledWith(policy.id, 2, { '합성 제주': 4000 });
     tree = render();
-    expect(text(tree[0])).toContain('다른 관리자가 먼저 정책을 바꿨습니다.');
+    expect(text(tree[0])).toContain('다른 사람이 먼저 바꿨습니다.');
     expect(onReplaced).not.toHaveBeenCalled();
   });
 

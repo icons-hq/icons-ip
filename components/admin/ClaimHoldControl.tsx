@@ -4,27 +4,33 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { changeClaimHoldAction, loadClaimHoldContextAction, readClaimHoldAction } from '@/app/admin/claim-hold-actions';
 import {
-  claimHoldReceiptMatches, normalizeClaimHoldRequest,
+  CLAIM_HOLD_LABELS, CLAIM_HOLD_NOTE_ERROR, CLAIM_HOLD_NOTE_MAX, CLAIM_HOLD_NOTE_MIN, claimHoldConfirmMessage, claimHoldReceiptMatches, normalizeClaimHoldRequest,
   type ClaimHoldContext, type ClaimHoldReceipt, type ClaimHoldRequest,
 } from '@/lib/orders/claim-hold';
+import {
+  CLAIM_CHANGE_BACK_LABEL, CLAIM_CHANGE_CHECK_LABEL, CLAIM_CHANGE_LOAD_FAILED_MESSAGE, CLAIM_CHANGE_LOAD_MISMATCH_MESSAGE, CLAIM_CHANGE_NOT_SAVED_MESSAGE,
+  CLAIM_CHANGE_RECEIPT_MISMATCH_MESSAGE, CLAIM_CHANGE_RECEIPT_READ_FAILED_MESSAGE, CLAIM_CHANGE_RELOAD_LABEL, CLAIM_CHANGE_RESEND_LABEL, CLAIM_CHANGE_UNKNOWN_MESSAGE,
+  claimChangeCount,
+} from '@/lib/admin/claim-change-copy';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
+import { adminConfirm } from '@/lib/admin/confirm';
 import { ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS, type OrderClaimType } from '@/lib/orders/claims';
 import { formatOrderDateTime } from '@/lib/orders';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
 
-/* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
+/* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다.
+   [보류하기]·[보류 풀기]는 누르면 확인창이 한 번 뜬다(고객 앱 알림이 가고 처리가 멈추거나 이어진다). 확인 체크 칸은 없다. */
 const PRIMARY = cn(buttonVariants({ size: 'sm' }));
 const OUTLINE = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
 const FIELD = 'flex min-w-0 flex-col gap-1.5';
-const CHECK = 'flex items-start gap-2 leading-relaxed';
+const HINT = 'text-xs text-muted-foreground';
 
 export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext; onClose: () => void }) {
   const router = useRouter();
   const [context, setContext] = useState(initial);
   const [note, setNote] = useState('');
-  const [confirmed, setConfirmed] = useState(false);
   const [pending, setPending] = useState(false);
   useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [uncertain, setUncertain] = useState(false);
@@ -38,31 +44,48 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
 
   const decision = context.canResume ? 'resume' : 'hold';
-  const decisionLabel = decision === 'hold' ? '보류 설정' : '보류 해제';
+  const labels = CLAIM_HOLD_LABELS[decision];
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[context.claimType];
   const available = context.canHold || context.canResume;
   const locked = pending || uncertain || Boolean(receipt);
   const editable = () => !inFlight.current && !dispatched.current && !receipt;
+  const noteId = `claim-hold-note-${context.claimId}`;
 
   function accept(saved: ClaimHoldReceipt, request: ClaimHoldRequest) {
     if (!claimHoldReceiptMatches(saved, request) || saved.orderId !== context.orderId) {
-      setUncertain(true); setError('불러온 저장 결과가 이 요청과 맞지 않습니다. [같은 요청 결과 확인]을 다시 누르고, 같은 안내가 반복되면 새로고침해 처리 이력을 확인해주세요.');
+      setUncertain(true); setError(CLAIM_CHANGE_RECEIPT_MISMATCH_MESSAGE);
       return;
     }
     dispatched.current = null; setReceipt(saved); setUncertain(false); setError(''); setMessage('');
-    setNote(''); setConfirmed(false); router.refresh();
+    setNote(''); router.refresh();
   }
 
   async function save() {
     if (inFlight.current || receipt || !available || conflict && !uncertain) return;
-    const request = normalizeClaimHoldRequest(dispatched.current ?? {
+    const retry = dispatched.current;
+    /* 확인창을 거치면 확인한 것이다. `confirmed`는 저장되지 않고 요청 모양만 지킨다(DB 함수에는 보내지 않는다). */
+    const request = normalizeClaimHoldRequest(retry ?? {
       id: crypto.randomUUID(), actorId: context.actorId, claimId: context.claimId,
       claimType: context.claimType, revision: context.revision, decision,
-      note: decision === 'hold' ? note : null, confirmed,
+      note: decision === 'hold' ? note : null, confirmed: true,
     });
-    if (!request) { setError('보류할 때는 보류 사유를 10~200자로 입력하고, 아래 확인 칸에 체크해주세요.'); return; }
-    const wasUncertain = uncertain;
-    dispatched.current = request; inFlight.current = true; setPending(true); setError(''); setMessage('');
+    if (!request) { setError(CLAIM_HOLD_NOTE_ERROR); return; }
+    const wasUncertain = uncertain; inFlight.current = true;
+    if (!retry) {
+      /* 같은 요청을 다시 보내는 경우(응답 유실)는 이미 확인한 내용이라 다시 묻지 않는다. */
+      let ok = false;
+      try {
+        ok = await adminConfirm({
+          title: `${typeLabel} ${labels.title}`, confirmLabel: labels.action, cancelLabel: CLAIM_CHANGE_BACK_LABEL,
+          message: claimHoldConfirmMessage({
+            decision, typeLabel, stageLabel: adminClaimStageLabel(context.claimType, context.stage),
+            resumeLabel: adminClaimStageLabel(context.claimType, context.heldFrom ?? 'requested'), note: request.note,
+          }),
+        });
+      } catch { ok = false; }
+      if (!ok) { inFlight.current = false; return; }
+    }
+    dispatched.current = request; setPending(true); setError(''); setMessage('');
     try {
       const result = await changeClaimHoldAction(request);
       if ('error' in result) {
@@ -70,8 +93,8 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
         setUncertain(keep); setConflict(!keep && Boolean(result.conflict)); setError(result.error);
         if (!keep) dispatched.current = null;
       } else if ('receipt' in result && result.receipt) accept(result.receipt, request);
-      else { setUncertain(true); setError('저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.'); }
-    } catch { setUncertain(true); setError('저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.'); }
+      else { setUncertain(true); setError(CLAIM_CHANGE_UNKNOWN_MESSAGE); }
+    } catch { setUncertain(true); setError(CLAIM_CHANGE_UNKNOWN_MESSAGE); }
     finally { inFlight.current = false; setPending(false); }
   }
 
@@ -83,8 +106,8 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
       const result = await readClaimHoldAction(request.id);
       if ('error' in result) setError(result.error);
       else if ('receipt' in result && result.receipt) accept(result.receipt, request);
-      else setMessage('아직 저장된 결과가 없습니다. 입력한 내용 그대로 [같은 내용으로 재시도]를 누르면 됩니다(두 번 처리되지 않습니다).');
-    } catch { setError('저장 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청 결과 확인]을 다시 눌러주세요.'); }
+      else setMessage(CLAIM_CHANGE_NOT_SAVED_MESSAGE);
+    } catch { setError(CLAIM_CHANGE_RECEIPT_READ_FAILED_MESSAGE); }
     finally { inFlight.current = false; setPending(false); }
   }
 
@@ -97,40 +120,42 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
       else if ('context' in result && result.context.claimId === context.claimId && result.context.orderId === context.orderId) {
         const changedType = result.context.claimType !== context.claimType;
         const changedActor = result.context.actorId !== context.actorId;
-        setContext(result.context); setConflict(false); setConfirmed(false);
+        setContext(result.context); setConflict(false);
         if (changedType || changedActor) setNote('');
         setMessage(changedType || changedActor
-          ? '요청 유형이나 로그인 계정이 바뀌어 입력한 내용과 체크를 지웠습니다. 현재 요청을 확인하고 다시 입력해주세요.'
-          : '최신 상태를 다시 불러왔습니다. 입력한 내용은 그대로 두었습니다. 처리 내용을 확인하고 확인 칸에 다시 체크해주세요.');
+          ? '요청 유형이나 로그인 계정이 바뀌어 적은 내용을 지웠습니다. 지금 요청을 확인하고 다시 적어 주세요.'
+          : `최신 상태를 불러왔습니다. 적은 내용은 그대로 있습니다. 바뀐 상태를 확인한 뒤 [${CLAIM_HOLD_LABELS[result.context.canResume ? 'resume' : 'hold'].action}]를 다시 눌러 주세요.`);
         if (changedType) {
           router.replace(`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[result.context.claimType]}/${context.claimId}`);
           router.refresh();
         }
-      } else setError('이 요청의 최신 상태를 불러오지 못했습니다. 새로고침한 뒤 다시 열어주세요.');
-    } catch { setError('최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.'); }
+      } else setError(CLAIM_CHANGE_LOAD_MISMATCH_MESSAGE);
+    } catch { setError(CLAIM_CHANGE_LOAD_FAILED_MESSAGE); }
     finally { inFlight.current = false; setPending(false); }
   }
 
   return <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/30 p-4 text-sm break-words" aria-label="요청 보류 및 해제" data-claim-panel="hold">
-    <h4 className="text-base leading-snug font-medium">{typeLabel} {decisionLabel}</h4>
-    {!receipt ? <p>현재 상태: {adminClaimStageLabel(context.claimType, context.stage)}. 주문 전체의 요청을 처리합니다.</p> : null}
+    <h4 className="text-base leading-snug font-medium">{typeLabel} {labels.title}</h4>
+    {!receipt ? <p>현재 상태: {adminClaimStageLabel(context.claimType, context.stage)}</p> : null}
     {context.holdReason ? <p>기존 보류 사유: {context.holdReason}</p> : null}
-    {receipt ? <p role="status">{receipt.decision === 'hold' ? '보류를 설정했습니다.' : '보류를 해제했습니다.'} 현재 처리 결과: {adminClaimStageLabel(context.claimType, receipt.stage)} · {formatOrderDateTime(receipt.createdAt)}</p>
-      : !available ? <p className="text-muted-foreground" role="status">이미 종결된 요청은 보류하거나 보류를 해제할 수 없습니다.</p>
+    {receipt ? <p role="status">{receipt.decision === 'hold' ? '보류했습니다. 고객에게 앱 알림을 남겼습니다.' : '보류를 풀었습니다. 고객에게 앱 알림을 남겼습니다.'} 지금 상태: {adminClaimStageLabel(context.claimType, receipt.stage)} · {formatOrderDateTime(receipt.createdAt)}</p>
+      : !available ? <p className="text-muted-foreground" role="status">끝난 요청은 보류하거나 보류를 풀 수 없습니다.</p>
         : <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); void save(); }}>
           <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0" disabled={locked}>
-            <legend className="mb-1 font-medium">{decisionLabel} 확인</legend>
-            {decision === 'hold' ? <label className={FIELD}><span className="font-medium">보류 사유 (10~200자, 구매자에게 전달됩니다)</span>
-              <input className="w-full" value={note} minLength={10} maxLength={200} required onChange={event => { if (editable()) setNote(event.target.value); }} />
-            </label> : <p>보류 전 단계인 {adminClaimStageLabel(context.claimType, context.heldFrom ?? 'requested')}로 돌아갑니다. 환불·재출고는 해당 단계에서 별도로 확인합니다.</p>}
-            <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={confirmed} required onChange={event => { if (editable()) setConfirmed(event.target.checked); }} /><span>현재 {typeLabel} 요청의 {decisionLabel} 내용을 확인했습니다.</span></label>
+            <legend className="sr-only">{labels.title}</legend>
+            {decision === 'hold' ? <div className={FIELD}>
+              <label className="font-medium" htmlFor={noteId}>보류 사유 (필수)</label>
+              <input aria-describedby={`${noteId}-hint`} className="w-full" id={noteId} maxLength={CLAIM_HOLD_NOTE_MAX} minLength={CLAIM_HOLD_NOTE_MIN} placeholder="예: 상품 상태를 확인하는 동안 처리를 잠시 보류합니다." required
+                value={note} onChange={event => { if (editable()) setNote(event.target.value); }} />
+              <small className={HINT} id={`${noteId}-hint`}>{claimChangeCount(note.length, CLAIM_HOLD_NOTE_MIN, CLAIM_HOLD_NOTE_MAX)} · 고객 앱 알림에 담겨 가고, 요청 상세의 ‘보류 사유’에 남습니다.</small>
+            </div> : <p>보류 전 단계({adminClaimStageLabel(context.claimType, context.heldFrom ?? 'requested')})로 돌아갑니다. 환불·재출고는 돌아간 단계에서 따로 처리합니다.</p>}
           </fieldset>
           <div className="flex flex-wrap gap-2">
             {uncertain ? <>
-              <button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void readback(); }}>같은 요청 결과 확인</button>
-              <button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={() => { void save(); }}>같은 내용으로 재시도</button>
-            </> : conflict ? <button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void reload(); }}>최신 요청 상태 확인</button>
-              : <button className={PRIMARY} data-slot="button" type="submit" disabled={pending || !confirmed}>{pending ? '처리 중…' : `${decisionLabel} 확정`}</button>}
+              <button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void readback(); }}>{CLAIM_CHANGE_CHECK_LABEL}</button>
+              <button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={() => { void save(); }}>{CLAIM_CHANGE_RESEND_LABEL}</button>
+            </> : conflict ? <button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void reload(); }}>{CLAIM_CHANGE_RELOAD_LABEL}</button>
+              : <button className={PRIMARY} data-slot="button" type="submit" disabled={pending}>{pending ? '처리 중…' : labels.action}</button>}
           </div>
         </form>}
     {error ? <p className="text-destructive outline-none" role="alert" ref={errorRef} tabIndex={-1}>{error}</p> : null}
@@ -152,14 +177,14 @@ export function ClaimHoldControl({ claimId, claimType, held }: { claimId: string
       const result = await loadClaimHoldContextAction(claimId);
       if ('error' in result) setError(result.error);
       else if ('context' in result && result.context.claimId === claimId) setContext(result.context);
-      else setError('이 요청의 최신 상태를 불러오지 못했습니다. 새로고침한 뒤 다시 열어주세요.');
-    } catch { setError('최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.'); }
+      else setError(CLAIM_CHANGE_LOAD_MISMATCH_MESSAGE);
+    } catch { setError(CLAIM_CHANGE_LOAD_FAILED_MESSAGE); }
     finally { loading.current = false; setPending(false); }
   }
   return context ? <ClaimHoldPanel initial={context} onClose={() => setContext(null)} />
     : <div className="flex min-w-0 flex-col items-start gap-2" data-claim-panel-entry="hold">
       <button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={() => { void open(); }}>
-        {pending ? '요청 확인 중…' : `${ORDER_CLAIM_TYPE_LABELS[claimType]} ${held ? '보류 해제' : '보류 설정'}`}
+        {pending ? '요청 확인 중…' : `${ORDER_CLAIM_TYPE_LABELS[claimType]} ${CLAIM_HOLD_LABELS[held ? 'resume' : 'hold'].title}`}
       </button>
       {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
     </div>;

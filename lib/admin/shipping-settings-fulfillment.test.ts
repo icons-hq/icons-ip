@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { shippingChargeSettingsFixtures } from '@/test/fixtures/shipping-settings-charge-groups';
 import type { GoodsFulfillment } from '@/lib/goods-fulfillment';
-import { parseShippingSettingsFulfillment, prepareShippingFulfillment, shippingFulfillmentAfter, shippingFulfillmentDraft, type ShippingSettingsFulfillment } from './shipping-settings-fulfillment';
+import { parseShippingSettingsFulfillment, prepareShippingFulfillment, shippingFulfillmentAfter, shippingFulfillmentDraft, shippingFulfillmentProblem, shippingFulfillmentReadback, type ShippingSettingsFulfillment } from './shipping-settings-fulfillment';
 import { parseShippingSettingsApplyInput, parseShippingSettingsGoodGuard, parseShippingSettingsOperationReceipt, parseShippingSettingsSaveRequest, shippingSettingsGoodGuard } from './shipping-settings-templates';
 import { parseShippingSettingsPreview } from './shipping-settings-templates.server';
 
@@ -33,21 +33,45 @@ it('기존 파일·수령 조건 유지와 명시적 변경을 미리보기와 �
 it('템플릿의 디지털 파일 지정·숨은 필드·미확인 요금·잘못된 단위를 거절한다', () => {
   if (replacement.mode !== 'replace') throw Error('fixture');
   const p = replacement.policy;
-  for (const policy of [{ ...p, mode: 'digital' }, { ...p, assetIds: [] }, { ...p, confirmed: false }, { ...p, evidence: ' ' },
+  for (const policy of [{ ...p, mode: 'digital' }, { ...p, assetIds: [] }, { ...p, confirmed: 'yes' }, { ...p, evidence: ' ' }, { ...p, evidence: 7 }, { ...p, evidence: '가'.repeat(1001) },
     { ...p, methods: [] }, { ...p, methods: [p.methods[0], p.methods[0]] }, { ...p, methods: [{ ...p.methods[0], feeAmount: 1.5 }] },
     { ...p, methods: [{ ...p.methods[1], installationFee: 100 }] }, { ...p, publicNote: '제어\n문자' }]) {
     expect(parseShippingSettingsFulfillment({ mode: 'replace', policy })).toBeNull();
   }
   expect(parseShippingSettingsFulfillment({ mode: 'preserve', policy: p })).toBeNull();
 });
-it('수정 초안은 재확인이 필요하고 숫자를 비우거나 음수로 입력하면 거절한다', () => {
+it('적용 근거와 확인 체크가 없는 모양과 예전에 저장된 모양을 모두 읽는다', () => {
+  if (replacement.mode !== 'replace') throw Error('fixture');
+  const { evidence, confirmed, ...bare } = replacement.policy;
+  expect(evidence).toBe('계약 확인 완료'); expect(confirmed).toBe(true);
+  expect(parseShippingSettingsFulfillment({ mode: 'replace', policy: bare })).toEqual({ mode: 'replace', policy: bare });
+  expect(parseShippingSettingsFulfillment(replacement)).toEqual(replacement);
+  expect(parseShippingSettingsFulfillment({ mode: 'replace', policy: { ...bare, confirmed: false } })).not.toBeNull();
+  const f = fixture({ mode: 'replace', policy: bare });
+  expect(parseShippingSettingsSaveRequest(f.save)).toEqual(f.save);
+  expect(parseShippingSettingsPreview(f.preview)).toEqual(f.preview);
+  expect(parseShippingSettingsOperationReceipt(f.applied)).toEqual(f.applied);
+});
+it('수정한 수령 방식은 근거 없이 저장할 모양이 되고, 숫자를 비우거나 음수로 적으면 무엇을 고칠지 말한다', () => {
   if (replacement.mode !== 'replace') throw Error('fixture');
   const d = shippingFulfillmentDraft(replacement);
-  expect(prepareShippingFulfillment(d)).toBeNull();
-  expect(prepareShippingFulfillment({ ...d, confirmed: true })).toEqual({ ...replacement, policy: { ...replacement.policy, methods: [replacement.policy.methods[1], replacement.policy.methods[0]] } });
-  expect(prepareShippingFulfillment({ ...d, confirmed: true, methods: d.methods.map(m => ({ ...m, feeAmount: '' })) })).toBeNull();
-  expect(prepareShippingFulfillment({ ...d, confirmed: true, methods: d.methods.map(m => ({ ...m, installationFee: '-1' })) })).toBeNull();
+  expect(d).not.toHaveProperty('evidence'); expect(d).not.toHaveProperty('confirmed');
+  const bare = { mode: replacement.policy.mode, methods: replacement.policy.methods, publicNote: replacement.policy.publicNote };
+  expect(prepareShippingFulfillment(d)).toEqual({ mode: 'replace', policy: { ...bare, methods: [replacement.policy.methods[1], replacement.policy.methods[0]] } });
+  expect(shippingFulfillmentProblem(d)).toBeNull();
+  const blank = { ...d, methods: d.methods.map(m => ({ ...m, feeAmount: '' })) }, negative = { ...d, methods: d.methods.map(m => ({ ...m, installationFee: '-1' })) };
+  expect(prepareShippingFulfillment(blank)).toBeNull(); expect(shippingFulfillmentProblem(blank)).toBe('선결제 배송비와 설치비는 0 이상의 숫자(원)로 적어 주세요.');
+  expect(prepareShippingFulfillment(negative)).toBeNull(); expect(shippingFulfillmentProblem(negative)).toBe('선결제 배송비와 설치비는 0 이상의 숫자(원)로 적어 주세요.');
+  const none = { ...d, methods: d.methods.map(m => ({ ...m, enabled: false })) };
+  expect(prepareShippingFulfillment(none)).toBeNull(); expect(shippingFulfillmentProblem(none)).toBe('받을 방식을 하나 이상 골라 주세요.');
   expect(prepareShippingFulfillment({ ...d, action: 'preserve' })).toEqual({ mode: 'preserve' });
+});
+it('받을 방식을 상품의 수령 방식 패널과 같은 문장으로 되읽는다', () => {
+  if (replacement.mode !== 'replace') throw Error('fixture');
+  expect(shippingFulfillmentReadback({ mode: 'shipping', methods: [replacement.policy.methods[1], replacement.policy.methods[0]] }))
+    .toBe('고객은 주문서에서 방문수령, 직접배송(배송비 수량 1개마다 2,500원 · 설치비 개당 1,000원) 중 하나를 고릅니다.');
+  expect(shippingFulfillmentReadback({ mode: 'shipping', methods: [{ method: 'parcel', feeAmount: null, feeBasis: 'per_order', installationFee: 0 }] })).toBe('받을 방식은 택배 하나입니다.');
+  expect(shippingFulfillmentReadback({ mode: 'no_delivery', methods: [{ method: 'none', feeAmount: 0, feeBasis: 'per_order', installationFee: 0 }] })).toBe('배송비 없이 주문받고 직접 전달합니다.');
 });
 it('미리보기의 상품·버전·파일 해제·금액 변조를 거절한다', () => {
   const f = fixture(), row = f.preview.goods[0];

@@ -101,7 +101,23 @@ select public.admin_save_goods_fulfillment('st-good-002',jsonb_build_object('mod
 select public.admin_save_shipping_settings_template_v3(pg_temp.st_save(920,220,pg_temp.st_new_settings())) as saved \gset
 select pg_temp.st_assert(:'saved'::jsonb#>>'{template,settings,fulfillment,policy,methods,1,installationFee}'='3000','save delivery methods and prepaid installation fee');
 select pg_temp.st_assert(public.admin_save_shipping_settings_template_v3(pg_temp.st_save(920,220,pg_temp.st_new_settings()))=:'saved'::jsonb,'save replay does not create revision');
-select pg_temp.st_error(format('select public.admin_save_shipping_settings_template_v3(%L::jsonb)',pg_temp.st_save(921,221,jsonb_set(pg_temp.st_new_settings(),'{fulfillment,policy,confirmed}','false'))),'invalid_shipping_settings_fulfillment');
+-- 적용 근거·확인 체크 없이 저장·미리보기·적용한다(20261127105000). 두 키는 없어도 되고, 있으면 형식만 본다.
+select public.admin_save_shipping_settings_template_v3(pg_temp.st_save(921,221,pg_temp.st_new_settings()#-'{fulfillment,policy,evidence}'#-'{fulfillment,policy,confirmed}')) as bare \gset
+select pg_temp.st_assert(:'bare'::jsonb->>'state'='saved' and not(:'bare'::jsonb#>'{template,settings,fulfillment,policy}' ?| array['evidence','confirmed'])
+ and :'bare'::jsonb#>>'{template,settings,fulfillment,policy,publicNote}'='TEST 수령 안내','save without evidence or confirmation');
+select pg_temp.st_assert(public.admin_save_shipping_settings_template_v3(pg_temp.st_save(934,224,jsonb_set(pg_temp.st_new_settings(),'{fulfillment,policy,confirmed}','false')))->>'state'='saved','unchecked confirmation no longer blocks save');
+select pg_temp.st_error(format('select public.admin_save_shipping_settings_template_v3(%L::jsonb)',pg_temp.st_save(935,225,jsonb_set(pg_temp.st_new_settings(),'{fulfillment,policy,confirmed}','"yes"'))),'invalid_shipping_settings_fulfillment');
+select pg_temp.st_error(format('select public.admin_save_shipping_settings_template_v3(%L::jsonb)',pg_temp.st_save(936,226,jsonb_set(pg_temp.st_new_settings(),'{fulfillment,policy,evidence}','7'))),'invalid_shipping_settings_fulfillment');
+select pg_temp.st_error(format('select public.admin_save_shipping_settings_template_v3(%L::jsonb)',pg_temp.st_save(937,227,jsonb_set(pg_temp.st_new_settings(),'{fulfillment,policy,evidence}',to_jsonb(repeat('가',1001))))),'invalid_shipping_settings_fulfillment');
+select pg_temp.st_error(format('select public.admin_save_shipping_settings_template_v3(%L::jsonb)',pg_temp.st_save(938,228,jsonb_set(pg_temp.st_new_settings(),'{fulfillment,policy,assetIds}','[]'))),'invalid_shipping_settings_fulfillment');
+select pg_temp.st_error(format('select public.admin_save_shipping_settings_template_v3(%L::jsonb)',pg_temp.st_save(939,229,jsonb_set(pg_temp.st_new_settings(),'{fulfillment,policy}','null'))),'invalid_shipping_settings_fulfillment');
+select public.admin_preview_shipping_settings_template_v3(pg_temp.st_id(221),array['st-good-010'],pg_temp.st_id(1),pg_temp.st_id(11)) as bare_preview \gset
+select pg_temp.st_assert(:'bare_preview'::jsonb->>'canApply'='true' and :'bare_preview'::jsonb#>>'{goods,0,effectiveAfter,fulfillment,publicNote}'='TEST 수령 안내','preview without evidence');
+select public.admin_apply_shipping_settings_template_v3(pg_temp.st_apply_v3(940,:'bare_preview')) as bare_applied \gset
+select pg_temp.st_assert(:'bare_applied'::jsonb->>'appliedCount'='1' and :'bare_applied'::jsonb#>>'{goods,0,fulfillmentRevision}'='1','apply without evidence');
+reset role;
+select pg_temp.st_assert((select mode='shipping' and jsonb_array_length(methods)=3 and public_note='TEST 수령 안내' and evidence='' from private.goods_fulfillment_settings where good_id='st-good-010'),'applied fulfillment stores the template values and no evidence');
+select pg_temp.st_auth();set local role authenticated;
 select pg_temp.st_error(format('select public.admin_save_shipping_settings_template_v3(%L::jsonb)',pg_temp.st_save(922,222,jsonb_set(pg_temp.st_new_settings(),'{fulfillment,policy,mode}','"digital"'))),'invalid_shipping_settings_fulfillment');
 select pg_temp.st_error(format('select public.admin_save_shipping_settings_template_v3(%L::jsonb)',pg_temp.st_save(923,223,jsonb_set(pg_temp.st_new_settings(),'{fulfillment,policy,methods,1,feeAmount}','-1'))),'invalid_shipping_settings_fulfillment');
 select public.admin_preview_shipping_settings_template_v3(pg_temp.st_id(220),array['st-good-001','st-good-002'],pg_temp.st_id(1),pg_temp.st_id(11)) as preview \gset

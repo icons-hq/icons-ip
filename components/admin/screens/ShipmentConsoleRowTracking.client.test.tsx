@@ -40,6 +40,13 @@ it('출고지 기본 택배사가 사용 중이면 미리 고르고, 아니면 �
   expect(select(render('retired')).props.value).toBe('');
 });
 
+/* S-02: 이 버튼은 운송장만 적어 두는 것이 아니라 발송처리(배송중 + 고객 발송 안내 메일)다. 이름이 그 결과를 말한다. */
+it('줄의 제출 버튼 이름은 누르면 일어나는 일인 발송처리다', () => {
+  const submitButton = nodes(render()).find(node => node.props.type === 'submit')!;
+  expect(text(submitButton.props.children as ReactNode)).toBe('발송처리');
+  expect(submitButton.props['aria-label']).toBe('배송 건 2026111130000001 발송처리');
+});
+
 it('형식이 틀린 운송장은 서버에 보내지 않고 같은 칸 아래에 이유를 보인다', () => {
   render();
   (input(render()).props.onChange as (event: { target: { value: string } }) => void)({ target: { value: '12-34' } });

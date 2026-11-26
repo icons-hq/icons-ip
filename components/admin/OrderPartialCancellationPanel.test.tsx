@@ -12,8 +12,8 @@ vi.mock('@/app/admin/order-partial-cancellation-actions', () => ({
   viewOrderPartialCancellationRefundAccountAction: vi.fn(),
 }));
 
-import { OrderPartialCancellationPanel, OrderPartialCancellationPanelView } from './OrderPartialCancellationPanel';
-import type { OrderPartialCancellationContext, OrderPartialCancellationRecord } from '@/lib/orders/partial-cancellation';
+import { OrderPartialCancellationPanel, OrderPartialCancellationPanelView, PartialCancellationPlanSummary } from './OrderPartialCancellationPanel';
+import type { OrderPartialCancellationContext, OrderPartialCancellationPlan, OrderPartialCancellationRecord } from '@/lib/orders/partial-cancellation';
 
 const ORDER_ID = '99999999-8888-4777-a666-555555555555';
 const ITEM_A = 'aaaaaaaa-0000-4000-8000-00000000000a';
@@ -54,15 +54,35 @@ describe('재고 부족 부분 취소 패널', () => {
     expect(renderToStaticMarkup(createElement(OrderPartialCancellationPanel, { orderId: ORDER_ID }))).toBe('');
   });
 
-  it('켜진 발송 전 주문은 품목·수량 선택과 고객 결정 기록 칸을 그리고, 고를 수 없는 품목은 이유를 보인다', () => {
+  it('켜진 발송 전 주문은 품목·수량 선택과 고객이 정한 내용 칸을 그리고, 고를 수 없는 품목은 이유를 보인다', () => {
     const html = view(context());
     expect(html).toContain('재고 부족 부분 취소');
     expect(html).toContain('품절 상품 A · 블루');
     expect(html).toContain('예약 판매 상품');
-    expect(html).toContain('고객 결정 기록 (필수)');
     expect(html).toContain('취소 내용 확인');
     expect(html).not.toContain('환불받을 계좌');
     expect(html).not.toContain('굿즈');
+    expect(html).not.toContain('고객 결정 기록');
+  });
+
+  it('고객이 정한 내용은 필수 칸이고 어디에 남는지 한 줄로 말한다(분쟁 기록) — 예시는 입력칸 안에 있다', () => {
+    const html = view(context());
+    expect(html).toContain('고객이 정한 내용 (필수)');
+    expect(html).toContain('placeholder="예: 11/12 14:00 통화 — 품절 상품은 취소하고 나머지를 먼저 받기로 함"');
+    expect(html).toContain('부분 취소 기록과 감사 기록에 남고 고객에게는 보이지 않습니다.');
+  });
+
+  it('[취소 내용 확인]이 잠겨 있으면 이유를 버튼 옆에 보인다 — 상품을 고르지 않았을 때', () => {
+    const html = view(context());
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*disabled=""[^>]*>취소 내용 확인</);
+    expect(html).toContain('취소할 상품을 먼저 골라주세요.');
+    expect(html).toContain(`aria-describedby="partial-cancellation-missing-${ORDER_ID}"`);
+  });
+
+  it('머리 설명은 한 문장이고 환불 계산 방식 같은 내부 설명을 달지 않는다(금액은 확인창이 보인다)', () => {
+    const html = view(context());
+    expect(html).toContain('창고 재고가 모자란 상품만 고객이 정한 대로 취소하고, 나머지는 평소대로 출고합니다.');
+    expect(html).not.toContain('상품별로 나눈 금액');
   });
 
   it('무통장 주문은 환불받을 계좌를 함께 받는다', () => {
@@ -83,14 +103,34 @@ describe('재고 부족 부분 취소 패널', () => {
         staff: { ...record().staff!, refundAccount: { maskedAccount: '합성은행 ****1234', maskedHolder: '홍*동', purged: false } } }),
     ] }));
     expect(html).toContain('결제사 확인 다시 하기');
-    expect(html).toContain('확인 코드: provider_unavailable');
     expect(html).toContain('송금 완료 기록');
     expect(html).toContain('합성은행 ****1234');
     expect(html).toContain('송금 대기');
     expect(html).toContain('결제확인필요');
-    // 결제 담당 해소: 운영자는 사유만 적고, 서버가 결제사 잔액을 조회해 정한다.
-    expect(html).toContain('결제확인필요 해소');
+    // 결제 담당 해소: 운영자는 사유만 적고, 서버가 결제사 잔액을 조회해 정한다. 칸은 접혀 있고 머리가 언제 쓰는지 말한다.
+    expect(html).toMatch(/<details[^>]*data-partial-cancellation-resolve=""[^>]*><summary[^>]*>결제사 확인이 계속 안 될 때/);
+    expect(html).not.toContain('결제확인필요 해소');
     expect(html).toContain('결제사 잔액 조회해 해소');
+    expect(html).toContain('해소 사유 (필수)');
+    expect(html).toContain('5자 이상. 부분 취소 기록의 [해소] 줄에 남습니다.');
+  });
+
+  it('결제사 확인이 막힌 이유는 영문 코드 대신 다음 할 일로 말하고, 코드는 문의할 때 알려 줄 값으로 작게 둔다', () => {
+    const html = view(context({ blockers: ['partial_cancel_in_progress'], history: [
+      record({ state: 'needs_review', completedAt: null, appliedAt: null, staff: { ...record().staff!, lastErrorCode: 'provider_unavailable' } }),
+    ] }));
+    expect(html).toContain('결제사 처리 결과를 확인하지 못했습니다. 잠시 뒤 [결제사 확인 다시 하기]를 눌러주세요.');
+    expect(html).toContain('문의할 때 알려 줄 코드: provider_unavailable');
+    expect(html).not.toContain('확인 코드:');
+  });
+
+  it('송금 대기 양식의 두 칸은 필수라고 적고 각각 어디에 남는지 말한다', () => {
+    const html = view(context({ history: [record({ state: 'awaiting_transfer', provider: 'bank_transfer', completedAt: null,
+      staff: { ...record().staff!, refundAccount: { maskedAccount: '합성은행 ****1234', maskedHolder: '홍*동', purged: false } } })] }));
+    expect(html).toContain('송금 근거 (필수)');
+    expect(html).toContain('이 부분 취소 기록에 남습니다.');
+    expect(html).toContain('확인 메모 (필수)');
+    expect(html).toContain('감사 기록에 남고 이 화면에는 다시 보이지 않습니다.');
   });
 
   it('조회 권한(sales.read)만 있으면 기록만 읽는다 — 시작·다시 확인·해소·송금 양식이 없다', () => {
@@ -114,12 +154,13 @@ describe('재고 부족 부분 취소 패널', () => {
     expect(html).not.toContain('결제사가 이 결제의 부분 취소를 받지 않아');
   });
 
-  it('버전 1 주문은 같은 양식에 첫 부분 취소 때 금액 배분을 확정한다는 안내를 한 줄 둔다', () => {
-    const html = view(context({ calculationVersion: 1, v1Allocation: { frozen: false, issue: null } }));
-    expect(html).toContain('이 주문은 첫 부분 취소를 확정할 때 상품별 금액 배분을 확정합니다.');
-    expect(html).not.toContain('버전 1');
-    expect(html).toContain('취소 내용 확인');
-    expect(view(context({ calculationVersion: 1, v1Allocation: { frozen: true, issue: null } }))).toContain('확정된 상품별 금액 배분으로 계산합니다.');
+  it('버전 1 주문도 같은 양식을 쓰고, 계산 방식(금액 배분 확정)은 화면에 말하지 않는다', () => {
+    for (const frozen of [false, true]) {
+      const html = view(context({ calculationVersion: 1, v1Allocation: { frozen, issue: null } }));
+      expect(html).toContain('취소 내용 확인');
+      expect(html).not.toContain('버전 1');
+      expect(html).not.toContain('금액 배분');
+    }
     expect(view(context())).not.toContain('금액 배분');
   });
 
@@ -171,3 +212,60 @@ describe('부분 반품 환불 줄의 결제사 확인(ADR-0047, 적대적 리�
   });
 });
 
+
+/* 확인창은 되돌릴 수 없는 처리 앞이라 어느 주문의 어느 상품이 몇 개 취소되고 얼마가 환불되며 무엇이 남는지를 모두 말한다. */
+describe('부분 취소 확인창 본문', () => {
+  const PLAN: OrderPartialCancellationPlan = {
+    provider: 'toss', paymentAmount: 40_000, balanceBefore: 40_000, goodsRefundAmount: 9_500, shippingRefundAmount: 3_000, refundAmount: 12_500, balanceAfter: 27_500,
+    storeCreditRestoreAmount: 500, warehouseStopRequired: true, remainingQty: 3,
+    lines: [{ orderItemId: ITEM_A, shipmentId: 'bbbbbbbb-0000-4000-8000-000000000001', shipmentNumber: '2026111230000001', originName: '남양주', exported: true,
+      goodName: '품절 상품 A', variantName: '블루', qty: 1, orderedQty: 2, remainingQtyAfter: 1, goodsRefundAmount: 9_500, couponDiscount: 0, storeCreditDiscount: 500 }],
+    closedShipments: [{ shipmentId: 'bbbbbbbb-0000-4000-8000-000000000002', shipmentNumber: '2026111230000002', originName: '김포', shippingFeeRefund: 3_000, shippingCollectFee: 0, exported: false }],
+  };
+  const summary = (props: Partial<Parameters<typeof PartialCancellationPlanSummary>[0]> = {}) =>
+    renderToStaticMarkup(createElement(PartialCancellationPlanSummary, { plan: PLAN, needsAccount: false, bankReady: false, ...props }));
+
+  it('주문번호·취소할 상품과 수량·함께 환불하는 배송비·환불액·남는 것을 모두 보인다', () => {
+    const html = summary({ orderNumber: '202611121400100000001' });
+    expect(html).toContain('주문 202611121400100000001');
+    expect(html).toContain('품절 상품 A · 블루 1개 취소 (남는 수량 1개)');
+    expect(html).toContain('₩9,500');
+    expect(html).toContain('배송비 함께 환불 · 김포 2026111230000002 (남는 상품 없음)');
+    expect(html).toContain('₩3,000');
+    expect(html).toMatch(/환불액<\/span><span[^>]*>₩12,500</);
+    expect(html).toContain('결제 ₩40,000 · 환불 전 남은 금액 ₩40,000 → 환불 뒤 ₩27,500');
+    expect(html).toContain('사용한 적립금 ₩500은 적립금으로 돌려줌');
+    expect(html).toContain('주문에 남는 상품은 3개입니다. 발송 전인 상품은 그대로 출고합니다.');
+    expect(html).toContain('남은 주문이 쿠폰 사용 조건을 채우는지는 따로 확인하지 않습니다.');
+  });
+
+  it('주문번호를 받지 못해도 나머지는 같고 주문번호 줄만 빠진다(내부 번호로 대신하지 않는다)', () => {
+    const html = summary();
+    expect(html).not.toContain('주문 2026');
+    expect(html).not.toContain(ORDER_ID);
+    expect(html).toContain('환불액');
+  });
+
+  it('출고지시가 나간 배송 건이면 창고 회신 기록이 있어야 하고 그 회신은 한 번만 쓰인다고 말한다', () => {
+    expect(summary()).toContain('창고 회신 기록(출고 중단 확인)이 있어야 확정할 수 있습니다. 그 회신은 이 부분 취소에 한 번 쓰이고, 다른 취소에는 다시 쓸 수 없습니다.');
+    expect(summary({ plan: { ...PLAN, warehouseStopRequired: false } })).not.toContain('창고 회신 기록');
+  });
+
+  it('남은 결제 금액이 0원이 되면 그것도 말한다', () => {
+    expect(summary({ plan: { ...PLAN, balanceBefore: 12_500, balanceAfter: 0 } })).toContain('이 취소로 남은 결제 금액이 0원이 됩니다.');
+    expect(summary()).not.toContain('0원이 됩니다');
+  });
+
+  it('무통장 주문은 계좌를 다 적기 전까지 이유를 보이고, 다 적으면 이유를 지운다', () => {
+    const missing = summary({ plan: { ...PLAN, provider: 'bank_transfer' }, needsAccount: true, bankReady: false });
+    expect(missing).toContain('환불받을 계좌(은행·계좌번호·예금주)를 모두 적어야 확정할 수 있습니다.');
+    expect(missing).toContain('[취소 내용 확인]을 다시 눌러주세요.');
+    expect(summary({ plan: { ...PLAN, provider: 'bank_transfer' }, needsAccount: true, bankReady: true })).not.toContain('환불받을 계좌');
+  });
+
+  it('주문번호를 함께 받아도 확인창이 닫혀 있는 첫 화면은 그대로다', () => {
+    const html = renderToStaticMarkup(createElement(OrderPartialCancellationPanelView, { orderId: ORDER_ID, orderNumber: '202611121400100000001', context: context(), onReload: () => undefined }));
+    expect(html).toContain('취소 내용 확인');
+    expect(html).not.toContain('주문 202611121400100000001');
+  });
+});

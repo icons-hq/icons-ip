@@ -199,3 +199,34 @@ describe('교환 회수품 재고 처리(CLM-046)', () => {
     }
   });
 });
+
+/*
+ * A-1: 반품배송비를 뺀 부분 취소를 결제사가 받지 않으면 정합화가 다시 묻지 않고 전액을 취소한다. 확인창이 그 경우를 미리 말했으므로,
+ * 결과 문구도 실제로 취소된 전액과 따로 받아야 하는 반품배송비를 금액으로 말한다.
+ */
+describe('반품배송비 차감 반품의 환불 완료 결과(A-1)', () => {
+  const deduction = (state: string, refundAmount: number, applicable = true) => ({
+    source: 'decision', state, applicable, reason: applicable ? null : 'partial_cancel_unavailable', oneWayAmount: 3000, basis: 'one_way',
+    deductionAmount: 3000, paymentAmount: 30000, refundAmount, provider: 'toss',
+  });
+
+  it('결제사가 부분 취소를 받지 않아 전액이 취소됐으면 그 금액과 따로 받을 반품배송비를 말한다', async () => {
+    mocks.loadAdminClaimDetail
+      .mockResolvedValueOnce({ ...detail('processing'), refundDeduction: deduction('planned', 27000) })
+      .mockResolvedValueOnce({ ...detail('completed'), refundDeduction: deduction('not_applied', 30000, false) });
+
+    const state = await recordOrderClaimRefundAction({}, completeForm());
+
+    expect(state.message).toBe('결제사가 이 결제의 부분 취소를 받지 않아 토스 전액 30,000원 취소로 환불 완료를 기록했습니다. 반품배송비 3,000원은 환불액에서 빼지 못했으니 배송비 청구로 따로 받아야 합니다. 재고 복원이 함께 확정됐습니다.');
+  });
+
+  it('부분 취소가 됐으면 뺀 금액과 환불액을 말한다', async () => {
+    mocks.loadAdminClaimDetail
+      .mockResolvedValueOnce({ ...detail('processing'), refundDeduction: deduction('planned', 27000) })
+      .mockResolvedValueOnce({ ...detail('completed'), refundDeduction: deduction('applied', 27000) });
+
+    const state = await recordOrderClaimRefundAction({}, completeForm());
+
+    expect(state.message).toBe('토스 부분 취소(반품배송비 3,000원을 뺀 27,000원)를 확인하고 환불 완료를 기록했습니다. 재고 복원이 함께 확정됐습니다.');
+  });
+});

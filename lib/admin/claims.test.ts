@@ -11,9 +11,12 @@ import {
   adminClaimReasonOptions,
   adminClaimReasonText,
   adminClaimRejectionPresets,
+  adminClaimStageLabel,
   adminClaimTodayKst,
+  ADMIN_CLAIM_DATE_FIELDS,
   ADMIN_CLAIM_REASON_OPTIONS,
   ADMIN_CLAIM_REJECTION_PRESETS,
+  ADMIN_CLAIM_SEARCH_FIELDS,
   normalizeAdminClaimCollectionForm,
   normalizeAdminClaimOriginCollectionForm,
   normalizeAdminClaimOperationalFeeForm,
@@ -130,7 +133,7 @@ describe('클레임 콘솔 경로', () => {
 });
 
 describe('클레임 필터 정규화', () => {
-  it.each(['recipient', 'item', 'product'] as const)('새 상세조건 %s을 페이지·상세 복귀에도 보존한다', (field) => {
+  it.each(['recipient', 'item'] as const)('새 상세조건 %s을 페이지·상세 복귀에도 보존한다', (field) => {
     const query = '전체%_번호-AB12';
     const result = normalizeAdminClaimFilters({ field, query: `  ${query}  `, dateField: 'paid', stage: 'all', page: '3' });
     expect(result).toMatchObject({ field, query, dateField: 'paid', page: 3 });
@@ -145,6 +148,33 @@ describe('클레임 필터 정규화', () => {
     for (const field of [['recipient', 'item'], 'recipientName', 'goodId', 'all']) {
       expect(normalizeAdminClaimFilters({ field }).field).toBeUndefined();
     }
+  });
+
+  /* L-06: 상품 URL(고객 화면 주소 끝의 영문 값)은 검색 항목에서 뺐다. 전체 검색이 그 값도 찾으므로 옛 주소는 전체로 읽는다. */
+  it('상품 URL은 검색 항목에 없고, 옛 주소의 field=product는 전체로 읽는다', () => {
+    expect(ADMIN_CLAIM_SEARCH_FIELDS.map((option) => option.label)).toEqual(['전체', '주문·요청번호', '구매자', '구매자 이메일', '수령인명', '상품주문번호']);
+    expect(normalizeAdminClaimFilters({ field: 'product', query: 'abc' })).toMatchObject({ query: 'abc' });
+    expect(normalizeAdminClaimFilters({ field: 'product', query: 'abc' }).field).toBeUndefined();
+  });
+
+  /* L-01·L-03: 기간 기준 이름은 표의 열 이름과 같다(접수일·입고완료일). 단계 이름은 세 유형이 같은 틀이다. */
+  it('기간 기준과 단계 이름은 표와 같은 말을 쓰고 세 유형이 같은 틀이다', () => {
+    expect(ADMIN_CLAIM_DATE_FIELDS.map((option) => option.label)).toEqual(['접수일', '결제일', '입고완료일', '처리완료일']);
+    for (const type of ['cancel', 'return', 'exchange'] as const) {
+      const name = { cancel: '취소', return: '반품', exchange: '교환' }[type];
+      expect(adminClaimStageLabel(type, 'requested')).toBe(`${name}요청`);
+      expect(adminClaimStageLabel(type, 'in_review')).toBe(`${name}검토중`);
+      expect(adminClaimStageLabel(type, 'on_hold')).toBe(`${name}보류`);
+      expect(adminClaimStageLabel(type, 'completed')).toBe(`${name}완료`);
+      expect(adminClaimStageLabel(type, 'rejected')).toBe(`${name}거부`);
+      expect(adminClaimStageLabel(type, 'withdrawn')).toBe(`${name}철회`);
+    }
+    /* 창고에 돌아온 단계는 고객 화면·엑셀의 '입고완료'와 같은 말이다. */
+    expect(adminClaimStageLabel('return', 'collected')).toBe('입고완료');
+    expect(adminClaimStageLabel('exchange', 'collected')).toBe('입고완료');
+    expect(adminClaimStageLabel('return', 'collecting')).toBe('수거중');
+    expect(adminClaimStageLabel('cancel', 'processing')).toBe('처리중');
+    expect(adminClaimStageLabel('cancel', 'needs_review')).toBe('결제확인필요');
   });
 
   it('기본 필터는 미처리다', () => {

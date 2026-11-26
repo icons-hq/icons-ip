@@ -19,6 +19,7 @@ vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthS
 import { ShippingCollectPanel } from './ShippingCollectPanel';
 import { shippingCollectRequest as request, shippingCollectReceipt } from '@/test/fixtures/shipping-collect';
 import { shippingCollectRecoveryKey } from '@/lib/admin/shipping-collect-events';
+import { setAdminConfirmHandler, type AdminConfirmRequest } from '@/lib/admin/confirm';
 type Element = ReactElement<Record<string, unknown>>;
 const sessionId = 'ab140000-0000-4000-8000-000000000005';let nodes: Element[];let data: Map<string, string>;
 const text = (node: ReactNode): string => Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join('');
@@ -43,18 +44,21 @@ function authenticate(actor = request.expectedActorId, session = sessionId) { mo
 function control(label: string) { const parent = nodes.find(node => node.type === 'label' && text(node).startsWith(label))!;return Children.toArray(parent.props.children as ReactNode).find(value => isValidElement(value) && ['input', 'select'].includes(String(value.type))) as Element; }
 function change(label: string, value: string) { render();(control(label).props.onChange as (event: unknown) => void)({ target: { value } }); }
 function click(label: string) { render();const button = nodes.find(node => node.type === 'button' && text(node) === label)!;expect(button).toBeDefined();expect(button.props.disabled).not.toBe(true);(button.props.onClick as () => void)(); }
-function fill() { change('기록 종류', 'collected');change('실제 확인 금액', '2250');change('실제 발생 시각', '2026-10-14T10:00:00');change('수납·반환 주체', '민감 본문 주체');change('운송사 수납·환급', '민감 증빙');change('확인 내용', '민감 상세 본문'); }
+function fill() { change('기록 종류', 'collected');change('발생 시각', '2026-10-14T10:00:00');change('수납·반환한 곳', '민감 본문 주체');change('증빙 번호', '민감 증빙');change('확인한 내용', '민감 상세 본문'); }
 function submit() { render();const handler = nodes.find(node => node.type === 'form')!.props.onSubmit as (event: unknown) => void;handler({ preventDefault() {} });return handler; }
 function dispose() { for (const frame of hooks.frames.values()) for (const effect of frame.effects.values()) effect.cleanup?.();hooks.frames.clear(); }
 const deferred = () => { let resolve!: (value: unknown) => void;const promise = new Promise(yes => { resolve = yes; });return { promise, resolve }; };
+/* 확인창은 호스트 대신 이 핸들러가 받는다. answer가 false면 운영자가 [돌아가기]를 누른 것이다. */
+let confirms: AdminConfirmRequest[] = [];let answer = true;let restoreConfirm: () => void;
 beforeEach(async () => {
+  confirms = [];answer = true;restoreConfirm = setAdminConfirmHandler(async request => { confirms.push(request);return answer; });
   hooks.frames.clear();vi.clearAllMocks();data = new Map();const storage = { getItem: (key: string) => data.get(key) ?? null, setItem: (key: string, value: string) => data.set(key, value), removeItem: (key: string) => data.delete(key), key: (index: number) => [...data.keys()][index] ?? null, get length() { return data.size; } };
   vi.stubGlobal('sessionStorage', storage);vi.stubGlobal('window', Object.assign(new EventTarget(), { confirm: vi.fn(() => false) }));vi.stubGlobal('document', new EventTarget());
   const obligation = shippingCollectReceipt().obligation;obligation.revision = 1;obligation.state = 'planned';obligation.events = [];
   mocks.read.mockResolvedValue({ ok: true, value: [obligation] });mocks.save.mockResolvedValue({ ok: false, uncertain: true, error: '결과 불명확' });mocks.operation.mockResolvedValue({ ok: true, value: null });mocks.seal.mockResolvedValue({ ok: true, value: null });
   render();effects();authenticate();await flush();
 });
-afterEach(() => { dispose();vi.unstubAllGlobals(); });
+afterEach(() => { dispose();restoreConfirm();vi.unstubAllGlobals(); });
 it('동일 제출 callback을 중복 실행해도 UUID 하나이며 비PII 요청 식별자만 보관한다', async () => {
   fill();const handler = submit();handler({ preventDefault() {} });await flush();expect(mocks.save).toHaveBeenCalledTimes(1);
   const metadata = JSON.parse([...data.values()][0]);expect(Object.keys(metadata).sort()).toEqual(['expectedActorId', 'operationId', 'orderId', 'sessionId', 'shipmentId', 'version']);expect(JSON.stringify(metadata)).not.toContain('민감');
@@ -62,9 +66,9 @@ it('동일 제출 callback을 중복 실행해도 UUID 하나이며 비PII 요�
 });
 it('새로고침은 원 operation 조회 후 봉인하고 최신 상태 확인 전에는 새 저장을 막는다', async () => {
   fill();submit();await flush();const original = mocks.save.mock.calls[0][0];dispose();render();effects();authenticate();await flush();
-  click('이전 결과 확인');await flush();expect(mocks.operation.mock.calls[0][0].operationId).toBe(original.operationId);expect(mocks.save).toHaveBeenCalledTimes(1);
-  click('이전 요청 무효 처리 후 다시 입력');await flush();expect(mocks.seal.mock.calls[0][0].operationId).toBe(original.operationId);expect(data.size).toBe(0);
-  expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(true);click('최신 상태 확인 · 새 증빙 입력');await flush();expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(false);
+  click('저장됐는지 확인');await flush();expect(mocks.operation.mock.calls[0][0].operationId).toBe(original.operationId);expect(mocks.save).toHaveBeenCalledTimes(1);
+  click('그만두고 다시 하기');await flush();expect(mocks.seal.mock.calls[0][0].operationId).toBe(original.operationId);expect(data.size).toBe(0);
+  expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(true);click('새로 입력하기');await flush();expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(false);
 });
 it.each(['account', 'session', 'signout'])('%s 전환 후 늦은 증빙 응답과 복구 메타데이터를 노출하지 않는다', async kind => {
   const pending = deferred();mocks.save.mockReturnValueOnce(pending.promise);fill();submit();await flush();
@@ -74,4 +78,64 @@ it.each(['account', 'session', 'signout'])('%s 전환 후 늦은 증빙 응답�
 it('다른 세션의 식별자를 새 세션 복구 요청으로 사용하지 않는다', async () => {
   const key = shippingCollectRecoveryKey(request, sessionId, request.shipmentId);data.set(key, JSON.stringify({ ...request, version: 1, sessionId }));dispose();render();effects();authenticate(request.expectedActorId, request.orderId);await flush();
   expect(mocks.operation).not.toHaveBeenCalled();expect(nodes.find(node => node.type === 'fieldset')!.props.disabled).toBe(false);
+});
+
+/* D-07·D-06·D-04: 기록하기 전에 확인창이 대상·금액·지울 수 없다는 사실을 말하고, 금액은 종류가 정하며, 시각은 지금으로 시작하고, 번호는 화면에 나오지 않는다. */
+const labelNames = () => nodes.filter(node => node.type === 'label').map(node => text(node));
+it('기록하기는 확인창에 출고지·착불 금액·기록 종류·금액·지울 수 없다는 사실을 말한 뒤에 저장한다', async () => {
+  fill();submit();await flush();
+  expect(confirms).toHaveLength(1);
+  expect(confirms[0]).toMatchObject({ title: '착불 수납을 기록할까요?', confirmLabel: '기록하기', cancelLabel: '돌아가기' });
+  expect(confirms[0].message).toContain('TEST 합성출고지 · 착불 배송비 2,250원');
+  expect(confirms[0].message).toContain('기록 종류: 외부 수납 확인');
+  expect(confirms[0].message).toContain('금액: 2,250원');
+  expect(confirms[0].message).toContain('기록은 지울 수 없습니다');
+  expect(confirms[0].message).toContain('온라인 결제·환불 금액은 바뀌지 않습니다');
+  expect(mocks.save).toHaveBeenCalledTimes(1);
+  expect(mocks.save.mock.calls[0][0]).toMatchObject({ event: 'collected', amount: 2250 });
+});
+it('확인창에서 돌아가면 저장하지 않고 요청 번호도 보관하지 않는다', async () => {
+  answer = false;fill();submit();await flush();
+  expect(confirms).toHaveLength(1);expect(mocks.save).not.toHaveBeenCalled();expect(data.size).toBe(0);
+  answer = true;submit();await flush();expect(mocks.save).toHaveBeenCalledTimes(1);
+});
+it('금액은 기록 종류가 정한다 — 수납 확인은 주문 당시 금액, 미수납 종료는 0원, 금액 불일치만 직접 적는다', async () => {
+  render();expect(labelNames().some(name => name.startsWith('금액'))).toBe(false);expect(nodes.some(node => node.props['data-collect-amount'])).toBe(false);
+  const fixed = () => nodes.find(node => node.props['data-collect-amount'] === 'fixed');
+  change('기록 종류', 'collected');render();expect(text(fixed()!)).toContain('2,250원');expect(text(fixed()!)).toContain('주문 당시 착불 금액입니다.');expect(labelNames().some(name => name.startsWith('금액'))).toBe(false);
+  change('기록 종류', 'void');render();expect(text(fixed()!)).toContain('0원');expect(text(fixed()!)).toContain('미수납으로 끝내므로 0원입니다.');
+  change('기록 종류', 'mismatch');render();expect(fixed()).toBeUndefined();expect(labelNames().some(name => name.startsWith('금액 (원)'))).toBe(true);
+  change('금액', '1500');render();expect((control('금액').props.value)).toBe('1500');
+  change('기록 종류', 'collected');render();expect(text(fixed()!)).toContain('2,250원');expect(labelNames().some(name => name.startsWith('금액'))).toBe(false);
+});
+it('수납 금액 불일치는 예정 금액과 같으면 확인창 전에 막는다', async () => {
+  change('기록 종류', 'mismatch');change('금액', '2250');change('발생 시각', '2026-10-14T10:00:00');change('수납·반환한 곳', '운송사');change('증빙 번호', 'R-1');change('확인한 내용', '확인');
+  submit();await flush();expect(confirms).toHaveLength(0);expect(mocks.save).not.toHaveBeenCalled();
+  render();expect(text(nodes.find(node => node.type === 'p' && text(node).includes('다른 금액이어야'))!)).toContain('예정 금액(2,250원)');
+});
+it('발생 시각은 지금(KST)으로 시작하고, 아무것도 입력하지 않았으면 나갈 때 묻지 않는다', async () => {
+  render();const occurredAt = control('발생 시각').props.value as string;
+  expect(occurredAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
+  const event = new Event('beforeunload', { cancelable: true });window.dispatchEvent(event);expect(event.defaultPrevented).toBe(false);
+  change('수납·반환한 곳', '운송사');await flush();const typed = new Event('beforeunload', { cancelable: true });window.dispatchEvent(typed);expect(typed.defaultPrevented).toBe(true);
+});
+it('저장 결과를 모를 때 화면에 요청 번호를 내보이지 않고 [저장됐는지 확인]으로 이끈다', async () => {
+  mocks.save.mockRejectedValueOnce(new Error('network'));
+  fill();submit();await flush();const original = mocks.save.mock.calls[0][0];
+  const alertText = () => nodes.filter(node => node.props.role === 'alert').map(node => text(node)).join('|');
+  expect(alertText()).toContain('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');expect(alertText()).not.toContain(original.operationId);
+  dispose();render();effects();authenticate();await flush();
+  expect(alertText()).toContain('보낸 기록이 저장됐는지 아직 모릅니다. [저장됐는지 확인]을 먼저 눌러주세요.');expect(alertText()).toContain('[그만두고 다시 하기]');expect(alertText()).not.toContain(original.operationId);
+  const buttons = nodes.filter(node => node.type === 'button').map(node => text(node));
+  expect(buttons).toContain('저장됐는지 확인');expect(buttons).toContain('그만두고 다시 하기');
+  for (const retired of ['이전 결과 확인', '이전 요청 무효 처리 후 다시 입력', '최신 상태 확인 · 새 증빙 입력', '현재 시각 입력', '증빙 확인 후 기록']) expect(buttons.some(name => name.includes(retired))).toBe(false);
+});
+it('수납 상태를 말할 때 기록 번호(기록 N)를 쓰지 않는다', async () => {
+  render();expect(nodes.map(node => text(node)).join('|')).not.toMatch(/기록 \d/);
+});
+it('서버가 옛 버튼 이름으로 안내해도 화면에는 지금 버튼 이름으로 보인다', async () => {
+  mocks.save.mockResolvedValueOnce({ ok: false, uncertain: true, error: '저장됐는지 확인하지 못했습니다. 입력은 그대로 두고 [이전 결과 확인 후 같은 요청 재시도]를 눌러주세요.' });
+  fill();submit();await flush();render();
+  const alerts = nodes.filter(node => node.props.role === 'alert').map(node => text(node)).join('|');
+  expect(alerts).toContain('입력은 그대로 두고 [저장됐는지 확인]을 눌러주세요.');expect(alerts).not.toContain('이전 결과 확인');
 });

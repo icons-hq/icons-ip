@@ -256,6 +256,11 @@ export interface AdminClaimCollectionBundle {
   collectorName: string | null;
   evidence: string | null;
   receivedOn: string | null;
+  /**
+   * 반품지 주소가 준비됐는지(DB 판정 — 묶음 주소 또는 출고지의 반품 주소가 있으면 true). 운영자 조회에만 있다.
+   * 응답에 없으면 undefined이고, 화면은 값을 모르면 회수 확인 양식을 잠그지 않는다(DB가 확인 때 다시 판정한다).
+   */
+  returnAddressReady?: boolean;
   /** 반품 자동 회수 접수(QNA-032). 스위치를 켠 뒤 접수 큐에 들어간 묶음에만 있다. */
   pickup?: AdminReturnPickup | null;
 }
@@ -566,6 +571,7 @@ export async function loadAdminClaimDetail(
             orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), qty: toNumber(item.qty as number | string),
           })),
           collectedAt: text(bundle.collectedAt), collectorName: text(bundle.collectorName), evidence: text(bundle.evidence), receivedOn: text(bundle.receivedOn),
+          ...(typeof bundle.returnAddressReady === 'boolean' ? { returnAddressReady: bundle.returnAddressReady } : {}),
           ...(bundle.pickup === undefined ? {} : { pickup: parseAdminReturnPickup(bundle.pickup) }),
         })),
       })),

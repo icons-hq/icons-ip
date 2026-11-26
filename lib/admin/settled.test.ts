@@ -17,15 +17,15 @@ describe('하자 클레임 잔여 기한', () => {
     expect(window.deadline?.toISOString()).toBe('2026-08-20T06:00:00.000Z');
     expect(window.daysRemaining).toBe(2);
     expect(window.open).toBe(true);
-    expect(adminDefectClaimLabel(window)).toBe('가능 · 2일 남음');
+    expect(adminDefectClaimLabel(window)).toBe('2일 남음');
   });
 
-  it('3개월이 지난 주문은 기한 종료로 표기한다', () => {
+  it('3개월이 지난 주문은 기한이 끝났다고 표기한다', () => {
     const window = adminDefectClaimWindow(DELIVERED, new Date('2026-09-01T06:00:00.000Z'));
 
     expect(window.daysRemaining).toBe(0);
     expect(window.open).toBe(false);
-    expect(adminDefectClaimLabel(window)).toBe('기한 종료');
+    expect(adminDefectClaimLabel(window)).toBe('끝남');
   });
 
   /* 추측한 기산점으로 "기한 지남"을 띄우면 정당한 클레임을 거절하는 근거가 된다.
@@ -36,7 +36,7 @@ describe('하자 클레임 잔여 기한', () => {
     expect(window.deadline).toBeNull();
     expect(window.daysRemaining).toBeNull();
     expect(window.open).toBe(false);
-    expect(adminDefectClaimLabel(window)).toBe('공급일 기록 없음 · 주문 기록 확인 필요');
+    expect(adminDefectClaimLabel(window)).toBe('배송완료일 없음');
   });
 });
 

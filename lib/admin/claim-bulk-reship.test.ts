@@ -6,8 +6,11 @@ import {
   CLAIM_BULK_RESHIP_EXPIRED,
   CLAIM_BULK_RESHIP_OUTCOME_UNKNOWN,
   CLAIM_BULK_RESHIP_PENDING_OPERATION,
+  CLAIM_BULK_RESHIP_PENDING_EXCLUDED,
   CLAIM_BULK_RESHIP_PREVIOUS_FAILED,
+  claimBulkReshipConfirmation,
   registerClaimReshipments,
+  reshipOptionName,
   reshipRowKey,
   sameClaimContactAddress,
   type ClaimBulkReshipDeps,
@@ -108,6 +111,8 @@ describe('registerClaimReshipments', () => {
     expect(await registerClaimReshipments({ claim: claim(), context, drafts, identity: { actorId: ACTOR, sessionId: SESSION } }, h.deps, h.report)).toBe('ok');
     expect(h.results).toEqual([['TEST 김포', 'done', '재출고를 등록했습니다(GIMPO0001).'], ['TEST 남양주', 'done', '재출고를 등록했습니다(NAMYANG001).']]);
     expect(h.sent.map((request) => [request.shipmentId, request.collectionWaiver, request.trackingNumber])).toEqual([[SHIP(1), null, 'GIMPO0001'], [SHIP(2), null, 'NAMYANG001']]);
+    /* 화면에는 '주소가 같습니다'·'발송 정보를 확인했습니다' 체크가 없다 — 확인은 확인창이 하고, 요청에는 두 확인 값이 처음부터 true로 실린다(계약 contracts.ts). */
+    expect(h.sent.every((request) => request.destinationConfirmed === true && request.dispatchConfirmed === true)).toBe(true);
     expect(h.deps.fetchContext).toHaveBeenCalledTimes(1);
     expect(h.store.size).toBe(0);
   });
@@ -166,5 +171,50 @@ describe('registerClaimReshipments', () => {
     const h = harness({ canApply: () => ++calls < 2 });
     expect(await registerClaimReshipments({ claim: claim(), context, drafts, identity: { actorId: ACTOR, sessionId: SESSION } }, h.deps, h.report)).toBe('auth_lost');
     expect(h.results).toEqual([['TEST 김포', 'done', expect.any(String)], ['TEST 남양주', 'failed', CLAIM_BULK_RESHIP_AUTH_CHANGED]]);
+  });
+});
+
+/*
+ * D-23(일괄): '최종 주소가 같습니다'·'발송 정보를 확인했습니다' 체크 둘을 없애고, [재출고 등록]을 누르면 받는 분·주소와 출고지마다의
+ * 택배사·운송장·상품을 되읽는 확인창으로 대신한다. 요청에는 두 확인 값이 처음부터 true로 실려 간다(위 registerClaimReshipments 시험).
+ */
+describe('재출고 등록 확인창', () => {
+  const summary = (n: number) => ({
+    reference: `C0000${n}`, recipient: '합성 고객', address: '(12345) 합성시 입고일로 1 101호',
+    rows: [
+      { origin: 'TEST 김포', carrierLabel: '한진택배', trackingNumber: 'GIMPO0001', items: [{ name: '굿즈 1 · 블랙', qty: 1 }, { name: '굿즈 2', qty: 2 }] },
+      { origin: 'TEST 남양주', carrierLabel: '한진택배', trackingNumber: 'NAMYANG001', items: [{ name: '굿즈 3', qty: 1 }] },
+    ],
+  });
+
+  it('요청마다 받는 분·주소와 출고지별 택배사·운송장·상품을 되읽고, 재고가 움직이고 교환이 끝난다는 결과를 말한다', () => {
+    const request = claimBulkReshipConfirmation([summary(1), summary(2)]);
+    expect(request).toMatchObject({ title: '재출고 2건 · 출고지 4곳 등록', confirmLabel: '재출고 등록', cancelLabel: '돌아가기' });
+    expect(request.message).toContain('C00001 · 합성 고객 · (12345) 합성시 입고일로 1 101호');
+    expect(request.message).toContain('  TEST 김포 → 한진택배 GIMPO0001 · 굿즈 1 · 블랙 × 1, 굿즈 2 × 2');
+    expect(request.message).toContain('  TEST 남양주 → 한진택배 NAMYANG001 · 굿즈 3 × 1');
+    expect(request.message).toContain('회수한 상품의 재고를 복원하고 고른 상품으로 재출고합니다.');
+    expect(request.message).toContain('모든 출고지를 보내면 교환이 끝납니다.');
+    expect(request.message).toContain('등록하면 되돌릴 수 없습니다.');
+    expect(request.destructive).toBeUndefined();
+  });
+
+  it('앞의 여덟 요청만 풀어 적고 나머지는 건수로 줄인다', () => {
+    const request = claimBulkReshipConfirmation(Array.from({ length: 11 }, (_, index) => summary(index)));
+    expect(request.message).toContain('C00007 ·');
+    expect(request.message).not.toContain('C00008 ·');
+    expect(request.message).toContain('그 밖에 3건');
+  });
+
+  it('재출고 옵션 줄에서 재고 수량만 떼어 확인창에 적는다', () => {
+    expect(reshipOptionName('TEST 굿즈 · 블랙 · OPT-0001 · 재고 12개')).toBe('TEST 굿즈 · 블랙 · OPT-0001');
+    expect(reshipOptionName('재고 없는 줄')).toBe('재고 없는 줄');
+  });
+
+  it('결과를 모를 때 안내하는 버튼 이름은 다른 화면과 같은 [저장됐는지 확인]이다', () => {
+    for (const message of [CLAIM_BULK_RESHIP_OUTCOME_UNKNOWN, CLAIM_BULK_RESHIP_PENDING_EXCLUDED, CLAIM_BULK_RESHIP_PENDING_OPERATION]) {
+      expect(message).toContain('[저장됐는지 확인]');
+      expect(message).not.toContain('저장 결과 확인');
+    }
   });
 });

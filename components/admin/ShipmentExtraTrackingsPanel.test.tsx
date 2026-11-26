@@ -22,6 +22,7 @@ describe('배송 건 추가 운송장 패널 (QNA-019)', () => {
     expect(html).toContain('<option value="epost" selected="">우체국택배</option>');
     expect(html).not.toContain('value="retired"');
     expect(html).toContain('추가 운송장 저장');
+    expect(html).toContain('>추가하는 사유 (필수 · 감사 기록에 남습니다)</label>');
     expect(html).toContain('고객 주문 상세에 대표 운송장과 함께 보이고');
   });
   it('추가 운송장이 없으면 빈 안내와 더하기 양식만, 상한에 이르면 양식 대신 안내를 보인다', () => {

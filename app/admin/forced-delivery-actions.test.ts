@@ -43,7 +43,7 @@ describe('운영 강제 배송완료 (1014-083)', () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '23514', message: 'forced_delivery_digital_access_only' } });
     expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toEqual({ error: expect.stringContaining('디지털 파일') });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'operation_conflict' } });
-    expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toEqual({ error: expect.stringContaining('같은 요청 번호') });
+    expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toEqual({ error: expect.stringContaining('같은 처리가 다른 내용으로') });
     mocks.rpc.mockResolvedValueOnce({ data: { ...receipt, orderNumber: '2026111110000002' }, error: null });
     expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toHaveProperty('error');
     mocks.rpc.mockResolvedValueOnce({ data: { ...preview, blockers: ['unknown'] }, error: null });

@@ -10,6 +10,7 @@ import {
   ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS,
   adminClaimBulkSummary,
   normalizeAdminClaimBulkForm,
+  parseAdminClaimBulkContexts,
   runAdminClaimBulkSequentially,
   type AdminClaimBulkState,
 } from '@/lib/admin/claim-bulk';
@@ -21,7 +22,6 @@ import {
   normalizeAdminClaimEvidenceForm,
   normalizeAdminClaimDecisionForm,
   normalizeAdminClaimRefundForm,
-  normalizeAdminClaimReshipmentForm,
 } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimDetailLoadFailureMessage } from '@/lib/admin/claim-transaction-snapshot';
@@ -31,9 +31,9 @@ import { CLAIM_EVIDENCE_MAX_FILES, CLAIM_WAIVER_REASON_MAX, CLAIM_WAIVER_REASON_
 import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
-import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { warehouseStopErrorMessage } from '@/lib/admin/warehouse-stop';
 import {
+  ORDER_CLAIM_REFUND_METHOD_LABELS,
   ORDER_CLAIM_TYPE_LABELS,
   isOrderClaimType,
   orderClaimReferenceLabel,
@@ -47,11 +47,13 @@ import { loadAdminClaimPartialReturn } from '@/lib/orders/partial-return.server'
 import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import {
+  PAYMENT_PROVIDER_LABELS,
   automatedCancelProviderLabel,
+  paymentProviderLabel,
   providerCancelsAutomatically,
 } from '@/lib/payments/provider-capabilities';
 import { createClient } from '@/lib/supabase/server';
-import { adminPaymentCancelFailureMessage } from '@/lib/admin/payment-cancel-error';
+import { adminPaymentCancelFailureMessage, withAdminSupportCode } from '@/lib/admin/payment-cancel-error';
 import { isUuid } from '@/lib/uuid';
 import { krwAmountWords } from '@/lib/format';
 
@@ -76,10 +78,9 @@ export interface AdminClaimActionState extends AdminFormValuesState {
 const DECIDE_FAILED = '클레임을 처리하지 못했습니다. 최신 상태를 확인해주세요.';
 const COLLECTION_FAILED = '수거 상태를 기록하지 못했습니다. 최신 상태를 확인해주세요.';
 const REFUND_FAILED = '환불 기록을 남기지 못했습니다. 최신 상태를 확인해주세요.';
-const RESHIP_FAILED = '재출고를 기록하지 못했습니다. 최신 상태를 확인해주세요.';
 const OPERATIONAL_FEE_FAILED = '운영 확인액을 기록하지 못했습니다. 새로고침한 뒤 최신 요청에서 다시 저장해주세요.';
-const FINALIZE_FAILED = '결제 취소 상태를 확정하지 못했습니다. 주문과 재고는 그대로 유지됩니다. 결제사 확인 오류를 확인한 뒤 다시 시도해주세요.';
-/** 정합화 결과 코드가 있는 실패. 코드별 조치를 찾을 수 있게 그대로 싣는다(QA-10). */
+const FINALIZE_FAILED = "결제 취소를 확정하지 못했습니다. 주문과 재고는 그대로입니다. 새로고침한 뒤 [환불 완료 확정]을 다시 눌러주세요. 요청 상세에 '결제사 확인 오류'가 보이면 그 안내를 먼저 확인합니다.";
+/** 정합화 결과 코드가 있는 실패. 문장은 다음에 할 일을 말하고, 코드는 끝에 한 번만 붙는다(QA-10 · L-12). */
 function finalizeFailed(code: string) {
   return adminPaymentCancelFailureMessage(code);
 }
@@ -88,14 +89,33 @@ const DEFECTIVE_PLAN_FAILED = '품목별 재고 처리를 저장하지 못했습
 const DEFECTIVE_RECORD_FAILED = `불량 재고를 기록하지 못했습니다. ${DEFECTIVE_STOCK_PENDING_NOTICE}`;
 const DEFECTIVE_STOCK_RECORDED_NOTE = '판매 재고에는 넣지 않았습니다.';
 const EXCHANGE_STOCK_PLAN_FAILED = '회수품 재고 처리를 저장하지 못했습니다. 재고와 재출고는 그대로입니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
-const REFUND_METHOD_MISMATCH = '이 결제의 환불 수단과 다릅니다. 토스 결제는 결제사 취소(토스 전액 취소)로만 환불합니다. 화면을 새로고침한 뒤 다시 진행해주세요.';
+const REFRESH_AND_RETRY = '화면을 새로고침한 뒤 다시 진행해주세요.';
+/**
+ * 폼이 보낸 환불 수단이 정해진 수단과 다를 때의 안내. 이미 환불 기록에 적힌 수단이 있으면 그 수단이 기준이고(첫 기록이 이긴다),
+ * 없으면 결제가 정한다. 결제사 이름은 이름표에서 읽는다 — 나이스페이 결제에 '토스'라고 말하지 않는다.
+ */
+function refundMethodMismatchMessage(provider: string | null, recorded: OrderClaimRefundMethod | null) {
+  if (recorded) {
+    return `이 요청의 환불은 이미 '${ORDER_CLAIM_REFUND_METHOD_LABELS[recorded]}' 수단으로 접수했습니다. 처음 기록한 수단으로만 이어서 처리합니다. ${REFRESH_AND_RETRY}`;
+  }
+  if (providerCancelsAutomatically(provider)) {
+    const label = automatedCancelProviderLabel(provider);
+    return `이 결제의 환불 수단과 다릅니다. ${label} 결제는 결제사 취소(${label} 전액 취소)로만 환불합니다. ${REFRESH_AND_RETRY}`;
+  }
+  if (provider === 'bank_transfer') {
+    return `이 결제의 환불 수단과 다릅니다. ${PAYMENT_PROVIDER_LABELS.bank_transfer} 결제는 계좌 송금으로만 환불합니다. ${REFRESH_AND_RETRY}`;
+  }
+  return `이 결제의 환불 수단과 다릅니다. ${REFRESH_AND_RETRY}`;
+}
+/** 부분 반품의 결제사 부분 취소를 말할 때의 결제사 이름. 이름표에 없으면 '결제사'다. */
+function partialCancelProviderLabel(provider: string | null) {
+  return paymentProviderLabel(provider) ?? '결제사';
+}
 
 const DECISION_MESSAGES: Record<string, string> = {
   review: '검토중으로 표시했습니다.',
   approve: '클레임을 승인하고 수거를 시작했습니다.',
   reject: '클레임을 거부했습니다.',
-  hold: '클레임을 보류했습니다.',
-  resume: '보류를 해제했습니다.',
 };
 
 /** 결제사가 부분 취소를 받지 않은 부분 반품을 계좌 송금으로 바꾸는 사유 길이(DB와 같다). */
@@ -157,7 +177,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   }
   if (value.includes('claim_not_decidable')) return '지금 단계에서는 처리할 수 없습니다. 다른 담당자가 먼저 처리했을 수 있으니 새로고침해 현재 단계를 확인해주세요.';
   if (value.includes('claim_not_collectable')) return '수거 단계가 아닙니다. 새로고침해 현재 단계를 확인해주세요.';
-  if (value.includes('claim_not_refundable')) return '환불을 접수할 수 있는 단계가 아닙니다.';
+  if (value.includes('claim_not_refundable')) return '환불을 접수할 수 있는 단계가 아닙니다. 새로고침해 현재 단계를 확인해주세요.';
   if (value.includes('claim_not_reshippable')) return '입고 확인이 끝난 교환만 재출고할 수 있습니다.';
   if (value.includes('goods_group_retry')) return '상품 전환이나 재고 처리가 진행 중입니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
   if (value.includes('physical_generation_already_restored')) return '이 회수 상품의 재고는 이미 복원됐습니다. 처리 이력을 확인해주세요.';
@@ -194,7 +214,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('tracking_number_in_use')) return '다른 주문의 배송 건(대표·추가 운송장 또는 교환 재출고)에 이미 등록된 운송장번호입니다. 교환품 상자의 운송장번호를 다시 확인해주세요.';
   if (value.includes('tracking_number_format_mismatch')) return '택배사의 운송장번호 형식(자릿수)과 맞지 않습니다. 숫자가 빠지거나 더해지지 않았는지 확인해주세요.';
   /* 환불 원장 기록(admin_record_order_claim_refund)의 입력·권한 거절. 일괄 환불 결과표도 이 문구를 그대로 쓴다(QA2 S-T12b-06). */
-  if (value.includes('invalid settlement note')) return '상계·정산 메모는 앞뒤 공백 없이 300자 이내로 적어주세요.';
+  if (value.includes('invalid settlement note')) return '환불 메모는 앞뒤 공백 없이 300자 이내로 적어주세요.';
   if (value.includes('invalid refund method') || value.includes('invalid refund stage')) return '환불 수단이나 처리 단계를 확인하지 못했습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
   if (value.includes('bank_refund_method_required') || value.includes('bank_refund_confirmation_required') || value.includes('bank_refund_evidence_required')) {
     return '무통장 결제는 결제사 취소가 아니라 환불 처리 칸의 [취소 확정]과 실제 송금 완료 증빙으로 환불합니다. 상세에서 처리해주세요.';
@@ -240,7 +260,7 @@ function readClaimType(formData: FormData): OrderClaimType | undefined {
  *   sweep도 처리중 요청을 건너뛰므로 주문 통합검색 주문 패널의 재확인 버튼만 이 건을
  *   닫는다 — 이름은 요청 단계에 따라 다르다(ADMIN_CANCELLATION_RECHECK_LABELS).
  */
-const { processing: RECHECK_PROCESSING, needsReview: RECHECK_NEEDS_REVIEW } = ADMIN_CANCELLATION_RECHECK_LABELS;
+const { processing: RECHECK_PROCESSING, needsReview: RECHECK_NEEDS_REVIEW, preparedKorpay: RECHECK_PREPARED_KORPAY } = ADMIN_CANCELLATION_RECHECK_LABELS;
 const ORDER_PANEL_RECHECK = `주문 통합검색에서 이 주문을 열어 [${RECHECK_NEEDS_REVIEW}](처리중이면 [${RECHECK_PROCESSING}])`;
 
 /**
@@ -263,7 +283,7 @@ async function issueApprovedClaimCancellation(
     return { error: `취소를 승인했지만 결제 정보를 다시 읽지 못했습니다. 주문과 재고는 그대로 유지됩니다. 새로고침한 뒤 요청 상세의 [환불 완료 확정]으로 결제 취소를 진행해주세요. 그 버튼이 없으면 ${ORDER_PANEL_RECHECK}으로 진행합니다.` };
   }
   if (provider === 'korpay') {
-    return { message: '취소를 승인했습니다. Korpay 결제는 결제사 취소 접수 양식으로 접수한 뒤 환불 완료를 확정해주세요.' };
+    return { message: `취소를 승인했습니다. ${PAYMENT_PROVIDER_LABELS.korpay} 결제는 결제사 취소 접수 양식으로 접수한 뒤 환불 완료를 확정해주세요.` };
   }
   if (provider === 'bank_transfer') {
     return { message: '취소를 승인했습니다. 무통장 입금 결제는 결제사 취소가 없어 환불계좌 송금 절차로 진행합니다.' };
@@ -280,14 +300,17 @@ async function issueApprovedClaimCancellation(
     return {
       error: hasPayment
         ? `취소는 승인했습니다. ${adminPaymentCancelFailureMessage(result.code)}`
-        : `취소는 승인했지만 주문 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 결제 내역이 없는 주문이라 [환불 완료 확정]은 보이지 않습니다. 원인을 확인한 뒤 ${ORDER_PANEL_RECHECK}으로 다시 시도해주세요.`,
+        : withAdminSupportCode(
+          `취소는 승인했지만 주문 취소를 확정하지 못했습니다. 주문과 재고는 그대로입니다. 결제 내역이 없는 주문이라 [환불 완료 확정]은 보이지 않습니다. ${ORDER_PANEL_RECHECK}으로 다시 시도해주세요.`,
+          result.code,
+        ),
     };
   }
   if (result.status === 'in_progress') {
     return {
       message: hasPayment
         ? `취소를 승인했습니다. ${IN_PROGRESS} 잠시 뒤 [환불 완료 확정]으로 다시 확인해주세요.`
-        : `취소를 승인했습니다. ${IN_PROGRESS} 결제 결과가 정해지기 전이라 환불 기록이 없어 [환불 완료 확정]은 보이지 않습니다. 잠시 뒤 주문 통합검색에서 이 주문을 열어 [${RECHECK_PROCESSING}]으로 다시 확인해주세요. Korpay 결제창 주문은 그 자리의 Korpay 버튼으로 처리합니다.`,
+        : `취소를 승인했습니다. ${IN_PROGRESS} 결제 결과가 정해지기 전이라 환불 기록이 없어 [환불 완료 확정]은 보이지 않습니다. 잠시 뒤 주문 통합검색에서 이 주문을 열어 [${RECHECK_PROCESSING}]으로 다시 확인해주세요. ${PAYMENT_PROVIDER_LABELS.korpay} 결제창 주문은 그 자리의 [${RECHECK_PREPARED_KORPAY}] 버튼으로 처리합니다.`,
     };
   }
   return {
@@ -337,6 +360,41 @@ export async function decideOrderClaimAction(
   const { decided, state } = await decideOneOrderClaim(supabase, access.userId, normalized.value);
   if (decided) revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return state;
+}
+
+export type AdminClaimApprovalAmountState =
+  | { ok: true; amount: number | null; paymentProvider: string | null }
+  | { ok: false; error: string };
+
+const APPROVAL_AMOUNT_FAILED = '취소할 금액을 다시 읽지 못해 승인하지 않았습니다. 새로고침한 뒤 다시 눌러주세요.';
+
+/**
+ * 취소 승인 확인창에 적을 금액을 읽는다(읽기 전용 — 아무것도 바꾸지 않는다).
+ *
+ * 승인 전에는 환불 기록이 없어 화면이 가진 금액이 주문 금액(orders.total)뿐이다. 재고 부족 부분 취소가 있었던
+ * 주문은 주문 금액이 줄지 않으므로 그 금액은 실제 취소액(결제 금액 − 이미 부분 취소한 금액)보다 크다. 그래서
+ * 누르는 시점에 DB가 승인 때 쓰는 것과 같은 계산(admin_order_claim_bulk_context.refundAmount — 일괄 처리 미리보기와
+ * 같은 값)을 읽어 확인창이 그 금액을 말하게 한다. 승인할 수 없는 단계면 금액 대신 그 사실을 알린다.
+ */
+export async function readOrderClaimApprovalAmountAction(claimId: string): Promise<AdminClaimApprovalAmountState> {
+  const access = await requireStaffAction();
+  if (access.error) return { ok: false, error: access.error.error ?? APPROVAL_AMOUNT_FAILED };
+  const id = typeof claimId === 'string' ? claimId.toLowerCase() : '';
+  if (!isUuid(id)) return { ok: false, error: APPROVAL_AMOUNT_FAILED };
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc('admin_order_claim_bulk_context', { p_claim_ids: [id] });
+    if (error) return { ok: false, error: rpcErrorMessage(error.message, APPROVAL_AMOUNT_FAILED) };
+    const context = parseAdminClaimBulkContexts(data)?.find((row) => row.claimId.toLowerCase() === id) ?? null;
+    if (!context) return { ok: false, error: APPROVAL_AMOUNT_FAILED };
+    if (context.stage !== 'requested' && context.stage !== 'in_review') {
+      return { ok: false, error: rpcErrorMessage('claim_not_decidable', APPROVAL_AMOUNT_FAILED) };
+    }
+    return { ok: true, amount: context.refundAmount, paymentProvider: context.paymentProvider };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: APPROVAL_AMOUNT_FAILED };
+  }
 }
 
 interface BulkClaimRow {
@@ -546,6 +604,7 @@ export async function recordOrderClaimReshipmentDeliveryAction(
  *
  * 결정하면 그 출고지의 교환품 제작이 열리고, 제작이 끝나면 회수·재배송 연락처 처리에서 회수 확인 없이 재출고한다.
  * 사유·근거 사진·하자 교환 여부·입고 여부는 DB(admin_waive_order_claim_collection)가 다시 검사한다.
+ * '확인했습니다' 체크 값은 받지 않는다 — 화면의 확인창이 같은 말을 하고, DB에는 그 값을 받는 자리가 없다.
  */
 export async function waiveOrderClaimCollectionAction(
   previous: AdminClaimActionState,
@@ -557,7 +616,6 @@ export async function waiveOrderClaimCollectionAction(
   if (access.error) return fail(access.error.error ?? failureMessage);
   const claimId = formData.get('claimId'), shipmentId = formData.get('shipmentId');
   if (!isUuid(claimId) || !isUuid(shipmentId)) return fail(failureMessage);
-  if (formData.get('confirmed') !== 'on') return fail('회수 없이 교환품 제작을 시작한다는 확인에 체크해주세요.');
   const reason = normalizeClaimWaiverReason(String(formData.get('reason') ?? ''));
   if (!claimWaiverReasonValid(reason)) return fail(`회수 생략 사유를 ${CLAIM_WAIVER_REASON_MIN}~${CLAIM_WAIVER_REASON_MAX}자로 적어주세요.`);
   const evidenceValues = formData.getAll('evidenceFileId');
@@ -585,6 +643,7 @@ export async function waiveOrderClaimCollectionAction(
  * 반품(접수 사유와 무관 — 분실은 회사·택배 귀책이라 반품배송비를 빼지 않는다)에서 발송된 배송 건의 회수를 사고 번호·메모·근거 사진으로 대신한다. 모든 출고지가 입고되거나 분실로 기록되면
  * 회수가 끝나 환불을 진행할 수 있고, 분실 품목은 환불 확정 때 판매 재고로 되돌리지 않는다. 반품·사유·발송 여부·리비전은 DB
  * (admin_record_order_claim_carrier_loss)가 다시 검사하고, 같은 작업 번호의 재전송은 같은 결과다.
+ * '확인했습니다' 체크 값은 받지 않는다 — 화면의 확인창이 같은 말을 하고, DB에는 그 값을 받는 자리가 없다.
  */
 export async function recordOrderClaimCarrierLossAction(
   previous: AdminClaimActionState,
@@ -598,7 +657,6 @@ export async function recordOrderClaimCarrierLossAction(
   const revisionValue = formData.get('claimRevision');
   const revision = typeof revisionValue === 'string' && /^\d{1,9}$/u.test(revisionValue) ? Number(revisionValue) : Number.NaN;
   if (!isUuid(claimId) || !isUuid(shipmentId) || !isUuid(operationId) || !Number.isSafeInteger(revision) || revision < 0) return fail(failureMessage);
-  if (formData.get('confirmed') !== 'on') return fail('택배사가 분실을 확인했고 회수 없이 환불한다는 확인에 체크해주세요.');
   const accidentNumber = String(formData.get('accidentNumber') ?? '').trim();
   if (accidentNumber.length < 2 || accidentNumber.length > 60) return fail('택배사 사고 번호를 2~60자로 입력해주세요.');
   const reason = normalizeClaimWaiverReason(String(formData.get('reason') ?? ''));
@@ -627,6 +685,7 @@ export async function recordOrderClaimCarrierLossAction(
  * 결제사가 부분 취소를 받지 않아 닫힌 부분 반품(ADR-0047)을 계좌 송금 부분 환불로 바꾼다. 결제 담당(무통장 송금 담당과 같은 판정 —
  * DB가 세션까지 다시 본다)만, 사유와 고객에게 받은 환불계좌가 필요하다. 같은 계산을 송금 대기로 적용하고(고른 굿즈 재고 복원 포함),
  * 송금 완료는 주문 상세의 부분 환불 기록(또는 환불 송금 대기 목록)에서 증빙으로 적는다. 전액 환불로 돌리지 않는다.
+ * '확인했습니다' 체크 값은 받지 않는다 — 화면의 확인창이 금액과 결과를 말하고, DB에는 그 값을 받는 자리가 없다.
  */
 export async function convertPartialReturnToTransferAction(
   _previous: AdminClaimActionState,
@@ -648,7 +707,6 @@ export async function convertPartialReturnToTransferAction(
   if (!bankName || bankName.length > 40 || !/^[0-9-]{8,30}$/u.test(accountNumber) || !accountHolder || accountHolder.length > 40) {
     return { error: '고객에게 받은 환불계좌의 은행·계좌번호·예금주를 모두 입력해주세요. 계좌번호는 숫자와 - 만 써서 8~30자로 넣습니다.' };
   }
-  if (formData.get('confirmed') !== 'on') return { error: '고객과 계좌 송금 환불을 확인했다는 항목에 체크해주세요.' };
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('admin_convert_partial_return_refund_to_transfer', {
     p_claim_id: claimId, p_reason: reason,
@@ -786,7 +844,7 @@ export async function recordOrderClaimRefundAction(
   const derivedMethod: OrderClaimRefundMethod | null = current.refund?.method
     ?? orderClaimRefundMethodForProvider(current.payment?.provider ?? null);
   if (derivedMethod && derivedMethod !== normalized.value.method) {
-    return { error: REFUND_METHOD_MISMATCH };
+    return { error: refundMethodMismatchMessage(current.payment?.provider ?? null, current.refund?.method ?? null) };
   }
   const paymentProvider = current.payment?.provider ?? null;
   const cancelLabel = providerCancelsAutomatically(paymentProvider)
@@ -904,8 +962,10 @@ export async function recordOrderClaimRefundAction(
         };
       }
       if (after?.state === 'not_applied') {
+        /* 확인창이 미리 말한 경우다(A-1). 실제로 취소된 전액과 빼지 못한 반품배송비를 금액으로 다시 말한다. */
+        const refunded = after.refundAmount !== null ? ` ${krwAmountWords(after.refundAmount)}` : '';
         return {
-          message: `결제사가 이 결제의 부분 취소를 받지 않아 ${cancelLabel} 전액 취소로 환불 완료를 기록했습니다. 반품배송비는 필요하면 배송비 청구로 따로 받으세요. 재고 복원이 함께 확정됐습니다.`,
+          message: `결제사가 이 결제의 부분 취소를 받지 않아 ${cancelLabel} 전액${refunded} 취소로 환불 완료를 기록했습니다. 반품배송비 ${krwAmountWords(after.deductionAmount)}은 환불액에서 빼지 못했으니 배송비 청구로 따로 받아야 합니다. 재고 복원이 함께 확정됐습니다.`,
         };
       }
       return { message: '결제사 취소를 확인하고 환불 완료를 기록했습니다. 환불 금액은 처리 화면에서 확인해주세요. 재고 복원이 함께 확정됐습니다.' };
@@ -977,7 +1037,10 @@ async function recordPartialReturnRefund(
         return {
           error: result.code === 'partial_cancel_rejected'
             ? '결제사가 이 결제의 부분 취소를 받지 않아 환불하지 못했습니다. 돈은 움직이지 않았고 요청은 확인 필요로 남았습니다. 전액 환불로 돌리지 마세요. 결제 담당이 고객에게 환불계좌를 받아 부분 반품 칸의 [계좌 송금 부분 환불로 전환]으로 처리합니다.'
-            : `결제사에서 부분 취소 결과를 확인하지 못했습니다(확인 코드: ${result.code}). 요청은 확인 필요로 남았습니다. 잠시 뒤 [환불 완료 확정]을 다시 눌러주세요. 같은 부분 취소로 다시 확인하므로 두 번 취소되지 않습니다.`,
+            : withAdminSupportCode(
+              '결제사에서 부분 취소 결과를 확인하지 못했습니다. 요청은 확인 필요로 남았습니다. 잠시 뒤 [환불 완료 확정]을 다시 눌러주세요. 같은 부분 취소로 다시 확인하므로 두 번 취소되지 않습니다.',
+              result.code,
+            ),
         };
       }
     }
@@ -1000,10 +1063,10 @@ async function recordPartialReturnRefund(
     return {
       message: input.provider === 'bank_transfer'
         ? `부분 반품 환불 접수를 기록했습니다. ${amount}을 환불 송금 대기에 올리고 고른 상품의 재고를 복원했습니다. 송금한 뒤 주문 상세의 부분 환불 기록에서 [송금 완료 기록]을 눌러주세요.`
-        : `부분 반품 환불 접수를 기록했습니다. [환불 완료 확정]을 누르면 ${amount}을 토스 부분 취소로 돌려줍니다.`,
+        : `부분 반품 환불 접수를 기록했습니다. [환불 완료 확정]을 누르면 ${amount}을 ${partialCancelProviderLabel(input.provider)} 부분 취소로 돌려줍니다.`,
     };
   }
-  let message = '토스 부분 취소를 확인하고 부분 반품 환불 완료를 기록했습니다. 고른 상품의 재고 복원과 적립금 되돌림이 함께 확정됐습니다.';
+  let message = `${partialCancelProviderLabel(input.provider)} 부분 취소를 확인하고 부분 반품 환불 완료를 기록했습니다. 고른 상품의 재고 복원과 적립금 되돌림이 함께 확정됐습니다.`;
   if (dispositions && dispositions.defectiveIds.length > 0) {
     const recorded = await recordClaimDefectiveStock(input.claimId);
     if (recorded.error) return { error: `부분 반품 환불과 재고 처리는 이미 확정됐습니다. 불량 재고 기록만 끝나지 않았습니다 — 환불은 다시 하지 마세요. ${recorded.error}` };
@@ -1094,30 +1157,4 @@ export async function retryClaimDefectiveStockAction(
   return recorded.error
     ? { error: recorded.error }
     : { message: `불량 재고 ${recorded.recorded}개 품목을 기록했습니다. ${DEFECTIVE_STOCK_RECORDED_NOTE}` };
-}
-
-export async function recordOrderClaimReshipmentAction(
-  _state: AdminClaimActionState,
-  formData: FormData,
-): Promise<AdminClaimActionState> {
-  const access = await requireStaffAction();
-  if (access.error) return access.error;
-
-  const normalized = normalizeAdminClaimReshipmentForm(formData);
-  if (!normalized.ok) return { error: normalized.error };
-
-  const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_record_order_claim_reshipment', {
-    p_carrier: normalized.value.carrier,
-    p_claim_id: normalized.value.claimId,
-    p_tracking_number: normalized.value.trackingNumber,
-    p_items: normalized.value.items,
-  });
-  if (error) return { error: rpcErrorMessage(error.message, RESHIP_FAILED) };
-
-  revalidateClaimSurfaces(normalized.value.claimId, 'exchange');
-  revalidateGoodsSurfaces();
-  revalidatePath('/cart');
-  revalidatePath('/admin/catalog/goods', 'layout');
-  return { message: '교환 재출고 운송장을 등록하고 클레임을 종결했습니다.' };
 }

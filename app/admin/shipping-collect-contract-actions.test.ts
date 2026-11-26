@@ -43,3 +43,29 @@ it('잘못된 영수증은 불명확, 저장 후 다른 버전은 committed와 �
   mocks.rpc.mockResolvedValueOnce({ data: receipt, error: null }).mockResolvedValueOnce({ data: { ...row, revision: 2 }, error: null });
   expect(await saveShippingCollectContractAction(request)).toMatchObject({ ok: false, committed: receipt, conflict: true, latest: { revision: 2 } });
 });
+/* 근거 칸은 걷어 냈다(2026-11-26). 저장된 조건에는 남아 있어도 화면에는 고객에게 보이는 네 칸만 넘기고, 저장할 때도 네 칸만 보낸다. */
+it('저장된 조건에 예전 근거 칸이 남아 있어도 읽고 네 칸만 돌려주며, 저장은 네 칸만 보낸다', async () => {
+  const stored = { ...row, values: { ...values, contractReference: 'TEST 계약', dispatchMappingReference: '', receiptReference: '', disputeContact: 'TEST 담당' } };
+  mocks.rpc.mockResolvedValueOnce({ data: stored, error: null });
+  expect(await readShippingCollectContractAction(request)).toEqual({ ok: true, value: row });
+  mocks.rpc.mockResolvedValueOnce({ data: { ...stored, operationId: op }, error: null }).mockResolvedValueOnce({ data: stored, error: null });
+  expect(await saveShippingCollectContractAction(request)).toEqual({ ok: true, value: row });
+  expect(Object.keys(mocks.rpc.mock.calls[1][1].p_values)).toEqual([...SHIPPING_COLLECT_FIELDS]);
+});
+it('근거 칸이 든 옛 모양의 저장 요청과 빈 칸이 있는 사용 저장은 보내지 않고 고칠 방법을 말한다', async () => {
+  const legacy = { ...request, values: { ...values, contractReference: 'TEST 계약' } as ShippingCollectValues };
+  for (const bad of [legacy, { ...request, values: { ...values, refundContact: '' } }]) {
+    const result = await saveShippingCollectContractAction(bad);
+    expect(result).toMatchObject({ ok: false }); expect(result).not.toHaveProperty('uncertain');
+    expect(!result.ok && result.error).toContain("'사용'으로 저장하려면 네 칸을 모두 적어 주세요.");
+  }
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+it('결과를 모를 때는 [저장됐는지 확인]을 누르라고 하고, 다른 사람이 먼저 바꿨을 때는 그 사실을 말한다', async () => {
+  mocks.rpc.mockResolvedValueOnce({ error: { code: 'XX000', message: 'transport' } });
+  expect(await saveShippingCollectContractAction(request)).toMatchObject({ uncertain: true, error: '저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.' });
+  mocks.rpc.mockResolvedValueOnce({ error: { code: 'PT409', message: 'collect_contract_changed' } });
+  expect(await saveShippingCollectContractAction(request)).toMatchObject({ uncertain: false, conflict: true, error: expect.stringContaining('다른 사람이 먼저 바꿨습니다.') });
+  mocks.rpc.mockResolvedValueOnce({ error: { code: 'P0002', message: 'fulfillment_origin_not_found' } });
+  expect(await saveShippingCollectContractAction(request)).toMatchObject({ uncertain: false, error: expect.stringContaining("'사용 여부'를 사용으로") });
+});

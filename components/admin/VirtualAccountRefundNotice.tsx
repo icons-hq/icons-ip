@@ -32,9 +32,10 @@ function FailedRefundNotice({ orderId, refund, canManage }: { orderId: string; r
   async function resolve() {
     const note = await adminPrompt({
       title: '환불 송금 처리 완료로 표시',
-      message: '결제사 밖(회사 계좌 직접 송금 등)에서 고객 환불을 끝낸 경우에만 표시합니다. 토스페이먼츠 상점관리자에서 다시 환불했다면 누르지 않아도 시스템이 조회해 완료로 바꿉니다. 처리 내용은 감사 기록에 남습니다.',
+      message: '회사 계좌에서 직접 보내는 식으로 결제사를 거치지 않고 환불을 끝냈을 때만 누릅니다. 토스페이먼츠 상점관리자에서 다시 환불했다면 누르지 않아도 완료로 바뀝니다. 표시하면 시스템 상태의 \'환불 송금 확인 필요\'에서 빠집니다.',
       confirmLabel: '처리 완료로 표시',
-      input: { label: '처리 내용', placeholder: '예: 11/27 회사 계좌에서 고객 계좌로 31,000원 송금', minLength: 2, maxLength: 200 },
+      cancelLabel: '돌아가기',
+      input: { label: '처리 내용 (필수) · 감사 기록에 남습니다', placeholder: '예: 11/27 회사 계좌에서 고객 계좌로 31,000원 송금', minLength: 2, maxLength: 200 },
     });
     if (note === null) return;
     startTransition(async () => {

@@ -28,7 +28,8 @@ export default async function AdminSalesDispatchPage({searchParams}:{searchParam
   const canReadOrders=hasAdminCapability(auth,'sales.read');
   /* S36-075: 주문번호를 누르면 `?orderId=`로 같은 목록 위에 주문 상세 팝업을 연다. 목록 조건은 필터 주소가 그대로 지킨다. */
   const previewId=canReadOrders?adminOrderPreviewId(query.orderId):null;
-  /* QA1 S-T04-05: 주문 상세의 [강제 배송완료]가 `?forceDelivery=<주문번호>#forced-delivery`로 이 카드를 연다. 형식이 맞는 번호만 채운다. */
+  /* QA1 S-T04-05: 주문 상세의 [강제 배송완료]가 `?forceDelivery=<주문번호>#forced-delivery`로 이 카드를 연다. 형식이 맞는 번호만 그 주문을 고른 채로 연다.
+     주소 없이 들어오면 카드의 [주문 고르기]로 찾는다(번호를 손으로 적지 않는다). */
   const forceParam=query[FORCED_DELIVERY_ORDER_PARAM];
   const forceOrderNumber=canManageSales&&typeof forceParam==='string'?normalizeForcedDeliveryOrderNumber(forceParam):null;
   /* 1007-011: 출고지시를 내려받는 발송 대기·발송 지연 탭에서만 재고 파일 대조와 어긋난 출고 대기 옵션을 미리 알린다(출고지 필터 기준).

@@ -5,7 +5,7 @@ import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { ShipmentExportColumnsEditor } from './ShipmentExportColumnsEditor';
 import { FulfillmentOriginForm } from './FulfillmentOriginForm';
-import type { FulfillmentOrigin, GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
+import { FULFILLMENT_ORIGIN_FIELD_LABELS, type FulfillmentOrigin, type GoodsFulfillmentOrigin, type OriginSaveImpact } from '@/lib/admin/fulfillment-origins';
 import { CARRIER_SETTINGS_PATH, STORE_SETTINGS_PATH, storeSettingsHistoryRows, type EditableCarrier, type StoreSettingsAudit } from '@/lib/admin/store-settings';
 import { formatOrderDateTime } from '@/lib/orders';
 import { DeliveryPoliciesPanel } from '@/components/admin/DeliveryPoliciesPanel';
@@ -13,6 +13,7 @@ import { ShippingCollectContractPanel } from '@/components/admin/ShippingCollect
 import { StockDigestOriginRecipientsPanel } from '@/components/admin/StockDigestOriginRecipientsPanel';
 import { NEW_FULFILLMENT_ORIGIN_TAB, fulfillmentOriginTabHref, selectedFulfillmentOriginTab } from '@/lib/admin/fulfillment-origin-tabs';
 import { StoreSettingsRelatedLinks } from './StoreSettingsRelatedLinks';
+import { SHIPPING_REGIONS_PATH } from '@/lib/admin/shipping-regions';
 export { selectedFulfillmentOriginTab };
 
 /* 출고지 탭(셸의 콘솔 전환과 같은 링크 탭, ADR-0028). */
@@ -23,8 +24,15 @@ const ADD_ORIGIN = `${buttonVariants({ variant: 'outline', size: 'sm' })} before
 
 /** 출고지 카드 머리의 사용 상태. */
 function OriginStatus({ active }: { active: boolean }) {
-  return <AdminStatusBadge tone={statusTone('setting', active ? 'active' : 'inactive')}>{active ? '사용 중' : '비활성'}</AdminStatusBadge>;
+  return <AdminStatusBadge tone={statusTone('setting', active ? 'active' : 'inactive')}>{active ? '사용' : '사용 안 함'}</AdminStatusBadge>;
 }
+
+/* 변경 이력의 항목 이름. 저장소의 공용 이름 표는 택배사 화면 이름('새 발송 사용'·'코드')이 섞여 있어, 출고지 이력은 폼의 칸 이름으로 바꿔 보인다. */
+const ORIGIN_HISTORY_LABELS: Record<string, string> = {
+  code: FULFILLMENT_ORIGIN_FIELD_LABELS.code, name: FULFILLMENT_ORIGIN_FIELD_LABELS.name, default_carrier: FULFILLMENT_ORIGIN_FIELD_LABELS.defaultCarrier,
+  base_fee: FULFILLMENT_ORIGIN_FIELD_LABELS.baseFee, free_threshold: FULFILLMENT_ORIGIN_FIELD_LABELS.freeThreshold, return_address: FULFILLMENT_ORIGIN_FIELD_LABELS.returnAddress,
+  cutoff: FULFILLMENT_ORIGIN_FIELD_LABELS.cutoff, export_template: FULFILLMENT_ORIGIN_FIELD_LABELS.exportTemplate, is_active: FULFILLMENT_ORIGIN_FIELD_LABELS.active,
+};
 
 /** 카드 머리에 자주 보는 값(기본 배송비·무료 배송 기준·출고 마감)을 한 줄로 모은다. */
 function OriginFacts({ origin }: { origin: FulfillmentOrigin }) {
@@ -38,20 +46,24 @@ function OriginFacts({ origin }: { origin: FulfillmentOrigin }) {
  * 배송정보 관리. 출고지마다 링크형 탭(R22, `?origin=<코드>`)으로 한 번에 한 출고지만 보인다 — 새로고침·주소 공유에도 유지되고
  * Tab 키로 탭을 오간다. 출고지 추가는 편집 권한이 있을 때만 마지막 탭이다. 최근 변경 이력은 탭 아래 공통이다.
  */
-export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, accountId = '', selected }: { origins: FulfillmentOrigin[]; carriers: EditableCarrier[]; history: StoreSettingsAudit[]; canEdit: boolean; accountId?: string; selected?: string | null }) {
+export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, accountId = '', selected, impact }: {
+  origins: FulfillmentOrigin[]; carriers: EditableCarrier[]; history: StoreSettingsAudit[]; canEdit: boolean; accountId?: string; selected?: string | null;
+  /** 고른 출고지를 저장하기 전에 알릴 영향(영향받는 공개 상품 수·지역별 추가배송비). 편집 권한이 있을 때만 읽어 넘긴다. */
+  impact?: OriginSaveImpact;
+}) {
   const tab = selected === undefined ? selectedFulfillmentOriginTab(origins, undefined, canEdit) : selected;
   const origin = origins.find(item => item.code === tab);
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="fulfillment-origins">
-    <AdminPageHeader title="배송정보 관리" description="출고지별 기본 배송비와 운영 조건을 관리합니다. 상품별 배송비·수량 조건과 지역 추가 배송비는 주문서에서 함께 확인합니다." />
+    <AdminPageHeader title="배송정보 관리" description="출고지마다 기본 배송비와 택배사를 정합니다." />
     <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
       {origins.length || canEdit ? <nav aria-label="출고지" className="flex min-w-0 flex-wrap items-center gap-2">
-        {origins.length ? <span className={ORIGIN_TABS}>{origins.map(item => <Link key={item.id} aria-current={tab === item.code ? 'page' : undefined} className={ORIGIN_TAB} href={fulfillmentOriginTabHref(item.code)}>{item.name}{item.active ? '' : ' · 비활성'}</Link>)}</span> : null}
+        {origins.length ? <span className={ORIGIN_TABS}>{origins.map(item => <Link key={item.id} aria-current={tab === item.code ? 'page' : undefined} className={ORIGIN_TAB} href={fulfillmentOriginTabHref(item.code)}>{item.name}{item.active ? '' : ' · 사용 안 함'}</Link>)}</span> : null}
         {canEdit ? <Link aria-current={tab === NEW_FULFILLMENT_ORIGIN_TAB ? 'page' : undefined} className={ADD_ORIGIN} data-slot="button" href={fulfillmentOriginTabHref(NEW_FULFILLMENT_ORIGIN_TAB)}>출고지 추가</Link> : null}
       </nav> : <span />}
-      <StoreSettingsRelatedLinks label="설정 항목" links={[{ href: STORE_SETTINGS_PATH, label: '사업자·결제 표시 설정' }, { href: CARRIER_SETTINGS_PATH, label: '택배사' }, { href: '/admin/settings/shipping-regions', label: '지역 추가 배송비' }]} />
+      <StoreSettingsRelatedLinks label="설정 항목" links={[{ href: STORE_SETTINGS_PATH, label: '사업자·결제 표시 설정' }, { href: CARRIER_SETTINGS_PATH, label: '택배사' }, { href: SHIPPING_REGIONS_PATH, label: '지역별 추가배송비' }]} />
     </div>
     {origin ? <AdminSectionCard key={origin.id} summary={<OriginFacts origin={origin} />} title={origin.name}>
-      <FulfillmentOriginForm origin={origin} carriers={carriers} canEdit={canEdit} />
+      <FulfillmentOriginForm origin={origin} carriers={carriers} canEdit={canEdit} impact={canEdit ? impact : undefined} />
       <ShipmentExportColumnsEditor origin={origin} canEdit={canEdit} />
       <DeliveryPoliciesPanel originId={origin.id} canEdit={canEdit} />
       {canEdit && accountId && <ShippingCollectContractPanel originId={origin.id} accountId={accountId} canEdit />}
@@ -61,7 +73,7 @@ export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, 
     <AdminSectionCard title="최근 변경 이력">
       {history.length ? <ol className="flex flex-col divide-y">{history.map((entry) => <li className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0" key={entry.id}><p className="tabular-nums">{formatOrderDateTime(entry.createdAt)} · {entry.actorName}</p>
         <details className="rounded-lg border"><summary className="cursor-pointer px-3 py-2 text-sm text-muted-foreground hover:text-foreground">출고지 변경 내용</summary><div className="border-t"><Table className="table-fixed"><caption className="sr-only">변경 전후</caption><TableHeader><TableRow className="hover:bg-transparent"><TableHead className="w-1/4 text-xs text-muted-foreground">항목</TableHead><TableHead className="text-xs text-muted-foreground">이전</TableHead><TableHead className="text-xs text-muted-foreground">변경 후</TableHead></TableRow></TableHeader>
-          <TableBody>{storeSettingsHistoryRows(entry).map((row) => <TableRow className="hover:bg-transparent" key={row.key}><TableHead className="h-auto py-2 align-top font-medium whitespace-normal" scope="row">{row.label}</TableHead><TableCell className="align-top whitespace-normal [overflow-wrap:anywhere]">{row.before || '빈 값'}</TableCell><TableCell className="align-top whitespace-normal [overflow-wrap:anywhere]">{row.after || '빈 값'}</TableCell></TableRow>)}</TableBody></Table></div></details>
+          <TableBody>{storeSettingsHistoryRows(entry).map((row) => <TableRow className="hover:bg-transparent" key={row.key}><TableHead className="h-auto py-2 align-top font-medium whitespace-normal" scope="row">{ORIGIN_HISTORY_LABELS[row.key] ?? row.label}</TableHead><TableCell className="align-top whitespace-normal [overflow-wrap:anywhere]">{row.before || '없음'}</TableCell><TableCell className="align-top whitespace-normal [overflow-wrap:anywhere]">{row.after || '없음'}</TableCell></TableRow>)}</TableBody></Table></div></details>
       </li>)}</ol> : <p className="text-muted-foreground">변경 이력이 없습니다.</p>}
     </AdminSectionCard>
   </div>;

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import {
+  adminUnpaidAttemptStateLabel,
   normalizeAdminUnpaidReason,
   normalizeAdminUnpaidReasonForm,
 } from '@/lib/admin/unpaid';
@@ -72,10 +73,10 @@ async function finalizationResult(
     await Promise.all([sendOrderConfirmationEmail(orderId), sendOrderConfirmationAlimtalk(orderId)]);
     return { message: successMessage };
   }
+  /* 영문 상태값(needs_review 등)을 그대로 보이지 않는다 — 목록의 상태 이름으로 말하고, 다음 할 일을 쓴다. */
+  const state = typeof outcome === 'string' ? adminUnpaidAttemptStateLabel(outcome) : '확인 필요';
   return {
-    error: `입금 기록은 남았지만 주문이 결제완료로 확정되지 않았습니다(결과 코드: ${
-      typeof outcome === 'string' ? outcome : 'unknown'
-    }). 구매자 계정이 정지됐거나 주문 금액 기록이 맞지 않을 때 이렇게 됩니다. 주문 상세의 결제 내역을 확인하고 개발 담당자에게 결과 코드와 함께 알려주세요.`,
+    error: `입금 기록은 남았지만 주문이 결제완료로 확정되지 않았습니다(상태: ${state}). 구매자 계정이 정지됐거나 주문 금액 기록이 맞지 않을 때 이렇게 됩니다. 주문 상세의 결제 내역을 확인하고, 풀리지 않으면 주문번호와 함께 개발 담당자에게 알려주세요.`,
   };
 }
 

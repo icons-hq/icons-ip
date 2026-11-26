@@ -106,6 +106,10 @@ function requestForm(reason = '구매자와 확인 후 요청을 반려합니다
   return formData;
 }
 
+/* 권한이 없거나 로그인이 끝났을 때의 안내: 무엇이 없는지(권한 이름)와 다음 행동(계정 확인 → 계정 주매니저에게 요청)을 말한다. */
+const STAFF_DENIED = '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';
+const STALE = '다른 사람이 먼저 처리했을 수 있습니다. 새로고침해 상태를 확인한 뒤 다시 눌러주세요.';
+
 describe('admin order actions', () => {
   beforeEach(() => {
     mocks.adminState = {
@@ -179,7 +183,8 @@ describe('admin order actions', () => {
 
     const state = await updateAdminOrderStatusAction({}, statusForm('shipping'));
 
-    expect(state.errors?.form).toBeTruthy();
+    /* 가이드(오류 해결)가 이 문장을 그대로 인용한다. 무엇이 안 됐는지, 왜일 수 있는지, 다음에 무엇을 할지를 말한다. */
+    expect(state.errors?.form).toBe('주문 상태를 바꾸지 못했습니다. 다른 사람이 먼저 처리했을 수 있습니다. 새로고침해 주문상태를 확인한 뒤 다시 눌러주세요.');
     expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
   });
 
@@ -201,7 +206,7 @@ describe('admin order actions', () => {
     };
 
     await expect(updateAdminOrderStatusAction({}, statusForm())).resolves.toEqual({
-      errors: { form: '관리자 권한이 필요합니다.' },
+      errors: { form: STAFF_DENIED },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -307,7 +312,7 @@ describe('admin order actions', () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'private db detail' } });
 
     await expect(updateAdminOrderTrackingAction({}, trackingForm())).resolves.toEqual({
-      errors: { form: '운송장 정보를 저장하지 못했습니다. 최신 상태를 확인해주세요.' },
+      errors: { form: `운송장을 저장하지 못했습니다. ${STALE}` },
     });
   });
 
@@ -381,7 +386,7 @@ describe('admin order actions', () => {
 
       await expect(
         resendOrderEmailAction({}, resendForm(`order_confirmation:${ORDER_ID}`)),
-      ).resolves.toEqual({ errors: { form: '관리자 권한이 필요합니다.' } });
+      ).resolves.toEqual({ errors: { form: STAFF_DENIED } });
       expect(mocks.rpc).not.toHaveBeenCalled();
       expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
     });
@@ -391,7 +396,7 @@ describe('admin order actions', () => {
     const form = requestForm();
 
     await expect(approveAdminOrderCancellationAction({}, form)).resolves.toEqual({
-      message: '청약철회를 완료했습니다.',
+      message: '취소 요청을 승인하고 결제 취소를 마쳤습니다.',
     });
 
     expect(mocks.rpc).toHaveBeenCalledWith('admin_decide_order_cancellation', {
@@ -412,7 +417,7 @@ describe('admin order actions', () => {
 
     const result = await approveAdminOrderCancellationAction({}, requestForm());
 
-    expect(result).toEqual({ errors: { form: '청약철회 요청을 승인하지 못했습니다. 최신 상태를 확인해주세요.' } });
+    expect(result).toEqual({ errors: { form: `취소 요청을 승인하지 못했습니다. ${STALE}` } });
     expect(JSON.stringify(result)).not.toContain('private');
     expect(mocks.reconcile).not.toHaveBeenCalled();
   });
@@ -420,9 +425,11 @@ describe('admin order actions', () => {
   it('provider 정합화가 불확실하면 완료로 거짓 보고하지 않는다', async () => {
     mocks.reconcile.mockResolvedValue({ ok: false, code: 'provider_unreachable' });
 
-    await expect(approveAdminOrderCancellationAction({}, requestForm())).resolves.toEqual({
-      errors: { form: '결제 취소 상태를 확정하지 못했습니다(provider_unreachable). 주문과 재고는 그대로 유지됩니다. 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다. 원인을 확인한 뒤 이 주문 패널의 [상태 다시 확인]으로 다시 시도해주세요.' },
-    });
+    const result = await approveAdminOrderCancellationAction({}, requestForm());
+    /* 환불이 됐는지 모른다는 사실, 결제사 쪽 이름, 다음 할 일을 말하고 코드는 끝에 문의용으로 한 번만 붙는다. 가이드를 찾아보라고 보내지 않는다. */
+    expect(result.errors?.form).toBe('결제 취소를 확정하지 못했습니다 — 결제사 확인에 실패했습니다. 고객 환불이 끝났는지 아직 확인되지 않았고, 주문과 재고는 그대로입니다. [환불 완료 확정]을 한 번 더 눌러주세요. 같은 안내가 다시 나오면 결제 담당자에게 요청번호와 코드를 알려주세요. 이 주문 패널에서는 [상태 다시 확인](처리중이면 [처리 상태 확인])이 같은 일을 합니다. 문의할 때 알려 줄 코드: provider_unreachable');
+    expect(result.errors?.form).not.toContain('가이드');
+    expect(result.errors?.form).not.toContain('(provider_unreachable)');
   });
 
   /* 2026-10-12 QA-10: 재시도 결과도 처음 실행처럼 원인 코드를 보여준다. */
@@ -431,8 +438,10 @@ describe('admin order actions', () => {
 
     const result = await reconcileAdminOrderCancellationAction({}, requestForm());
 
-    expect(result.errors?.form).toContain('(provider_unavailable)');
+    expect(result.errors?.form).toContain('결제사 응답을 받지 못했습니다');
+    expect(result.errors?.form).toContain('문의할 때 알려 줄 코드: provider_unavailable');
     expect(result.errors?.form).toContain('[상태 다시 확인]');
+    expect(result.errors?.form).not.toContain('(provider_unavailable)');
   });
 
   it('진행 중인 결제 상태는 완료로 거짓 보고하지 않고 주문·재고 보존을 안내한다', async () => {
@@ -447,7 +456,7 @@ describe('admin order actions', () => {
     const form = requestForm();
 
     await expect(rejectAdminOrderCancellationAction({}, form)).resolves.toEqual({
-      message: '청약철회 요청을 거절했습니다.',
+      message: '취소 요청을 거부했습니다.',
     });
 
     expect(mocks.rpc).toHaveBeenCalledWith('admin_decide_order_cancellation', {
@@ -643,7 +652,7 @@ describe('admin order actions', () => {
       };
 
       await expect(bulkConfirmAdminOrdersAction({}, bulkForm(ORDER_ID)))
-        .resolves.toEqual({ errors: { form: '관리자 권한이 필요합니다.' } });
+        .resolves.toEqual({ errors: { form: STAFF_DENIED } });
       expect(mocks.rpc).not.toHaveBeenCalled();
     });
   });

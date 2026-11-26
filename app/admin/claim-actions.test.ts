@@ -399,7 +399,7 @@ describe('교환품 배송완료 확인 성공', () => {
   });
 });
 
-/* 주문제작 출고지의 회수 생략 결정(리뷰 #2, ADR-0041): 사유·사진·확인을 앱이 먼저 좁히고 DB가 다시 검사한다. */
+/* 주문제작 출고지의 회수 생략 결정(리뷰 #2, ADR-0041): 사유·사진을 앱이 먼저 좁히고 DB가 다시 검사한다. '확인했습니다' 체크 값은 받지 않는다(화면의 확인창이 대신한다). */
 describe('waiveOrderClaimCollectionAction', () => {
   const EVIDENCE_ID = 'abcdef03-1234-4123-8123-123456789abc';
   function waiverForm() {
@@ -418,9 +418,13 @@ describe('waiveOrderClaimCollectionAction', () => {
     });
     expect(mocks.revalidatePath).toHaveBeenCalledWith(`/admin/sales/claims/exchanges/${CLAIM_ID}`);
   });
-  it('확인·사유·사진이 모자라면 RPC를 부르지 않는다', async () => {
-    const unconfirmed = waiverForm(); unconfirmed.delete('confirmed');
-    expect((await waiveOrderClaimCollectionAction({}, unconfirmed)).error).toBe('회수 없이 교환품 제작을 시작한다는 확인에 체크해주세요.');
+  it('확인 체크 값이 없어도 사유·사진이 맞으면 기록한다(체크는 화면의 확인창이 대신한다)', async () => {
+    mocks.rpc.mockResolvedValue({ data: { claimId: CLAIM_ID, shipmentId: SHIPMENT_ID, productionPending: false, replayed: false }, error: null });
+    const unchecked = waiverForm(); unchecked.delete('confirmed');
+    expect((await waiveOrderClaimCollectionAction({}, unchecked)).message).toBe('회수 생략을 기록했습니다. 회수·재배송 연락처 처리에서 회수 없이 재출고합니다.');
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+  it('사유·사진이 모자라면 RPC를 부르지 않는다', async () => {
     const short = waiverForm(); short.set('reason', '짧음');
     expect((await waiveOrderClaimCollectionAction({}, short)).error).toBe('회수 생략 사유를 10~500자로 적어주세요.');
     const noPhoto = waiverForm(); noPhoto.delete('evidenceFileId');
@@ -467,9 +471,13 @@ describe('recordOrderClaimCarrierLossAction', () => {
     mocks.rpc.mockResolvedValue({ data: { claimId: CLAIM_ID, shipmentId: SHIPMENT_ID, collectionComplete: false, replayed: false }, error: null });
     expect((await recordOrderClaimCarrierLossAction({}, lossForm())).message).toBe('배송 분실을 기록했습니다. 남은 출고지의 입고를 확인하면 환불을 진행할 수 있습니다.');
   });
-  it('확인·사고 번호·메모·사진·리비전이 모자라면 RPC를 부르지 않는다', async () => {
-    const unconfirmed = lossForm(); unconfirmed.delete('confirmed');
-    expect((await recordOrderClaimCarrierLossAction({}, unconfirmed)).error).toBe('택배사가 분실을 확인했고 회수 없이 환불한다는 확인에 체크해주세요.');
+  it('확인 체크 값이 없어도 사고 번호·메모·사진이 맞으면 기록한다(체크는 화면의 확인창이 대신한다)', async () => {
+    mocks.rpc.mockResolvedValue({ data: { claimId: CLAIM_ID, shipmentId: SHIPMENT_ID, collectionComplete: false, replayed: false }, error: null });
+    const unchecked = lossForm(); unchecked.delete('confirmed');
+    expect((await recordOrderClaimCarrierLossAction({}, unchecked)).message).toBe('배송 분실을 기록했습니다. 남은 출고지의 입고를 확인하면 환불을 진행할 수 있습니다.');
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+  it('사고 번호·메모·사진·리비전이 모자라면 RPC를 부르지 않는다', async () => {
     const noAccident = lossForm(); noAccident.set('accidentNumber', ' ');
     expect((await recordOrderClaimCarrierLossAction({}, noAccident)).error).toBe('택배사 사고 번호를 2~60자로 입력해주세요.');
     const short = lossForm(); short.set('reason', '짧음');

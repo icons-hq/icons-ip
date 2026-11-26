@@ -2,16 +2,17 @@
 import Link from 'next/link';
 import { ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { EncryptedWorkbookDownloadButton } from '@/components/admin/EncryptedWorkbookDownloadButton';
-import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsTitle, SalesSelect, ShortId, kstDayDiff } from '@/components/admin/sales/SalesConsole';
+import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsTitle, SalesSelect, kstDayDiff } from '@/components/admin/sales/SalesConsole';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ADMIN_GIFT_STATES, ADMIN_GIFT_STATE_LABELS, adminGiftsHref, adminGiftsQuery, type AdminGiftData, type AdminGiftRow, type AdminGiftState } from '@/lib/admin/gifts';
 import { formatOrderDateTime } from '@/lib/orders';
 
-/* 1440 화면(표 폭 약 1,100px)에 기한·연결 주문까지 들어오게 나눈다. 상품·옵션은 폭을 비워 남는 자리를 받고, 대부분 비어 있는 수락일은 맨 뒤로 보낸다. */
+/* 1440 화면(표 폭 약 1,100px)에 기한·연결 주문까지 들어오게 나눈다. 상품·옵션은 폭을 비워 남는 자리를 받고, 대부분 비어 있는 수락일은 맨 뒤로 보낸다.
+   선물에는 운영자가 쓰는 번호가 없다(내부 번호 끝 8자는 번호가 아니다). 줄은 상태·보낸 사람·받는 사람·상품으로 알아본다. */
 const columns: ConsoleGridColumn[] = [
-  { key: 'id', label: '선물번호', width: '92px', required: true }, { key: 'state', label: '상태', width: '100px' },
+  { key: 'state', label: '상태', width: '100px', required: true },
   { key: 'sender', label: '보낸 사람', width: '100px' }, { key: 'recipient', label: '받는 사람', width: '100px' },
   { key: 'goods', label: '상품·옵션' }, { key: 'quantity', label: '총 수량', width: '64px', align: 'end' },
   { key: 'created', label: '선물 생성일', width: '146px' }, { key: 'expires', label: '수락·주문 기한', width: '150px' },
@@ -33,20 +34,20 @@ function DeadlineCell({ row, asOf }: { row: AdminGiftRow; asOf: string }) {
 export function AdminGiftsScreen({ data }: { data: AdminGiftData }) {
   const filters = data.filters, query = adminGiftsQuery(filters, false), currentHref = adminGiftsHref(filters);
   const closing = data.rows.filter(row => isOpenGift(row.state) && daysLeft(row.expiresAt, data.asOf) <= 1).length;
-  const gridRows = data.rows.map(row => ({ id: row.id, cells: [<ShortId key="id" value={row.id} />, <AdminStatusBadge key="state" tone={statusTone('gift', row.state)}>{ADMIN_GIFT_STATE_LABELS[row.state]}</AdminStatusBadge>,
+  const gridRows = data.rows.map(row => ({ id: row.id, cells: [<AdminStatusBadge key="state" tone={statusTone('gift', row.state)}>{ADMIN_GIFT_STATE_LABELS[row.state]}</AdminStatusBadge>,
     <span className="block max-w-19 truncate" key="sender" title={row.senderName}>{row.senderName}</span>, <span className="block max-w-19 truncate" key="recipient" title={row.recipientName ?? undefined}>{row.recipientName ?? '수락 전'}</span>, <span className="block min-w-48" key="goods">{row.goodsLabel}</span>, row.quantity, formatOrderDateTime(row.createdAt), <DeadlineCell asOf={data.asOf} key="expires" row={row} />,
-    row.orderId ? <Link key="order" className="underline-offset-4 hover:underline" href={`/admin/sales/orders/${row.orderId}`}><ShortId value={row.orderId} /></Link> : '주문 전',
+    /* 선물 조회(admin_list_gifts)가 주문번호 없이 orderId만 줘서, 번호 대신 가는 곳을 말한다. 주문번호는 그 주문 상세의 머리에 있다. */
+    row.orderId ? <Link key="order" className="underline-offset-4 hover:underline" href={`/admin/sales/orders/${row.orderId}`}>주문 상세</Link> : '주문 전',
     row.acceptedAt ? formatOrderDateTime(row.acceptedAt) : '—'] }));
-  return <section aria-label="선물 수락 대기" className="flex min-w-0 flex-col gap-4 text-sm" data-admin-gifts="">
-    <SalesGuide title="받는 사람이 수락한 뒤 보낸 사람이 결제합니다."><p>수락 전에는 주문·결제가 생성되지 않습니다. 수락 완료 후에도 보낸 사람이 주문과 결제를 마쳐야 배송을 준비할 수 있습니다.</p>
-      <p>선물번호는 주문번호와 다릅니다. 결제금액·배송지·배송 상태는 생성된 주문의 상세에서 확인하세요.</p></SalesGuide>
-    <SalesFilterPanel currentHref={currentHref} id="sales-gifts" search={{ value: filters.query, placeholder: '선물·주문번호 / 보낸 사람·받는 사람·상품' }}>
+  return <section aria-label="선물 내역" className="flex min-w-0 flex-col gap-4 text-sm" data-admin-gifts="">
+    <SalesGuide title="받는 사람이 수락한 뒤 보낸 사람이 결제합니다."><p>결제금액·배송지·배송 상태는 연결 주문의 [주문 상세]에서 봅니다.</p></SalesGuide>
+    <SalesFilterPanel currentHref={currentHref} id="sales-gifts" search={{ value: filters.query, placeholder: '보낸 사람 · 받는 사람 · 상품' }}>
       <SalesFilterField label="선물 상태" htmlFor="sales-gifts-state"><SalesSelect id="sales-gifts-state" name="state" value={filters.state ?? 'all'}
         options={[{ value: 'all', label: '전체' }, ...ADMIN_GIFT_STATES.map(state => ({ value: state, label: ADMIN_GIFT_STATE_LABELS[state] }))]} /></SalesFilterField>
     </SalesFilterPanel>
     <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
     {/* 목록 머리를 표 도구줄에 올려 조회항목 설정이 혼자 한 줄을 차지하지 않게 한다. */}
-    <ConsoleGrid caption="선물 수락 목록" preferencesKey="sales-gifts" columns={columns} emptyLabel="검색 조건에 맞는 선물이 없습니다."
+    <ConsoleGrid caption="선물 목록" preferencesKey="sales-gifts" columns={columns} emptyLabel="검색 조건에 맞는 선물이 없습니다."
       rows={gridRows}><div className="flex flex-wrap items-center gap-2" data-sales-results-heading=""><div className="mr-auto flex flex-wrap items-center gap-2"><SalesResultsTitle total={data.total} />{closing ? <AdminStatusBadge tone="warning">오늘·내일 종료 {closing}건{data.total > data.rows.length ? ' (이 페이지)' : ''}</AdminStatusBadge> : null}</div>
       <form method="get" action="/admin/sales/gifts" className="flex flex-wrap items-center gap-1.5 print:hidden" key={currentHref}>
         {[...query].map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}

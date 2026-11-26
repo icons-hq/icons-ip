@@ -1,12 +1,19 @@
 import { describe, expect, it } from 'vitest';
 import {
+  WAREHOUSE_STOP_RETURNED_LOCK_REASON,
+  WAREHOUSE_STOP_STATUS_LABELS,
+  canceledDispatchResolveConfirm,
+  canceledDispatchResolveMissing,
   isoToKstLocal,
   kstLocalToIso,
   normalizeCanceledDispatchResolution,
   normalizeWarehouseStopReplyInput,
   parseOrderWarehouseStopContext,
   warehouseStopErrorMessage,
+  warehouseStopReplyConfirm,
+  warehouseStopReplyMissing,
   warehouseStopRequirement,
+  warehouseStopReturnedAllowed,
 } from './warehouse-stop';
 
 const ORDER = '11111111-1111-4111-8111-111111111111';
@@ -62,6 +69,83 @@ describe('창고 회신 문맥 읽기 (ADR-0046)', () => {
     expect(warehouseStopErrorMessage('claim_collection_warehouse_reply_required')).toContain('창고 회신 기록');
     expect(warehouseStopErrorMessage('warehouse_stop_reply_returned_without_shipped')).toContain('이미 출고했다고 회신한');
     expect(warehouseStopErrorMessage('something_else')).toContain('새로고침');
+  });
+});
+
+describe('창고 회신 이름과 오류 문구', () => {
+  it('상태 이름은 회신 결과 이름(출고 중단 확인)과 같은 말이다', () => {
+    expect(WAREHOUSE_STOP_STATUS_LABELS.required).toBe('창고 회신 기록 필요');
+    expect(WAREHOUSE_STOP_STATUS_LABELS.stopped).toBe('출고 중단 회신 있음');
+    expect(WAREHOUSE_STOP_STATUS_LABELS.already_shipped).toBe('이미 출고 회신');
+    expect(WAREHOUSE_STOP_STATUS_LABELS.used).toBe('다른 취소에 쓴 회신');
+  });
+
+  it('같은 번호로 다른 내용이 들어왔을 때는 요청·번호 같은 내부 말 없이 다음 할 일을 말한다', () => {
+    for (const code of ['warehouse_stop_reply_operation_conflict', 'canceled_dispatch_operation_conflict']) {
+      const message = warehouseStopErrorMessage(code);
+      expect(message).toContain('이미 다른 내용으로');
+      expect(message).toContain('새로고침');
+      expect(message).not.toMatch(/요청|번호/);
+    }
+    expect(warehouseStopErrorMessage('operator_capability_required')).toContain('이 작업을 할 권한이 없습니다');
+  });
+
+  it('취소 뒤 출고 발견의 택배사 이름은 읽는 쪽이 채울 때만 받고 없으면 비워 둔다(코드를 이름으로 지어내지 않는다)', () => {
+    const labeled = parseOrderWarehouseStopContext({ ...raw, discoveries: [{ ...raw.discoveries[0], carrier: 'epost', carrierLabel: '우체국택배', trackingNumber: '6000000000001' }] })!;
+    expect(labeled.discoveries[0]).toMatchObject({ carrier: 'epost', carrierLabel: '우체국택배' });
+    expect(parseOrderWarehouseStopContext(raw)!.discoveries[0].carrierLabel).toBeNull();
+  });
+});
+
+describe('창고 회신 양식의 잠금과 확인창', () => {
+  it('반송 입고는 고른 배송 건이 모두 이미 출고 회신이 있는 발송 대기 건일 때만 고를 수 있다(DB 판정과 같다)', () => {
+    expect(warehouseStopReturnedAllowed([{ status: 'ready', stopStatus: 'already_shipped' }])).toBe(true);
+    expect(warehouseStopReturnedAllowed([{ status: 'ready', stopStatus: 'already_shipped' }, { status: 'ready', stopStatus: 'required' }])).toBe(false);
+    expect(warehouseStopReturnedAllowed([{ status: 'canceled', stopStatus: 'not_applicable' }])).toBe(false);
+    expect(warehouseStopReturnedAllowed([{ status: 'ready', stopStatus: 'stopped' }])).toBe(false);
+    expect(warehouseStopReturnedAllowed([])).toBe(false);
+    expect(WAREHOUSE_STOP_RETURNED_LOCK_REASON).toContain('이미 출고했다고 회신한 발송 대기 배송 건에만');
+  });
+
+  it('회신 기록은 빠진 것을 순서대로 하나씩 말하고, 다 채우면 null이다', () => {
+    const full = { selected: 1, outcome: 'stopped', channel: 'phone', repliedAt: '2026-11-19T14:05', note: '' };
+    expect(warehouseStopReplyMissing({ ...full, selected: 0 })).toBe('기록할 배송 건을 골라주세요.');
+    expect(warehouseStopReplyMissing({ ...full, outcome: '' })).toBe('창고 회신 결과를 골라주세요.');
+    expect(warehouseStopReplyMissing({ ...full, channel: '' })).toBe('회신 경로를 골라주세요.');
+    expect(warehouseStopReplyMissing({ ...full, repliedAt: '' })).toBe('창고가 회신한 시각을 넣어주세요.');
+    expect(warehouseStopReplyMissing({ ...full, channel: 'other' })).toContain('경로가 기타이면 메모');
+    expect(warehouseStopReplyMissing({ ...full, channel: 'other', note: '서원 담당 통화' })).toBeNull();
+    expect(warehouseStopReplyMissing(full)).toBeNull();
+  });
+
+  it('취소 뒤 출고 처리는 결과와 5자 이상 근거가 있어야 한다', () => {
+    expect(canceledDispatchResolveMissing({ outcome: '', note: '반송 상자 입고 확인' })).toBe('처리 결과를 골라주세요.');
+    expect(canceledDispatchResolveMissing({ outcome: 'lost', note: ' 짧음 ' })).toBe('근거를 5자 이상 적어주세요.');
+    expect(canceledDispatchResolveMissing({ outcome: 'lost', note: '반송 상자 입고 확인' })).toBeNull();
+  });
+
+  it('회신 기록 확인창은 대상·결과를 말하고 기록은 지울 수 없다고 한다. 취소된 배송 건의 이미 출고는 재고가 다시 빠진다고 먼저 말한다', () => {
+    const plain = warehouseStopReplyConfirm({ targets: '남양주 · 2026111930000001', outcome: 'stopped', canceledSelected: false });
+    expect(plain.title).toBe('창고 회신을 기록할까요?');
+    expect(plain.message).toContain('배송 건 남양주 · 2026111930000001에 창고 회신(출고 중단 확인)을 남깁니다.');
+    expect(plain.message).toContain('기록은 지울 수 없습니다.');
+    expect(plain.confirmLabel).toBe('회신 기록');
+    expect(plain.destructive).toBe(false);
+    const discovery = warehouseStopReplyConfirm({ targets: '김포 · 2026111930000002', outcome: 'already_shipped', canceledSelected: true });
+    expect(discovery.message).toContain("'취소 뒤 출고 발견'으로 남고, 그 수량만큼 재고를 다시 뺍니다.");
+    expect(discovery.destructive).toBe(true);
+    /* 취소된 배송 건이 없으면 이미 출고여도 재고를 건드리지 않는다. */
+    expect(warehouseStopReplyConfirm({ targets: 'x', outcome: 'already_shipped', canceledSelected: false }).destructive).toBe(false);
+  });
+
+  it('취소 뒤 출고 처리 확인창은 어느 배송 건인지와 재고 결과(되돌림·그대로)를 말한다', () => {
+    const returned = canceledDispatchResolveConfirm({ target: '남양주 · 2026111930000001', outcome: 'returned', withdrawnQty: 2 });
+    expect(returned.message).toContain('배송 건 남양주 · 2026111930000001');
+    expect(returned.message).toContain('발견 때 뺀 재고 2개를 되돌립니다. 되돌릴 수 없습니다.');
+    expect(returned.confirmLabel).toBe('회수 입고 처리');
+    const lost = canceledDispatchResolveConfirm({ target: '남양주 · 2026111930000001', outcome: 'lost', withdrawnQty: 2 });
+    expect(lost.message).toContain('재고는 발견 때 뺀 그대로 둡니다. 되돌릴 수 없습니다.');
+    expect(lost.confirmLabel).toBe('손실 처리');
   });
 });
 

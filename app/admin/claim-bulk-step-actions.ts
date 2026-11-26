@@ -11,17 +11,22 @@ import {
   ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON,
+  adminClaimBulkApproveEffect,
+  adminClaimBulkApproveTotals,
   adminClaimBulkCollectPlan,
   adminClaimBulkCollectTargetLabel,
+  adminClaimBulkDecisionBlocker,
   adminClaimBulkProviderLabel,
   adminClaimBulkRefundBlockerMessage,
   adminClaimBulkRefundTotals,
   adminClaimBulkSummary,
+  normalizeAdminClaimBulkApprovePreviewInput,
   normalizeAdminClaimBulkCollectInput,
   normalizeAdminClaimBulkRefundInput,
   normalizeAdminClaimBulkStepPreviewInput,
   parseAdminClaimBulkContexts,
   runAdminClaimBulkSequentially,
+  type AdminClaimBulkApproveRow,
   type AdminClaimBulkCollectRow,
   type AdminClaimBulkContext,
   type AdminClaimBulkRefundRow,
@@ -68,6 +73,9 @@ import {
  *
  * 재출고는 최종 주소 확인(10분 결속)이 브라우저 세션의 연락처 경로(/api/admin/claim-contact/*)에 묶여 있어 여기서는
  * 대상 배송 건과 품목만 읽는다(loadOrderClaimBulkReshipmentsAction). 주소는 싣지 않는다.
+ *
+ * 취소 일괄 승인(previewOrderClaimBulkApprovalAction)도 같은 읽기 RPC로 금액을 읽어 확인창에 보인다. 승인 자체는
+ * 이 파일이 아니라 bulkDecideOrderClaimsAction(app/admin/claim-actions.ts)이 지금처럼 건마다 단건 경로로 처리한다.
  */
 
 const ACCESS_DENIED = '관리자 권한이 필요합니다.';
@@ -140,6 +148,40 @@ export async function previewOrderClaimBulkStepAction(input: unknown): Promise<A
       return { ...base, ...(items && items.length > 0 ? { items } : {}), blocker: null };
     });
     return { preview: { step, rows, totals: adminClaimBulkRefundTotals(rows) } };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: PREVIEW_FAILED };
+  }
+}
+
+/**
+ * 취소 일괄 승인의 확인창을 연다(읽기 전용 — 아무것도 바꾸지 않는다). 승인은 하는 즉시 결제사에 취소를 요청하므로
+ * 환불 확정 확인창과 같은 방식으로 건수·취소 금액 합계·건너뛰는 건과 이유를 서버가 읽어 먼저 보인다.
+ *
+ * 금액은 환불 확정 확인창과 같은 읽기 값(admin_order_claim_bulk_context의 refundAmount)이다 — 환불 기록이 없을 때는
+ * 결제 금액에서 이미 부분 취소한 금액을 뺀 남은 금액이다. 새로 계산하지 않는다. 건너뛰는 단계는 DB의 승인 조건
+ * (요청·검토중만 승인)과 같다. 실행은 지금 그대로 bulkDecideOrderClaimsAction(승인)이 건마다 단건 경로를 탄다.
+ */
+export async function previewOrderClaimBulkApprovalAction(input: unknown): Promise<AdminClaimBulkStepPreviewState> {
+  try {
+    const normalized = normalizeAdminClaimBulkApprovePreviewInput(input);
+    if (!normalized.ok) return { error: normalized.error };
+    const { claimType, claimIds } = normalized.value;
+    if (!await access(claimType)) return { error: ACCESS_DENIED };
+
+    const contexts = await readContexts(await createClient(), claimIds);
+    if (!contexts) return { error: CONTEXT_FAILED };
+    const byId = new Map(contexts.map((context) => [context.claimId, context]));
+
+    const rows: AdminClaimBulkApproveRow[] = claimIds.map((claimId) => {
+      const context = byId.get(claimId);
+      if (!context) return { claimId, reference: '확인 불가', providerLabel: adminClaimBulkProviderLabel(null), amount: null, providerCancel: false, effect: '', blocker: CLAIM_MISSING };
+      const { providerCancel, effect } = adminClaimBulkApproveEffect(context.paymentProvider);
+      const base = { claimId, reference: orderClaimReferenceLabel(context.reference), providerLabel: adminClaimBulkProviderLabel(context.paymentProvider), amount: context.refundAmount, providerCancel, effect };
+      if (context.claimType !== claimType) return { ...base, blocker: wrongType(claimType) };
+      return { ...base, blocker: adminClaimBulkDecisionBlocker('approve', context.stage) };
+    });
+    return { preview: { step: 'approve', rows, totals: adminClaimBulkApproveTotals(rows) } };
   } catch (error) {
     unstable_rethrow(error);
     return { error: PREVIEW_FAILED };

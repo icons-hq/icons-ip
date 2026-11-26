@@ -20,14 +20,15 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).toContain('배송건번호 · 택배사코드 · 운송장번호');
     expect(html).toContain('상품주문번호 · 택배사 · 운송장번호');
     expect(html).not.toContain('암호를 해제');expect(html).toContain('시트 이름과 열 순서는 바꿔도');expect(html).toContain('이전에 내려받은 파일도');expect(html).toContain('내려받은 CSV');expect(html).toContain('엑스스퀘어 표준 양식 CSV는 1MB');
-    expect(html).not.toMatch(/발송처리<|안내 행|스마트스토어/);
+    /* 네이버 양식에서 온 열 이름('발송처리' 열·안내 행)을 안내에 다시 들이지 않는다. 실행 버튼 이름의 '발송처리'는 따로 본다. */
+    expect(html).not.toMatch(/<strong[^>]*>[^<]*발송처리|안내 행|스마트스토어/);
   });
 
-  it('비밀번호를 건 XLSX를 해제 없이 올리도록 파일 비밀번호 칸을 제공한다',()=>{
+  /* S-18: 파일 비밀번호 칸은 XLSX를 골랐을 때만 연다(칸 자체는 DispatchTrackingImportPanel.client.test.tsx가 본다). 파일을 고르기 전에는 칸이 없고, 접힌 안내가 어디에 넣는지 말한다. */
+  it('파일을 고르기 전에는 파일 비밀번호 칸을 그리지 않고, 접힌 안내가 XLSX를 고르면 칸이 나온다고 말한다',()=>{
     const html=renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} />);
-    const input=html.match(/<input[^>]*name="filePassword"[^>]*>/)?.[0]??'';
-    expect(input).toContain('type="password"');expect(input).toMatch(/autocomplete="new-password"/i);expect(input).not.toContain('required');expect(input).not.toContain('value=');
-    expect(html).toContain('파일 비밀번호');expect(html).toContain('파일을 내려받을 때 정한 비밀번호');expect(html).toContain('저장하지 않습니다');
+    expect(html).not.toContain('name="filePassword"');
+    expect(html).toContain('비밀번호를 건 XLSX는 풀지 않고 그대로 올립니다.');expect(html).toContain('XLSX를 고르면 나오는');
   });
 
   it('남양주(서원) 송장양식 회신 방법과 덮어쓰지 않는 정정 경로를 안내한다',()=>{
@@ -41,11 +42,13 @@ describe('운송장 업로드 후속 동선', () => {
   it('파일 선택·비밀번호·등록 전 확인을 안내보다 먼저 두고, 회신 양식 안내와 붙여넣기는 접어 둔다', () => {
     const html = renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} />);
     expect(html).toContain('type="file"');
-    expect(html).toContain('일괄 등록');
-    /* kit Button은 type이 없으면 button이 된다 — 일괄 등록은 양식을 제출한다. 확인 전에는 누를 수 없다. */
-    expect(html).toMatch(/<button[^>]*type="submit"[^>]*disabled=""[^>]*>일괄 등록<|<button[^>]*disabled=""[^>]*type="submit"[^>]*>일괄 등록</);
+    expect(html).toContain('운송장 등록 · 발송처리');
+    /* kit Button은 type이 없으면 button이 된다 — 실행 버튼은 양식을 제출한다. 확인 전에는 누를 수 없다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*disabled=""[^>]*>운송장 등록 · 발송처리<|<button[^>]*disabled=""[^>]*type="submit"[^>]*>운송장 등록 · 발송처리</);
     expect(html).toMatch(/<button[^>]*type="button"[^>]*>등록 전 확인</);
-    expect(html).toContain('[등록 전 확인]으로 읽은 내용을 본 뒤 등록할 수 있습니다.');
+    expect(html).toContain('[등록 전 확인]으로 읽은 내용을 본 뒤 누를 수 있습니다.');
+    /* 누르면 일어나는 일(배송중 + 고객 메일)과 되돌릴 수 없는 것(보낸 메일)을 한 줄로 말한다. */
+    expect(html).toContain('등록한 배송 건은 바로 배송중으로 바뀌고 고객에게 배송 안내 메일이 갑니다. 보낸 메일은 회수되지 않습니다.');
     expect(html).not.toContain('배송현황에서 결과 확인');
     // 접힌 안내·붙여넣기(open 없음)는 파일 칸 뒤에 있다.
     expect(html).toMatch(/<details (?:(?!open)[^>])*data-tracking-import-guide=""(?:(?!open)[^>])*>/);
@@ -64,7 +67,7 @@ describe('운송장 업로드 후속 동선', () => {
     const html = renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} shippingHref="/admin/sales/shipping?tab=transit&page=1&originId=warehouse" />);
     expect(html).toContain('배송현황에서 결과 확인');
     expect(html).toContain('href="/admin/sales/shipping?tab=transit&amp;page=1&amp;originId=warehouse"');
-    expect(html).toContain('실패 행 내려받기');expect(html).toContain('대상(상품주문·배송건·주문·받는 분)');
+    expect(html).toContain('등록하지 못한 줄 내려받기');expect(html).toContain('대상(상품주문·배송건·주문·받는 분)');
     expect(html).toContain('00000002');
     expect(html).toContain('배송 건을 찾을 수 없습니다.');
   });
@@ -84,7 +87,7 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).toContain('5줄 · 2026111930000002 · 이미 기록됨');
     expect(html).toContain('재고를 다시 뺐습니다');
     expect(html).toContain(`href="/admin/sales/orders/${orderId}#warehouse-stop"`);
-    expect(html).not.toContain('실패 행 내려받기');
+    expect(html).not.toContain('등록하지 못한 줄 내려받기');
     /* 같은 회신을 다시 올려 모두 이미 기록된 줄이면 다시 뺐다고 말하지 않는다. */
     mocks.state = { report: { succeeded: [], failed: [], canceledAfterExport: [{ line: 4, reference: '2026111930000001', orderId, alreadyRecorded: true }] } };
     const again = renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} />);

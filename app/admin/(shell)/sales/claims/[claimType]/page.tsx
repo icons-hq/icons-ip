@@ -1,4 +1,3 @@
-import { loadPartialReturnPolicy } from '@/lib/orders/partial-return.server';
 import { notFound, redirect } from 'next/navigation';
 import { ClaimDetailScreen } from '@/components/admin/screens/ClaimDetailScreen';
 import { ClaimPreviewKitDialog } from '@/components/admin/screens/ClaimPreviewKitDialog';
@@ -54,12 +53,10 @@ export default async function AdminSalesClaimsPage({
   const previewId = adminClaimPreviewId(query.claimId);
 
   /* 반품 자동 회수 접수·반품입고 회신(QNA-032·QNA-034)은 회수가 있는 반품·교환 목록에만 있고, 스위치가 꺼져 있으면 그리지 않는다. */
-  const [data, workspace, returnOperations, partialReturnPolicy] = await Promise.all([
+  const [data, workspace, returnOperations] = await Promise.all([
     getAdminClaimConsoleData(claimType, filters),
     previewId ? loadAdminClaimWorkspace(previewId) : Promise.resolve(null),
     claimType === 'cancel' ? Promise.resolve(CLAIM_RETURN_OPERATIONS_OFF) : loadClaimReturnOperations(),
-    /* 부분 반품(ADR-0047)이 켜져 있으면 목록 아래 안내가 반품의 일부 처리를 말한다. 읽지 못하면 꺼짐. */
-    loadPartialReturnPolicy(),
   ]);
   /* 유형이 바뀐 요청(반품↔교환 전환)은 그 유형의 목록 위에서 연다. */
   if (previewId && workspace && workspace.detail.claim.claimType !== claimType) {
@@ -81,8 +78,9 @@ export default async function AdminSalesClaimsPage({
   /* ADR-0028: 취소·반품·교환 세 목록 모두 템플릿 룩 kit 화면과 kit 팝업이다. */
   return <>
     <ClaimReturnOperationsPanel operations={returnOperations} />
+    {/* 자동 회수 접수가 켜져 있으면 반품·교환 승인 확인창이 택배사에 회수가 접수된다고 미리 말한다. */}
     <ClaimQueueKitScreen data={data} canViewRefundTransfers={canAccessAdminScreen(auth, adminScreenForPath(REFUND_TRANSFERS_PATH))}
-      partialReturnEnabled={partialReturnPolicy.enabled} />
+      autoPickupEnabled={returnOperations.pickup.enabled} />
     {previewId ? (
       <ClaimPreviewKitDialog
         closeHref={closeHref}

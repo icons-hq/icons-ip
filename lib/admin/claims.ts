@@ -71,15 +71,20 @@ export const ADMIN_CLAIM_STAGE_OPTIONS: { value: AdminClaimStageFilter; label: s
   })),
 ];
 
-/** Keep the provider-review stage distinct from an operator hold and buyer withdrawal. */
+/**
+ * 어드민 화면의 단계 이름 — 취소·반품·교환 목록·상세·주문 화면이 모두 이 함수 하나를 쓴다.
+ * 세 유형이 같은 틀(`○○요청`·`○○검토중`·`○○완료`…)이고, 창고에 돌아온 단계는 고객 화면·엑셀과 같은 '입고완료'다.
+ * 고객 화면의 이름(`ORDER_CLAIM_STAGE_LABELS`)은 따로 두고 여기서만 어드민 이름을 정한다.
+ * 결제 확인이 필요한 단계는 운영 보류·고객 철회와 섞이지 않게 따로 부른다.
+ */
 export function adminClaimStageLabel(type: OrderClaimType, stage: OrderClaimStage) {
   const typeLabel = type === 'cancel' ? '취소' : type === 'return' ? '반품' : '교환';
   if (stage === 'requested') return `${typeLabel}요청`;
-  if (stage === 'in_review') return `${typeLabel} 검토중`;
+  if (stage === 'in_review') return `${typeLabel}검토중`;
   if (stage === 'collecting') return '수거중';
-  if (stage === 'collected') return '수거완료';
+  if (stage === 'collected') return '입고완료';
   if (stage === 'on_hold') return `${typeLabel}보류`;
-  if (stage === 'completed') return type === 'exchange' ? '재배송 처리완료' : `${typeLabel}완료`;
+  if (stage === 'completed') return `${typeLabel}완료`;
   if (stage === 'rejected') return `${typeLabel}거부`;
   if (stage === 'withdrawn') return `${typeLabel}철회`;
   return ORDER_CLAIM_STAGE_LABELS[stage];
@@ -137,6 +142,10 @@ export function adminClaimRejectionPresets(claimType: OrderClaimType): readonly 
   return REJECTION_PRESETS_BY_TYPE[claimType];
 }
 
+/**
+ * 검색 항목. 상품 URL(고객 화면 주소 끝의 영문 값)은 운영자가 고를 일이 없어 항목에서 뺐다 — '전체' 검색이 그 값도 함께 찾는다
+ * (DB admin_sales_claim_matches가 field=all일 때 상품 값도 본다). 옛 주소의 field=product는 '전체'로 읽힌다.
+ */
 export const ADMIN_CLAIM_SEARCH_FIELDS = [
   { value: 'all', label: '전체' },
   { value: 'order', label: '주문·요청번호' },
@@ -144,13 +153,13 @@ export const ADMIN_CLAIM_SEARCH_FIELDS = [
   { value: 'email', label: '구매자 이메일' },
   { value: 'recipient', label: '수령인명' },
   { value: 'item', label: '상품주문번호' },
-  { value: 'product', label: '상품 URL' },
 ] as const;
 export type AdminClaimSearchField = (typeof ADMIN_CLAIM_SEARCH_FIELDS)[number]['value'];
+/** 기간 기준. 이름은 표의 열 이름과 같다 — 접수일(표 '접수일')·입고완료일(단계 '입고완료')·처리완료일(단계 '○○완료'). */
 export const ADMIN_CLAIM_DATE_FIELDS = [
-  { value: 'requested', label: '요청일' },
+  { value: 'requested', label: '접수일' },
   { value: 'paid', label: '결제일' },
-  { value: 'collected', label: '수거완료일' },
+  { value: 'collected', label: '입고완료일' },
   { value: 'completed', label: '처리완료일' },
 ] as const;
 
@@ -442,7 +451,7 @@ export function normalizeAdminClaimRefundForm(
     return { ok: false, error: '처리할 수 없는 환불 단계입니다. 화면을 새로고침한 뒤 다시 눌러주세요.' };
   }
   if (note.length > 300) {
-    return { ok: false, error: '상계·정산 메모는 300자 이내로 입력해주세요.' };
+    return { ok: false, error: '환불 메모는 300자 이내로 입력해주세요.' };
   }
 
   return {

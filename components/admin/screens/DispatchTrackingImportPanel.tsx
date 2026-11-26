@@ -23,7 +23,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 
 const EMPTY_STATE: AdminTrackingImportState = {};
-/* 운송장 일괄 등록(템플릿 룩, ADR-0028). 안내 문단은 보조 글자, 실패 보고는 kit 표다. */
+/* 운송장 올리기(템플릿 룩, ADR-0028). 안내 문단은 보조 글자, 실패 보고는 kit 표다. */
 const NOTE = 'text-muted-foreground';
 const STRONG = 'font-medium text-foreground';
 const DISCLOSURE = 'w-full rounded-lg border px-3 py-2 [&_summary]:cursor-pointer [&_summary]:font-medium [&_summary]:text-foreground';
@@ -31,7 +31,9 @@ const DISCLOSURE = 'w-full rounded-lg border px-3 py-2 [&_summary]:cursor-pointe
 /**
  * Shipment uploads return an actionable row report and preserve failed input.
  * QA 라운드 1 m2: 입력칸보다 안내가 길어 파일 선택이 첫 화면 밖에 있었고, 잘못 고른 파일도 바로 등록됐다.
- * 짧은 안내 → 파일·비밀번호 → [등록 전 확인] → [일괄 등록] 순서로 두고, 회신 양식 안내와 붙여넣기는 접어 둔다.
+ * 짧은 안내 → 파일(XLSX면 비밀번호) → [등록 전 확인] → [운송장 N줄 등록 · 발송처리] 순서로 두고, 회신 양식 안내와 붙여넣기는 접어 둔다.
+ * 실행 버튼은 등록 전 확인이 읽은 줄 수와 결과(발송처리)를 이름에 적는다 — 누르면 배송중으로 바뀌고 고객에게 배송 안내 메일이 간다.
+ * 파일 비밀번호 칸은 비밀번호를 걸 수 있는 XLSX를 골랐을 때만 연다(화면 규칙 '글보다 화면' 2).
  * 파일 이름은 이 화면이 가진 선택을 보인다(제출 뒤 브라우저 파일 칸이 비워져도 실패 줄을 고쳐 다시 올릴 수 있게 선택을 유지한다).
  */
 export function DispatchTrackingImportPanel({ carriers, originId, shippingHref = '/admin/sales/shipping?tab=transit&page=1' }: { carriers: ShippingCarrierRegistry; originId?: string|null; shippingHref?: string }) {
@@ -83,13 +85,17 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
     });
   }
   const canRegister = Boolean(preview && (preview.ready > 0 || preview.issueCount > 0));
+  /* 비밀번호는 XLSX에만 걸 수 있다. CSV·붙여넣기에는 칸을 열지 않는다. */
+  const passwordField = Boolean(selectedFile && /\.xlsx$/i.test(selectedFile.name));
+  /* 등록할 줄이 없고 못 읽은 줄만 있으면 누른 결과는 '등록하지 못한 줄' 표다. */
+  const submitLabel = preview && preview.ready > 0 ? `운송장 ${preview.ready.toLocaleString('ko-KR')}줄 등록 · 발송처리`
+    : preview && preview.issueCount > 0 ? '등록하지 못한 줄 모두 보기' : '운송장 등록 · 발송처리';
 
   return (
-    <section className="flex min-w-0 flex-col gap-3 border-t p-3 text-sm leading-relaxed sm:p-4" aria-label="엑셀 일괄 운송장 등록">
-      <h2 className="text-base font-medium text-foreground">엑셀 일괄 운송장 등록</h2>
+    <section className="flex min-w-0 flex-col gap-3 border-t p-3 text-sm leading-relaxed sm:p-4" aria-label="운송장 올리기">
+      <h2 className="text-base font-medium text-foreground">운송장 올리기</h2>
       <p className={NOTE}>
-        내려받은 출고지시 파일(엑스스퀘어 표준 양식·김포 WMS 21열·남양주 송장양식)에 운송장을 채워 그대로 올리면 양식을 알아서 찾습니다.
-        <strong className={STRONG}> 등록 전 확인</strong>으로 읽은 내용을 본 뒤 등록합니다. 한 번에 {TRACKING_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}건까지 처리합니다.
+        내려받은 출고지시 파일에 운송장을 채워 그대로 올립니다. 양식은 알아서 찾고, 한 번에 {TRACKING_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}줄까지 올릴 수 있습니다.
       </p>
 
       <form action={action} className="flex flex-col items-start gap-2" ref={formRef}>
@@ -113,21 +119,22 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
           <span className={selectedFile ? 'min-w-0 break-all text-foreground' : NOTE} data-selected-file="" id="admin-dispatch-import-file-name">{selectedFile ? selectedFile.name : '선택한 파일 없음'}</span>
           {selectedFile ? <Button type="button" size="xs" variant="outline" disabled={pending} onClick={() => { setSelectedFile(null); invalidate(); if (fileInput.current) fileInput.current.value = ''; }}>파일 선택 해제</Button> : null}
         </div>
-        <p className={NOTE}>XLSX와 엑스스퀘어 표준 양식 CSV는 1MB, 그 밖의 CSV·TSV·텍스트와 붙여넣기는 256KB까지 등록합니다.</p>
-        <Label className="mt-1" htmlFor="admin-dispatch-import-file-password">파일 비밀번호</Label>
-        <p className={NOTE} id="admin-dispatch-import-file-password-hint">비밀번호를 건 XLSX만 입력합니다. 파일을 내려받을 때 정한 비밀번호이며 저장하지 않습니다.</p>
-        <Input
-          aria-describedby="admin-dispatch-import-file-password-hint"
-          autoComplete="new-password"
-          className="max-w-md"
-          disabled={pending}
-          id="admin-dispatch-import-file-password"
-          maxLength={255}
-          name="filePassword"
-          onChange={invalidate}
-          spellCheck={false}
-          type="password"
-        />
+        {passwordField ? <>
+          <Label className="mt-1" htmlFor="admin-dispatch-import-file-password">파일 비밀번호</Label>
+          <Input
+            aria-describedby="admin-dispatch-import-file-password-hint"
+            autoComplete="new-password"
+            className="max-w-md"
+            disabled={pending}
+            id="admin-dispatch-import-file-password"
+            maxLength={255}
+            name="filePassword"
+            onChange={invalidate}
+            spellCheck={false}
+            type="password"
+          />
+          <p className={NOTE} id="admin-dispatch-import-file-password-hint">비밀번호를 건 파일일 때만 넣습니다. 파일을 내려받을 때 정한 비밀번호이고 저장하지 않습니다.</p>
+        </> : null}
         <details className={DISCLOSURE} data-tracking-import-paste="">
           <summary>붙여넣기로 등록 (배송건번호 · 택배사코드 · 운송장번호)</summary>
           <div className="mt-2 flex flex-col items-start gap-2">
@@ -149,11 +156,11 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
         <div className="flex flex-wrap items-center gap-2">
           <Button disabled={pending || checking} onClick={check} type="button" variant="outline">{checking ? '확인 중' : '등록 전 확인'}</Button>
           <Button disabled={pending || !canRegister} type="submit">
-            {pending ? '등록 중' : '일괄 등록'}
+            {pending ? '등록 중' : submitLabel}
           </Button>
-          {!preview && !pending ? <span className={NOTE}>[등록 전 확인]으로 읽은 내용을 본 뒤 등록할 수 있습니다.</span> : null}
+          {!preview && !pending ? <span className={NOTE}>[등록 전 확인]으로 읽은 내용을 본 뒤 누를 수 있습니다.</span> : null}
         </div>
-        <p className={NOTE}>등록에 성공한 배송 건은 배송 중으로 바뀌고, 고객에게 배송 안내 메일이 차례로 발송됩니다.</p>
+        <p className={NOTE}>등록한 배송 건은 바로 배송중으로 바뀌고 고객에게 배송 안내 메일이 갑니다. 보낸 메일은 회수되지 않습니다.</p>
       </form>
 
       {previewError ? <AdminNotice role="alert" tone="danger">{previewError}</AdminNotice> : null}
@@ -166,7 +173,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
 
       {state.report && state.report.failed.length > 0 ? (
         <div className="flex min-w-0 flex-col items-start gap-2">
-        <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" download={`xsquare-운송장실패행-${kstFileStamp(new Date())}.csv`} href={`data:text/csv;charset=utf-8,${encodeURIComponent("﻿"+[["줄","대상","사유"],...state.report.failed.map(row=>[String(row.line),row.reference,row.reason])].map(row=>row.map(cell=>`"${(/^[\s]*[=+\-@]/.test(cell)?"'":"")+cell.replaceAll('"','""')}"`).join(',')).join('\r\n'))}`}>실패 행 내려받기</a>
+        <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" download={`xsquare-운송장-등록하지-못한-줄-${kstFileStamp(new Date())}.csv`} href={`data:text/csv;charset=utf-8,${encodeURIComponent("﻿"+[["줄","대상","사유"],...state.report.failed.map(row=>[String(row.line),row.reference,row.reason])].map(row=>row.map(cell=>`"${(/^[\s]*[=+\-@]/.test(cell)?"'":"")+cell.replaceAll('"','""')}"`).join(',')).join('\r\n'))}`}>등록하지 못한 줄 내려받기</a>
         <div className="w-full rounded-lg border">
         <Table>
           <caption className="caption-top border-b px-2 py-2 text-left text-sm font-medium text-foreground">등록하지 못한 줄</caption>
@@ -223,10 +230,11 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
         <summary>회신 양식 안내 (엑스스퀘어 표준 · 김포 WMS 21열 · 남양주 송장양식 · 기존 세 칸)</summary>
         <div className="mt-2 flex flex-col gap-2">
           <p className={NOTE}>
-            엑스스퀘어 표준 양식은 <strong className={STRONG}>상품주문번호 · 택배사 · 운송장번호</strong> 세 열을 읽습니다. 내려받은 파일에 택배사와 운송장번호를 채우고, XLSX 또는 내려받은 CSV로 올려주세요. 비밀번호를 건 XLSX는 해제하지 않고 그대로 올리고 위 <strong className={STRONG}>파일 비밀번호</strong>를 입력합니다.
+            엑스스퀘어 표준 양식은 <strong className={STRONG}>상품주문번호 · 택배사 · 운송장번호</strong> 세 열을 읽습니다. 내려받은 파일에 택배사와 운송장번호를 채우고, XLSX 또는 내려받은 CSV로 올려주세요. 비밀번호를 건 XLSX는 풀지 않고 그대로 올립니다. XLSX를 고르면 나오는 <strong className={STRONG}>파일 비밀번호</strong> 칸에 비밀번호를 넣습니다.
             시트 이름과 열 순서는 바꿔도 되고, 나머지 열은 그대로 두거나 지워도 됩니다. 이전에 내려받은 파일도 그대로 올릴 수 있습니다.
           </p>
-          <p className={NOTE}>상품주문번호는 엑스스퀘어 파일의 전체 번호를 유지해주세요. 택배 건만 등록할 수 있으며 퀵·방문수령·직접전달은 행의 인계·수령 확인에서 처리합니다. CSV를 Excel에서 열어 저장하면 긴 번호가 바뀌어 등록되지 않으니, Excel로 작업할 때는 XLSX를 받아 주세요.</p>
+          <p className={NOTE}>상품주문번호는 엑스스퀘어 파일의 전체 번호를 그대로 두세요. 택배 건만 등록할 수 있고 퀵·방문수령·직접전달은 줄의 인계·수령 확인에서 처리합니다. CSV를 Excel에서 열어 저장하면 긴 번호가 바뀌어 등록되지 않으니, Excel로 작업할 때는 XLSX를 받아 주세요.</p>
+          <p className={NOTE}>XLSX와 엑스스퀘어 표준 양식 CSV는 1MB, 그 밖의 CSV·TSV·텍스트와 붙여넣기는 256KB까지 올릴 수 있습니다.</p>
           <p className={NOTE}>기존 <strong className={STRONG}>배송건번호 · 택배사코드 · 운송장번호</strong> 세 칸 XLSX·CSV·붙여넣기도 지원합니다. 단일 배송 주문은 주문번호도 사용할 수 있습니다.</p>
           <p className={NOTE}>
             택배사코드: {activeCodes.length
@@ -240,8 +248,8 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
           <ul className={`${NOTE} flex list-disc flex-col gap-1 pl-5`}>
             <li>
               <strong className={STRONG}>김포 WMS 21열</strong> — 운송장번호 열을 채운 회신입니다. 주문번호(쇼핑몰)는 엑스스퀘어 출고 파일의 전체 주문번호를 유지해주세요.
-              같은 주문의 여러 상품 행은 한 배송 건으로 합치며, 서로 다른 운송장이 있으면 해당 주문 전체를 등록하지 않습니다.
-              운송장 칸을 비운 주문은 아직 출고하지 않은 것으로 보고 건너뜁니다(한 주문의 일부 행만 비우면 그 주문은 등록하지 않습니다).
+              같은 주문의 여러 상품 줄은 한 배송 건으로 합치며, 서로 다른 운송장이 있으면 그 주문 전체를 등록하지 않습니다.
+              운송장 칸을 비운 주문은 아직 출고하지 않은 것으로 보고 건너뜁니다(한 주문의 일부 줄만 비우면 그 주문은 등록하지 않습니다).
             </li>
             <li>
               <strong className={STRONG}>남양주(서원) 송장양식</strong> — 내려받은 송장양식 오른쪽에 &lsquo;송장번호&rsquo; 열을 두고 번호를 채운 파일입니다.
@@ -252,9 +260,9 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
           </ul>
           <p className={NOTE}>
             이미 발송된 배송 건의 운송장은 덮어쓰지 않습니다. 같은 회신을 다시 올리면 그대로 두고, 번호가 다르면 실패로 알려드립니다.
-            정정은 주문 통합검색의 운송장 수정에서 합니다.
+            고치려면 주문통합검색의 [운송장 수정]에서 합니다.
           </p>
-          <p className={NOTE}>합포장은 한 배송 건의 운송장을 등록해도 묶음 전체에 적용됩니다. 같은 합포장에 서로 다른 운송장이나 오류 행이 있으면 먼저 파일을 수정해주세요. 남양주 원형 회신은 합포장에 포함된 모든 배송 건의 품목 줄을 빠짐없이 올려야 합니다.</p>
+          <p className={NOTE}>합포장은 한 배송 건의 운송장을 등록해도 묶음 전체에 적용됩니다. 같은 합포장에 서로 다른 운송장이나 오류가 있는 줄이 있으면 먼저 파일을 고쳐주세요. 남양주 원형 회신은 합포장에 포함된 모든 배송 건의 품목 줄을 빠짐없이 올려야 합니다.</p>
           {/* WMS 이중 입력 주의(#177). 어드민을 운송장 진실원으로 선언하지 않는다. */}
           <p className={NOTE}>
             창고 WMS가 발행한 운송장을 옮겨 적는 운영 기록입니다. 값이 어긋나면 WMS가 기준입니다.
@@ -270,6 +278,8 @@ function TrackingImportPreview({ preview }: { preview: AdminTrackingImportPrevie
   const count = (value: number) => value.toLocaleString('ko-KR');
   return <div className="flex w-full min-w-0 flex-col gap-2 rounded-lg border bg-muted/40 p-3" data-tracking-import-preview="" role="status">
     <p className={STRONG}>{preview.format} · 등록할 줄 {count(preview.ready)} · 건너뛸 줄 {count(preview.skipped)} · 등록할 수 없는 줄 {count(preview.issueCount)}</p>
+    {/* 일괄 변경(GoodsBulkToolbar)과 같은 모양: 할 수 있는 줄이 하나도 없으면 그 사실을 먼저 말하고 줄마다 이유를 보인다. */}
+    {preview.ready ? null : <AdminNotice role="alert" tone="warning" title="등록할 수 있는 줄이 없습니다."><p>{preview.issueCount ? '줄마다 적힌 이유를 확인해 파일을 고친 뒤 다시 올려주세요.' : '운송장 칸이 모두 비어 있습니다. 운송장을 채운 파일을 다시 올려주세요.'}</p></AdminNotice>}
     {preview.sample.length ? <div className="w-full rounded-lg border bg-card">
       <Table>
         <caption className="sr-only">등록할 줄 앞부분</caption>

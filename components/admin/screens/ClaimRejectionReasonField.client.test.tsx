@@ -63,3 +63,20 @@ it("제어 값(onChange·value)으로 쓸 때도 '직접 입력'이 부모에 �
   (controlled.props.onChange as (event: unknown) => void)({ target: { value: '' } });
   expect(onChange).toHaveBeenCalledWith('');
 });
+
+/* D-01: 사유는 필수이고 구매자에게 그대로 보인다. 칸 이름과 칸 아래 한 줄이 그것을 말하고, 길이가 맞지 않으면 이 칸 아래에서 알린다. */
+it('칸 이름에 필수를, 칸 아래에 보이는 곳을 적고, 보내기 전에 걸린 이유를 알림으로 보인다', () => {
+  const text = (node: ReactNode): string => Array.isArray(node) ? node.map(text).join('')
+    : isValidElement(node) ? text((node as Element).props.children) : typeof node === 'string' ? node : '';
+  hooks.index = 0;
+  const plain = ClaimRejectionReasonField({ claimType: 'return', id: 'note' });
+  expect(text(plain)).toContain('거부 사유 (필수)');
+  expect(text(plain)).toContain('구매자에게 그대로 보입니다. 10~200자로 적어주세요.');
+  expect(all(plain).some((element) => element.props.role === 'alert')).toBe(false);
+  expect(all(plain).find((element) => element.type === 'input')!.props['aria-invalid']).toBeUndefined();
+
+  hooks.index = 0;
+  const failed = ClaimRejectionReasonField({ claimType: 'return', id: 'note', error: '거부 사유를 10자 이상 200자 이하로 입력해주세요.' });
+  expect(text(all(failed).find((element) => element.props.role === 'alert'))).toBe('거부 사유를 10자 이상 200자 이하로 입력해주세요.');
+  expect(all(failed).find((element) => element.type === 'input')!.props['aria-invalid']).toBe(true);
+});

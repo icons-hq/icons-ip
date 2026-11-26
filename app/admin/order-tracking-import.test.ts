@@ -15,6 +15,8 @@ vi.mock('@/lib/orders/shipment.server', () => ({ getShippingCarrierRegistry: moc
 vi.mock('@/lib/email/transactional.server',()=>({sendOrderShippedEmail:vi.fn(),sendOrderConfirmationEmail:vi.fn()}));
 vi.mock('@/lib/email/order-shipment-jobs.server', () => ({ enqueueOrderShippedEmails: mocks.enqueue }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.refresh }));
+/* 출고 권한이 없거나 로그인이 끝났을 때: 무엇이 없는지와 다음 행동(계정 확인 → 계정 주매니저에게 요청)을 말한다. */
+const DISPATCH_DENIED = '출고 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';
 function form(text: string) { const data = new FormData(); data.set('pasted', text); return data; }
 const warehouseOrder='00000000-0000-4000-8000-000000000042';
 const warehouseOrigin='00000000-0000-4000-8000-000000000099';
@@ -81,7 +83,7 @@ describe('운송장 회신 등록 전 확인', () => {
   it('비어 있는 입력과 출고 권한이 없는 계정은 확인하지 않는다',async()=>{
     expect(await previewAdminOrderTrackingImportAction(form(''))).toEqual({error:'등록할 운송장을 붙여넣거나 파일을 선택해주세요.'});
     mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'deputy' }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture('deputy') });
-    expect(await previewAdminOrderTrackingImportAction(form('00000001,hanjin,12345678'))).toEqual({error:'관리자 권한이 필요합니다.'});
+    expect(await previewAdminOrderTrackingImportAction(form('00000001,hanjin,12345678'))).toEqual({error:DISPATCH_DENIED});
     mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'logistics' }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture('logistics') });
     expect((await previewAdminOrderTrackingImportAction(form('00000001,hanjin,12345678'))).preview?.ready).toBe(1);
   });
@@ -95,7 +97,7 @@ describe('bulk tracking action', () => {
     mocks.rpc.mockClear();
     for(const role of ['deputy','influencer','agency'] as const){
       mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: role }, role: 'staff', isStaff: true, operatorAccess: configuredOperatorAccessFixture(role) });
-      expect((await bulkRegisterAdminOrderTrackingAction({},form('00000001,hanjin,12345678'))).errors?.form).toBe('관리자 권한이 필요합니다.');
+      expect((await bulkRegisterAdminOrderTrackingAction({},form('00000001,hanjin,12345678'))).errors?.form).toBe(DISPATCH_DENIED);
     }
     expect(mocks.rpc).not.toHaveBeenCalled();
   });

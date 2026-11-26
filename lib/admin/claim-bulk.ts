@@ -1,6 +1,8 @@
 import { normalizeClaimTypeAgreement, type ConvertibleClaimType } from '@/lib/orders/claim-type-conversion';
 import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimStage, type OrderClaimType } from '@/lib/orders/claims';
+import { automatedCancelProviderLabel, providerCancelsAutomatically } from '@/lib/payments/provider-capabilities';
 import { isUuid } from '@/lib/uuid';
+import type { AdminConfirmRequest } from './confirm';
 import type { ClaimDefectiveItem } from './defective-stock';
 import { normalizeAdminClaimReceivedOn } from './claims';
 
@@ -42,23 +44,24 @@ export const ADMIN_CLAIM_BULK_CONVERT = 'convert';
 export const ADMIN_CLAIM_BULK_DECISIONS = ['approve', 'reject', 'review'] as const;
 export type AdminClaimBulkDecision = (typeof ADMIN_CLAIM_BULK_DECISIONS)[number];
 
+/* 처리 막대의 버튼 이름. 몇 건을 처리하는지는 막대 머리의 'N건 선택'이 말하므로 '선택 건'은 붙이지 않는다. */
 export const ADMIN_CLAIM_BULK_ACTION_LABELS: Record<AdminClaimBulkDecision, string> = {
-  approve: '선택 건 승인',
-  reject: '선택 건 거부',
-  review: '선택 건 검토중',
+  approve: '승인',
+  reject: '거부',
+  review: '검토중으로 표시',
 };
 
 /**
- * 건별 결과. 'skipped'는 시간 예산으로 시작하지 않은 건(다시 실행), 'excluded'는 그 단계를 쓸 수 없어 처리하지
- * 않은 건(무통장·가상계좌·회수 미완료 등 — 결과표에 사유)이다.
+ * 건별 결과. 'skipped'는 시간이 모자라 아직 시작하지 않은 건(다시 실행), 'excluded'는 지금 단계에서 할 수 없어
+ * 건너뛴 건(무통장·가상계좌·회수 미완료 등 — 결과표에 이유)이다.
  */
 export type AdminClaimBulkOutcome = 'done' | 'failed' | 'skipped' | 'excluded';
 
 export const ADMIN_CLAIM_BULK_OUTCOME_LABELS: Record<AdminClaimBulkOutcome, string> = {
   done: '처리됨',
   failed: '실패',
-  skipped: '미처리',
-  excluded: '제외',
+  skipped: '아직 안 함',
+  excluded: '건너뜀',
 };
 
 export interface AdminClaimBulkResult {
@@ -93,29 +96,117 @@ export function adminClaimBulkSelectable(claimType: OrderClaimType, stage: Order
   return claimType !== 'exchange' && (stage === 'processing' || stage === 'needs_review');
 }
 
+/**
+ * 일괄 결정(승인·거부·검토중)으로 고른 요청 한 건. 단계는 목록 행의 값이다. 그 사이 다른 담당자가 바꿨으면 실행 때
+ * DB가 다시 판정하고, 안 되는 건은 결과표의 '실패'로 남는다.
+ */
+export interface AdminClaimBulkPick {
+  id: string;
+  /** 요청번호(C00012). */
+  reference: string;
+  stage: OrderClaimStage;
+}
+
+/** 지금 단계에서 할 수 없어 처음부터 뺀 건. 결과표에 '건너뜀'과 이유로 남는다. */
+export interface AdminClaimBulkSkip {
+  claimId: string;
+  reference: string;
+  message: string;
+}
+
+/** 결제사에 전액 취소를 바로 요청하는 결제사 이름(이름표에서 읽는다). 확인창 문장이 같은 말을 쓴다. */
+export const ADMIN_CLAIM_BULK_AUTOMATED_NAMES = `${automatedCancelProviderLabel('toss')}·${automatedCancelProviderLabel('nicepay')}`;
+
+const DECISION_VERBS: Record<AdminClaimBulkDecision, string> = { approve: '승인할', reject: '거부할', review: '검토중으로 표시할' };
+
+/**
+ * 이 단계의 요청에 그 결정을 쓸 수 없는 이유. null이면 쓸 수 있다.
+ * DB(private.decide_order_claim)의 단계 전제와 같다: 검토중 표시는 요청 단계만, 승인은 요청·검토중만, 거부는 환불에
+ * 들어가기 전까지다. 보류 중인 요청의 거부는 보류 전 단계에 달려 목록 행에 없는 값이라 여기서 판정하지 않고 DB에 맡긴다.
+ */
+export function adminClaimBulkDecisionBlocker(decision: AdminClaimBulkDecision, stage: OrderClaimStage): string | null {
+  if (stage === 'completed') return '이미 처리가 끝난 요청입니다.';
+  if (stage === 'rejected' || stage === 'withdrawn') return '거부·철회로 끝난 요청입니다.';
+  if (decision === 'approve') {
+    if (stage === 'requested' || stage === 'in_review') return null;
+    return stage === 'on_hold' ? '보류 중인 요청입니다. 보류를 푼 뒤 승인해주세요.' : '이미 승인한 요청입니다.';
+  }
+  if (decision === 'review') {
+    if (stage === 'requested') return null;
+    if (stage === 'in_review') return '이미 검토중인 요청입니다.';
+    return stage === 'on_hold' ? '보류 중인 요청입니다. 보류를 푼 뒤 표시해주세요.' : '이미 승인한 요청입니다.';
+  }
+  return stage === 'processing' || stage === 'needs_review' ? '환불을 진행 중이라 거부할 수 없습니다.' : null;
+}
+
+/** 고른 건이 모두 그 결정을 쓸 수 없을 때 버튼 옆에 적는 이유. */
+export function adminClaimBulkDecisionUnavailable(decision: AdminClaimBulkDecision) {
+  return `선택한 요청은 모두 지금 단계에서 ${DECISION_VERBS[decision]} 수 없습니다.`;
+}
+
+/** 취소 승인은 결제사에 바로 취소를 요청하므로, 서버가 읽은 금액·건너뛰는 건을 먼저 보이는 확인창(ClaimBulkStepDialog)으로 연다. */
+export function adminClaimBulkNeedsPreview(claimType: OrderClaimType, decision: AdminClaimBulkDecision) {
+  return claimType === 'cancel' && decision === 'approve';
+}
+
+/** 확인창에 적을 건너뛰는 건. 앞의 다섯 건만 이유와 함께 적고 나머지는 건수로 줄인다 — 전부는 결과표에 남는다. */
+function skippedLines(skipped: readonly AdminClaimBulkSkip[]) {
+  if (skipped.length === 0) return '';
+  const shown = skipped.slice(0, 5).map((entry) => `· ${entry.reference} — ${entry.message}`);
+  if (skipped.length > shown.length) shown.push(`· 그 밖에 ${skipped.length - shown.length}건`);
+  return `\n\n건너뛰는 ${skipped.length}건\n${shown.join('\n')}`;
+}
+
+/**
+ * 일괄 결정 확인창. 몇 건을 처리하고 몇 건을 건너뛰는지, 되돌릴 수 없는 일(거부)은 구매자에게 가는 사유 원문과 함께 말한다.
+ * 취소 승인의 금액은 서버가 읽어야 알 수 있어 이 확인창이 아니라 미리보기 창이 말한다(`adminClaimBulkNeedsPreview`).
+ */
 export function adminClaimBulkConfirmation(
   claimType: OrderClaimType,
   decision: AdminClaimBulkDecision,
-  count: number,
-) {
+  plan: { count: number; skipped?: readonly AdminClaimBulkSkip[]; note?: string; autoPickup?: boolean },
+): AdminConfirmRequest {
+  const skipped = plan.skipped ?? [];
+  const subject = skipped.length > 0 ? `선택한 ${plan.count + skipped.length}건 중 ${plan.count}건을` : `선택한 ${plan.count}건을`;
+  const tail = skippedLines(skipped);
   if (decision === 'approve') {
-    return claimType === 'cancel'
-      ? `선택한 ${count}건의 취소를 승인할까요? 한 건씩 순서대로 처리하며, 토스 결제는 승인하는 즉시 토스 전액 취소를 요청합니다. 되돌릴 수 없습니다.`
-      : `선택한 ${count}건을 승인하고 수거를 시작할까요?`;
+    return {
+      title: `${plan.count}건 승인`,
+      message: claimType === 'cancel'
+        ? `${subject} 승인합니다. ${ADMIN_CLAIM_BULK_AUTOMATED_NAMES} 결제는 승인하는 즉시 결제사에 취소를 요청합니다.${tail}`
+        : `${subject} 승인하고 회수를 시작합니다.${plan.autoPickup ? '\n회수 계약 출고지는 몇 분 안에 택배사에 회수가 접수됩니다.' : ''}${tail}`,
+      confirmLabel: `${plan.count}건 승인`,
+      cancelLabel: '돌아가기',
+    };
   }
-  if (decision === 'reject') return `선택한 ${count}건을 거부할까요? 입력한 거부 사유가 구매자에게 전달됩니다.`;
-  return `선택한 ${count}건을 검토중으로 표시할까요?`;
+  if (decision === 'reject') {
+    return {
+      title: `${plan.count}건 거부`,
+      message: `${subject} 거부합니다.\n아래 사유가 구매자에게 그대로 전달됩니다.\n"${plan.note ?? ''}"\n거부하면 되돌릴 수 없습니다.${tail}`,
+      confirmLabel: `${plan.count}건 거부`,
+      cancelLabel: '돌아가기',
+      destructive: true,
+    };
+  }
+  return {
+    title: `${plan.count}건 ${ADMIN_CLAIM_BULK_ACTION_LABELS.review}`,
+    message: `${subject} 검토중으로 표시합니다.${tail}`,
+    confirmLabel: ADMIN_CLAIM_BULK_ACTION_LABELS.review,
+    cancelLabel: '돌아가기',
+  };
 }
 
 export function adminClaimBulkTimeoutMessage(count: number) {
   return `처리 시간이 길어 ${count}건은 처리하지 않았습니다. 다시 실행하세요.`;
 }
 
+/** 결과표 위 한 줄. 처리됨·실패·건너뜀을 나눠 센다. 시간이 모자라 시작하지 못한 건이 있으면 다시 실행하라고 덧붙인다. */
 export function adminClaimBulkSummary(outcomes: AdminClaimBulkOutcome[]) {
   const count = (outcome: AdminClaimBulkOutcome) => outcomes.filter((value) => value === outcome).length;
+  const labels = ADMIN_CLAIM_BULK_OUTCOME_LABELS;
   const skipped = count('skipped');
   const excluded = count('excluded');
-  const base = `처리됨 ${count('done')}건 · 실패 ${count('failed')}건${excluded > 0 ? ` · 제외 ${excluded}건` : ''}`;
+  const base = `${labels.done} ${count('done')}건 · ${labels.failed} ${count('failed')}건${excluded > 0 ? ` · ${labels.excluded} ${excluded}건` : ''}`;
   return skipped > 0 ? `${base} · ${adminClaimBulkTimeoutMessage(skipped)}` : base;
 }
 
@@ -169,11 +260,15 @@ export function adminClaimBulkConversionTarget(fromType: ConvertibleClaimType): 
   return fromType === 'return' ? 'exchange' : 'return';
 }
 
+/** 처리 막대의 전환 버튼 이름. 반품 목록은 '교환으로 바꾸기', 교환 목록은 '반품으로 바꾸기'다. */
 export function adminClaimBulkConversionLabel(fromType: ConvertibleClaimType) {
-  return `선택 건 ${ORDER_CLAIM_TYPE_LABELS[adminClaimBulkConversionTarget(fromType)]} 전환`;
+  return `${ORDER_CLAIM_TYPE_LABELS[adminClaimBulkConversionTarget(fromType)]}으로 바꾸기`;
 }
 
-/** 일괄 전환 입력을 확인한다. 화면의 사전 확인과 서버 액션이 같은 규칙을 쓴다. */
+/**
+ * 일괄 전환 입력을 확인한다. 화면의 사전 확인과 서버 액션이 같은 규칙을 쓴다.
+ * 고객 합의는 근거 글(2~500자)로 받는다 — '모두 합의했습니다' 체크는 어디에도 저장되지 않아 받지 않는다.
+ */
 export function normalizeAdminClaimBulkConversionForm(
   formData: FormData,
 ):
@@ -185,7 +280,6 @@ export function normalizeAdminClaimBulkConversionForm(
   if (!ids.ok) return ids;
   const agreement = normalizeClaimTypeAgreement(formData.get('agreement'));
   if (agreement === null) return { ok: false, error: '고객 합의 근거를 2자 이상 500자 이하로 입력해주세요.' };
-  if (formData.get('confirmed') !== 'true') return { ok: false, error: '선택한 건 모두 고객과 합의했는지 확인해주세요.' };
   return { ok: true, value: { claimIds: ids.claimIds, fromType, agreement } };
 }
 
@@ -242,30 +336,40 @@ export async function runAdminClaimBulkSequentially<T>(
 
 /**
  * 일괄 버튼을 눌렀을 때 보낼지 정한다(화면 쪽 사전 확인). 서버가 같은 규칙으로 다시 검사한다.
- * 확인 창은 누른 작업의 문구로 한 번만 띄운다.
+ * 지금 단계에서 그 결정을 쓸 수 없는 건은 누른 뒤 거절하지 않고 여기서 미리 뺀다 — 확인창이 몇 건을 처리하고 몇 건을
+ * 건너뛰는지 이유와 함께 말하고, 보내는 것은 처리할 건뿐이다. 확인창은 누른 작업의 것 한 번만 띄운다.
  */
 export async function planAdminClaimBulkSubmit(
-  input: { claimType: OrderClaimType; count: number; decision: string | null; note: string },
-  confirm: (message: string) => boolean | Promise<boolean>,
+  input: { claimType: OrderClaimType; picks: readonly AdminClaimBulkPick[]; decision: string | null; note: string; autoPickup?: boolean },
+  confirm: (request: AdminConfirmRequest) => boolean | Promise<boolean>,
 ): Promise<
   | { kind: 'invalid'; error: string }
   | { kind: 'dismissed' }
-  | { kind: 'submit'; decision: AdminClaimBulkDecision }
+  | { kind: 'submit'; decision: AdminClaimBulkDecision; claimIds: string[]; skipped: AdminClaimBulkSkip[] }
 > {
-  if (input.count <= 0) return { kind: 'invalid', error: '처리할 요청을 선택해주세요.' };
-  if (input.count > ADMIN_CLAIM_BULK_LIMIT) {
+  if (input.picks.length <= 0) return { kind: 'invalid', error: '처리할 요청을 선택해주세요.' };
+  if (input.picks.length > ADMIN_CLAIM_BULK_LIMIT) {
     return { kind: 'invalid', error: `한 번에 ${ADMIN_CLAIM_BULK_LIMIT}건까지 처리할 수 있습니다. 선택을 줄여 다시 실행해주세요.` };
   }
   if (!input.decision || !(ADMIN_CLAIM_BULK_DECISIONS as readonly string[]).includes(input.decision)) {
     return { kind: 'invalid', error: '처리할 작업을 선택해주세요.' };
   }
   const decision = input.decision as AdminClaimBulkDecision;
-  if (decision === 'reject') {
-    const note = input.note.trim();
-    if (note.length < 10 || note.length > 200) return { kind: 'invalid', error: '거부 사유를 10자 이상 200자 이하로 입력해주세요.' };
+  const note = input.note.trim();
+  if (decision === 'reject' && (note.length < 10 || note.length > 200)) {
+    return { kind: 'invalid', error: '거부 사유를 10자 이상 200자 이하로 입력해주세요.' };
   }
-  return (await confirm(adminClaimBulkConfirmation(input.claimType, decision, input.count)))
-    ? { kind: 'submit', decision }
+  const ready: AdminClaimBulkPick[] = [];
+  const skipped: AdminClaimBulkSkip[] = [];
+  for (const pick of input.picks) {
+    const blocker = adminClaimBulkDecisionBlocker(decision, pick.stage);
+    if (blocker) skipped.push({ claimId: pick.id, reference: pick.reference, message: blocker });
+    else ready.push(pick);
+  }
+  if (ready.length === 0) return { kind: 'invalid', error: adminClaimBulkDecisionUnavailable(decision) };
+  const request = adminClaimBulkConfirmation(input.claimType, decision, { count: ready.length, skipped, note, autoPickup: input.autoPickup });
+  return (await confirm(request))
+    ? { kind: 'submit', decision, claimIds: ready.map((pick) => pick.id), skipped }
     : { kind: 'dismissed' };
 }
 
@@ -286,9 +390,9 @@ export const ADMIN_CLAIM_BULK_STEPS = ['collect', 'refund', 'reship'] as const;
 export type AdminClaimBulkStep = (typeof ADMIN_CLAIM_BULK_STEPS)[number];
 
 export const ADMIN_CLAIM_BULK_STEP_LABELS: Record<AdminClaimBulkStep, string> = {
-  collect: '선택 건 회수 확인',
-  refund: '선택 건 환불 완료 확정',
-  reship: '선택 건 재출고',
+  collect: '회수 확인',
+  refund: '환불 완료 확정',
+  reship: '재출고',
 };
 
 /** 목록마다 쓰는 단계. 취소에는 회수가, 교환에는 환불이 없다. */
@@ -296,25 +400,6 @@ export function adminClaimBulkSteps(claimType: OrderClaimType): readonly AdminCl
   if (claimType === 'cancel') return ['refund'];
   if (claimType === 'return') return ['collect', 'refund'];
   return ['collect', 'reship'];
-}
-
-/** 목록 메뉴설명의 일괄 처리 안내. 유형마다 쓰는 단계와 상세로 보내는 처리가 다르다. */
-export function adminClaimBulkGuideText(claimType: OrderClaimType) {
-  const steps = claimType === 'cancel' ? '환불 완료 확정을' : claimType === 'return' ? '회수 확인·환불 완료 확정을' : '회수 확인·재출고를';
-  const limit = claimType === 'exchange' ? `최대 ${ADMIN_CLAIM_BULK_LIMIT}건, 재출고는 ${ADMIN_CLAIM_BULK_RESHIP_LIMIT}건` : `최대 ${ADMIN_CLAIM_BULK_LIMIT}건`;
-  const parts = [
-    `여러 건을 선택하면 아래에 처리 막대가 뜨고 승인·검토중·거부와 ${steps} 한 번에 처리합니다(${limit}).`,
-    '결제사 취소가 겹치지 않게 한 건씩 순서대로 처리하고, 건별 결과를 표로 보여 줍니다.',
-  ];
-  if (claimType !== 'exchange') parts.push('환불 완료 확정은 확인창에 처리 건수와 환불 합계를 먼저 보이고, 무통장·가상계좌·코페이 결제처럼 결제사 취소로 끝낼 수 없는 건은 사유와 함께 뺍니다.');
-  if (claimType !== 'cancel') {
-    parts.push(
-      '회수 확인은 실제 입고일과 근거를 한 번 입력해 고른 출고지에 함께 남깁니다.',
-      '반품·교환 전환도 처리 막대에서 고객 합의 근거를 한 번 입력해 한 번에 처리합니다.',
-      '회수 없이 재출고와 환불계좌를 새로 받아야 하는 무통장 건의 전환은 상세에서 한 건씩 처리합니다.',
-    );
-  }
-  return parts.join(' ');
 }
 
 export function isAdminClaimBulkStep(value: unknown): value is AdminClaimBulkStep {
@@ -480,7 +565,7 @@ export function adminClaimBulkCollectPlan(context: AdminClaimBulkContext): Admin
       ? { targets: [{ shipmentId: null, originName: null }], skipped: [], blocker: null }
       : collectBlocked('회수 확인이 이미 끝났습니다.');
   }
-  if (context.collectionPolicy !== 'origin') return collectBlocked('회수 확인 기준을 읽지 못했습니다. 상세에서 확인해주세요.');
+  if (context.collectionPolicy !== 'origin') return collectBlocked('회수 정보를 읽지 못했습니다. 상세에서 확인해주세요.');
   if (!context.collectionRequired) return collectBlocked('회수가 필요하지 않은 요청입니다.');
   if (!ORIGIN_COLLECTABLE_STAGES.has(context.stage)) return collectBlocked('회수를 확인할 수 있는 단계가 아닙니다.');
   const targets: AdminClaimBulkCollectTarget[] = [];
@@ -548,8 +633,9 @@ const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
   korpay: '코페이',
 };
 
+/** 확인창·결과표의 결제 칸 이름. 모르는 값은 영문 코드를 그대로 보이지 않고 '그 밖의 결제'라 부른다. */
 export function adminClaimBulkProviderLabel(provider: string | null) {
-  return provider ? PAYMENT_PROVIDER_LABELS[provider] ?? provider : '결제 없음';
+  return provider ? PAYMENT_PROVIDER_LABELS[provider] ?? '그 밖의 결제' : '결제 없음';
 }
 
 /** 확인창의 환불 행. 금액은 서버가 읽은 값이다. */
@@ -596,6 +682,62 @@ export function adminClaimBulkRefundTotals(rows: readonly AdminClaimBulkRefundRo
   return { count, amount, byProvider: [...byProvider.values()] };
 }
 
+/* ---- 취소 일괄 승인 -------------------------------------------------------- */
+
+/*
+ * 취소 승인은 승인하는 즉시 결제사에 전액 취소를 요청한다(승인 → processing → 결제사 취소). 환불 확정 창과 같은 방식으로
+ * 건수·취소 금액 합계·건너뛰는 건과 이유를 서버가 읽어 먼저 보인다. 금액은 환불 확정 창과 같은 읽기 값이다
+ * (admin_order_claim_bulk_context의 refundAmount — 환불 기록이 없을 때는 결제 금액에서 이미 부분 취소한 금액을 뺀 남은 금액).
+ * 실행은 지금 그대로 `bulkDecideOrderClaimsAction`(승인)이 건마다 단건 경로를 탄다.
+ */
+
+/** 승인 확인창의 행. */
+export interface AdminClaimBulkApproveRow {
+  claimId: string;
+  reference: string;
+  providerLabel: string;
+  /** 취소할 금액(남은 결제 금액). 결제가 없는 주문이면 null이다. */
+  amount: number | null;
+  /** 승인하는 즉시 결제사에 취소를 요청하는지(토스·나이스페이). 무통장·코페이·결제 없음은 승인만 한다. */
+  providerCancel: boolean;
+  /** 승인 뒤에 이어지는 일 한 줄(확인창 표의 '처리' 칸). */
+  effect: string;
+  /** null이면 승인하고, 아니면 건너뛰는 이유. */
+  blocker: string | null;
+}
+
+/** 결제 방식에 따라 승인 뒤에 일어나는 일. 코드가 가르는 그대로다(`issueApprovedClaimCancellation`). */
+export function adminClaimBulkApproveEffect(provider: string | null): { providerCancel: boolean; effect: string } {
+  if (provider === null) return { providerCancel: false, effect: '승인만 합니다(결제 전 주문이라 결제사 취소가 없습니다)' };
+  if (providerCancelsAutomatically(provider)) return { providerCancel: true, effect: `승인하고 ${automatedCancelProviderLabel(provider)} 전액 취소를 요청합니다` };
+  if (provider === 'bank_transfer') return { providerCancel: false, effect: '승인만 합니다(환불은 계좌 송금으로 따로 진행합니다)' };
+  if (provider === 'korpay') return { providerCancel: false, effect: '승인만 합니다(결제사 취소는 접수 양식으로 따로 진행합니다)' };
+  return { providerCancel: false, effect: '승인합니다(결제 처리는 결과표에서 확인합니다)' };
+}
+
+export interface AdminClaimBulkApproveTotals {
+  count: number;
+  amount: number;
+  byProvider: { label: string; count: number; amount: number; providerCancel: boolean }[];
+}
+
+/** 승인할 행의 건수·취소 금액 합계(결제 방식별). 건너뛰는 행은 세지 않고, 결제가 없는 주문은 건수만 센다. */
+export function adminClaimBulkApproveTotals(rows: readonly AdminClaimBulkApproveRow[]): AdminClaimBulkApproveTotals {
+  const byProvider = new Map<string, AdminClaimBulkApproveTotals['byProvider'][number]>();
+  let count = 0;
+  let amount = 0;
+  for (const row of rows) {
+    if (row.blocker !== null) continue;
+    count += 1;
+    amount += row.amount ?? 0;
+    const entry = byProvider.get(row.providerLabel) ?? { label: row.providerLabel, count: 0, amount: 0, providerCancel: row.providerCancel };
+    entry.count += 1;
+    entry.amount += row.amount ?? 0;
+    byProvider.set(row.providerLabel, entry);
+  }
+  return { count, amount, byProvider: [...byProvider.values()] };
+}
+
 /* ---- 화면과 서버 사이의 계약 ---------------------------------------------- */
 
 export interface AdminClaimBulkCollectRow {
@@ -608,7 +750,8 @@ export interface AdminClaimBulkCollectRow {
 
 export type AdminClaimBulkStepPreview =
   | { step: 'collect'; rows: AdminClaimBulkCollectRow[] }
-  | { step: 'refund'; rows: AdminClaimBulkRefundRow[]; totals: AdminClaimBulkRefundTotals };
+  | { step: 'refund'; rows: AdminClaimBulkRefundRow[]; totals: AdminClaimBulkRefundTotals }
+  | { step: 'approve'; rows: AdminClaimBulkApproveRow[]; totals: AdminClaimBulkApproveTotals };
 
 export type AdminClaimBulkStepPreviewState = { preview: AdminClaimBulkStepPreview; error?: undefined } | { error: string; preview?: undefined };
 
@@ -640,6 +783,17 @@ export function normalizeAdminClaimBulkStepPreviewInput(input: unknown):
   const ids = readIds(input.claimIds, input.step === 'reship' ? ADMIN_CLAIM_BULK_RESHIP_LIMIT : ADMIN_CLAIM_BULK_LIMIT);
   if (!ids.ok) return ids;
   return { ok: true, value: { claimType, step: input.step, claimIds: ids.claimIds } };
+}
+
+/** 취소 승인 확인창 열기 요청. 취소 목록만 쓴다. */
+export function normalizeAdminClaimBulkApprovePreviewInput(input: unknown):
+  | { ok: true; value: { claimType: 'cancel'; claimIds: string[] } }
+  | { ok: false; error: string } {
+  if (!record(input)) return { ok: false, error: '처리할 작업을 선택해주세요.' };
+  if (readClaimTypeValue(input.claimType) !== 'cancel') return { ok: false, error: '목록을 새로고침한 뒤 다시 실행해주세요.' };
+  const ids = readIds(input.claimIds, ADMIN_CLAIM_BULK_LIMIT);
+  if (!ids.ok) return ids;
+  return { ok: true, value: { claimType: 'cancel', claimIds: ids.claimIds } };
 }
 
 /* 단건 회수 확인 근거(normalizeAdminClaimEvidenceForm)와 같은 규칙이다. 줄바꿈·탭 밖의 제어 문자는 받지 않는다. */

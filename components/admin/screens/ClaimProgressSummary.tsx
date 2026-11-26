@@ -8,6 +8,7 @@ import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { adminClaimReshipmentProgress } from '@/lib/admin/claim-reshipments';
 import type { ReactNode } from 'react';
 
+/* detail이 빈 글이면 작은 글 줄을 그리지 않는다. */
 type Fact = { label: string; value: ReactNode; detail: string; href: string; link: string };
 type Props = Pick<AdminClaimDetail, 'claim' | 'refund'>;
 
@@ -43,22 +44,37 @@ export function ClaimExchangeSteps({ claim }: Pick<AdminClaimDetail, 'claim'>) {
   </ol>;
 }
 
+/**
+ * 환불 기록 한 줄 요약. 운영자가 한 일로 말하고('환불 접수함'), 저장 상태를 그대로 옮기지 않는다('기록 있음·시각 없음' 같은 말투).
+ * 요청이 처리완료라는 것만으로 환불 완료로 읽지 않는다 — 환불 기록의 완료 시각이 있을 때만 '환불 완료'다.
+ */
+function refundSummary(refund: Props['refund']): { value: string; detail: string } {
+  if (!refund) return { value: '환불 기록 없음', detail: '' };
+  if (refund.status === 'awaiting_transfer') return { value: '환불 송금 대기', detail: '재고 복원 완료 · 송금 완료 기록 전' };
+  if (refund.completedAt) return { value: '환불 완료', detail: formatOrderDateTime(refund.completedAt) };
+  if (refund.status === 'done') return { value: '환불 완료 시각 없음', detail: '완료 시각이 비어 있습니다. 환불 칸에서 기록을 확인해주세요.' };
+  if (refund.filedAt) return { value: '환불 접수함', detail: refund.status === 'requested' ? '완료 전' : refundStatusLabel(refund.status) };
+  return { value: '환불 전', detail: '아직 접수하지 않았습니다.' };
+}
+
 /** Read the existing evidence independently. A closed claim is not proof of a refund or delivery. */
 export function ClaimProgressSummary({ claim, refund }: Props) {
-  const collection: Fact = { label: '회수 확인', value: '회수 기준 확인 필요', detail: '회수 기준을 불러오지 못했습니다.', href: '#claim-process', link: '회수 내역 보기' };
+  /* 요약은 처리 칸(반품 단계별 처리)과 같은 말로 같은 사실을 읽는다 — 회수 정보를 못 읽었으면 그렇다고만 말한다. */
+  const collection: Fact = { label: '회수 확인', value: '회수 정보를 불러오지 못했습니다', detail: '새로고침해주세요.', href: '#claim-process', link: '회수 내역 보기' };
   if (claim.collectionPolicy !== null) {
     if (claim.claimType === 'cancel' && claim.collectionComplete && claim.collections.length === 0) {
       collection.value = '회수 대상 없음';
       collection.detail = '상품 회수가 필요하지 않은 취소입니다.';
     } else if (claim.collectionPolicy === 'origin') {
       const checked = claim.collections.filter(item => item.collectedAt !== null).length;
-      collection.value = claim.collections.length ? `${checked} / ${claim.collections.length}개 출고지 확인` : '회수 대상 확인 전';
-      collection.detail = claim.collectionComplete ? '전체 회수 확인 완료' : '전체 회수 확인 전';
+      collection.value = claim.collections.length ? `출고지 ${claim.collections.length}곳 가운데 ${checked}곳 회수 확인` : '회수할 출고지 확인 전';
+      /* 회수 생략·배송 분실로 끝난 출고지는 확인 수에 들지 않는다 — 끝났는지는 서버의 전체 회수 판정이 말한다. */
+      collection.detail = claim.collectionComplete && claim.collections.length ? '회수 끝' : '';
     } else {
       // The legacy completion flag bypasses the newer origin gate. Only the receipt proves collection.
-      collection.value = claim.collectedAt ? '회수 확인 완료' : '회수 미확인';
-      /* 환급 기한은 실제 입고일부터 센다(1027T-033). 입고일이 있으면 확인 시각과 나눠 보인다(출고지별 회수 칸과 같은 형식). */
-      collection.detail = !claim.collectedAt ? '입고 확인 기록 없음'
+      collection.value = claim.collectedAt ? '입고 확인함' : '입고 확인 전';
+      /* 환불 기한은 실제 입고일부터 센다(1027T-033). 입고일이 있으면 확인 시각과 나눠 보인다(출고지별 회수 칸과 같은 형식). */
+      collection.detail = !claim.collectedAt ? ''
         : claim.collectionReceivedOn ? `실제 입고일 ${claim.collectionReceivedOn} · 확인 ${formatOrderDateTime(claim.collectedAt)}`
           : `입고 ${formatOrderDateTime(claim.collectedAt)}`;
     }
@@ -70,29 +86,23 @@ export function ClaimProgressSummary({ claim, refund }: Props) {
       ? {
         /* 배송 건(출고지)별 재출고: 송장마다 재출고·배송완료를 센다. */
         label: '교환 배송',
-        value: progress.reshipped === 0 ? '재출고 기록 없음'
-          : progress.delivered >= progress.total ? '배송완료 확인'
+        value: progress.reshipped === 0 ? '재출고 전'
+          : progress.delivered >= progress.total ? '배송완료 확인함'
             : progress.reshipped >= progress.total ? '재출고 완료' : `재출고 ${progress.reshipped}/${progress.total}`,
         detail: `${progress.total > 1 ? `출고지 ${progress.total}곳 · ` : ''}배송완료 확인 ${progress.delivered}/${progress.total}${progress.waived ? ` · 회수 생략 ${progress.waived}곳` : ''}`,
         href: '#claim-process', link: '교환 처리 보기',
       }
       : {
         label: '교환 배송',
-        value: claim.reshipDeliveredAt ? '배송완료 확인' : claim.reshippedAt ? '재출고 기록됨' : '재출고 기록 없음',
+        value: claim.reshipDeliveredAt ? '배송완료 확인함' : claim.reshippedAt ? '재출고함' : '재출고 전',
         detail: claim.reshipDeliveredAt ? `배송완료 ${formatOrderDateTime(claim.reshipDeliveredAt)}`
-          : claim.reshippedAt ? `재출고 ${formatOrderDateTime(claim.reshippedAt)} · 배송완료 미확인` : '재출고와 배송완료를 각각 확인합니다.',
+          : claim.reshippedAt ? `재출고 ${formatOrderDateTime(claim.reshippedAt)} · 배송완료 확인 전` : '',
         href: '#claim-process', link: '교환 처리 보기',
       }
-    : {
-      label: '환불 기록',
-      value: refund?.status === 'awaiting_transfer' ? '환불 송금 대기' : refund?.completedAt ? '환불 완료 기록됨' : refund?.status === 'done' ? '환불 완료 시각 미기록' : refund?.filedAt ? '환불 접수 기록됨' : refund ? '환불 확인 전' : '환불 기록 없음',
-      detail: refund?.status === 'awaiting_transfer' ? '주문 취소·재고 복원 완료 · 실제 송금 확인 전' : refund?.completedAt ? `완료 ${formatOrderDateTime(refund.completedAt)}`
-        : refund ? `환불 기록 상태 ${refundStatusLabel(refund.status)} · 완료 시각 없음` : '환불 접수·완료 기록을 확인해주세요.',
-      href: '#claim-refund', link: '환불 내역 보기',
-    };
+    : { label: '환불 기록', ...refundSummary(refund), href: '#claim-refund', link: '환불 내역 보기' };
   const facts: Fact[] = [
     {
-      label: '현재 처리 단계', value: <AdminStatusBadge tone={statusTone('claim', claim.stage)}>{adminClaimStageLabel(claim.claimType, claim.stage)}</AdminStatusBadge>,
+      label: '처리 상태', value: <AdminStatusBadge tone={statusTone('claim', claim.stage)}>{adminClaimStageLabel(claim.claimType, claim.stage)}</AdminStatusBadge>,
       detail: claim.stage === 'on_hold'
         ? `보류 전 ${claim.heldFrom ? adminClaimStageLabel(claim.claimType, claim.heldFrom) : '단계 확인 필요'}`
         : `최근 변경 ${formatOrderDateTime(claim.updatedAt)}`,
@@ -108,7 +118,7 @@ export function ClaimProgressSummary({ claim, refund }: Props) {
       <dt className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">{fact.label}<a className="shrink-0 underline underline-offset-4 hover:text-foreground" href={fact.href}>{fact.link}</a></dt>
       <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 break-words">
         <strong className="font-semibold">{fact.value}</strong>
-        <span className="text-xs text-muted-foreground">{fact.detail}</span>
+        {fact.detail ? <span className="text-xs text-muted-foreground">{fact.detail}</span> : null}
       </dd>
     </div>)}</dl>
     {claim.stage === 'on_hold' && claim.holdReason ? <p className="break-words text-muted-foreground">보류 사유: {claim.holdReason}</p> : null}

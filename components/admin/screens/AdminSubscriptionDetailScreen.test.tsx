@@ -11,12 +11,26 @@ const data = { cycles: { rows: [{ id: 'cycle', number: 1, state: 'approved', sch
 const render = () => renderToStaticMarkup(<AdminSubscriptionDetailScreen actorId="actor" canManage data={data} older={false} />);
 describe('정기구매 상세', () => {
   beforeEach(() => { request.blocked = false; });
-  /* 사람 눈 판정: 번호·상태·금액이 표 안에 작게 묻혔고, 잘린 번호로는 고객 문의에 답할 수 없었다. */
-  it('머리에 번호·상태·금액을 먼저 보이고 신청번호는 전체 값으로 적는다', () => {
+  /* 사람 눈 판정: 구매자·상태·금액이 표 안에 작게 묻혔다. 정기구매에는 운영자가 쓰는 번호가 없다(고객 화면에도 번호가 없다) — 내부 번호는 머리에도 신청 내용에도 적지 않는다. */
+  it('머리에 구매자·상태·금액을 먼저 보이고 내부 번호는 적지 않는다', () => {
     const html = render();
     const strip = html.slice(html.indexOf('data-subscription-status-strip'), html.indexOf('</section>'));
-    expect(strip).toContain('title="' + ID + '"'); expect(strip).toContain('일시정지'); expect(strip).toContain('₩7,500');
-    expect(html).toContain('>' + ID + '<');
+    expect(strip).toContain('>춘식이집사<'); expect(strip).toContain('일시정지'); expect(strip).toContain('₩7,500');
+    expect(html).not.toContain('신청번호'); expect(html.replace(/<[^>]*>/g, ' ')).not.toContain(ID); expect(html).not.toMatch(/title="[0-9a-f]{8}-[0-9a-f]{4}-/);
+  });
+  /* 회차 조회가 주문번호를 주지 않아(orderId만) 번호 조각 대신 가는 곳을 말한다. */
+  it('회차의 주문은 번호 조각 없이 주문 상세 링크로 말한다', () => {
+    const html = render(), orderId = 'c0000010-0000-4000-8000-000000000042';
+    expect(html).toMatch(new RegExp(`<a[^>]*href="/admin/sales/orders/${orderId}"[^>]*>주문 상세</a>`));
+    expect(html.replace(/<[^>]*>/g, ' ')).not.toMatch(/\b[0-9A-Fa-f]{8}\b/);
+  });
+  it('구매자 이름이 비어 있으면 머리와 신청 내용에 회원으로 적는다', () => {
+    const named = data as unknown as { subscription: { buyerName: string } }, before = named.subscription.buyerName;
+    named.subscription.buyerName = '  ';
+    try {
+      const html = render(), strip = html.slice(html.indexOf('data-subscription-status-strip'), html.indexOf('</section>'));
+      expect(strip).toContain('>회원<'); expect(html).toContain('<dd class="min-w-0 wrap-anywhere">회원</dd>');
+    } finally { named.subscription.buyerName = before; }
   });
   it('운영자가 할 일이 없으면 그렇게 말하고, 안내와 버튼을 구역 안에 둔다', () => {
     const html = render();

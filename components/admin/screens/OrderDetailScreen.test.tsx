@@ -4,6 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminOrderDetail } from '@/lib/admin/order-detail';
 import { OrderDetailScreen } from './OrderDetailScreen';
+import { ORDER_DETAIL_HELP } from '@/lib/admin/help/order-detail';
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
   return { ...actual, useActionState: (_action: unknown, initial: unknown) => [initial, vi.fn(), false] };
@@ -178,8 +179,16 @@ describe('주문 상세', () => {
 });
 
  it('아직 메일 원장이 생기기 전 큐의 대기·확인 필요 상태를 배송건별로 보여준다',()=>{
-  const html=renderToStaticMarkup(<OrderDetailScreen detail={{...detail,emailJobs:[{shipmentId:detail.shipments[0].id,status:'review',attempts:2,lastErrorCode:'provider_network_error',updatedAt:'2026-09-08T00:00:00Z'}]}} noteOperationId="operation" />);
-  expect(html).toContain('배송 메일 처리 상태');expect(html).toContain('운영자 확인 필요');expect(html).toContain('provider_network_error');expect(html).toContain('시도 2회');
+  const shipment = shipmentFixture({ shipmentNumber: '2026112630000001' });
+  const html=renderToStaticMarkup(<OrderDetailScreen detail={{...detail,shipments:[shipment],emailJobs:[{shipmentId:shipment.id,status:'review',attempts:2,lastErrorCode:'provider_network_error',updatedAt:'2026-09-08T00:00:00Z'}]}} noteOperationId="operation" />);
+  expect(html).toContain('>배송 메일 처리 상태</h3>');expect(html).toContain('운영자 확인 필요');
+  /* 배송 건은 배송건번호로 부른다. 시도 횟수와 영문 확인 코드는 운영자가 할 일이 없어 보이지 않는다. */
+  expect(html).toContain('김포 · 2026112630000001');
+  expect(html).not.toContain('provider_network_error');expect(html).not.toContain('시도 2회');expect(html).not.toContain('확인 코드');
+  /* 번호가 없는 옛 배송 건도 내부 번호를 보이지 않는다. */
+  const legacy=renderToStaticMarkup(<OrderDetailScreen detail={{...detail,emailJobs:[{shipmentId:detail.shipments[0].id,status:'pending',attempts:0,lastErrorCode:null,updatedAt:'2026-09-08T00:00:00Z'}]}} noteOperationId="operation" />);
+  const mail=legacy.slice(legacy.indexOf('aria-label="배송 메일 처리 상태"'));
+  expect(mail.slice(0,mail.indexOf('</section>'))).toContain('>김포</strong>');expect(mail.slice(0,mail.indexOf('</section>'))).not.toContain(detail.shipments[0].id);
  });
 
 it('query-only detail does not mount any shipment or claim operation, note, or global customer link', () => {
@@ -233,14 +242,21 @@ describe('주문 상세 — 결제 전 확인 동의', () => {
     expect(html).toContain('data-order-acknowledgement="recorded"');
     expect(html).toContain('동의 일시');
     expect(html).toContain('청약철회·교환 제한 상품');
-    expect(html).toContain('2026-11-19');
+    expect(html).toContain('2026. 11. 19. 10:02');
     expect(html).toContain('각인 키링 — 각인 주문 제작');
+    /* 고지 문구 버전은 운영자가 할 일이 없는 내부 값이다. 상품 이름이 없으면 상품 번호 대신 말로 적는다. */
+    expect(html).not.toContain('고지 문구 버전');
+    const unnamed = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" acknowledgement={{ orderId: ORDER, acknowledgedAt: '2026-11-19T01:02:03+00:00', noticeVersion: '2026-11-19',
+      restrictedGoods: [{ goodId: 'internal-good-id', name: '', returnAllowed: false, exchangeAllowed: null, reason: null }] }} />);
+    expect(unnamed).toContain('상품명 없음'); expect(unnamed).not.toContain('internal-good-id');
   });
   it('동의 기록이 없는 주문은 기록 없음으로 알리고 읽지 못했으면 칸을 그리지 않는다', () => {
     const missing = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" acknowledgement={null} />);
     expect(missing).toContain('data-order-acknowledgement="missing"');
-    expect(missing).toContain('동의 기록이 없습니다');
-    expect(missing).toContain('정기구매 주문(정기구매 약관 동의로 받습니다)');
+    expect(missing).toContain('동의 기록이 없습니다.');
+    /* 없는 이유 세 가지는 글로 늘어놓지 않고 이름 옆 "?"에 둔다. */
+    expect(missing).toContain('aria-label="동의 기록이 없는 주문 도움말"'); expect(missing).not.toContain('도입하기 전에 만든 주문');
+    expect(ORDER_DETAIL_HELP.acknowledgementMissing.what).toContain('정기구매 주문'); expect(ORDER_DETAIL_HELP.acknowledgementMissing.caution).toContain('정기구매 약관 동의');
     const unread = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
     expect(unread).not.toContain('결제 전 확인 동의');
   });
@@ -249,9 +265,9 @@ describe('주문 상세 — 결제 전 확인 동의', () => {
 /* 토스 가상계좌(ADR-0049): 주문 상세의 '가상계좌 입금' 칸과 주문 정보의 결제수단. 주문 처리 권한에만 보인다. */
 describe('주문 상세 가상계좌 입금', () => {
   const account = { bankCode: '088', accountNumber: '56211234567890', dueAt: '2026-11-25T01:00:00.000Z', amount: 12800, useEscrow: null, state: 'checking' as const, escrow: null, refund: null };
-  it('입금 은행·계좌번호·금액·기한·상태·에스크로 적용 여부와 결제수단 가상계좌를 보인다', () => {
+  it('입금 은행·계좌번호·금액·기한·상태·에스크로 적용 여부와 결제수단(무통장입금(가상계좌))을 보인다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: account }} noteOperationId="operation" />);
-    for (const text of ['가상계좌 입금', '입금 확인 중', '신한은행', '56211234567890', '₩12,800', '2026. 11. 25. 10:00', '구매안전서비스 (에스크로)', '기록 없음', '<dd class="min-w-0 wrap-anywhere">가상계좌</dd>']) {
+    for (const text of ['가상계좌 입금', '입금 확인 중', '신한은행', '56211234567890', '₩12,800', '2026. 11. 25. 10:00', '구매안전서비스 (에스크로)', '기록 없음', '<dd class="min-w-0 wrap-anywhere">무통장입금(가상계좌)</dd>']) {
       expect(html, text).toContain(text);
     }
     expect(html).toContain('data-order-virtual-account="checking"');
@@ -259,7 +275,9 @@ describe('주문 상세 가상계좌 입금', () => {
   it('에스크로 배송 정보가 자동 등록되지 않았으면 직접 등록 안내를 띄운다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: { ...account, state: 'deposited', useEscrow: true,
       escrow: { deliveryState: 'manual_required', escrowStatus: null, lastErrorCode: 'INVALID_COMPANY' } } }} noteOperationId="operation" />);
-    for (const text of ['에스크로 배송 정보', '직접 등록 필요', '확인 코드 · INVALID_COMPANY', '아직 확인 전', '배송 정보를 직접 등록해주세요']) expect(html, text).toContain(text);
+    for (const text of ['에스크로 배송 정보', '직접 등록 필요', '아직 확인 전', '배송 정보를 직접 등록해주세요']) expect(html, text).toContain(text);
+    /* 결제사가 돌려준 영문 오류 코드는 운영자가 할 일이 없어 보이지 않는다. */
+    expect(html).not.toContain('INVALID_COMPANY'); expect(html).not.toContain('확인 코드');
   });
   it('읽지 못했으면 그 사실을 적고, 조회 전용 권한에는 그리지 않는다', () => {
     expect(renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccountUnavailable: true }} noteOperationId="operation" />)).toContain('가상계좌 입금 정보를 불러오지 못했습니다');
@@ -287,7 +305,8 @@ describe('주문 상세 가상계좌 입금', () => {
   it('계좌이체 에스크로 배송 등록 상태와 직접 등록 안내를 보이고, 건너뛴 결제는 그리지 않는다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: null, transferEscrow: { useEscrow: true,
       job: { deliveryState: 'manual_required', escrowStatus: 'IN_PROGRESS', lastErrorCode: 'carrier_unmapped' } } }} noteOperationId="operation" />);
-    for (const text of ['계좌이체 구매안전서비스', '계좌이체', '적용(구매자가 선택)', '직접 등록 필요', '확인 코드 · carrier_unmapped', '구매확정 대기', '배송 정보를 직접 등록해주세요']) expect(html, text).toContain(text);
+    for (const text of ['계좌이체 구매안전서비스', '계좌이체', '적용(구매자가 선택)', '직접 등록 필요', '구매확정 대기', '배송 정보를 직접 등록해주세요']) expect(html, text).toContain(text);
+    expect(html).not.toContain('carrier_unmapped'); expect(html).not.toContain('확인 코드');
     expect(html).toContain('data-order-transfer-escrow="manual_required"');
     const skipped = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, virtualAccount: null, transferEscrow: { useEscrow: false,
       job: { deliveryState: 'skipped', escrowStatus: null, lastErrorCode: null } } }} noteOperationId="operation" />);
@@ -299,5 +318,82 @@ describe('주문 상세 가상계좌 입금', () => {
   it('입금 오류 되돌림 출고 보류 기록은 결제 확인 필요 출고 보류로 적는다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, timeline: [{ id: 'hold', source: 'status', occurredAt: '2026-11-25T02:00:00Z', action: 'system.order.fulfillment_hold_placed', actorName: null }] }} noteOperationId="operation" />);
     expect(html).toContain('출고 보류 (결제 확인 필요)');
+  });
+});
+
+/* 어드민 화면 규칙 PR 3(판매·배송) — 주문 상세 본체: 같은 것은 이름 하나(규칙 4), 내부 값을 보이지 않는다(규칙 8), 못 하는 일은 미리 알린다. */
+describe('주문 상세 — 이름과 눈에 보이는 값', () => {
+  const dt = (label: string) => new RegExp(`<dt[^>]*>${label}</dt>`);
+  const withStatus = (status: AdminOrderDetail['order']['status'], extra: Partial<React.ComponentProps<typeof OrderDetailScreen>> = {}) =>
+    renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status } }} noteOperationId="operation" {...extra} />);
+  it('요약 칸 이름은 어드민 낱말이다(구매자·수령인·주문일시·배송 메모)', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
+    for (const label of ['주문일시', '구매자', '수령인', '배송 메모']) expect(html, label).toMatch(dt(label));
+    for (const label of ['주문 일시', '주문자', '수령자', '배송 요청']) expect(html, label).not.toMatch(dt(label));
+  });
+  it('주소 형식 확인 안내는 무엇을 확인할지 말한다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, addressNeedsReview: true } }} noteOperationId="operation" />);
+    expect(html).toContain('이 주문의 주소는 옛 형식으로 저장돼 있어 저장된 그대로 보입니다. 발송 전에 우편번호와 연락처가 맞는지 확인해주세요.');
+    expect(html).not.toContain('원본 기록');
+  });
+  it('주문번호가 없는 옛 주문은 내부 번호 대신 말로 적고, 주문통합검색 링크는 주문번호를 싣는다', () => {
+    const legacy = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
+    expect(legacy).toContain('>주문번호 없음</strong>'); expect(legacy).not.toContain(`>${ORDER}</strong>`);
+    expect(legacy).toContain(`query=${ORDER}&amp;order=${ORDER}`);
+    const numbered = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, orderNumber: '20261112140010000034' } }} noteOperationId="operation" />);
+    expect(numbered).toContain('>20261112140010000034</strong>');
+    expect(numbered).toMatch(new RegExp(`<a[^>]*href="/admin/sales/orders\\?status=all&amp;query=20261112140010000034&amp;order=${ORDER}"[^>]*>주문 처리 · 배송완료</a>`));
+    expect(numbered).not.toContain(`query=${ORDER}`);
+  });
+  it('배송지 버튼은 신규주문·발주확인이면 [배송지 수정], 그 뒤 주문은 처음부터 [배송지 변경 이력]이고 이유가 버튼 설명에 있다', () => {
+    for (const status of ['paid', 'confirmed'] as const) {
+      const html = withStatus(status);
+      expect(html, status).toMatch(/<button[^>]*>배송지 수정<\/button>/); expect(html, status).not.toContain('배송지 변경 이력');
+    }
+    for (const status of ['shipping', 'delivered', 'done'] as const) {
+      const html = withStatus(status);
+      expect(html, status).toMatch(/<button[^>]*title="신규주문이나 발주확인 상태의 주문만 배송지를 바꿀 수 있습니다\."[^>]*>배송지 변경 이력<\/button>/);
+      expect(html, status).not.toContain('배송지 수정');
+    }
+    /* 끝난 주문·조회 권한·주소가 필요 없는 수령 방식에는 버튼이 없다. */
+    for (const html of [withStatus('canceled'), renderToStaticMarkup(<OrderDetailScreen detail={detail} canManage={false} noteOperationId="operation" />),
+      renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, shipments: [shipmentFixture({ delivery: shipmentDeliveryFixture({ method: 'pickup' }) })] }} noteOperationId="operation" />)]) {
+      expect(html).not.toContain('배송지 수정'); expect(html).not.toContain('배송지 변경 이력');
+    }
+  });
+  it('기록 줄의 현재 상태는 주문 처리 패널과 같은 결제·환불 이름이고, 배송 건은 배송건번호와 어드민 상태 이름으로 적는다', () => {
+    const shipment = shipmentFixture({ shipmentNumber: '2026112630000001' });
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, shipments: [shipment], timeline: [
+      { id: 'p1', source: 'payment', occurredAt: '2026-09-01T01:00:00Z', action: 'recorded', status: 'pending', amount: 12800, provider: 'toss' },
+      { id: 'p2', source: 'payment', occurredAt: '2026-09-01T01:01:00Z', action: 'recorded', status: 'paid', amount: 12800, provider: 'toss' },
+      { id: 'r1', source: 'refund', occurredAt: '2026-09-02T01:00:00Z', action: 'requested', status: 'requested', amount: 12800 },
+      { id: 'r2', source: 'refund', occurredAt: '2026-09-02T02:00:00Z', action: 'completed', status: 'done', amount: 12800 },
+      { id: 's1', source: 'shipment', occurredAt: '2026-09-03T00:00:00Z', action: 'shipped', shipmentId: shipment.id, originName: '김포' },
+      { id: 's2', source: 'status', occurredAt: '2026-09-03T01:00:00Z', action: 'admin.shipment.status_updated', shipmentId: shipment.id, fromStatus: 'ready', toStatus: 'shipping', actorName: '수민' },
+      { id: 'c1', source: 'status', occurredAt: '2026-09-04T00:00:00Z', action: 'order.purchase_confirmation.hold', actorName: '지우' },
+      { id: 'c2', source: 'status', occurredAt: '2026-09-04T01:00:00Z', action: 'order.purchase_confirmation.request', actorName: '지우' },
+      { id: 'c3', source: 'claim', occurredAt: '2026-09-04T02:00:00Z', action: 'admin.order.claim_intake_created', actorName: '지우' },
+    ] }} noteOperationId="operation" />);
+    for (const line of ['현재 상태 · 확인중', '현재 상태 · 결제완료', '현재 상태 · 환불 요청 접수', '현재 상태 · 환불 완료']) expect(html, line).toContain(line);
+    for (const old of ['현재 상태 · 대기', '현재 상태 · 접수', '현재 상태 · 완료']) expect(html, old).not.toContain(old);
+    expect(html).toContain('>김포 · 2026112630000001</p>'); expect(html).toContain('발송 대기 → 배송중'); expect(html).not.toContain('배송 준비');
+    expect(html).toContain('>거래확정 보류</h3>'); expect(html).toContain('>거래확정 요청</h3>'); expect(html).toContain('>판매자 직접 접수</h3>');
+    expect(html).not.toContain('구매확정 보류'); expect(html).not.toContain('판매자 대리 접수');
+    /* 결제 기록 줄에 결제사 코드를 그대로 쓰지 않고, 줄마다 되풀이되던 타임라인 설명 문장은 없다. */
+    expect(html).not.toContain('· toss'); expect(html).not.toContain('이른 기록부터 표시합니다');
+    /* 배송 건 줄에 내부 번호 끝 8자를 쓰지 않는다. */
+    expect(html).not.toMatch(/김포 · (<[^>]*>)?[0-9A-F]{8}(<|$)/);
+  });
+  it('거래확정 패널은 배송완료·거래확정 주문에만 있고, 카드 이름도 그에 맞춘다', () => {
+    const delivered = withStatus('delivered', { actorId: 'actor-1' });
+    expect(delivered).toContain('aria-label="거래확정·운영자 메모"'); expect(delivered).toContain('aria-label="거래확정"'); expect(delivered).toContain('거래확정 상태를 확인하고 있습니다.');
+    expect(delivered).not.toContain('구매확정 상태');
+    const shipping = withStatus('shipping', { actorId: 'actor-1' });
+    expect(shipping).toContain('aria-label="운영자 메모"'); expect(shipping).not.toContain('거래확정·운영자 메모'); expect(shipping).not.toContain('aria-label="거래확정"');
+  });
+  it('운영자 메모 칸은 어디에 남고 누가 보는지 말하고 쓸 내용의 예를 보인다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />);
+    expect(html).toContain('저장하면 주문 타임라인에 남습니다. 운영팀만 보고, 고객에게는 보이지 않습니다.');
+    expect(html).toMatch(/<textarea[^>]*placeholder="예: 11\/26 고객이 전화로/);
   });
 });

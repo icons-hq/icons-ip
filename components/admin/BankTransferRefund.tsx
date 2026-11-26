@@ -14,13 +14,17 @@ import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminK
 import { statusTone } from '@/lib/admin/status-tone';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { useAdminLeaveGuard } from '@/components/admin/useAdminLeaveGuard';
+import { adminConfirm } from '@/lib/admin/confirm';
+import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { cn } from 'cn';
 import { returnFeeDeductionBasisLabel, returnFeeDeductionSkippedNotice } from '@/lib/claims/return-fee-deduction';
 import {
-  BANK_REFUND_LABELS, BANK_REFUND_RECOVERY_PREFIX, bankRefundError, bankRefundMetadata, bankRefundReceiptMatches,
-  bankRefundRecoveryKey, bankRefundTransferAmount, bankRefundWithoutTransfer, normalizeBankRefundRequest, parseBankRefundRecovery,
+  BANK_REFUND_ABANDON_LABEL, BANK_REFUND_ACCOUNT_FAILED, BANK_REFUND_CUSTOM_TIME_LABEL, BANK_REFUND_LABELS, BANK_REFUND_LOAD_FAILED,
+  BANK_REFUND_RECOVERY_PREFIX, BANK_REFUND_RELOAD_LABEL, BANK_REFUND_RESEND_LABEL, BANK_REFUND_VIEW_ACCOUNT_LABEL,
+  bankRefundConfirm, bankRefundError, bankRefundFields, bankRefundMetadata, bankRefundNotBefore, bankRefundOccurredAt, bankRefundReceiptMatches, bankRefundRecordedMessage,
+  bankRefundRecoveryKey, bankRefundSteps, bankRefundTimeInputMin, bankRefundTransferAmount, bankRefundWithoutTransfer, normalizeBankRefundRequest, parseBankRefundRecovery,
   type BankRefundAccountView, type BankRefundContext, type BankRefundFailure, type BankRefundIdentity,
-  type BankRefundReceipt, type BankRefundRecovery, type BankRefundRequest,
+  type BankRefundReceipt, type BankRefundRecovery, type BankRefundRequest, type BankRefundStep,
 } from '@/lib/admin/bank-transfer-refund';
 
 type Scope = ReturnType<typeof createGoodsDescriptionToolScope>;
@@ -29,8 +33,8 @@ const PRIMARY = cn(buttonVariants({ size: 'sm' }));
 const OUTLINE = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
 const FIELD = 'flex min-w-0 flex-col gap-1.5';
 const FIELD_LABEL = 'font-medium';
-const empty = { occurredAt: '', evidence: '', note: '', confirmed: false };
-const localInstant = () => { const now = new Date(); return new Date(now.getTime() - now.getTimezoneOffset() * 60_000).toISOString().slice(0, 23); };
+/* 시각은 '지금'(누른 시각)이 기본이다. 다른 시각은 [다른 시각 적기]를 눌렀을 때만 적는다(customTime). */
+const empty = { customTime: false, occurredAt: '', evidence: '', note: '' };
 
 function AccountView({ account, onClose }: { account: BankRefundAccountView; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -46,14 +50,24 @@ function AccountView({ account, onClose }: { account: BankRefundAccountView; onC
     onClick={event => { if (event.target === event.currentTarget) onClose(); }}
     className="m-auto max-h-[85vh] w-[min(28rem,calc(100vw-2rem))] overflow-auto rounded-xl bg-popover p-5 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 backdrop:bg-black/20">
     <div className="flex flex-col gap-3">
-      <h3 className="text-base leading-snug font-medium" id="bank-refund-account-title">환불계좌 원문</h3>
-      <p className="text-muted-foreground">송금하려고 계좌를 열람했다는 기록이 남았습니다. 계좌정보는 이 창에만 보이고, 60초가 지나거나 다른 탭으로 이동하면 닫힙니다.</p>
+      <h3 className="text-base leading-snug font-medium" id="bank-refund-account-title">환불계좌</h3>
+      <p className="text-muted-foreground">계좌를 본 기록이 남았습니다. 60초가 지나거나 다른 탭으로 가면 이 창이 닫힙니다.</p>
       <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg border bg-muted/40 p-3 break-all" data-private="true">
         <dt className="text-muted-foreground">은행</dt><dd className="m-0">{account.bankName}</dd><dt className="text-muted-foreground">계좌번호</dt><dd className="m-0 tabular-nums">{account.accountNumber}</dd><dt className="text-muted-foreground">예금주</dt><dd className="m-0">{account.accountHolder}</dd>
       </dl>
-      <button className={`${cn(buttonVariants({ size: 'sm' }))} w-fit`} data-slot="button" type="button" onClick={onClose}>계좌정보 닫기</button>
+      <button className={`${cn(buttonVariants({ size: 'sm' }))} w-fit`} data-slot="button" type="button" onClick={onClose}>닫기</button>
     </div>
   </dialog>;
+}
+
+/* 순서 표시. 이 화면은 돈을 보내지 않고 단계마다 기록만 남긴다 — 은행에서 직접 송금하는 자리를 마지막 단계 이름이 말한다. */
+function Steps({ steps }: { steps: BankRefundStep[] }) {
+  return <ol aria-label="무통장 환불 순서" className="m-0 flex list-none flex-wrap gap-x-4 gap-y-1 p-0" data-bank-refund-steps="">
+    {steps.map((step, index) => <li key={step.kind} aria-current={step.state === 'current' ? 'step' : undefined} data-bank-refund-step={step.state}
+      className={step.state === 'current' ? 'font-medium' : step.state === 'waiting' ? 'text-muted-foreground' : undefined}>
+      {`${index + 1}. ${step.label}${step.state === 'done' ? ` · ${step.at ? formatOrderDateTime(step.at) : '완료'}` : step.state === 'current' ? ' · 지금 할 일' : ''}`}
+    </li>)}
+  </ol>;
 }
 
 function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope: Scope }) {
@@ -71,7 +85,7 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
     : context.fileBlocker === null ? 'file_transfer' : context.completeBlocker === null ? 'complete_transfer' : null;
   const kind = recovery?.kind ?? nextKind;
   const locked = pending || Boolean(recovery) || needsRefresh || !nextKind;
-  const dirty = Boolean(recovery || draft.occurredAt || draft.evidence || draft.note || draft.confirmed);
+  const dirty = Boolean(recovery || draft.customTime || draft.evidence || draft.note);
   const closeAccount = useMemo(() => () => setAccount(null), []);
 
   useEffect(() => { alive.current = true; return () => { alive.current = false; dispatched.current = null; }; }, []);
@@ -83,21 +97,18 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
         if (!active || !alive.current || !scope.canApply(ticket)) return;
         if ('error' in result) { setError(result.error); if (result.authChanged) scope.authenticate(null, null); }
         else { setContext(result.context); setNeedsRefresh(false); }
-      } catch { if (active && alive.current && scope.canApply(ticket)) setError('최신 환불 상태를 불러오지 못했습니다. [최신 환불 상태 확인]을 눌러 다시 불러와주세요.'); }
+      } catch { if (active && alive.current && scope.canApply(ticket)) setError(BANK_REFUND_LOAD_FAILED); }
     });
     return () => { active = false; };
   }, [identity, reload, scope]);
-  useAdminLeaveGuard({ dirty, message: '입력 중인 확인 일시·증빙·메모는 저장되지 않고 사라집니다. 화면을 이동할까요?' });
+  useAdminLeaveGuard({ dirty, message: '적던 근거와 메모는 저장되지 않고 사라집니다. 화면을 나갈까요?' });
 
   function clearRecovery() { try { sessionStorage.removeItem(key); } catch {} setRecovery(null); dispatched.current = null; setCanRetry(false); }
   function accept(receipt: BankRefundReceipt, original: BankRefundRecovery, notice?: string) {
-    if (!bankRefundReceiptMatches(receipt, original)) { setError('불러온 결과가 이 처리와 맞지 않습니다. [이전 처리 결과 확인]을 다시 눌러주세요.'); return; }
-    const withoutTransfer = context ? bankRefundWithoutTransfer(context) : false;
+    if (!bankRefundReceiptMatches(receipt, original)) { setError(`불러온 결과가 이 기록과 맞지 않습니다. [${SAVE_CHECK_LABEL}]을 다시 눌러주세요.`); return; }
+    const recorded = bankRefundRecordedMessage(receipt.kind, context);
     clearRecovery(); setDraft(empty); setAccount(null); setError(''); setNeedsRefresh(true); setReload(value => value + 1);
-    setMessage(receipt.state === 'sealed' ? '이전 미처리 요청을 종료했습니다. 저장된 처리는 없습니다. 최신 환불 상태를 확인한 뒤 다시 입력해주세요.'
-      : receipt.kind === 'complete_transfer' ? '실제 송금 증빙을 기록하고 환불을 완료했습니다.'
-        : receipt.kind === 'confirm_cancellation' ? withoutTransfer ? '취소를 확정하고 재고를 복원했습니다. 돌려줄 잔액이 없어 송금 없이 환불을 마쳤습니다.' : '취소를 확정하고 재고를 복원했습니다. 환불은 송금대기로 남아 있습니다.'
-          : '계좌 송금 접수를 기록했습니다. 실제 송금 후 완료 증빙을 남겨주세요.');
+    setMessage(receipt.state === 'sealed' ? '앞서 누른 기록은 저장되지 않았습니다. 다시 적어 주세요.' : recorded);
     if (notice) setError(notice);
     router.refresh();
   }
@@ -108,22 +119,33 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
   }
   async function save(retry = false) {
     if (busy.current || !scope.capture() || (!retry && locked) || retry && !dispatched.current) return;
-    const occurredAt = new Date(draft.occurredAt);
-    const original = dispatched.current ?? normalizeBankRefundRequest({ ...identity, version: 1, operationId: crypto.randomUUID(),
-      revision: context?.revision, amount: context?.amount, kind: nextKind, evidence: draft.evidence.trim(), note: draft.note.trim(),
-      occurredAt: Number.isFinite(occurredAt.getTime()) ? occurredAt.toISOString() : '', confirmed: draft.confirmed });
-    if (!original) { setError('확인 일시·확인 증빙·처리 메모를 모두 입력하고 아래 확인 칸에 체크해주세요.'); return; }
-    const ticket = scope.capture(); if (!ticket) return;
+    /* 다시 보내기(retry)만 앞서 보낸 내용을 그대로 쓴다. 새로 누른 기록은 늘 지금 적힌 값으로 만들고 확인창을 거친다. */
+    let original = retry ? dispatched.current : null;
+    if (!original) {
+      if (!context || !nextKind) return;
+      /* 시각은 버튼을 누른 이때 정한다. 확인창은 이 시각과 금액을 보여 주고, 다시 보낼 때도 같은 값을 보낸다. */
+      const occurredAt = bankRefundOccurredAt({ custom: draft.customTime ? draft.occurredAt : null, now: new Date(), notBefore: bankRefundNotBefore(context, nextKind) });
+      /* 확인 체크는 없앴다 — 화면이 true를 보낸다(DB 인자 p_confirmed 그대로). 체크가 하던 말은 아래 확인창이 한다. */
+      original = normalizeBankRefundRequest({ ...identity, version: 1, operationId: crypto.randomUUID(),
+        revision: context.revision, amount: context.amount, kind: nextKind, evidence: draft.evidence.trim(), note: draft.note.trim(),
+        occurredAt: occurredAt ?? '', confirmed: true });
+      if (!original) { setError(bankRefundFields(nextKind, context).missing); return; }
+      busy.current = true;
+      let confirmed = false;
+      try { confirmed = await adminConfirm(bankRefundConfirm(context, nextKind, original.occurredAt)); } catch { confirmed = false; }
+      if (!confirmed || !alive.current) { busy.current = false; return; }
+    }
+    const ticket = scope.capture(); if (!ticket) { busy.current = false; return; }
     const metadata = bankRefundMetadata(original), wasUncertain = Boolean(recovery);
-    try { sessionStorage.setItem(key, JSON.stringify(metadata)); } catch { setError('이 탭에 처리 번호를 저장하지 못해 처리하지 않았습니다. 브라우저 설정에서 사이트 데이터 저장이 막혀 있지 않은지 확인한 뒤 새로고침해주세요.'); return; }
+    try { sessionStorage.setItem(key, JSON.stringify(metadata)); } catch { busy.current = false; setError('브라우저가 이 사이트의 저장을 막고 있어 기록하지 않았습니다. 시크릿 창이면 일반 창에서 다시 열고, 아니면 브라우저 설정에서 사이트 데이터 저장을 허용해주세요.'); return; }
     dispatched.current = original; setRecovery(metadata); setCanRetry(true); busy.current = true; setPending(true); setAccount(null); setError(''); setMessage('');
     try {
       const result = await recordBankRefundAction(original);
       if (!alive.current || !scope.canApply(ticket)) return;
       if ('error' in result) fail(result, wasUncertain);
       else if (result.receipt?.state === 'recorded') accept(result.receipt, original, result.notice);
-      else setError('처리됐는지 확인하지 못했습니다. [이전 처리 결과 확인]을 눌러 먼저 확인해주세요.');
-    } catch { if (alive.current && scope.canApply(ticket)) setError('처리됐는지 확인하지 못했습니다. [이전 처리 결과 확인]을 눌러 먼저 확인해주세요.'); }
+      else setError(SAVE_UNKNOWN_MESSAGE);
+    } catch { if (alive.current && scope.canApply(ticket)) setError(SAVE_UNKNOWN_MESSAGE); }
     finally { busy.current = false; if (alive.current && scope.canApply(ticket)) setPending(false); }
   }
   async function check(seal = false) {
@@ -135,8 +157,8 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
       if (!alive.current || !scope.canApply(ticket)) return;
       if ('error' in result) fail(result, true);
       else if (result.receipt) accept(result.receipt, original, result.notice);
-      else setMessage(dispatched.current ? '아직 처리된 결과가 없습니다. [같은 내용으로 다시 요청]을 누르면 됩니다(두 번 처리되지 않습니다).' : '아직 처리된 결과가 없습니다. [미처리 요청 종료 후 새로 입력]을 누른 뒤 증빙을 다시 입력해주세요.');
-    } catch { if (alive.current && scope.canApply(ticket)) setError('이전 처리 결과를 불러오지 못했습니다. 잠시 뒤 [이전 처리 결과 확인]을 다시 눌러주세요.'); }
+      else setMessage(dispatched.current ? `아직 저장되지 않았습니다. [${BANK_REFUND_RESEND_LABEL}]을 누르면 됩니다(두 번 저장되지 않습니다).` : `아직 저장되지 않았습니다. [${BANK_REFUND_ABANDON_LABEL}]를 누른 뒤 다시 적어 주세요.`);
+    } catch { if (alive.current && scope.canApply(ticket)) setError(`저장됐는지 확인하지 못했습니다. 잠시 뒤 [${SAVE_CHECK_LABEL}]을 다시 눌러주세요.`); }
     finally { busy.current = false; if (alive.current && scope.canApply(ticket)) setPending(false); }
   }
   async function viewAccount() {
@@ -147,7 +169,7 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
       const result = await requestBankRefundAccount({ ...identity, revision: context.revision, viewId: crypto.randomUUID() });
       if (!alive.current || !scope.canApply(ticket)) return;
       if ('error' in result) fail(result, false); else setAccount(result.account);
-    } catch { if (alive.current && scope.canApply(ticket)) setError('환불계좌를 불러오지 못했습니다. 잠시 뒤 [환불계좌 원문 확인]을 다시 눌러주세요.'); }
+    } catch { if (alive.current && scope.canApply(ticket)) setError(BANK_REFUND_ACCOUNT_FAILED); }
     finally { busy.current = false; if (alive.current && scope.canApply(ticket)) setPending(false); }
   }
   /* 반품배송비 차감(ADR-0031): 송금액 = 결제액 − 차감액. 판정·결정이 없으면 지금처럼 전액이다. */
@@ -158,51 +180,49 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
   const transferAmount = context ? bankRefundTransferAmount(context) : 0;
   const withoutTransfer = context ? bankRefundWithoutTransfer(context) : false;
   const phaseLabel = !context ? '' : context.phase === 'completed' ? withoutTransfer ? '송금 없이 완료' : '송금 완료'
-    : context.phase === 'awaiting_transfer' ? '송금대기' : '취소 확정 전';
+    : context.phase === 'awaiting_transfer' ? '송금 대기' : '취소 확정 전';
   const blocked = context && !nextKind && context.phase !== 'completed'
     ? bankRefundError(undefined, context.confirmBlocker ?? context.completeBlocker ?? context.fileBlocker ?? undefined).error : null;
+  const fields = kind ? bankRefundFields(kind, context) : null;
 
   return <section aria-label="무통장 환불 처리" className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/30 p-4 text-sm break-words" data-claim-panel="bank-refund">
     <h4 className="text-base leading-snug font-medium">무통장 환불</h4>
-    <p className="text-muted-foreground">무통장 환불은 이 화면에서 돈을 보내지 않습니다. 은행에서 환불계좌로 직접 송금하고, 여기에는 단계마다 기록만 남깁니다(취소 확정 → 계좌 송금 접수 → 실제 송금 뒤 송금 완료).</p>
-    {context ? <><p className="flex flex-wrap items-center gap-2"><strong className="font-semibold tabular-nums">{deduction || partial ? `송금할 환불액: ${krw(transferAmount)}` : `환불 전액: ${krw(context.amount)}`}</strong> <AdminStatusBadge tone={statusTone('refundTransfer', context.phase)}>{phaseLabel}</AdminStatusBadge></p>
+    {context ? <><p className="flex flex-wrap items-center gap-2"><strong className="font-semibold tabular-nums">{`송금할 금액: ${krw(transferAmount)}`}</strong> <AdminStatusBadge tone={statusTone('refundTransfer', context.phase)}>{phaseLabel}</AdminStatusBadge></p>
       {partial ? <p className="text-muted-foreground" data-bank-refund-partial="">{withoutTransfer
         ? `앞선 재고 부족 부분 취소로 결제 ${krwAmountWords(context.amount)}을 모두 환불했습니다. 돌려줄 잔액이 없어 취소를 확정하면 송금 없이 환불 0원으로 마칩니다.`
-        : `앞선 재고 부족 부분 취소로 ${krwAmountWords(partial.refundedAmount)}을 이미 환불했습니다. 송금할 환불액은 남은 잔액입니다.`}</p> : null}
-      {deduction ? <p className="text-muted-foreground" data-bank-refund-deduction="">{`결제 ${krw(deduction.paymentAmount ?? context.amount)} − 반품배송비 ${krw(deduction.deductionAmount)}(단순 변심 반품, ${returnFeeDeductionBasisLabel(deduction)})${deduction.source === 'plan' ? ' · 계좌 송금 접수를 기록할 때 이 금액으로 정해집니다.' : ''}`}</p> : null}
+        : `앞선 재고 부족 부분 취소로 ${krwAmountWords(partial.refundedAmount)}을 이미 환불했습니다. 송금할 금액은 남은 잔액입니다.`}</p> : null}
+      {deduction ? <p className="text-muted-foreground" data-bank-refund-deduction="">{`결제 ${krw(deduction.paymentAmount ?? context.amount)} − 반품배송비 ${krw(deduction.deductionAmount)}(단순 변심 반품, ${returnFeeDeductionBasisLabel(deduction)})${deduction.source === 'plan' ? ` · [${BANK_REFUND_LABELS.file_transfer}]을 남길 때 이 금액으로 정해집니다.` : ''}`}</p> : null}
       {deductionSkipped ? <AdminNotice tone="warning">{deductionSkipped}</AdminNotice> : null}
       {context.gift ? <AdminNotice tone="warning">선물 주문은 선물 받는 분이 요청했더라도 결제한 분에게 환불합니다.</AdminNotice> : null}
-      {context.confirmedAt ? <p>취소 확정 {formatOrderDateTime(context.confirmedAt)} · 접수 {context.filedAt ? formatOrderDateTime(context.filedAt) : '미접수'}</p> : null}
+      <Steps steps={bankRefundSteps(context, nextKind)} />
       {context.maskedAccount ? <p>등록된 환불계좌: {context.maskedAccount} · {context.maskedHolder}</p> : null}
-    </> : !error ? <p className="text-muted-foreground" role="status">현재 환불 상태를 확인하고 있습니다.</p> : null}
+    </> : !error ? <p className="text-muted-foreground" role="status">환불 상태를 불러오고 있습니다.</p> : null}
     {blocked ? <p className="text-muted-foreground">{blocked}</p> : null}
     {context?.viewBlocker === null ? <button className={`${OUTLINE} w-fit`} data-slot="button" disabled={pending || Boolean(recovery) || needsRefresh} type="button"
-      onClick={() => startTransition(async () => { await viewAccount(); })}>환불계좌 원문 확인</button> : null}
-    {recovery ? <p className="text-destructive" role="alert">이전 처리 결과를 먼저 확인해주세요. 이 탭에는 처리 번호만 남겨 두고, 증빙과 계좌정보는 남기지 않습니다.</p> : null}
-    {kind ? <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); startTransition(async () => { await save(); }); }}>
+      onClick={() => startTransition(async () => { await viewAccount(); })}>{BANK_REFUND_VIEW_ACCOUNT_LABEL}</button> : null}
+    {recovery ? <p className="text-destructive" role="alert">{SAVE_UNKNOWN_MESSAGE}</p> : null}
+    {kind && fields ? <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); startTransition(async () => { await save(); }); }}>
       <fieldset disabled={locked} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
         <legend className="mb-1 font-medium">{BANK_REFUND_LABELS[kind]}</legend>
-        <div className="flex flex-wrap items-end gap-2">
-          <label className={`${FIELD} w-full sm:w-auto`}><span className={FIELD_LABEL}>확인 일시</span><input className="w-full sm:w-64" type="datetime-local" step="0.001" required value={draft.occurredAt} onChange={event => setDraft(previous => ({ ...previous, occurredAt: event.target.value }))} /></label>
-          <button className={OUTLINE} data-slot="button" type="button" onClick={() => setDraft(previous => ({ ...previous, occurredAt: localInstant() }))}>현재 시각 입력</button>
-        </div>
-        <label className={FIELD}><span className={FIELD_LABEL}>확인 증빙</span><input className="w-full" required maxLength={300} value={draft.evidence} onChange={event => setDraft(previous => ({ ...previous, evidence: event.target.value }))} placeholder="상담 기록 또는 송금 확인 증빙 참조" /></label>
-        <label className={FIELD}><span className={FIELD_LABEL}>처리 메모</span><input className="w-full" required maxLength={300} value={draft.note} onChange={event => setDraft(previous => ({ ...previous, note: event.target.value }))} /></label>
-        <p className="text-xs text-muted-foreground">증빙과 메모에 계좌번호·예금주 등 개인정보를 입력하지 마세요.</p>
-        <label className="flex items-start gap-2 leading-relaxed"><input className="mt-0.5" type="checkbox" required checked={draft.confirmed} onChange={event => setDraft(previous => ({ ...previous, confirmed: event.target.checked }))} />
-          <span>{kind === 'complete_transfer' ? deduction || partial ? `등록된 환불계좌로 표시된 환불액(${krw(transferAmount)})의 실제 송금이 완료된 것을 확인했습니다.` : '등록된 환불계좌로 표시된 전액의 실제 송금이 완료된 것을 확인했습니다.'
-            : kind === 'confirm_cancellation' ? withoutTransfer ? '주문 전체의 취소 확정 근거를 확인했습니다. 재고를 복원하고, 돌려줄 잔액이 없어 송금 없이 환불 0원으로 마칩니다.' : '주문 전체의 취소 확정 근거를 확인했습니다. 재고를 복원하며 환불은 송금대기로 남습니다.'
-              : deduction ? `결제한 분의 환불계좌와 반품배송비를 뺀 환불액(${krw(transferAmount)}) 송금 접수 내용을 확인했습니다. 실제 송금 완료는 별도로 기록합니다.`
-                : partial ? `결제한 분의 환불계좌와 남은 잔액(${krw(transferAmount)}) 송금 접수 내용을 확인했습니다. 실제 송금 완료는 별도로 기록합니다.` : '결제한 분의 환불계좌와 전액 송금 접수 내용을 확인했습니다. 실제 송금 완료는 별도로 기록합니다.'}</span>
-        </label>
+        {draft.customTime ? <div className="flex flex-wrap items-end gap-2">
+          <label className={`${FIELD} w-full sm:w-auto`}><span className={FIELD_LABEL}>{fields.time}</span><input className="w-full sm:w-64" type="datetime-local" required
+            min={context ? bankRefundTimeInputMin(bankRefundNotBefore(context, kind)) : undefined} value={draft.occurredAt} onChange={event => setDraft(previous => ({ ...previous, occurredAt: event.target.value }))} /></label>
+          <button className={OUTLINE} data-slot="button" type="button" onClick={() => setDraft(previous => ({ ...previous, customTime: false, occurredAt: '' }))}>지금으로</button>
+        </div> : <div className={FIELD}><span className={FIELD_LABEL}>{fields.time}</span>
+          <div className="flex flex-wrap items-center gap-2"><span>지금</span>
+            <button className={OUTLINE} data-slot="button" type="button" onClick={() => setDraft(previous => ({ ...previous, customTime: true }))}>{BANK_REFUND_CUSTOM_TIME_LABEL}</button></div>
+        </div>}
+        <label className={FIELD}><span className={FIELD_LABEL}>{fields.evidence}</span><input className="w-full" required minLength={2} maxLength={300} value={draft.evidence} onChange={event => setDraft(previous => ({ ...previous, evidence: event.target.value }))} placeholder={fields.evidenceExample} /></label>
+        <label className={FIELD}><span className={FIELD_LABEL}>{fields.note}</span><input className="w-full" required minLength={2} maxLength={300} value={draft.note} onChange={event => setDraft(previous => ({ ...previous, note: event.target.value }))} placeholder={fields.noteExample} /></label>
+        <p className="text-xs text-muted-foreground">{fields.kept} 계좌번호·예금주는 적지 마세요.</p>
       </fieldset>
-      {!recovery ? <button className={`${PRIMARY} w-fit`} data-slot="button" type="submit" disabled={locked}>{pending ? '처리 중…' : BANK_REFUND_LABELS[kind]}</button> : null}
+      {!recovery ? <button className={`${PRIMARY} w-fit`} data-slot="button" type="submit" disabled={locked}>{pending ? '기록하는 중…' : BANK_REFUND_LABELS[kind]}</button> : null}
     </form> : null}
     {recovery ? <div className="flex flex-wrap gap-2">
-      <button className={PRIMARY} data-slot="button" disabled={pending} type="button" onClick={() => startTransition(async () => { await check(); })}>이전 처리 결과 확인</button>
-      {canRetry ? <button className={OUTLINE} data-slot="button" disabled={pending} type="button" onClick={() => startTransition(async () => { await save(true); })}>같은 내용으로 다시 요청</button>
-        : <button className={OUTLINE} data-slot="button" disabled={pending} type="button" onClick={() => startTransition(async () => { await check(true); })}>미처리 요청 종료 후 새로 입력</button>}
-    </div> : <button className={`${OUTLINE} w-fit`} data-slot="button" disabled={pending || dirty && !needsRefresh} type="button" onClick={() => { setError(''); setAccount(null); if (needsRefresh) setDraft(empty); setNeedsRefresh(true); setReload(value => value + 1); }}>최신 환불 상태 확인</button>}
+      <button className={PRIMARY} data-slot="button" disabled={pending} type="button" onClick={() => startTransition(async () => { await check(); })}>{SAVE_CHECK_LABEL}</button>
+      {canRetry ? <button className={OUTLINE} data-slot="button" disabled={pending} type="button" onClick={() => startTransition(async () => { await save(true); })}>{BANK_REFUND_RESEND_LABEL}</button>
+        : <button className={OUTLINE} data-slot="button" disabled={pending} type="button" onClick={() => startTransition(async () => { await check(true); })}>{BANK_REFUND_ABANDON_LABEL}</button>}
+    </div> : <button className={`${OUTLINE} w-fit`} data-slot="button" disabled={pending || dirty && !needsRefresh} type="button" onClick={() => { setError(''); setAccount(null); if (needsRefresh) setDraft(empty); setNeedsRefresh(true); setReload(value => value + 1); }}>{BANK_REFUND_RELOAD_LABEL}</button>}
     {error ? <p className="text-destructive" role="alert">{error}</p> : null}{message ? <p className="text-muted-foreground" role="status">{message}</p> : null}
     {account ? <AccountView account={account} onClose={closeAccount} /> : null}
   </section>;
