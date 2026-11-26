@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { LegalDocumentScreen } from '@/components/screens/LegalDocument';
-import { LEGAL_DOCUMENTS, LEGAL_DOCUMENT_SLUGS } from '@/lib/legal/documents';
+import { getLegalDocument, LEGAL_DOCUMENTS, LEGAL_DOCUMENT_SLUGS } from '@/lib/legal/documents';
 import Page, { generateMetadata, generateStaticParams } from './page';
 
 vi.mock('@/lib/legal/business-info.server', async () => { const {BUSINESS_INFO}=await import('@/lib/legal/business-info'); return {getBusinessInfo:async()=>BUSINESS_INFO}; });
@@ -135,7 +135,7 @@ describe('/legal/[document] 라우트', () => {
   /* 11 §8 EV-05 — R-06 §8 정책 문서 서식(620 한 칼럼·가운데 제목·조항 h2·본문 p)으로
      White Catalog 지면 안에서 그린다. 구 조판 클래스는 남기지 않는다. */
   it('620 document-page 서식으로 제목·조항·본문을 그린다', async () => {
-    const document = LEGAL_DOCUMENTS.privacy;
+    const document = getLegalDocument('privacy')!;
     const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'privacy' }) }));
 
     expect(html).toContain('<main class="wc-root wc-document"><article class="wc-document__page">');

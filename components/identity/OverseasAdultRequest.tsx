@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { beginOverseasRequest, cancelOverseasRequest } from '@/app/my/adult-verification/overseas/actions';
-import { type OverseasRequest } from '@/lib/identity/overseas-adult';
+import type { OverseasIntakeStatus, OverseasRequest } from '@/lib/identity/overseas-adult';
 import { OverseasPhotoForm } from './OverseasPhotoForm';
 
 const outcomes = {
@@ -14,21 +14,20 @@ const outcomes = {
   cancelled: '신청을 취소했어요 / Request cancelled',
 };
 export function OverseasAdultRequest({
-  open,
+  intakeStatus,
   request,
   next,
   approved,
-  goods,
 }: {
-  goods: string[];
   approved: boolean;
-  open: boolean;
+  intakeStatus: OverseasIntakeStatus;
   request: OverseasRequest | null;
   next: string;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [notice, setNotice] = useState('');
+  const open = intakeStatus === 'open';
   const active = request && request.state !== 'closed';
   const act = (perform: () => Promise<boolean>) =>
     start(async () => {
@@ -45,12 +44,21 @@ export function OverseasAdultRequest({
     });
   return (
     <div className="grid max-w-2xl gap-5">
+      {!open && !approved && (!active || request?.state === 'draft') && (
+        <p role="status">
+          {intakeStatus === 'policy_pending'
+            ? '개인정보처리방침 시행 후 사진을 제출할 수 있어요. / Photo submissions begin when the privacy policy takes effect.'
+            : intakeStatus === 'store_closed'
+              ? '19금 상품 판매가 중단되어 신분증 신청 접수도 일시 중단됐어요. / Applications are paused while age-restricted products are unavailable.'
+              : '현재 신분증 심사가 일시 중단됐어요. 나중에 다시 신청해 주세요. / ID reviews are temporarily paused. Please check back later.'}
+        </p>
+      )}
       <p>
-        국내 휴대폰 본인확인이 어려운 회원이 신청할 수 있어요. 운영자가 확인한 일부 19금 상품에 적용돼요.
+        국내 휴대폰 본인확인이 어려운 회원이 신청할 수 있어요. 승인되면 이 계정으로 1년 동안 모든 19금 상품을 보고 구매할 수 있어요.
         <br />
         <span lang="en">
-          If you cannot verify with a Korean mobile phone, manual review is available for selected
-          age-restricted products.
+          If you cannot verify with a Korean mobile phone, you can apply with your ID. Once approved,
+          this account can view and buy all age-restricted products for one year.
         </span>
       </p>
       <p>
@@ -66,16 +74,6 @@ export function OverseasAdultRequest({
         decision, cancellation or expiry and the photo is deleted. Approval is kept for one year, other results
         for 30 days. You may decline and continue shopping for general products.
       </p>
-      {goods.length > 0 && (
-        <details>
-          <summary>대상 상품 / Eligible products ({goods.length})</summary>
-          <ul className="list-disc pl-6">
-            {goods.map((name, index) => (
-              <li key={index}>{name}</li>
-            ))}
-          </ul>
-        </details>
-      )}
       {request && (
         <div className="wc-adult-status" role="status">
           <p>접수번호 / Request no. {request.number}</p>
@@ -99,12 +97,6 @@ export function OverseasAdultRequest({
           challenge={request.challenge}
           onSubmitted={() => router.refresh()}
         />
-      )}
-      {!open && !approved && (
-        <p role="status">
-          현재 해외 신분증 접수를 준비 중이에요. 사진은 접수가 열리면 제출해 주세요. / Applications are
-          currently closed. Please keep your ID until intake opens.
-        </p>
       )}
       {!active && !approved && open && (
         <button

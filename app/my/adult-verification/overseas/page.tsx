@@ -37,8 +37,7 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
         </p>
       ) : (
         <OverseasAdultRequest
-          goods={result.data?.goods ?? []}
-          open={result.data?.open === true}
+          intakeStatus={result.data?.intakeStatus ?? 'review_paused'}
           request={request}
           approved={approved}
           next={next}

@@ -26,7 +26,7 @@ insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at
   select ('47c47700'||left(md5(id),24))::uuid,'authenticated','authenticated','overseas-kc-'||md5(id)||'@example.test','{"testFixture":"goods-kc"}',now(),now() from public.goods where ip_id='overseas-test';
 insert into private.operator_memberships(profile_id,manager_role)
   select ('47c47700'||left(md5(id),24))::uuid,'primary' from public.goods where ip_id='overseas-test';
-select pg_temp.publish_goods_kc_fixture(id) from public.goods where ip_id='overseas-test';
+select pg_temp.publish_goods_kc_fixture('overseas-yes');
 update private.adult_goods_storefront_settings set enabled=true where singleton;
 select pg_temp.assert(not has_function_privilege('authenticated','public.service_finish_overseas_adult_cleanup(uuid)','execute')
   and not has_function_privilege('anon','public.open_overseas_adult_review(uuid,text)','execute')
@@ -35,32 +35,35 @@ select pg_temp.actor(2);
 set local role authenticated;
 do $$ begin
   begin perform public.overseas_review_queue(); raise exception 'customer read review queue'; exception when insufficient_privilege then null; end;
-  begin perform public.overseas_adult_management(); raise exception 'customer read management'; exception when insufficient_privilege then null; end;
-  begin perform public.configure_overseas_adult_review('good','overseas-yes',true); raise exception 'customer configured product'; exception when insufficient_privilege then null; end;
 end $$;
 reset role;
 select pg_temp.actor(1);
 select pg_temp.assert(not exists(select 1 from private.overseas_adult_reviewers where user_id=pg_temp.uid(1))
   and not exists(select 1 from auth.mfa_factors where user_id=pg_temp.uid(1)), 'unassigned admin without an authenticator');
 set local role authenticated;
-select pg_temp.assert(public.overseas_review_queue() is not null and public.overseas_adult_management()->'operators'='[]'::jsonb,'ordinary admin session');
-select pg_temp.assert(not public.configure_overseas_adult_review('reviewer',pg_temp.uid(2)::text,true),'old reviewer assignment retired');
-select pg_temp.assert(public.configure_overseas_adult_review('good','overseas-yes',true),'admin manages products');
+select pg_temp.assert(public.overseas_review_queue() is not null,'ordinary admin session');
 reset role;
 savepoint global_mfa;
 update private.operator_mfa_policy set required=true where singleton;
 select pg_temp.assert(not private.overseas_reviewer(pg_temp.uid(1)), 'global operator policy still applies');
 rollback to global_mfa;
+select pg_temp.assert((select effective_at = timestamptz '2026-11-26 00:00+09' from private.overseas_adult_policy where singleton), 'prelaunch intake effective date');
 update private.overseas_adult_policy set effective_at=now()+interval '1 day' where singleton;
-select pg_temp.assert(not private.overseas_intake_open(),'notice period');
+select pg_temp.assert(not private.overseas_intake_open() and public.my_overseas_adult_request()->>'intakeStatus'='policy_pending','notice period');
 update private.overseas_adult_policy set effective_at=now()-interval '1 day' where singleton;
 select pg_temp.actor(2);
+select pg_temp.assert((public.my_overseas_adult_request()->>'open')::boolean and public.my_overseas_adult_request()->>'intakeStatus'='open','customer can apply without product designations');
+savepoint no_storefront;
+update private.adult_goods_storefront_settings set enabled=false where singleton;
+select pg_temp.assert(not private.overseas_intake_open() and public.my_overseas_adult_request()->>'intakeStatus'='store_closed','storefront pause');
+rollback to no_storefront;
 select public.begin_overseas_adult_request() as rid \gset
 select pg_temp.assert(public.begin_overseas_adult_request()=:'rid'::uuid,'single pending');
 select pg_temp.actor(3);
 select pg_temp.assert(not public.cancel_overseas_adult_request(:'rid') and (public.my_overseas_adult_request()->'request')='null'::jsonb,'ownership');
 select pg_temp.actor(2);
-select pg_temp.assert(public.reserve_overseas_adult_upload(:'rid','overseas_manual@2026-11-26'),'reserve');
+select pg_temp.assert(not public.reserve_overseas_adult_upload(:'rid','overseas_manual@2026-11-26'),'old photo consent cannot authorize a new upload');
+select pg_temp.assert(public.reserve_overseas_adult_upload(:'rid','overseas_manual_all@2026-11-26'),'reserve');
 insert into storage.objects(bucket_id,name) values('overseas-adult-evidence',:'rid');
 select pg_temp.assert(public.service_submit_overseas_adult_upload(:'rid',pg_temp.uid(2),repeat('a',64)),'submission');
 select pg_temp.actor(1);
@@ -90,34 +93,31 @@ select pg_temp.assert(not public.service_finish_overseas_adult_cleanup(:'rid') a
 -- 실제 Storage 바이트 이동·삭제는 브라우저 통합 시험에서 확인한다. 여기서는 파기 후 메타데이터 부재를 모의한다.
 update storage.objects set name='purged-fixture' where bucket_id='overseas-adult-evidence' and name=:'rid';
 select pg_temp.assert(public.service_finish_overseas_adult_cleanup(:'rid') and public.service_finish_overseas_adult_cleanup(:'rid'),'idempotent finalization');
+select pg_temp.publish_goods_kc_fixture('overseas-no');
 select pg_temp.actor(2);
 set local role authenticated;
-select pg_temp.assert(public.get_my_adult_verification()->>'scope'='selected','selected scope');
-select pg_temp.assert((select array_agg(id) from public.goods where id in ('overseas-yes','overseas-no'))=array['overseas-yes'],'product RLS');
+select pg_temp.assert(public.get_my_adult_verification()->>'method'='overseas_manual','account approval');
+select pg_temp.assert((select count(*) from public.goods where id in ('overseas-yes','overseas-no'))=2,'all adult products visible through RLS');
 reset role;
-select pg_temp.assert(private.adult_allowed_for_good(pg_temp.uid(2),'overseas-yes') and not private.adult_allowed_for_good(pg_temp.uid(2),'overseas-no'),'purchase scope');
-select pg_temp.actor(2);
-select id as scoped_variant from public.goods_variants where good_id='overseas-yes' and is_default \gset
-select id as denied_variant from public.goods_variants where good_id='overseas-no' and is_default \gset
+select pg_temp.assert(private.good_sale_restriction_visible('adult',pg_temp.uid(2))
+  and private.good_sale_restriction_visible('adult',pg_temp.uid(2),'overseas-no'),'both goods visibility signatures accept the approval');
+select pg_temp.assert(not private.good_sale_restriction_visible('adult',pg_temp.uid(3),'overseas-yes'),'approval is personal');
+select id as first_variant from public.goods_variants where good_id='overseas-yes' and is_default \gset
+select id as second_variant from public.goods_variants where good_id='overseas-no' and is_default \gset
 set local role authenticated;
-select public.add_cart_selection('overseas-yes',jsonb_build_array(jsonb_build_object('good_id','overseas-yes','variant_id',:'scoped_variant','qty',1,'expected_qty',0)));
-select set_config('test.denied_variant',:'denied_variant',true);
-do $$ begin
-  begin perform public.set_cart_item_quantity('overseas-no',current_setting('test.denied_variant')::uuid,1);
-  exception when check_violation then if sqlerrm='adult_verification_required' then return; end if; raise; end;
-  raise exception 'unapproved SKU added';
-end $$;
+select public.add_cart_selection('overseas-yes',jsonb_build_array(jsonb_build_object('good_id','overseas-yes','variant_id',:'first_variant','qty',1,'expected_qty',0)));
+select public.set_cart_item_quantity('overseas-no',:'second_variant',1);
 reset role;
-select public.place_order(pg_temp.uid(2),'{"recipientName":"시험","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}'::jsonb,pg_temp.uid(88),'card'::public.order_payment_method) as scoped_order \gset
+select public.place_order(pg_temp.uid(2),'{"recipientName":"시험","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}'::jsonb,pg_temp.uid(88),'card'::public.order_payment_method) as adult_order \gset
 select pg_temp.assert((select adult_readable from public.my_order_line_goods(array['overseas-yes'])),'authorized order image');
-select pg_temp.assert(exists(select 1 from public.order_items where order_id=:'scoped_order' and good_id='overseas-yes'),'order created');
-select pg_temp.assert(public.prepare_goods_payment_attempt(pg_temp.uid(2),:'scoped_order','toss')->>'provider'='toss','Toss preparation');
-select public.bind_goods_payment_callback_nonce((select id from public.payment_attempts where ref_id=:'scoped_order'),repeat('9',64));
-select pg_temp.assert(public.claim_goods_payment_attempt('toss',(select provider_order_id from public.payment_attempts where ref_id=:'scoped_order'),repeat('9',64),pg_temp.uid(89))->>'claim_status'='claimed','payment pre-capture DB check');
+select pg_temp.assert((select count(*) from public.order_items where order_id=:'adult_order' and good_id in ('overseas-yes','overseas-no'))=2,'order created');
+select pg_temp.assert(public.prepare_goods_payment_attempt(pg_temp.uid(2),:'adult_order','toss')->>'provider'='toss','Toss preparation');
+select public.bind_goods_payment_callback_nonce((select id from public.payment_attempts where ref_id=:'adult_order'),repeat('9',64));
+select pg_temp.assert(public.claim_goods_payment_attempt('toss',(select provider_order_id from public.payment_attempts where ref_id=:'adult_order'),repeat('9',64),pg_temp.uid(89))->>'claim_status'='claimed','payment pre-capture DB check');
 -- 다음 출생 연도 경계의 신분증은 판정·파기에 성공해도 권한을 얻지 못한다.
 select pg_temp.actor(3);
 select public.begin_overseas_adult_request() as minor_id \gset
-select pg_temp.assert(public.reserve_overseas_adult_upload(:'minor_id','overseas_manual@2026-11-26'),'minor upload');
+select pg_temp.assert(public.reserve_overseas_adult_upload(:'minor_id','overseas_manual_all@2026-11-26'),'minor upload');
 insert into storage.objects(bucket_id,name) values('overseas-adult-evidence',:'minor_id');
 select public.service_submit_overseas_adult_upload(:'minor_id',pg_temp.uid(3),repeat('a',64));
 select pg_temp.actor(1);
@@ -130,14 +130,17 @@ select public.service_finish_overseas_adult_cleanup(:'minor_id');
 select pg_temp.assert(private.overseas_valid_until(pg_temp.uid(3)) is null and (select outcome='underage' from private.overseas_adult_requests where id=:'minor_id'),'underage stays restricted');
 select pg_temp.actor(3);
 select public.begin_overseas_adult_request() as aborted_id \gset
-select public.reserve_overseas_adult_upload(:'aborted_id','overseas_manual@2026-11-26');
+select public.reserve_overseas_adult_upload(:'aborted_id','overseas_manual_all@2026-11-26');
 select pg_temp.assert(public.cancel_overseas_adult_request(:'aborted_id'),'cancel while uploading');
 select pg_temp.assert(not public.service_submit_overseas_adult_upload(:'aborted_id',pg_temp.uid(3),repeat('d',64)),'late upload cannot re-open');
 update private.overseas_adult_requests set upload_until=now()-interval '1 minute',cleanup_after=now()-interval '1 second' where id=:'aborted_id';
 select * from public.service_overseas_adult_cleanup(:'aborted_id');
 select pg_temp.assert(public.service_finish_overseas_adult_cleanup(:'aborted_id'),'abandoned upload destroyed');
 update public.goods set description='내용 변경' where id='overseas-yes';
-select pg_temp.assert(not private.adult_allowed_for_good(pg_temp.uid(2),'overseas-yes'),'content change requires reclassification');
+select pg_temp.assert(private.adult_allowed_for_good(pg_temp.uid(2),'overseas-yes'),'product edits preserve account approval');
 select pg_temp.actor(2);
-select pg_temp.assert((select not adult_readable and image_path is null from public.my_order_line_goods(array['overseas-yes'])),'withdrawn product masked in order history');
+select pg_temp.assert((select adult_readable from public.my_order_line_goods(array['overseas-yes'])),'order history stays readable');
+update private.overseas_adult_requests set valid_until=now()-interval '1 second' where id=:'rid';
+select pg_temp.assert(not private.adult_allowed_for_good(pg_temp.uid(2),'overseas-yes')
+  and (select not adult_readable and image_path is null from public.my_order_line_goods(array['overseas-yes'])),'expiry masks every product again');
 rollback;

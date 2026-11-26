@@ -1,7 +1,7 @@
-export const OVERSEAS_METHOD = 'overseas_manual@2026-11-26';
+export const OVERSEAS_METHOD = 'overseas_manual_all@2026-11-26';
 export const OVERSEAS_REVIEW_PATH = '/my/adult-verification/overseas';
 export const OVERSEAS_ADMIN_PATH = '/admin/settings/overseas-adult';
-export const OVERSEAS_PRIVACY_EFFECTIVE_DATE = '2026-12-04';
+export const OVERSEAS_PRIVACY_EFFECTIVE_DATE = '2026-11-26';
 export const OVERSEAS_UPLOAD_LIMIT = 3 * 1024 * 1024;
 
 export interface OverseasRequest {
@@ -18,8 +18,4 @@ export interface OverseasQueueItem {
   id: string;
   submittedAt: string;
 }
-export interface OverseasReviewGood {
-  id: string;
-  name: string;
-  enabled: boolean;
-}
+export type OverseasIntakeStatus = 'open' | 'policy_pending' | 'store_closed' | 'review_paused';
