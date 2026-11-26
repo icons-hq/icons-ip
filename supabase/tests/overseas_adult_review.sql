@@ -65,6 +65,28 @@ select pg_temp.assert(public.get_my_adult_verification()->>'scope'='selected','s
 select pg_temp.assert((select array_agg(id) from public.goods where id in ('overseas-yes','overseas-no'))=array['overseas-yes'],'product RLS');
 reset role;
 select pg_temp.assert(private.adult_allowed_for_good(pg_temp.uid(2),'overseas-yes') and not private.adult_allowed_for_good(pg_temp.uid(2),'overseas-no'),'purchase scope');
+-- 다음 출생 연도 경계의 신분증은 판정·파기에 성공해도 권한을 얻지 못한다.
+select pg_temp.actor(3);
+select public.begin_overseas_adult_request() as minor_id \gset
+select pg_temp.assert(public.reserve_overseas_adult_upload(:'minor_id','overseas_manual@2026-11-26'),'minor upload');
+insert into storage.objects(bucket_id,name) values('overseas-adult-evidence',:'minor_id');
+select public.service_submit_overseas_adult_upload(:'minor_id',pg_temp.uid(3),repeat('a',64));
+select pg_temp.actor(1,'aal2');
+select public.open_overseas_adult_review(:'minor_id',repeat('b',64));
+select public.deliver_overseas_adult_review(:'minor_id',repeat('b',64));
+select pg_temp.assert(public.decide_overseas_adult_review(:'minor_id',repeat('b',64),make_date(extract(year from now() at time zone 'Asia/Seoul')::int-18,1,1),true),'underage boundary');
+select * from public.service_overseas_adult_cleanup(:'minor_id');
+update storage.objects set name='purged-minor-fixture' where bucket_id='overseas-adult-evidence' and name=:'minor_id';
+select public.service_finish_overseas_adult_cleanup(:'minor_id');
+select pg_temp.assert(private.overseas_valid_until(pg_temp.uid(3)) is null and (select outcome='underage' from private.overseas_adult_requests where id=:'minor_id'),'underage stays restricted');
+select pg_temp.actor(3);
+select public.begin_overseas_adult_request() as aborted_id \gset
+select public.reserve_overseas_adult_upload(:'aborted_id','overseas_manual@2026-11-26');
+select pg_temp.assert(public.cancel_overseas_adult_request(:'aborted_id'),'cancel while uploading');
+select pg_temp.assert(not public.service_submit_overseas_adult_upload(:'aborted_id',pg_temp.uid(3),repeat('d',64)),'late upload cannot re-open');
+update private.overseas_adult_requests set upload_until=now()-interval '1 minute',cleanup_after=now()-interval '1 second' where id=:'aborted_id';
+select * from public.service_overseas_adult_cleanup(:'aborted_id');
+select pg_temp.assert(public.service_finish_overseas_adult_cleanup(:'aborted_id'),'abandoned upload destroyed');
 update public.goods set description='내용 변경' where id='overseas-yes';
 select pg_temp.assert(not private.adult_allowed_for_good(pg_temp.uid(2),'overseas-yes'),'content change requires reclassification');
 rollback;

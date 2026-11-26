@@ -831,8 +831,14 @@ export function getLegalDocument(slug: string, businessInfo?: BusinessInfo, now 
   const base = (businessInfo ? createLegalDocuments(businessInfo) : LEGAL_DOCUMENTS)[slug as LegalDocumentSlug];
   if (slug !== 'privacy' || kstDay(now) < overseasNotice.announcedDate) return base;
   if (kstDay(now) < overseasNotice.effectiveDate) return { ...base, pendingRevision: overseasNotice };
-  const articles = base.articles.map(article => article.heading.startsWith('제1조 ')
-    ? { ...article, closing: [...(article.closing ?? []), ...overseasNotice.changes] } : article);
+  const articles = base.articles.map(article => {
+    if (article.heading.startsWith('제1조 ')) return { ...article, closing: [...(article.closing ?? []), ...overseasNotice.changes] };
+    if (article.heading.startsWith('제5조 ') || article.heading.startsWith('제6조 ')) {
+      return { ...article, closing: [...(article.closing ?? []),
+        '해외 신분증 심사를 선택하면 Vercel, Inc.의 서울 서버가 제출 시 전송된 사진을 일시 처리하고, Supabase, Inc.의 서울 리전이 암호화된 사진과 심사 기록을 보관합니다. 사진 파기 및 기록 보유 기한은 제1조의 해외 신분증 심사 안내를 따릅니다.'] };
+    }
+    return article;
+  });
   return { ...base, effectiveDate: overseasNotice.effectiveDate, articles, revisionChanges: overseasNotice.changes,
     previousVersion: { effectiveDate: base.effectiveDate, articles: base.articles } };
 }

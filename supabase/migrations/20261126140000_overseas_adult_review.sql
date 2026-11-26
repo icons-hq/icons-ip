@@ -78,7 +78,12 @@ $$;
 
 create function public.my_overseas_adult_request() returns jsonb
 language sql stable security definer set search_path='' as $$
-  select jsonb_build_object('open', private.overseas_intake_open(), 'request', (
+  select jsonb_build_object('open', private.overseas_intake_open(), 'goods', coalesce((
+    select jsonb_agg(g.name order by g.name) from private.overseas_adult_goods a
+    join public.goods g on g.id=a.good_id join public.ips i on i.id=g.ip_id
+    where g.sale_restriction='adult' and g.published_at is not null and g.archived_at is null
+      and i.published_at is not null and i.archived_at is null and (select private.adult_goods_storefront_enabled())
+  ),'[]'::jsonb), 'request', (
     select jsonb_build_object('id',r.id,'state',r.state,'outcome',case when r.state='closed' then r.outcome end,
       'challenge',case when r.state='draft' then r.challenge end,'expiresAt',r.expires_at,'validUntil',case when r.valid_until>now() then r.valid_until end)
     from private.overseas_adult_requests r where r.user_id=(select auth.uid()) order by r.created_at desc limit 1));

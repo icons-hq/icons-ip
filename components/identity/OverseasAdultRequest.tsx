@@ -18,7 +18,9 @@ export function OverseasAdultRequest({
   request,
   next,
   approved,
+  goods,
 }: {
+  goods: string[];
   approved: boolean;
   open: boolean;
   request: OverseasRequest | null;
@@ -64,10 +66,22 @@ export function OverseasAdultRequest({
         decision, cancellation or expiry and the photo is deleted. Approval is kept for one year, other results
         for 30 days. You may decline and continue shopping for general products.
       </p>
+      {goods.length > 0 && (
+        <details>
+          <summary>대상 상품 / Eligible products ({goods.length})</summary>
+          <ul className="list-disc pl-6">
+            {goods.map((name, index) => (
+              <li key={index}>{name}</li>
+            ))}
+          </ul>
+        </details>
+      )}
       {request && (
         <div className="wc-adult-status" role="status">
           {request.state === 'closed' && request.outcome
-            ? request.outcome === 'approved' && !approved ? '수동 인증 유효기간 종료 / Manual approval has ended' : outcomes[request.outcome]
+            ? request.outcome === 'approved' && !approved
+              ? '수동 인증 유효기간 종료 / Manual approval has ended'
+              : outcomes[request.outcome]
             : request.state === 'draft'
               ? '사진 제출 전 / Awaiting your photo'
               : request.state === 'purging'
