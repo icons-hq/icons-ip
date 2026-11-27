@@ -76,6 +76,15 @@ export function validateVercelBuildEnvironment(environment) {
       'SITE_URL',
     );
   }
+  const chinaSmsProvider = environment.ICONS_SMS_CN_PROVIDER?.trim();
+  if (chinaSmsProvider && !['sens', 'twilio'].includes(chinaSmsProvider)) {
+    throw new Error('Invalid ICONS_SMS_CN_PROVIDER: use sens or twilio');
+  }
+  if (chinaSmsProvider === 'sens') {
+    if (environment.ICONS_SMS_PROVIDER !== 'twilio_verify') throw new Error('SENS requires ICONS_SMS_PROVIDER=twilio_verify');
+    required.push('NCP_SENS_ACCESS_KEY', 'NCP_SENS_SECRET_KEY', 'NCP_SENS_SMS_SERVICE_ID', 'NCP_SENS_SMS_FROM',
+      'TWILIO_API_KEY_SID', 'TWILIO_API_KEY_SECRET', 'TWILIO_VERIFY_SERVICE_SID');
+  }
   const missing = required.filter((name) => !isPresent(environment[name]));
 
   if (missing.length > 0) {

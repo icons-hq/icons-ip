@@ -79,6 +79,13 @@ describe('phone verification actions — 스위치 ON', () => {
     );
   });
 
+  it('keeps the code input open when the carrier response is uncertain', async () => {
+    mocks.request.mockResolvedValue({ ok: true, deliveryUncertain: true, challengeId: CHALLENGE_ID, maskedPhone: '+86****8000' });
+    expect(await requestPhoneCodeAction({}, form({ phoneCountry: 'CN', phone: '13800138000' }))).toMatchObject({
+      stage: 'code_sent', challengeId: CHALLENGE_ID, message: expect.stringContaining('도착하면 5분 안에'),
+    });
+  });
+
   it('puts phone and form errors where the screen shows them, and survives an unexpected failure', async () => {
     mocks.request.mockResolvedValueOnce({ ok: false, field: 'phone', error: '휴대폰 번호를 다시 확인해주세요.' });
     expect(await requestPhoneCodeAction({}, form({ phone: 'x' }))).toEqual({ errors: { phone: '휴대폰 번호를 다시 확인해주세요.' } });

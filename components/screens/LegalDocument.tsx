@@ -123,17 +123,17 @@ export function LegalDocumentScreen({ document }: { document: LegalDocument }) {
           ))}
         </div>
 
-        {document.previousVersion && (
-          <details className="wc-document__previous">
+        {[document.previousVersion, ...(document.olderVersions ?? [])].filter(version => version !== undefined).map(version => (
+          <details key={version.effectiveDate} className="wc-document__previous">
             <summary className="wc-document__previous-summary">
-              이전 정책 본문 (시행일 {document.previousVersion.effectiveDate})
+              이전 정책 본문 (시행일 {version.effectiveDate})
             </summary>
             <div className="wc-document__previous-body">
               <p className="wc-document__paragraph">
                 개정 전 정책 문구를 보존합니다. 고객지원 연락처는 현재 정보로 표시합니다.
                 개별 이용자의 약관 동의 기록은 아닙니다.
               </p>
-              {document.previousVersion.articles.map((article) => (
+              {version.articles.map((article) => (
                 <section key={article.heading} className="wc-document__article">
                   <h3 className="wc-document__heading wc-document__heading--previous">{article.heading}</h3>
                   <ArticleBody article={article} />
@@ -141,7 +141,7 @@ export function LegalDocumentScreen({ document }: { document: LegalDocument }) {
               ))}
             </div>
           </details>
-        )}
+        ))}
       </article>
     </main>
   );

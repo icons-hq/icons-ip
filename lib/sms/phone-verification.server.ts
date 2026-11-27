@@ -42,7 +42,7 @@ export function phoneVerificationConfig(env: RuntimeEnvironment = process.env, n
   if (!contactChannelsLegalGateOpen(env, now)) return null;
   const secret = env.ICONS_PHONE_VERIFICATION_SECRET?.trim() ?? '';
   if (secret.length < 32) return null;
-  const sender = smsSenderFromEnvironment(env);
+  const sender = smsSenderFromEnvironment(env, now);
   if (!sender) return null;
   return { sender, secret, allowlist: parsePhoneAllowlist(env.ICONS_PHONE_VERIFICATION_COUNTRIES) };
 }
@@ -110,7 +110,7 @@ export interface PhoneVerificationDependencies {
 }
 
 export type RequestPhoneCodeResult =
-  | { ok: true; challengeId: string; maskedPhone: string }
+  | { ok: true; challengeId: string; maskedPhone: string; deliveryUncertain?: true }
   | { ok: false; field: 'phone' | 'form'; error: string };
 
 const ONBOARDING_REQUIRED_MESSAGE = '생년월일과 약관 동의를 먼저 저장한 뒤 휴대폰 번호를 인증해주세요.';
@@ -164,6 +164,9 @@ export async function requestPhoneVerificationCode(
   const sent = await config.sender.send({ to: normalized.e164, text: phoneCodeMessage(code, normalized.e164), purpose: 'phone_verification', code })
     .catch(() => ({ ok: false as const, reason: 'unavailable' as const }));
   if (!sent.ok) {
+    if (sent.reason === 'unknown') {
+      return { ok: true, challengeId, maskedPhone: maskPhoneNumber(normalized.e164), deliveryUncertain: true };
+    }
     await service.rpc('service_fail_member_phone_verification', { p_challenge_id: challengeId, p_user_id: input.userId });
     return { ok: false, field: 'form', error: '인증번호 문자를 보내지 못했어요. 번호를 확인하고 잠시 후 다시 시도해주세요.' };
   }

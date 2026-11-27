@@ -77,7 +77,9 @@ export async function requestPhoneCodeAction(
       stage: 'code_sent',
       challengeId: result.challengeId,
       maskedPhone: result.maskedPhone,
-      message: `${result.maskedPhone}로 인증번호를 보냈어요. ${Math.round(PHONE_CODE_TTL_SECONDS / 60)}분 안에 입력해주세요.`,
+      message: result.deliveryUncertain
+        ? `문자 발송 여부를 확인할 수 없어요. ${result.maskedPhone}로 문자가 도착하면 ${Math.round(PHONE_CODE_TTL_SECONDS / 60)}분 안에 인증번호를 입력해주세요.`
+        : `${result.maskedPhone}로 인증번호를 보냈어요. ${Math.round(PHONE_CODE_TTL_SECONDS / 60)}분 안에 입력해주세요.`,
     };
   } catch {
     return { errors: { form: '인증번호를 보내지 못했어요. 잠시 후 다시 시도해주세요.' } };

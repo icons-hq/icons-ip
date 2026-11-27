@@ -45,6 +45,17 @@ const stagingEnvironment = {
 };
 
 describe('validateVercelBuildEnvironment', () => {
+  it('requires server credentials for the selected China route only', () => {
+    const env = productionEnvironment({ ICONS_SMS_PROVIDER: 'twilio_verify', ICONS_SMS_CN_PROVIDER: 'sens',
+      NCP_SENS_ACCESS_KEY: 'test-access', NCP_SENS_SECRET_KEY: 'test-secret', NCP_SENS_SMS_SERVICE_ID: 'ncp:sms:kr:123:test',
+      NCP_SENS_SMS_FROM: '0212345678', TWILIO_API_KEY_SID: 'test-key', TWILIO_API_KEY_SECRET: 'test-key-secret',
+      TWILIO_VERIFY_SERVICE_SID: 'test-service' });
+    expect(validateVercelBuildEnvironment(env).checked).toBe(true);
+    expect(() => validateVercelBuildEnvironment({ ...env, NCP_SENS_SECRET_KEY: '' })).toThrow('NCP_SENS_SECRET_KEY');
+    expect(() => validateVercelBuildEnvironment({ ...env, ICONS_SMS_CN_PROVIDER: 'typo' })).toThrow('ICONS_SMS_CN_PROVIDER');
+    expect(validateVercelBuildEnvironment({ ...env, ICONS_SMS_CN_PROVIDER: 'twilio', NCP_SENS_SECRET_KEY: '' }).checked).toBe(true);
+  });
+
   it('validates inherited staging test widget keys only inside the remote build without exposing values', () => {
     const result = validateVercelBuildEnvironment(stagingEnvironment);
     expect(result).toMatchObject({ checked: true, stagingVerified: true, newCheckoutEnabled: false });
