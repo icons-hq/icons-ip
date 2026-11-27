@@ -4,14 +4,18 @@ import { transactionExactKeys, transactionInteger, transactionRecord } from '@/l
 /**
  * 배송 건의 착불(2026-11-12 사용자 결정 "착불 금액은 보이게"): 창고·택배사가 수령인에게 받을 착불 배송비와 착불 수납 정보.
  * 발송·배송현황 목록이 `admin_shipment_collect_summaries`(sales.dispatch)로 읽어 읽기 전용으로 보인다. 값과 출처는 출고지시 파일의
- * 배송 운영 안내 시트(계약상 착불 배송비·착불 수납 주체·수납 방법·고객 안내·착불 환급 문의)와 같다. 선결제 배송비는 담지 않는다.
+ * 배송 운영 안내 시트(계약상 착불 배송비·착불 수납 주체·수납 방법·고객 안내·착불 환급 문의 열)와 같다. 선결제 배송비는 담지 않는다.
  * 수납 정보가 주문 영수증에 없으면(옛 주문) collector는 null이다.
  */
 export interface ShipmentCollectSummary { collectFee: number; collector: GoodsTransactionCollector | null }
 
-/** 배송 운영 안내 시트의 머리글과 같은 이름이다. */
+/**
+ * 화면(발송·배송현황 목록의 착불 칸)에 보이는 이름. 배송 운영 안내 시트의 머리글과 같은 값을 가리킨다.
+ * 돈을 돌려주는 일은 화면에서 '환불'이라 부른다(낱말 표) — 창고 파일 시트의 머리글만 '착불 환급 문의' 그대로다
+ * (lib/admin/warehouse-templates의 WAREHOUSE_OPERATION_HEADERS — 파일 양식은 바꾸지 않는다).
+ */
 export const SHIPMENT_COLLECTOR_LABELS: readonly [keyof GoodsTransactionCollector, string][] = [
-  ['name', '착불 수납 주체'], ['method', '수납 방법'], ['instructions', '고객 안내'], ['refundContact', '착불 환급 문의'],
+  ['name', '착불 수납 주체'], ['method', '수납 방법'], ['instructions', '고객 안내'], ['refundContact', '착불 환불 문의'],
 ];
 
 const COLLECTOR_LIMITS: Record<keyof GoodsTransactionCollector, number> = { name: 100, method: 200, refundContact: 200, instructions: 500 };

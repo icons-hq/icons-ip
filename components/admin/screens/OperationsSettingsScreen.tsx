@@ -12,8 +12,8 @@ import type { OperationsCardKey, OperationsReadiness } from './OperationsSetting
 const INPUT_LINKS: { label: string; description: string; href: string; adminOnly?: boolean; readiness?: OperationsCardKey }[] = [
   { label: '사업자·CS 연락처', description: '회사 정보와 고객에게 공개할 연락처', href: '/admin/settings/store?section=business', readiness: 'business' },
   { label: '무통장 입금 계좌', description: '은행·계좌번호·예금주', href: '/admin/settings/store?section=bank_transfer', readiness: 'bankTransfer' },
-  { label: '출고지·배송비·반품 주소', description: '출고지별 기본료·무료배송 기준·반품지', href: '/admin/settings/origins', readiness: 'origins' },
-  { label: '지역 추가 배송비', description: '제주·도서산간 지역표와 계약 추가료', href: '/admin/settings/shipping-regions', readiness: 'regions' },
+  { label: '출고지·배송비·반품 주소', description: '출고지별 기본료·무료배송 기준·반품 주소', href: '/admin/settings/origins', readiness: 'origins' },
+  { label: '지역별 추가배송비', description: '제주·도서산간 지역표와 추가배송비 금액', href: '/admin/settings/shipping-regions', readiness: 'regions' },
   { label: '택배사', description: '계약 택배사와 배송조회 주소', href: '/admin/settings/carriers', readiness: 'carriers' },
   { label: '배송·반품 안내', description: '상품에 적용할 배송 안내 템플릿', href: '/admin/settings/shipping-notices', readiness: 'notices' },
   { label: '상품·ERP·공급가(매입단가)·KC', description: '상품을 선택해 옵션 정보와 증빙을 입력', href: '/admin/catalog/goods' },

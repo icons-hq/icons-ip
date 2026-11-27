@@ -55,9 +55,9 @@ describe('operator directory', () => {
     expect(Object.keys(MANAGER_ROLE_SUMMARIES).sort()).toEqual([...ASSIGNABLE_MANAGER_ROLES].sort());
     for (const role of ASSIGNABLE_MANAGER_ROLES) expect(MANAGER_ROLE_SUMMARIES[role].length).toBeGreaterThan(10);
     const logistics = MANAGER_ROLE_SUMMARIES.logistics;
-    for (const can of ['출고지시 내려받기', '운송장 회신 등록', '발송', '배송완료', '상품 공지사항 관리', '수령인 정보만']) expect(logistics).toContain(can);
+    for (const can of ['출고지시 내려받기', '운송장 올리기', '발송', '배송완료', '상품 공지사항 관리', '수령인 정보만']) expect(logistics).toContain(can);
     for (const cannot of ['발주확인', '취소·환불·반품·교환', '고객 정보', '상품 관리는 할 수 없']) expect(logistics).toContain(cannot);
     const guide = MEMBERS_ROLES_TOPIC.sections.find(section => section.id === 'roles')?.paragraphs?.find(text => text.startsWith('창고·물류 담당자에게'));
-    for (const phrase of ['출고지시 내려받기·운송장 회신 등록·발송·배송완료', '상품 공지사항 관리', '수령인 정보만']) expect(guide).toContain(phrase);
+    for (const phrase of ['출고지시 내려받기·운송장 올리기·발송·배송완료', '상품 공지사항 관리', '수령인 정보만']) expect(guide).toContain(phrase);
   });
 });

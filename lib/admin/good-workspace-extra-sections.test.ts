@@ -189,7 +189,7 @@ describe('섹션 실패·공개 결과 안내', () => {
     expect(goodWorkspaceExtraSectionFailure('goods_workspace_section_failed:production:invalid_parameter_value', '22023'))
       .toEqual({ workspaceProduction: '발송 예정 기간(1~365일)·기간 계산 기준·휴무일 날짜를 확인해주세요. 상품은 저장되지 않았고 입력은 유지됩니다.' });
     expect(goodWorkspaceExtraSectionFailure('goods_workspace_section_failed:fulfillment:invalid_parameter_value', '22023'))
-      .toEqual({ workspaceFulfillment: '받을 방식·비용·제공 파일을 확인해주세요. 상품은 저장되지 않았고 입력은 유지됩니다.' });
+      .toEqual({ workspaceFulfillment: '수령 방식·비용·디지털 파일을 확인해주세요. 상품은 저장되지 않았고 입력은 유지됩니다.' });
     /* 근거 칸이 없으므로 어느 안내도 근거를 고치라고 하지 않는다. */
     for (const section of ['production', 'fulfillment']) for (const code of ['22023', 'PT409', '42501', 'XX000']) {
       expect(JSON.stringify(goodWorkspaceExtraSectionFailure(`goods_workspace_section_failed:${section}:boom`, code))).not.toMatch(/근거|요청/);

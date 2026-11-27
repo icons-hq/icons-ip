@@ -44,6 +44,15 @@ export function refundTransferPartialLabel(row: RefundTransferPartialCancellatio
   const kind = row.reasonCode === 'return' ? '부분 반품' : '부분 취소';
   return { label: `${row.sequence}차 ${kind}`, kind };
 }
+/** 화면의 유형 칸: 취소·반품, 부분 환불은 '부분 취소 2차'처럼 차수를 함께 적는다. 선물 주문은 앞에 '선물 · '. */
+export function refundTransferTypeLabel(row: RefundTransferRow): string {
+  const type = row.kind === 'partial_cancellation' ? `${refundTransferPartialLabel(row).kind} ${row.sequence}차` : row.claimType === 'cancel' ? '취소' : '반품';
+  return `${row.gift ? '선물 · ' : ''}${type}`;
+}
+/** 송금 완료를 적는 화면 이름: 요청은 요청 상세, 부분 환불은 주문 상세(refundTransferDetailHref와 같은 갈래). */
+export function refundTransferRecordPlace(row: RefundTransferRow): '요청 상세' | '주문 상세' {
+  return row.kind === 'partial_cancellation' ? '주문 상세' : '요청 상세';
+}
 /** 목록·엑셀에서 한 줄을 가르는 키(요청 id 또는 부분 취소 id). */
 export function refundTransferRowKey(row: RefundTransferRow): string {
   return row.kind === 'partial_cancellation' ? `partial:${row.partialCancellationId}` : row.claimId;

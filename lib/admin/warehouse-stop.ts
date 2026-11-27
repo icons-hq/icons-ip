@@ -31,9 +31,9 @@ export const WAREHOUSE_STOP_CHANNEL_LABELS: Record<WarehouseStopChannel, string>
 export type WarehouseStopStatus = 'not_applicable' | 'required' | 'stopped' | 'already_shipped' | 'used';
 export const WAREHOUSE_STOP_STATUS_LABELS: Record<Exclude<WarehouseStopStatus, 'not_applicable'>, string> = {
   required: '창고 회신 기록 필요',
-  stopped: '창고 보관 회신 있음',
+  stopped: '출고 중단 회신 있음',
   already_shipped: '이미 출고 회신',
-  used: '회신을 이미 다른 취소에 씀',
+  used: '다른 취소에 쓴 회신',
 };
 
 export const CANCELED_DISPATCH_STATES = ['open', 'returned', 'lost'] as const;
@@ -94,6 +94,8 @@ export interface CanceledShipmentDispatch {
   originName: string;
   source: 'tracking_reply' | 'warehouse_reply';
   carrier: string | null;
+  /** 택배사 이름(레지스트리). 읽는 쪽이 채우면 화면이 코드(epost 등) 대신 이 이름을 보인다. */
+  carrierLabel?: string | null;
   trackingNumber: string | null;
   discoveredAt: string;
   discoveredByName: string | null;
@@ -161,7 +163,7 @@ function parseDispatch(value: unknown): CanceledShipmentDispatch | null {
       returnedQty: count(line.returnedQty) });
   }
   return { id, shipmentId, shipmentNumber: text(value.shipmentNumber), originName: text(value.originName) ?? '배송 건', source,
-    carrier: text(value.carrier), trackingNumber: text(value.trackingNumber), discoveredAt, discoveredByName: text(value.discoveredByName), state,
+    carrier: text(value.carrier), carrierLabel: text(value.carrierLabel), trackingNumber: text(value.trackingNumber), discoveredAt, discoveredByName: text(value.discoveredByName), state,
     restoredQty, withdrawnQty, shortfallQty, returnedQty: count(value.returnedQty), resolvedAt: text(value.resolvedAt),
     resolvedByName: text(value.resolvedByName), resolutionNote: text(value.resolutionNote), lines };
 }
@@ -192,6 +194,13 @@ export function warehouseStopRequirement(context: OrderWarehouseStopContext, shi
   return { state: 'ready', shipments: relevant };
 }
 
+/**
+ * DB가 권한으로 거절했을 때의 문장. 이 문구표는 창고 회신 읽기(주문 조회)·기록(출고)·취소 뒤 출고 처리(판매 관리)와 취소·반품의 창고 확인이
+ * 함께 써서 어느 권한인지 여기서는 알 수 없다 — 권한 이름을 단정하지 않는다. 화면이 부르는 서버 액션은 먼저 자기 권한을 확인하고
+ * 그 권한의 이름으로 말한다(app/admin/warehouse-stop-actions).
+ */
+const WAREHOUSE_STOP_ACCESS_DENIED = '이 작업을 할 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';
+
 /** DB가 던지는 창고 회신·발견 거절 코드를 운영자 문구로 옮긴다. 모르는 코드는 일반 문구다. */
 export function warehouseStopErrorMessage(code: string | null | undefined): string {
   const value = code ?? '';
@@ -209,19 +218,19 @@ export function warehouseStopErrorMessage(code: string | null | undefined): stri
     ['warehouse_stop_reply_shipment_dispatched', '이미 발송된 배송 건입니다. 고객 반품으로 처리해주세요.'],
     ['warehouse_stop_reply_single_order', '한 번에 한 주문의 배송 건만 기록할 수 있습니다.'],
     ['warehouse_stop_reply_returned_without_shipped', '반송 입고는 창고가 이미 출고했다고 회신한 발송 대기 배송 건에만 기록합니다. 취소된 배송 건은 취소 뒤 출고 처리의 회수 입고로 닫습니다.'],
-    ['warehouse_stop_reply_operation_conflict', '같은 요청이 다른 내용으로 이미 처리됐습니다. 새로고침한 뒤 기록을 확인해주세요.'],
+    ['warehouse_stop_reply_operation_conflict', '이미 다른 내용으로 기록돼 있습니다. 새로고침한 뒤 창고 회신 기록을 확인해주세요.'],
     ['invalid_warehouse_stop_reply', '회신 결과·경로·회신 시각을 확인해주세요. 경로가 기타이면 메모를 적어주세요(메모는 500자까지).'],
     ['canceled_dispatch_already_resolved', '이미 처리한 취소 뒤 출고 건입니다. 새로고침해 결과를 확인해주세요.'],
-    ['canceled_dispatch_operation_conflict', '같은 요청이 다른 처리로 이미 기록됐습니다. 새로고침한 뒤 확인해주세요.'],
+    ['canceled_dispatch_operation_conflict', '이미 다른 내용으로 처리됐습니다. 새로고침한 뒤 취소 뒤 출고 기록을 확인해주세요.'],
     ['canceled_dispatch_not_found', '취소 뒤 출고 기록을 찾을 수 없습니다. 새로고침해주세요.'],
     ['invalid_canceled_dispatch_resolution', `처리 결과를 고르고 근거 메모를 ${CANCELED_DISPATCH_NOTE_MIN}자 이상 적어주세요(최대 500자).`],
     ['goods_group_retry', '다른 작업이 같은 상품 재고를 바꾸는 중입니다. 잠시 뒤 다시 시도해주세요.'],
     ['shipment_not_found', '배송 건을 찾을 수 없습니다. 새로고침해주세요.'],
-    ['operator_capability_required', '이 작업을 할 권한이 없습니다. 로그인 계정의 주문 처리 권한을 계정 주매니저에게 확인해주세요.'],
-    ['staff required', '이 작업을 할 권한이 없습니다. 로그인 계정의 주문 처리 권한을 계정 주매니저에게 확인해주세요.'],
+    ['operator_capability_required', WAREHOUSE_STOP_ACCESS_DENIED],
+    ['staff required', WAREHOUSE_STOP_ACCESS_DENIED],
   ];
   const found = messages.find(([key]) => value.includes(key));
-  return found ? found[1] : '처리하지 못했습니다. 새로고침해 최신 상태를 확인해주세요.';
+  return found ? found[1] : '처리하지 못했습니다. 다른 사람이 먼저 처리했을 수 있으니 새로고침해 지금 상태를 확인해주세요.';
 }
 
 /** 화면의 KST datetime-local(분 단위) 값을 ISO 시각으로. 형식이 다르면 null. */
@@ -289,4 +298,55 @@ export function normalizeCanceledDispatchResolution(input: unknown): { ok: true;
     return { ok: false, error: warehouseStopErrorMessage('invalid_canceled_dispatch_resolution') };
   }
   return { ok: true, value: { orderId, dispatchId, outcome, note, operationId } };
+}
+
+/** 반송 입고를 고를 수 없을 때 그 자리에 보이는 이유. */
+export const WAREHOUSE_STOP_RETURNED_LOCK_REASON = '창고가 이미 출고했다고 회신한 발송 대기 배송 건에만 고를 수 있습니다.';
+
+/**
+ * 반송 입고는 창고가 이미 출고했다고 회신한 발송 대기 배송 건에만 남긴다(DB 판정과 같다 — `admin_record_warehouse_stop_reply`).
+ * 고른 배송 건이 모두 그래야 고를 수 있고, 아니면 화면이 미리 잠근다.
+ */
+export function warehouseStopReturnedAllowed(shipments: readonly Pick<WarehouseStopShipment, 'status' | 'stopStatus'>[]): boolean {
+  return shipments.length > 0 && shipments.every(shipment => shipment.status === 'ready' && shipment.stopStatus === 'already_shipped');
+}
+
+/** 회신 기록 양식에서 아직 빠진 것 하나(없으면 null). 기록 버튼을 잠그고 그 이유를 버튼 옆에 보인다. */
+export function warehouseStopReplyMissing(input: { selected: number; outcome: string; channel: string; repliedAt: string; note: string }): string | null {
+  if (!input.selected) return '기록할 배송 건을 골라주세요.';
+  if (!input.outcome) return '창고 회신 결과를 골라주세요.';
+  if (!input.channel) return '회신 경로를 골라주세요.';
+  if (!input.repliedAt) return '창고가 회신한 시각을 넣어주세요.';
+  if (input.channel === 'other' && !input.note.trim()) return '경로가 기타이면 메모에 어디서 받은 회신인지 적어주세요.';
+  return null;
+}
+
+/** 취소 뒤 출고 처리 양식에서 아직 빠진 것 하나(없으면 null). */
+export function canceledDispatchResolveMissing(input: { outcome: string; note: string }): string | null {
+  if (!input.outcome) return '처리 결과를 골라주세요.';
+  if ([...input.note.trim()].length < CANCELED_DISPATCH_NOTE_MIN) return `근거를 ${CANCELED_DISPATCH_NOTE_MIN}자 이상 적어주세요.`;
+  return null;
+}
+
+/**
+ * 창고 회신 기록 확인창. 기록은 지울 수 없다. 이미 취소된 배송 건에 '이미 출고'를 남기면 재고가 다시 빠지므로 그 결과를 먼저 말한다.
+ * `targets`는 화면에 보이는 배송 건 이름(출고지 · 배송건번호)을 쉼표로 이은 글이다.
+ */
+export function warehouseStopReplyConfirm({ targets, outcome, canceledSelected }: { targets: string; outcome: WarehouseStopOutcome; canceledSelected: boolean }) {
+  const discovery = outcome === 'already_shipped' && canceledSelected;
+  return {
+    title: '창고 회신을 기록할까요?',
+    message: discovery
+      ? `배송 건 ${targets}에 창고 회신(이미 출고)을 남깁니다. 이미 취소된 배송 건은 '취소 뒤 출고 발견'으로 남고, 그 수량만큼 재고를 다시 뺍니다. 기록은 지울 수 없습니다.`
+      : `배송 건 ${targets}에 창고 회신(${WAREHOUSE_STOP_OUTCOME_LABELS[outcome]})을 남깁니다. 기록은 지울 수 없습니다. 잘못 남겼다면 바른 회신을 새로 기록하세요(가장 늦은 회신을 따릅니다).`,
+    confirmLabel: '회신 기록',
+    destructive: discovery,
+  };
+}
+
+/** 취소 뒤 출고 처리 확인창. 회수 입고는 발견 때 뺀 재고를 되돌리고, 손실은 그대로 둔다. 둘 다 되돌릴 수 없다. */
+export function canceledDispatchResolveConfirm({ target, outcome, withdrawnQty }: { target: string; outcome: CanceledDispatchResolution; withdrawnQty: number }) {
+  return outcome === 'returned'
+    ? { title: '취소 뒤 출고 처리', message: `배송 건 ${target}\n회수한 상품이 창고에 입고된 것을 확인했나요? 발견 때 뺀 재고 ${withdrawnQty}개를 되돌립니다. 되돌릴 수 없습니다.`, confirmLabel: '회수 입고 처리' }
+    : { title: '취소 뒤 출고 처리', message: `배송 건 ${target}\n회수할 수 없어 손실로 처리할까요? 재고는 발견 때 뺀 그대로 둡니다. 되돌릴 수 없습니다.`, confirmLabel: '손실 처리' };
 }

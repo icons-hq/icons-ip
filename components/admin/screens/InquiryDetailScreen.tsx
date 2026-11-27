@@ -28,6 +28,7 @@ import { InquiryProcessingHistoryList } from './InquiryProcessingHistory';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 import { InquirySatisfactionContext } from './InquirySatisfactionContext';
 import { INQUIRY_LIVE_CLASS, INQUIRY_SLA_TONE_CLASS } from './cs-kit-classes';
+import { paymentProviderValueLabel } from '@/lib/payments/provider-capabilities';
 
 /* 어드민 문의 상세(#253).
  *
@@ -57,12 +58,6 @@ const CLAIM_STATUS_LABELS: Record<string, string> = {
   needs_review: '운영 확인 필요',
   completed: '취소 완료',
   rejected: '요청 거절',
-};
-
-const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
-  toss: '토스페이먼츠',
-  nicepay: '나이스페이',
-  korpay: 'Korpay',
 };
 
 /* 글쓴이 역할을 이름 앞에 글자로 붙인다(색·위치만으로 말하지 않게). 자동 안내는 이름 자리가 이미 역할이다. */
@@ -222,7 +217,7 @@ export function InquiryDetailScreen({
                 {canManageSales ? <ContextRow
                   label="결제"
                   value={order.payment
-                    ? `${PAYMENT_PROVIDER_LABELS[order.payment.provider ?? ''] ?? order.payment.provider ?? '확인 필요'} · ${paymentStatusLabel(order.payment.status)}`
+                    ? `${paymentProviderValueLabel(order.payment.provider) ?? '확인 필요'} · ${paymentStatusLabel(order.payment.status)}`
                     : '결제 내역 없음'}
                 /> : null}
                 <ShipmentDetails admin shipments={order.shipments} />

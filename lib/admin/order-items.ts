@@ -13,6 +13,8 @@ export interface AdminOrderItemRow {
   originName: string | null; trackingNumber: string | null; carrierLabel: string | null;
   /** 화면만: 배송 건의 추가(연결) 운송장 번호(QNA-019, 등록 순). 없으면 키가 없다. */
   extraTrackingNumbers?: string[];
+  /** 출고 보류 중인 주문의 줄(I-01). DB가 발주확인을 거절하므로 화면이 체크칸을 뺀다. 화면 조회에서 신규주문 줄에만 실리고, 읽지 못했으면 키가 없다. */
+  fulfillmentHold?: boolean;
   claim: { id: string; type: OrderClaimType; stage: OrderClaimStage } | null;
   /** 재고 부족 부분 취소(ADR-0032)로 취소된 수량·남은 금액. 부분 취소가 없으면 없다(qty·itemAmount는 주문 당시 값이다). */
   partialCancel?: { canceledQty: number; activeQty: number; activeItemAmount: number; paidAmount: number };

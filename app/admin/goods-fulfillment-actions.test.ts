@@ -43,7 +43,7 @@ it('디지털 파일은 파일 번호만 보낸다', async () => {
 it('옛 모양(설정 근거·확인 체크)이나 맞지 않는 값은 쓰기 전에 돌려보내고, 안내는 근거를 말하지 않는다', async () => {
   for (const bad of [{ ...values, evidence: 'TEST 근거', confirmed: true }, { ...values, evidence: '' }, { ...values, methods: [] },
     { ...values, methods: [{ ...quick, feeAmount: -1 }] }, { ...values, mode: 'digital' }, { mode: 'shipping', methods: [parcel], files: [] }]) {
-    expect(await save(bad)).toEqual({ error: '받을 방식·비용·제공 파일을 확인해주세요.', uncertain: false });
+    expect(await save(bad)).toEqual({ error: '수령 방식·비용·디지털 파일을 확인해주세요.', uncertain: false });
   }
   expect(m.rpc).not.toHaveBeenCalled();
 });
@@ -58,11 +58,11 @@ it('로그인한 계정이 다르면 저장하지 않는다', async () => {
 
 it('저장 오류를 고칠 방법과 함께 알리고, 결과를 모르면 [저장됐는지 확인]으로 이끈다', async () => {
   m.rpc.mockResolvedValueOnce({ error: { code: 'PT409', message: 'fulfillment_changed' } });
-  expect(await save()).toEqual({ error: '다른 사람이 먼저 바꿨습니다. [현재 배송·제공 설정 불러오기]를 눌러 지금 설정을 확인한 뒤 다시 저장해주세요.', uncertain: false });
+  expect(await save()).toEqual({ error: '다른 사람이 먼저 바꿨습니다. [현재 수령 방식 불러오기]를 눌러 지금 수령 방식을 확인한 뒤 다시 저장해주세요.', uncertain: false });
   m.rpc.mockResolvedValueOnce({ error: { code: '23514', message: 'digital_asset_unavailable' } });
   expect(await save()).toEqual({ error: '파일 확인이 끝나지 않았거나 사용할 수 없는 파일입니다.', uncertain: false });
   m.rpc.mockResolvedValueOnce({ error: { code: '22023', message: 'invalid_parameter_value' } });
-  expect(await save()).toEqual({ error: '받을 방식·비용·제공 파일을 확인해주세요.', uncertain: false });
+  expect(await save()).toEqual({ error: '수령 방식·비용·디지털 파일을 확인해주세요.', uncertain: false });
   const unsure = { error: '저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.', uncertain: true };
   m.rpc.mockResolvedValueOnce({ error: { code: 'network' } });
   expect(await save()).toEqual(unsure);

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import {
+  adminUnpaidAttemptStateLabel,
   normalizeAdminUnpaidReason,
   normalizeAdminUnpaidReasonForm,
 } from '@/lib/admin/unpaid';
@@ -9,6 +10,8 @@ import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { sendOrderConfirmationEmail } from '@/lib/email/transactional.server';
 import { sendOrderConfirmationAlimtalk } from '@/lib/kakao/alimtalk/order-notices.server';
 import { createClient } from '@/lib/supabase/server';
+import { UNPAID_EXTENDED_MESSAGE } from '@/lib/admin/unpaid-copy';
+import { ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 
 /*
  * 미입금 확인 콘솔 액션(#256).
@@ -49,7 +52,7 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
     return '기한 연장은 주문당 한 번입니다. 더 기다릴 수 없다면 취소해주세요.';
   }
   if (value.includes('order_not_found')) return '주문을 찾을 수 없습니다.';
-  if (value.includes('staff required')) return '관리자 권한이 필요합니다.';
+  if (value.includes('staff required')) return ADMIN_SALES_ACCESS_DENIED;
   return fallback;
 }
 
@@ -72,10 +75,10 @@ async function finalizationResult(
     await Promise.all([sendOrderConfirmationEmail(orderId), sendOrderConfirmationAlimtalk(orderId)]);
     return { message: successMessage };
   }
+  /* 영문 상태값(needs_review 등)을 그대로 보이지 않는다 — 목록의 상태 이름으로 말하고, 다음 할 일을 쓴다. */
+  const state = typeof outcome === 'string' ? adminUnpaidAttemptStateLabel(outcome) : '확인 필요';
   return {
-    error: `입금 기록은 남았지만 주문이 결제완료로 확정되지 않았습니다(결과 코드: ${
-      typeof outcome === 'string' ? outcome : 'unknown'
-    }). 구매자 계정이 정지됐거나 주문 금액 기록이 맞지 않을 때 이렇게 됩니다. 주문 상세의 결제 내역을 확인하고 개발 담당자에게 결과 코드와 함께 알려주세요.`,
+    error: `입금 기록은 남았지만 주문이 결제완료로 확정되지 않았습니다(상태: ${state}). 구매자 계정이 정지됐거나 주문 금액 기록이 맞지 않을 때 이렇게 됩니다. 주문 상세의 결제 내역을 확인하고, 풀리지 않으면 주문번호와 함께 개발 담당자에게 알려주세요.`,
   };
 }
 
@@ -97,7 +100,7 @@ async function recoverConfirmationEmailOnReplay(
 }
 
 async function requireStaffAction(): Promise<AdminUnpaidActionState | null> {
-  if (!await requireAdminActionAccess('/admin/sales/unpaid', { capability: 'sales.manage' })) return { error: '관리자 권한이 필요합니다.' };
+  if (!await requireAdminActionAccess('/admin/sales/unpaid', { capability: 'sales.manage' })) return { error: ADMIN_SALES_ACCESS_DENIED };
   return null;
 }
 
@@ -165,7 +168,7 @@ export async function extendBankTransferDeadlineAction(
   if (error) return { error: rpcErrorMessage(error.message, EXTEND_FAILED) };
 
   revalidateUnpaidSurfaces(normalized.value.orderId);
-  return { message: '입금 기한을 24시간 연장했습니다.' };
+  return { message: UNPAID_EXTENDED_MESSAGE };
 }
 
 export async function cancelUnpaidBankTransferOrderAction(

@@ -18,14 +18,16 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
  *
  * 주문제작 상품은 교환품을 새로 만들어야 해서 재출고와 같은 요청으로 회수를 생략할 수 없다(제작이 끝나야 재출고한다).
  * 여기서 사유와 근거 사진으로 회수 생략을 먼저 기록하면 그 출고지의 교환품 제작이 열리고, 주문 상세의 주문제작 처리에서
- * 제작을 마친 뒤 회수·재배송 연락처 처리에서 회수 확인 없이 재출고한다. 사유·사진·하자 교환 여부는 DB가 다시 검사한다.
- * 사유와 확인은 제어 입력이라 실패한 제출 뒤에도 그대로 남고, 올린 사진은 숨은 id로만 보낸다(사진 본문은 다시 보내지 않는다). */
+ * 제작을 마친 뒤 재출고 등록에서 회수 확인 없이 재출고한다. 사유·사진·하자 교환 여부는 DB가 다시 검사한다.
+ * 사유는 제어 입력이라 실패한 제출 뒤에도 그대로 남고, 올린 사진은 숨은 id로만 보낸다(사진 본문은 다시 보내지 않는다).
+ * 확인 체크는 두지 않는다 — 같은 사실을 확인창이 대상·결과와 함께 묻는다. 서버 액션은 확인 값을 받지 않는다(DB 함수에도 그 인자가 없다). */
 /** 회수 생략 결정 확인창. 결정은 되돌리는 기능이 없어(ADR-0041) 대상 출고지와 결과를 셸 확인창에서 다시 확인받는다. */
 export function collectionWaiverConfirmRequest(originName: string): AdminConfirmRequest {
   return {
     title: `${originName} 회수 없이 교환품 제작을 시작할까요?`,
     message: `${originName} 배송 건의 회수 생략을 기록하고 교환품 제작을 엽니다. 결정은 되돌릴 수 없습니다 — 제작이 끝나면 회수 확인 없이 재출고하고, 회수 상품 재고는 복원하지 않습니다.`,
     confirmLabel: '회수 없이 제작 시작',
+    cancelLabel: '돌아가기',
     destructive: true,
   };
 }
@@ -33,7 +35,6 @@ export function collectionWaiverConfirmRequest(originName: string): AdminConfirm
 export function ClaimCollectionWaiverDecision({ claimId, shipmentId, originName }: { claimId: string; shipmentId: string; originName: string }) {
   const [state, action, pending] = useActionState(waiveOrderClaimCollectionAction, {});
   const [reason, setReason] = useState('');
-  const [confirmed, setConfirmed] = useState(false);
   const [evidence, setEvidence] = useState<ClaimEvidenceFile[]>([]);
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState('');
@@ -54,24 +55,22 @@ export function ClaimCollectionWaiverDecision({ claimId, shipmentId, originName 
       if (files.length > room) setUploadError(`근거 사진은 ${CLAIM_EVIDENCE_MAX_FILES}장까지 올릴 수 있어 앞의 ${room}장만 올렸습니다.`);
     } finally { setUploading(false); }
   }
-  const ready = claimWaiverReasonValid(reason) && evidence.length > 0 && confirmed;
+  /* 아직 채우지 않은 것. 버튼을 잠근 이유를 버튼 옆에 그대로 보인다(화면 규칙 5). */
+  const missing = [claimWaiverReasonValid(reason) ? null : '회수 생략 사유', evidence.length > 0 ? null : '근거 사진'].filter((item): item is string => item !== null);
   return <form action={action} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-claim-waiver-decision={shipmentId}
     onSubmit={event => { confirmAdminSubmit(event, collectionWaiverConfirmRequest(originName)); }}>
     <input type="hidden" name="claimId" value={claimId} />
     <input type="hidden" name="shipmentId" value={shipmentId} />
     {evidence.map(file => <input key={file.id} type="hidden" name="evidenceFileId" value={file.id} />)}
-    <AdminNotice tone="warning" title={`${originName} 회수 없이 교환품 제작 시작`}>
-      주문제작 상품은 교환품을 새로 만들어 보냅니다. 회수 생략을 기록하면 이 출고지의 교환품 제작이 열리고, 제작이 끝나면 회수 확인 없이
-      재출고합니다. 회수 상품 재고는 복원하지 않습니다.
-    </AdminNotice>
+    <AdminNotice tone="warning" title={`${originName} 회수 없이 교환품 제작 시작`} />
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={reasonId}>회수 생략 사유</Label>
+      <Label htmlFor={reasonId}>회수 생략 사유 (필수, {CLAIM_WAIVER_REASON_MIN}~{CLAIM_WAIVER_REASON_MAX}자)</Label>
       <Textarea id={reasonId} name="reason" required maxLength={CLAIM_WAIVER_REASON_MAX} rows={3} value={reason} disabled={pending}
         onChange={event => setReason(event.target.value)} placeholder="예: 고객 사진으로 인쇄 불량 확인, 회수 없이 같은 디자인으로 다시 제작" />
+      <p className="text-xs text-muted-foreground">사유와 사진은 출고지별 재출고에 남습니다. 고객에게는 보이지 않습니다.</p>
     </div>
-    <p className="text-xs text-muted-foreground">사유 {CLAIM_WAIVER_REASON_MIN}~{CLAIM_WAIVER_REASON_MAX}자, 근거 사진 1~{CLAIM_EVIDENCE_MAX_FILES}장(JPG·PNG·WebP). 고객에게는 사유와 사진이 보이지 않습니다.</p>
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={photoId}>근거 사진</Label>
+      <Label htmlFor={photoId}>근거 사진 (필수, 1~{CLAIM_EVIDENCE_MAX_FILES}장)</Label>
       <input accept={CLAIM_EVIDENCE_ACCEPT} className="w-full" disabled={pending || uploading || evidence.length >= CLAIM_EVIDENCE_MAX_FILES} id={photoId} multiple type="file"
         onChange={event => { void addEvidence(event); }} />
     </div>
@@ -80,11 +79,10 @@ export function ClaimCollectionWaiverDecision({ claimId, shipmentId, originName 
       <a className="underline underline-offset-4" href={claimEvidenceUrl(file.id)} rel="noreferrer" target="_blank">사진 {index + 1}</a>
       <Button disabled={pending} size="sm" type="button" variant="outline" onClick={() => setEvidence(previous => previous.filter(item => item.id !== file.id))}>빼기</Button>
     </li>)}</ul> : null}
-    <label className="flex items-start gap-2 leading-relaxed">
-      <input checked={confirmed} className="mt-1" disabled={pending} name="confirmed" type="checkbox" onChange={event => setConfirmed(event.target.checked)} />
-      <span>하자·오배송이라 회수 확인 없이 교환품을 새로 만들어 보냅니다.</span>
-    </label>
-    <Button className="w-fit" disabled={pending || uploading || !ready} size="sm" type="submit">회수 없이 제작 시작</Button>
+    <div className="flex flex-wrap items-center gap-2">
+      <Button className="w-fit" disabled={pending || uploading || missing.length > 0} size="sm" type="submit">회수 없이 제작 시작</Button>
+      {missing.length ? <p className="text-xs text-muted-foreground" data-claim-waiver-missing="">아직 필요한 것: {missing.join(' · ')}</p> : null}
+    </div>
     {uploadError || state.error ? <p className="text-destructive" role="alert">{uploadError || state.error}</p> : null}
     {state.message ? <p className="text-muted-foreground" role="status">{state.message}</p> : null}
   </form>;

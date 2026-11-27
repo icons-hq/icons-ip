@@ -97,6 +97,22 @@ const int = (value: unknown) => {
   return Number.isFinite(parsed) ? Math.trunc(parsed) : 0;
 };
 
+/**
+ * 부분 반품 요청의 품목별 재고 처리 칸에 보이는 수량(표시용). DB 목록(admin_claim_defective_items)은 품목의 남은 주문 수량을 싣는데,
+ * 이 요청이 돌려받는 것은 고른 수량뿐이다(주문 2개 중 1개만 반품하면 1개 — 실제 복원도 1개다). 요청에 담긴 품목의 수량만 요청한 수량으로 바꾸고,
+ * 선택·저장 상태·보내는 값은 건드리지 않는다. 부분 반품이 아니거나 요청 품목을 모르면 그대로 돌려준다.
+ */
+export function defectiveStockWithRequestedQty(
+  stock: ClaimDefectiveStock | null | undefined, requested: readonly { orderItemId: string; qty: number }[] | null | undefined,
+): ClaimDefectiveStock | null | undefined {
+  if (!stock || !requested || requested.length === 0) return stock;
+  const byItem = new Map(requested.map((item) => [item.orderItemId.toLowerCase(), item.qty]));
+  return { ...stock, items: stock.items.map((item) => {
+    const qty = byItem.get(item.orderItemId.toLowerCase());
+    return qty === undefined ? item : { ...item, qty };
+  }) };
+}
+
 export function parseClaimDefectiveStock(value: unknown): ClaimDefectiveStock[] {
   if (!Array.isArray(value)) return [];
   return value.filter(isRecord).map((row) => ({

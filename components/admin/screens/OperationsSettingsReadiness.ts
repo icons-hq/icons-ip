@@ -1,6 +1,6 @@
 import { BANK_ACCOUNT_LABELS, mergeBusinessInfo, type EditableCarrier } from '@/lib/admin/store-settings';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
-import type { ShippingRegionPolicy } from '@/lib/admin/shipping-regions';
+import type { ShippingRegionOriginStatus } from '@/lib/admin/shipping-regions';
 import { BUSINESS_INFO_LABELS, type BusinessInfo } from '@/lib/legal/business-info';
 
 /** 운영 준비 카드 하나의 입력 상태. `detail`은 무엇이 남았는지 말하는 짧은 글자다. */
@@ -13,7 +13,8 @@ export interface OperationsReadinessSources {
   business?: Record<string, unknown>;
   bankTransfer?: Record<string, string> | null;
   origins?: Pick<GoodsFulfillmentOrigin, 'active' | 'returnAddress'>[];
-  regions?: Pick<ShippingRegionPolicy, 'status'>[];
+  /** 사용 중인 출고지마다의 지역별 추가배송비 상태(`shippingRegionOriginStatus` — 지역별 추가배송비 화면과 같은 판정). */
+  regions?: Pick<ShippingRegionOriginStatus, 'kind'>[];
   carriers?: Pick<EditableCarrier, 'active'>[];
   activeNoticeTemplates?: number;
   storeCreditsEnabled?: boolean;
@@ -40,8 +41,11 @@ export function operationsReadiness(source: OperationsReadinessSources): Operati
         : { done: true, detail: `출고지 ${active.length}곳 사용 중` };
   }
   if (source.regions !== undefined) {
-    const active = source.regions.filter(policy => policy.status === 'active').length;
-    readiness.regions = active ? { done: true, detail: `사용 중인 정책 ${active}개` } : { done: false, detail: '사용 중인 정책 없음' };
+    /* 새 주문이 막힌 출고지가 하나라도 있으면 입력이 끝난 것이 아니다 — 적용 기간이 끝났거나 끝낸 설정, 시작 전인 설정은 세지 않는다. */
+    const blocked = source.regions.filter(status => status.kind === 'blocked').length;
+    const inEffect = source.regions.filter(status => status.kind === 'in_effect').length;
+    readiness.regions = blocked ? { done: false, detail: `새 주문이 막힌 출고지 ${blocked}곳` }
+      : inEffect ? { done: true, detail: `적용 중인 설정 ${inEffect}개` } : { done: false, detail: '적용 중인 설정 없음' };
   }
   if (source.carriers !== undefined) {
     const active = source.carriers.filter(carrier => carrier.active).length;

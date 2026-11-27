@@ -133,6 +133,15 @@ export function adminClaimExchangeStockTargets(claim: Claim, orderItems: readonl
   });
 }
 
+/**
+ * 재출고 상품으로 고를 수 있는 옵션(화면 규칙 2 — 고를 수 없는 항목은 선택창에 넣지 않는다).
+ * 재고가 없는 다른 옵션은 보낼 수 없어 뺀다. 지금 옵션은 재고가 0이어도 남긴다 — DB는 그 배송 건의 회수품(+)과 보낸 옵션(−)을
+ * 먼저 상쇄하므로, 회수한 상품을 되돌리고 같은 옵션을 보내는 재출고는 재고가 0이어도 된다(회수 없이 보내거나 불량이면 DB가 재고 부족으로 거절한다).
+ */
+export function adminClaimReshipSelectableOptions(item: AdminClaimReshipItem): AdminClaimReshipItem['options'] {
+  return item.options.filter(option => option.id === item.currentVariantId || option.stockQty > 0);
+}
+
 /** 아직 재출고하지 않은 대상 배송 건 수. 1이면 지금 등록하는 재출고가 교환을 종결한다. */
 export function adminClaimRemainingReshipments(claim: Claim) {
   return (claim.reshipmentTargets ?? []).filter(target => !target.reshipped).length;

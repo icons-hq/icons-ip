@@ -4,25 +4,26 @@ import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
-import { normalizeOrderAddressRequest, orderAddressError, orderAddressReceiptMatches, parseOrderAddressReceipt, type OrderAddressContext, type OrderAddressReceipt } from '@/lib/admin/order-address';
+import { normalizeOrderAddressRequest, orderAddressError, orderAddressReceiptMatches, parseOrderAddressReceipt, ORDER_ADDRESS_PERMISSION_MESSAGE, type OrderAddressContext, type OrderAddressReceipt } from '@/lib/admin/order-address';
+import { SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { getOrderAddressContext, getOrderAddressReceipt } from '@/lib/admin/order-address.server';
 const PATH = '/admin/sales/orders';
 const access = () => requireAdminActionAccess(PATH, { capability: 'sales.manage' });
 export async function loadOrderAddressContextAction(orderId: string): Promise<{ context: OrderAddressContext } | { error: string }> {
-  if (!await access()) return { error: '배송지를 수정할 권한(판매 관리)이 없거나 로그인이 끝났습니다. 로그인 계정을 확인해주세요.' };
-  if (!isUuid(orderId)) return { error: '주문 정보를 확인하지 못했습니다. 주문 화면을 새로고침해주세요.' };
+  if (!await access()) return { error: ORDER_ADDRESS_PERMISSION_MESSAGE };
+  if (!isUuid(orderId)) return { error: '주문 정보를 확인하지 못했습니다. 화면을 새로고침한 뒤 다시 눌러 주세요.' };
   try { return { context: await getOrderAddressContext(orderId.toLowerCase()) }; }
-  catch (error) { unstable_rethrow(error); return { error: '배송 정보와 변경 이력을 읽지 못했습니다. 다시 확인해주세요.' }; }
+  catch (error) { unstable_rethrow(error); return { error: '배송지와 변경 이력을 불러오지 못했습니다. 잠시 뒤 다시 눌러 주세요.' }; }
 }
 export type OrderAddressActionResult = { receipt: OrderAddressReceipt | null } | { error: string; uncertain?: boolean; conflict?: boolean };
 export async function readOrderAddressChangeAction(id: string): Promise<OrderAddressActionResult> {
-  if (!await access()) return { error: '배송지를 수정할 권한(판매 관리)이 없거나 로그인이 끝났습니다. 로그인 계정을 확인해주세요.' };
-  if (!isUuid(id)) return { error: '변경 요청 정보를 확인하지 못했습니다. 주문 화면을 새로고침해주세요.' };
+  if (!await access()) return { error: ORDER_ADDRESS_PERMISSION_MESSAGE };
+  if (!isUuid(id)) return { error: '변경 요청을 확인하지 못했습니다. 화면을 새로고침한 뒤 다시 눌러 주세요.' };
   try { return { receipt: await getOrderAddressReceipt(id.toLowerCase()) }; }
-  catch (error) { unstable_rethrow(error); return { error: '저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 눌러주세요.', uncertain: true }; }
+  catch (error) { unstable_rethrow(error); return { error: SAVE_UNKNOWN_MESSAGE, uncertain: true }; }
 }
 export async function changeOrderAddressAction(input: unknown): Promise<OrderAddressActionResult> {
-  if (!await access()) return { error: '배송지를 수정할 권한(판매 관리)이 없거나 로그인이 끝났습니다. 로그인 계정을 확인해주세요.' };
+  if (!await access()) return { error: ORDER_ADDRESS_PERMISSION_MESSAGE };
   const parsed = normalizeOrderAddressRequest(input); if ('error' in parsed) return parsed;
   const request = parsed.request;
   try {
@@ -31,8 +32,8 @@ export async function changeOrderAddressAction(input: unknown): Promise<OrderAdd
       p_expected_revision: request.revision, p_address: request.address, p_reason: request.reason, p_customer_agreed: request.agreed });
     if (error) return { error: orderAddressError(error.code, error.message), conflict: error.code === 'PT409', uncertain: !['42501', 'PT409', '22023', '23514', 'P0002'].includes(error.code ?? '') };
     const receipt = parseOrderAddressReceipt(data);
-    if (!receipt || !orderAddressReceiptMatches(receipt, request)) return { error: '저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 눌러주세요.', uncertain: true };
+    if (!receipt || !orderAddressReceiptMatches(receipt, request)) return { error: SAVE_UNKNOWN_MESSAGE, uncertain: true };
     for (const path of [PATH, `${PATH}/${request.orderId}`, '/admin/sales/dispatch', '/admin/sales/shipping', `/orders/${request.orderId}`, `/checkout/${request.orderId}`]) revalidatePath(path);
     return { receipt };
-  } catch (error) { unstable_rethrow(error); return { error: '저장됐는지 확인하지 못했습니다. [같은 요청의 저장 결과 확인]을 눌러주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: SAVE_UNKNOWN_MESSAGE, uncertain: true }; }
 }

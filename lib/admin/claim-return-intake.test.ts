@@ -94,6 +94,6 @@ describe('반품 자동 회수 접수 운영 표시', () => {
     expect(pickup && returnPickupRetryable({ ...pickup, state: 'requested' })).toBe(false);
     expect(parseAdminReturnPickup({ pickupId: 'p', state: 'teleported', carrier: 'hanjin' })).toBeNull();
     expect(returnPickupErrorLabel('pickup_address_unavailable')).toContain('회수지');
-    expect(returnPickupErrorLabel('carrier_closed')).toBe('택배사 응답 carrier_closed');
+    expect(returnPickupErrorLabel('carrier_closed')).toBe('택배사가 받지 않았습니다 · 문의할 때 알려 줄 코드 carrier_closed');
   });
 });

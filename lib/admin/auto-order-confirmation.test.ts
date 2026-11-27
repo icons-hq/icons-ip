@@ -33,9 +33,10 @@ describe('자동 발주확인 문서', () => {
     for (const bad of ['24:00', '9:00', '16:30:00', '16:60', '', null]) expect(isAutoOrderRunTime(bad)).toBe(false);
   });
   it('충돌·권한·입력 오류를 운영자 문구로 바꾼다', () => {
-    expect(autoOrderConfirmationError('PT409')).toContain('다른 담당자');
+    expect(autoOrderConfirmationError('PT409')).toContain('다른 사람이 먼저 바꿨습니다.');
     expect(autoOrderConfirmationError('42501')).toContain('권한');
     expect(autoOrderConfirmationError('22023')).toContain('00:00~23:59');
-    expect(autoOrderConfirmationError()).toContain('같은 요청');
+    /* 결과를 모를 때는 낱말 표의 문장 그대로다(패널의 [저장됐는지 확인] 버튼과 같은 이름). */
+    expect(autoOrderConfirmationError()).toBe('저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.');
   });
 });

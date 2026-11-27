@@ -51,13 +51,15 @@ describe('SettledScreen', () => {
     const search = html.slice(html.indexOf('data-sales-filters=""'), html.indexOf('</form>'));
     expect((search.match(/name="field"/g) ?? [])).toHaveLength(1);
   });
-  it('확정일과 하자 클레임 잔여 기한을 함께 보여준다', () => {
+  it('거래확정일과 하자 반품·교환 기한을 함께 보여준다', () => {
     const html = renderToStaticMarkup(<SettledScreen data={data()} now={NOW} />);
 
-    expect(html).toContain('확정일');
+    /* 열 이름만 읽고 무슨 날짜·기한인지 안다(화면 규칙 4). */
+    for (const label of ['배송완료일', '거래확정일', '하자 반품·교환 기한']) expect(html).toContain(`>${label}<`);
     expect(html).toContain('dateTime="2026-06-18T06:00:00.000Z"');
     // 2026-06-10 + 3개월 = 2026-09-10, 기준 시각까지 23일 남음
-    expect(html).toContain('가능 · 23일 남음');
+    expect(html).toContain('>23일 남음<');
+    expect(html).not.toContain('가능 ·');
     expect(html).toContain('data-claim-open="true"');
   });
 
@@ -66,9 +68,34 @@ describe('SettledScreen', () => {
   it('거래확정이 클레임 종료가 아님을 화면에서 말한다', () => {
     const html = renderToStaticMarkup(<SettledScreen data={data()} now={NOW} />);
 
-    expect(html).toContain('배송일과 사유별 신청 기한');
-    expect(html).toContain('자동 확정은 기본 꺼짐');
+    expect(html).toContain('뒤에도 반품·교환은 배송완료일과 사유별 신청 기한 안에 받습니다.');
     expect(html).toContain('판매대금 지급 완료나 반품·교환 권리의 소멸을 뜻하지 않습니다.');
+  });
+
+  /* 안내문은 실제 상태와 상관없이 "자동 확정은 기본 꺼짐"이라고 했고, 정책 화면으로 가는 길은 접힌 설명 속 링크 하나였다.
+     지금 상태를 읽어 목록 위 버튼으로 보이고, 그 버튼이 정책 화면으로 간다. */
+  it('자동 거래확정이 켜져 있는지 실제 상태로 보이고 정책 화면으로 간다', () => {
+    const status = (html: string) => html.match(/<a[^>]*data-settled-auto="[^"]*"[^>]*>[\s\S]*?<\/a>/)?.[0] ?? '';
+    const on = status(renderToStaticMarkup(<SettledScreen data={data()} now={NOW} autoConfirmation={{ enabled: true, afterDays: 8 }} />));
+    expect(on).toContain('data-settled-auto="on"');
+    expect(on).toContain('href="/admin/sales/settled/policy"');
+    expect(on).toContain('자동 거래확정');
+    expect(on).toMatch(/data-tone="success"[^>]*>켜짐</);
+    expect(on).toContain('배송완료 8일 뒤 · 설정');
+
+    const off = status(renderToStaticMarkup(<SettledScreen data={data()} now={NOW} autoConfirmation={{ enabled: false, afterDays: 8 }} />));
+    expect(off).toMatch(/data-tone="neutral"[^>]*>꺼짐</);
+    expect(off).not.toContain('배송완료 8일 뒤');
+
+    const unknown = status(renderToStaticMarkup(<SettledScreen data={data()} now={NOW} autoConfirmation={null} />));
+    expect(unknown).toMatch(/data-tone="danger"[^>]*>불러오지 못함</);
+
+    const html = renderToStaticMarkup(<SettledScreen data={data()} now={NOW} autoConfirmation={{ enabled: false, afterDays: null }} />);
+    expect(html.indexOf('data-settled-auto')).toBeLessThan(html.indexOf('data-sales-filters'));
+    expect(html).not.toContain('기본 꺼짐');
+    expect(html).not.toContain('구매확정');
+    /* 상태를 넘기지 않은 곳에는 버튼을 그리지 않는다. */
+    expect(renderToStaticMarkup(<SettledScreen data={data()} now={NOW} />)).not.toContain('data-settled-auto');
   });
 
   /* 사람 눈 판정(3라운드): 긴 닉네임이 '@ / 메이플20년차모험가 / _민지'로 세 줄로 깨졌고 @는 주문통합검색에 없는 표기였다. */
@@ -89,24 +116,25 @@ describe('SettledScreen', () => {
     expect(quiet).not.toMatch(/data-claim-open="true"[^>]*data-tone=/);
   });
 
-  it('3개월이 지난 주문은 기한 종료로 표기한다', () => {
+  it('3개월이 지난 주문은 기한이 끝났다고 표기한다', () => {
     const html = renderToStaticMarkup(
       <SettledScreen data={data()} now={new Date('2026-10-01T06:00:00.000Z')} />,
     );
 
-    expect(html).toContain('기한 종료');
+    expect(html).toContain('>끝남<');
     expect(html).toContain('data-claim-open="false"');
   });
 
-  it('공급일이 없으면 기한 대신 원장 확인을 요구한다', () => {
+  it('배송완료일이 없으면 기한을 지어내지 않고 없다고 말한다', () => {
     const html = renderToStaticMarkup(
       <SettledScreen data={data({
         rows: [{ ...data().rows[0], deliveredAt: null }],
       })} now={NOW} />,
     );
 
-    expect(html).toContain('공급일 기록 없음 · 주문 기록 확인 필요');
-    expect(html).toContain('미기록');
+    expect(html).toContain('>배송완료일 없음<');
+    expect(html).toContain('>없음<');
+    expect(html).not.toContain('미기록');
   });
 
   /* 확정 이후를 되돌리는 조작은 클레임 경로가 맡는다. 선택 체크박스를 두면
@@ -131,13 +159,15 @@ describe('SettledScreen', () => {
   it('같은 조회 조건의 전체 페이지를 영수증 생성 동선에 전달한다', () => {
     const html = renderToStaticMarkup(<SettledScreen data={data({ filters: { from: '2026-09-01', to: '2026-09-09', query: '0000', page: 3 } })}
       exportRequestId="10000000-0000-4000-8000-000000004951" now={NOW} />);
-    expect(html).toContain('목록 엑셀 다운로드');
-    /* 보존 기록 생성은 서버 액션 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
-    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>(?:<svg[\s\S]*?<\/svg>)?목록 엑셀 다운로드</);
+    /* 첫 버튼은 파일을 받지 않고 엑셀에 담을 내용을 만든다. 이름이 그 일을 말한다(받는 버튼은 만든 뒤에 나온다). */
+    expect(html).not.toContain('목록 엑셀 다운로드');
+    /* 만들기는 서버 액션 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>(?:<svg[\s\S]*?<\/svg>)?엑셀 만들기</);
     /* 다른 주문·배송 목록처럼 목록 머리에 둔다. 표 위의 안내 문단은 메뉴설명으로 접혀 표를 밀지 않는다. */
-    expect(html.indexOf('목록 엑셀 다운로드')).toBeLessThan(html.indexOf('<thead'));
-    expect(html.indexOf('자동 확정은 기본 꺼짐')).toBeLessThan(html.indexOf('data-sales-filters'));
+    expect(html.indexOf('엑셀 만들기')).toBeLessThan(html.indexOf('<thead'));
+    expect(html.indexOf('data-sales-guide')).toBeLessThan(html.indexOf('data-sales-filters'));
     expect(html).toContain('지금 조회 조건의 모든 페이지');
+    expect(html).toContain('주문 1,000건·품목 10,000줄까지 담습니다.');
     expect(html).toContain('name="from" value="2026-09-01"');
     expect(html).toContain('name="query" value="0000"');
     expect(html).toContain('name="requestId" value="10000000-0000-4000-8000-000000004951"');

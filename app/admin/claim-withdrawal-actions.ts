@@ -1,11 +1,14 @@
 'use server';
-import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
-import { claimWithdrawalError, claimWithdrawalReceiptMatches, normalizeClaimWithdrawalRequest, parseClaimWithdrawalContext, parseClaimWithdrawalReceipt, type ClaimWithdrawalResult } from '@/lib/orders/claim-withdrawal';
+import { claimWithdrawalError, parseClaimWithdrawalContext, type ClaimWithdrawalResult } from '@/lib/orders/claim-withdrawal';
 const access = () => requireAdminActionAccess('/admin/sales/claims/returns', { capability: 'sales.manage' });
+/*
+ * 요청 상세의 철회 이력 읽기. 운영자가 고객 대신 철회하는 양식은 없앴다(2026-10-27 "철회는 구매자 몫") — 대리 철회·그 결과 확인 액션도
+ * 부르는 화면이 없어 함께 지웠다. DB 함수(admin_withdraw_order_claim·admin_read_order_claim_withdrawal)는 그대로 있다.
+ */
 export async function loadAdminClaimWithdrawalAction(claimId: string): Promise<ClaimWithdrawalResult> {
   if (!await access()) return { error: claimWithdrawalError('42501') };
   if (!isUuid(claimId)) return { error: '요청을 찾지 못했습니다. 화면을 새로고침한 뒤 다시 열어주세요.' };
@@ -15,28 +18,4 @@ export async function loadAdminClaimWithdrawalAction(claimId: string): Promise<C
     if (error || !context || context.claimId !== claimId) return { error: claimWithdrawalError(error?.code, error?.message) };
     return { context };
   } catch (error) { unstable_rethrow(error); return { error: '최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.' }; }
-}
-export async function readAdminClaimWithdrawalAction(id: string): Promise<ClaimWithdrawalResult> {
-  if (!await access()) return { error: claimWithdrawalError('42501'), uncertain: true };
-  if (!isUuid(id)) return { error: '저장 결과를 확인할 번호가 올바르지 않습니다. 새로고침해 처리 이력을 확인해주세요.', uncertain: true };
-  try {
-    const client = await createClient(); const { data, error } = await client.rpc('admin_read_order_claim_withdrawal', { p_operation_id: id });
-    if (error) return { error: claimWithdrawalError(error.code, error.message), uncertain: true };
-    if (data === null) return { receipt: null };
-    const receipt = parseClaimWithdrawalReceipt(data);
-    return receipt?.id === id && receipt.actorKind === 'operator' ? { receipt } : { error: '불러온 저장 결과가 이 요청과 맞지 않습니다. 새로고침해 처리 이력을 확인해주세요.', uncertain: true };
-  } catch (error) { unstable_rethrow(error); return { error: '저장 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청 결과 확인]을 다시 눌러주세요.', uncertain: true }; }
-}
-export async function submitAdminClaimWithdrawalAction(input: unknown): Promise<ClaimWithdrawalResult> {
-  if (!await access()) return { error: claimWithdrawalError('42501') };
-  const request = normalizeClaimWithdrawalRequest(input); if (!request) return { error: claimWithdrawalError(undefined, 'invalid_claim_withdrawal') };
-  try {
-    const client = await createClient(); const { data, error } = await client.rpc('admin_withdraw_order_claim', { p_claim_id: request.claimId, p_operation_id: request.id,
-      p_expected_revision: request.revision, p_reason: request.reason, p_confirmed: request.confirmed });
-    if (error) return { error: claimWithdrawalError(error.code, error.message), conflict: error.code === 'PT409', uncertain: !['PT409', '42501', '22023', '23514', 'P0002'].includes(error.code ?? '') };
-    const receipt = parseClaimWithdrawalReceipt(data);
-    if (!receipt || !claimWithdrawalReceiptMatches(receipt, request, true)) return { error: '저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.', uncertain: true };
-    for (const path of ['/admin/sales/claims', '/admin/sales/orders', `/admin/sales/orders/${receipt.orderId}`, `/orders/${receipt.orderId}`]) revalidatePath(path, path === '/admin/sales/claims' ? 'layout' : 'page');
-    return { receipt };
-  } catch (error) { unstable_rethrow(error); return { error: '저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.', uncertain: true }; }
 }

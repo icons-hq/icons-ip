@@ -1,10 +1,11 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { setAdminConfirmHandler } from '@/lib/admin/confirm';
+import { adminBulkOrderConfirmRequest } from '@/lib/admin/order-confirmations';
 import type { ShipmentConsoleRow } from '@/lib/admin/shipment-dispatch';
 const mocks = vi.hoisted(() => ({ complete: vi.fn(), export: vi.fn(), exportOrigin: vi.fn(), gaps: vi.fn(), originGaps: vi.fn(), refresh: vi.fn(), states: [] as unknown[], index: 0, work: [] as Promise<void>[], effects: [] as (() => void | (() => void))[] }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh, push: vi.fn() }) }));
-vi.mock('@/app/admin/order-actions', () => ({ bulkConfirmAdminOrdersAction: vi.fn() }));
+vi.mock('@/app/admin/order-actions', () => ({ bulkConfirmAdminOrdersAction: vi.fn(), saveAdminOrderDispatchDelayAction: vi.fn() }));
 vi.mock('@/app/admin/shipment-actions', () => ({ completeShipmentsAction: mocks.complete, exportShipmentsAction: mocks.export, exportPendingOriginShipmentsAction: mocks.exportOrigin, shipmentBarcodeGapsAction: mocks.gaps, originBarcodeGapsAction: mocks.originGaps }));
 vi.mock('./ShipmentPackPanel', () => ({ ShipmentPackPanel: () => null }));
 vi.mock('./OrderDelayNoticePanel', () => ({ OrderDelayNoticePanel: () => null }));
@@ -23,6 +24,8 @@ import { ConsoleGrid } from '@/components/admin/console';
 import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { bulkConfirmAdminOrdersAction } from '@/app/admin/order-actions';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
+import { DispatchDelayBulkNote } from './DispatchDelayBulkNote';
+import { GoodChoiceCard } from '@/components/admin/GoodEditorParts';
 import { ShipmentConsoleGrid } from './ShipmentConsoleGrid';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -42,26 +45,40 @@ function render() { mocks.index = 0; return ShipmentConsoleGrid(props); }
 function button(label: string) { const result = nodes(render()).find(node => isButton(node) && text(node.props.children as ReactNode) === label); if (!result) throw new Error(`Missing button: ${label}`); return result; }
 function click(label: string) { const element = button(label); (element.props.onClick as () => void)(); }
 function select(selected: string[]) { const grid = nodes(render()).find(node => node.type === ConsoleGrid)!; (grid.props.onSelectionChange as (ids: string[]) => void)(selected); }
+/* 배송완료 창의 '도착 일시' 선택 카드(H-01): now = 지금 도착으로 기록, carrier = 택배사 조회의 도착 일시 넣기. */
+function arrivalCard(tree: ReactNode, value: 'now' | 'carrier') { return nodes(tree).find(node => node.type === GoodChoiceCard && node.props.value === value)!; }
+function chooseArrival(tree: ReactNode, value: 'now' | 'carrier') { (arrivalCard(tree, value).props.onChange as () => void)(); }
 beforeEach(() => { vi.clearAllMocks(); mocks.states = []; mocks.index = 0; mocks.work = []; mocks.effects = []; mocks.complete.mockResolvedValue({ message: '2건 배송완료', failed: [] }); });
 afterEach(() => vi.unstubAllGlobals());
-it('선택한 합포장의 보이지 않는 구성 건을 포함해 확인하고 명시적으로 체크한 뒤에만 처리한다', async () => {
+/* H-01: "확인했습니다" 체크는 서버로 가지 않던 화면 전용 브레이크라 없앴다. 창이 건수(합포장 포함)를 말하고 버튼이 그 건수로 실행한다. */
+it('선택한 합포장의 보이지 않는 구성 건을 포함한 건수를 창과 버튼에 보이고, 확인 체크 없이 그 묶음만 처리한다', async () => {
   select([ids[0]]); click('선택 배송완료');
   expect(text(render())).toContain('총 2건');
-  expect(button('2건 배송완료 처리').props.disabled).toBe(true);
-  click('2건 배송완료 처리'); expect(mocks.complete).not.toHaveBeenCalled();
-  const checkbox = nodes(render()).find(node => node.type === 'input' && node.props.type === 'checkbox')!;
-  (checkbox.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+  expect(nodes(render()).some(node => node.type === 'input' && node.props.type === 'checkbox')).toBe(false);
+  /* 기본은 '지금 도착으로 기록'이고 일시 칸은 열리지 않는다. 돈·알림 결과 한 줄만 남는다. */
+  expect(arrivalCard(render(), 'now').props.checked).toBe(true);
+  expect(nodes(render()).some(node => isInput(node) && node.props.name === 'deliveredAt')).toBe(false);
+  expect(text(render())).toContain('청약철회·거래확정 기한을 이 일시부터 세고, 주문이 배송완료가 되면 고객에게 앱 알림이 갑니다.');
+  expect(button('2건 배송완료 처리').props.disabled).toBe(false);
+  expect(mocks.complete).not.toHaveBeenCalled();
   // A background selection change cannot replace the batch the operator reviewed.
   select([ids[2]]); click('2건 배송완료 처리'); await Promise.all(mocks.work);
   expect(mocks.complete).toHaveBeenCalledOnce(); expect(mocks.complete).toHaveBeenCalledWith([ids[0]], { deliveredAt: null, reason: '' });
   expect(mocks.refresh).toHaveBeenCalledOnce();
   expect(nodes(render()).some(node => node.type === CustomerServiceDialog)).toBe(false);
 });
-it('같은 합포장의 두 행을 골라도 중복 계산하지 않으며 취소 후 재확인에는 체크가 남지 않는다', () => {
+it('같은 합포장의 두 줄을 골라도 중복 계산하지 않으며, 돌아갔다 다시 열면 도착 일시 선택이 처음으로 돌아온다', () => {
   select(ids.slice(0, 2)); click('선택 배송완료');
-  expect(text(render())).not.toContain('총 4건'); expect(button('2건 배송완료 처리').props.disabled).toBe(true);
-  click('취소'); expect(mocks.complete).not.toHaveBeenCalled();
-  click('선택 배송완료'); expect(button('2건 배송완료 처리').props.disabled).toBe(true);
+  expect(text(render())).not.toContain('총 4건'); expect(button('2건 배송완료 처리')).toBeTruthy();
+  /* 도착 일시를 넣기로 하면 칸이 열리고, 비어 있는 동안에는 버튼이 잠기며 이유를 말한다. */
+  chooseArrival(render(), 'carrier');
+  expect(nodes(render()).some(node => isInput(node) && node.props.name === 'deliveredAt')).toBe(true);
+  expect(button('2건 배송완료 처리').props.disabled).toBe(true);
+  expect(text(render())).toContain('도착 일시를 넣으면 누를 수 있습니다.');
+  click('2건 배송완료 처리'); expect(mocks.complete).not.toHaveBeenCalled();
+  click('돌아가기'); expect(mocks.complete).not.toHaveBeenCalled();
+  click('선택 배송완료');
+  expect(arrivalCard(render(), 'now').props.checked).toBe(true); expect(button('2건 배송완료 처리').props.disabled).toBe(false);
 });
 it('김포·남양주에 엑스스퀘어 표준 양식을 기본으로 보내고 기존 창고 양식을 명시적으로 선택할 수 있다', async () => {
   const readyProps = { ...props, tab: 'ready' as const, rows: props.rows.map(value => ({ ...value, status: 'ready' as const })) };
@@ -70,7 +87,7 @@ it('김포·남양주에 엑스스퀘어 표준 양식을 기본으로 보내고
   const grid = nodes(ready()).find(node => node.type === ConsoleGrid)!;
   (grid.props.onSelectionChange as (ids: string[]) => void)([ids[0]]);
   function exportFile() {
-    const target = nodes(ready()).find(node => isButton(node) && text(node.props.children as ReactNode) === '출고지시 내보내기')!;
+    const target = nodes(ready()).find(node => isButton(node) && text(node.props.children as ReactNode) === '출고지시 내려받기')!;
     (target.props.onClick as () => void)();
   }
   expect(nodes(ready()).find(node => isSelect(node))!.props.value).toBe('auto');
@@ -90,7 +107,7 @@ it('김포·남양주에 엑스스퀘어 표준 양식을 기본으로 보내고
   expect(reset).toHaveBeenCalledOnce();
   expect(formData.has('password')).toBe(false);
   expect(mocks.export).toHaveBeenLastCalledWith([ids[0]], 'xlsx', 'smartstore', { password: '1234', passwordConfirmation: '1234' });
-  const cancel = nodes(ready()).find(node => isButton(node) && text(node.props.children as ReactNode) === '취소')!;
+  const cancel = nodes(ready()).find(node => isButton(node) && text(node.props.children as ReactNode) === '돌아가기')!;
   (cancel.props.onClick as () => void)();
   const layout = nodes(ready()).find(node => isSelect(node))!;
   (layout.props.onChange as (event: unknown) => void)({ target: { value: 'warehouse' } });
@@ -102,16 +119,16 @@ it('남양주(서원) 출고지는 원형 송장양식이 기본이고, 엑스�
  const origin={id:'00000000-0000-4000-8000-000000042202',name:'남양주',template:'seowon_xlsx',active:true};
  const readyProps={...props,tab:'ready' as const,rows:[],origins:[origin]};
  function ready(){mocks.index=0;return ShipmentConsoleGrid(readyProps);}
- function clickOrigin(){const target=nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode).startsWith('남양주 새 출고지시 전체 내려받기'))!;(target.props.onClick as ()=>void)();}
+ function clickOrigin(){const target=nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode).startsWith('남양주 출고지시 내려받기'))!;(target.props.onClick as ()=>void)();}
  mocks.exportOrigin.mockResolvedValue({error:'합성 재시도 안내'});
  expect(nodes(ready()).find(node=>isSelect(node))!.props.value).toBe('auto');
  // 버튼이 실제로 받을 양식을 적는다.
- expect(text(ready())).toContain('남양주 새 출고지시 전체 내려받기 (서원 송장양식)');
+ expect(text(ready())).toContain('남양주 출고지시 내려받기 (서원 송장양식)');
  clickOrigin();await Promise.all(mocks.work);
  expect(mocks.exportOrigin).toHaveBeenLastCalledWith(origin.id,'xlsx','warehouse',undefined);
  const layout=nodes(ready()).find(node=>isSelect(node))!;(layout.props.onChange as (event:unknown)=>void)({target:{value:'smartstore'}});
- expect(text(ready())).toContain('남양주 새 출고지시 전체 내려받기 (엑스스퀘어 표준 양식)');
- clickOrigin();expect(text(ready())).toContain('남양주의 아직 전달하지 않은 발송 대기 건');
+ expect(text(ready())).toContain('남양주 출고지시 내려받기 (엑스스퀘어 표준 양식)');
+ clickOrigin();expect(text(ready())).toContain('남양주의 출고지시 보내기 전인 발송 대기 건');
  const input=new FormData();input.set('password','1234');input.set('passwordConfirmation','1234');
  vi.stubGlobal('FormData',vi.fn(function(){return input;}));
  const form=nodes(ready()).find(node=>node.type==='form')!,reset=vi.fn();
@@ -140,22 +157,26 @@ it('김포 등 다른 출고지와 섞이면 엑스스퀘어 표준 양식이 �
  function ready(rows:ShipmentConsoleRow[]){mocks.index=0;return ShipmentConsoleGrid({...props,tab:'ready',origins,rows});}
  const gimpo=[{...readyRow,originId:'gimpo'}];
  let grid=nodes(ready(gimpo)).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)([ids[0]]);
- expect(text(ready(gimpo))).toContain('선택한 배송 건 내려받기 양식: 엑스스퀘어 표준 양식');
+ /* 드롭다운 항목은 '출고지 기본 양식'뿐이고, 실제로 받을 양식은 그 옆의 결과로 보인다(S-06). */
+ expect(text(ready(gimpo))).toContain('→ 엑스스퀘어 표준 양식');
+ expect(text(ready(gimpo))).not.toContain('남양주만 고르면');
  mocks.states=[];
  const seowonOnly=[{...readyRow,originId:'seowon'}];
  grid=nodes(ready(seowonOnly)).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)([ids[0]]);
- expect(text(ready(seowonOnly))).toContain('선택한 배송 건 내려받기 양식: 서원 송장양식');
+ expect(text(ready(seowonOnly))).toContain('→ 서원 송장양식');
  expect(nodes(ready(seowonOnly)).find(node=>isSelect(node))!.props.value).toBe('auto');
  // 버튼마다 실제 양식을 적는다.
- expect(text(ready(seowonOnly))).toContain('김포 새 출고지시 전체 내려받기 (엑스스퀘어 표준 양식)');
+ expect(text(ready(seowonOnly))).toContain('김포 출고지시 내려받기 (엑스스퀘어 표준 양식)');
 });
-it('이미 전달한 선택 건은 중복 출고 경고를 확인해야 다운로드 단계로 간다',async()=>{
+it('출고지시를 이미 보낸 선택 건은 두 번 출고될 수 있다는 확인창을 거쳐야 내려받기 단계로 간다',async()=>{
  const readyProps={...props,tab:'ready' as const,rows:[{...row,status:'ready' as const,exportedAt:'2026-10-20T00:00:00Z'}]};
  function ready(){mocks.index=0;return ShipmentConsoleGrid(readyProps);}
- const confirm=vi.fn(()=>false);setAdminConfirmHandler(async request=>(confirm as unknown as (message: string) => boolean)(request.message));
+ const confirm=vi.fn(()=>false);setAdminConfirmHandler(async request=>(confirm as unknown as (message: string) => boolean)(`${request.title} ${request.message} [${request.confirmLabel}/${request.cancelLabel}]`));
  const grid=nodes(ready()).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)([ids[0]]);
- const trigger=nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
- await (trigger.props.onClick as ()=>Promise<void>)();expect(confirm).toHaveBeenCalledOnce();expect(text(ready())).not.toContain('비밀번호 확인');expect(mocks.export).not.toHaveBeenCalled();
+ const trigger=nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내려받기')!;
+ await (trigger.props.onClick as ()=>Promise<void>)();expect(confirm).toHaveBeenCalledOnce();
+ expect(confirm).toHaveBeenCalledWith('출고지시를 이미 보낸 배송 건 1건을 다시 내려받을까요? 창고는 같은 건을 두 번 받으면 걸러내지 못해 두 번 출고할 수 있습니다. [다시 내려받기/돌아가기]');
+ expect(text(ready())).not.toContain('비밀번호 확인');expect(mocks.export).not.toHaveBeenCalled();
  confirm.mockReturnValue(true);await (trigger.props.onClick as ()=>Promise<void>)();expect(text(ready())).toContain('비밀번호 확인');
 });
 
@@ -170,9 +191,9 @@ it('고른 양식(엑스스퀘어 표준·기존 창고 양식)의 바코드 칸
  ready();await settle();
  // 출고지 전체 내려받기 버튼: 출고지마다 그 출고지의 기본 양식으로 센다(남양주=서원 송장양식, 김포=ICONS 표준 양식).
  expect(mocks.originGaps.mock.calls).toEqual([[seowon.id,'warehouse'],[gimpo.id,'smartstore']]);
- // 출고지 경고는 다음 파일 한 묶음이 아니라 그 출고지의 미전달 발송 대기 건 전체를 센다(리뷰 M27-SHIP-2).
- expect(text(ready())).toContain('남양주 미전달 발송 대기 건: 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
- expect(text(ready())).toContain('김포 미전달 발송 대기 건: 바코드가 없는 옵션 5개 — 파일의 바코드 칸이 비어 있습니다.');
+ // 출고지 경고는 다음 파일 한 묶음이 아니라 그 출고지의 출고지시 보내기 전인 발송 대기 건 전체를 센다(리뷰 M27-SHIP-2).
+ expect(text(ready())).toContain('남양주 출고지시 보내기 전 건: 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
+ expect(text(ready())).toContain('김포 출고지시 보내기 전 건: 바코드가 없는 옵션 5개 — 파일의 바코드 칸이 비어 있습니다.');
  expect(text(ready())).not.toContain('남양주 새 출고지시:');
  const grid=nodes(ready()).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)(ids.slice(0,2));
  ready();await settle();
@@ -185,7 +206,7 @@ it('고른 양식(엑스스퀘어 표준·기존 창고 양식)의 바코드 칸
  ready();await settle();
  expect(mocks.gaps).toHaveBeenLastCalledWith([ids[0],ids[1]],'warehouse');
  expect(text(ready())).toContain('바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
- const exportButton=nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
+ const exportButton=nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내려받기')!;
  expect(exportButton.props.disabled).toBe(false);
 });
 
@@ -199,7 +220,8 @@ it('방금 발주확인해 다른 페이지로 밀린 배송 건도 바코드 �
  const fresh=()=>{mocks.index=0;mocks.effects=[];return ShipmentConsoleGrid({...base,tab:'new',currentHref:'/admin/sales/dispatch?tab=new',rows:[{...row,id:confirmedId,orderId:confirmedId,status:'confirmed' as never,pack:null,originId:seowon.id}]});};
  (nodes(fresh()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (ids:string[])=>void)([confirmedId]);
  const confirm=nodes(fresh()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='선택 주문 1건 발주확인')!;
- (confirm.props.onClick as ()=>void)();await Promise.all(mocks.work);
+ setAdminConfirmHandler(async()=>true);
+ await (confirm.props.onClick as ()=>Promise<void>)();await Promise.all(mocks.work);
  // 발송 대기 탭의 첫 페이지는 앞선 대기 건으로 차 있어 방금 확인한 배송 건이 보이지 않는다.
  const backlog={...row,id:ids[2],status:'ready' as const,pack:null,originId:seowon.id};
  const ready=()=>{mocks.index=0;mocks.effects=[];return ShipmentConsoleGrid({...base,tab:'ready',currentHref:readyHref,rows:[backlog]});};
@@ -214,28 +236,27 @@ it('방금 발주확인해 다른 페이지로 밀린 배송 건도 바코드 �
 /* 코드 리뷰: 일부만 처리된 결과가 초록 완료 상자로 나왔다. 서버 문구는 그대로 두고 주의 상자로 그린다. */
 it('일부 주문만 발주확인됐거나 일부 배송완료가 실패하면 주의 상자로, 모두 끝나면 완료 상자로 알린다',async()=>{
  const [first,second]=[ids[0],ids[1]];
+ setAdminConfirmHandler(async()=>true);
  const notice=(render:()=>ReturnType<typeof ShipmentConsoleGrid>)=>nodes(render()).find(node=>node.type===AdminNotice&&node.props.role==='status');
  const fresh=()=>{mocks.index=0;return ShipmentConsoleGrid({...props,tab:'new',rows:[{...row,id:first,orderId:first,pack:null},{...row,id:second,orderId:second,pack:null}]});};
  (nodes(fresh()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (value:string[])=>void)([first,second]);
  vi.mocked(bulkConfirmAdminOrdersAction).mockResolvedValue({message:'1건을 발주확인했습니다. 처리하지 못한 1건: 00000002 — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.',confirmedOrderIds:[first]} as never);
- (nodes(fresh()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='선택 주문 2건 발주확인')!.props.onClick as ()=>void)();await Promise.all(mocks.work);
+ await (nodes(fresh()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='선택 주문 2건 발주확인')!.props.onClick as ()=>Promise<void>)();await Promise.all(mocks.work);
  expect(notice(fresh)?.props.tone).toBe('warning');
  expect(text(notice(fresh)?.props.children as ReactNode)).toContain('처리하지 못한 1건');
  mocks.states=[];mocks.work=[];
  vi.mocked(bulkConfirmAdminOrdersAction).mockResolvedValue({message:'2건을 발주확인했습니다.',confirmedOrderIds:[first,second]} as never);
  (nodes(fresh()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (value:string[])=>void)([first,second]);
- (nodes(fresh()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='선택 주문 2건 발주확인')!.props.onClick as ()=>void)();await Promise.all(mocks.work);
+ await (nodes(fresh()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='선택 주문 2건 발주확인')!.props.onClick as ()=>Promise<void>)();await Promise.all(mocks.work);
  expect(notice(fresh)?.props.tone).toBe('success');
  mocks.states=[];mocks.work=[];
  mocks.complete.mockResolvedValue({message:'1건을 배송완료로 변경했습니다.',failed:[{id:ids[2],reason:'배송 건을 찾을 수 없습니다.'}]});
  select([ids[2]]);click('선택 배송완료');
- const check=nodes(render()).find(node=>node.type==='input'&&node.props.type==='checkbox')!;(check.props.onChange as (event:unknown)=>void)({target:{checked:true}});
  click('1건 배송완료 처리');await Promise.all(mocks.work);
  expect(notice(render)?.props.tone).toBe('warning');
  mocks.states=[];mocks.work=[];
  mocks.complete.mockResolvedValue({message:'1건을 배송완료로 변경했습니다.',failed:[]});
  select([ids[2]]);click('선택 배송완료');
- const again=nodes(render()).find(node=>node.type==='input'&&node.props.type==='checkbox')!;(again.props.onChange as (event:unknown)=>void)({target:{checked:true}});
  click('1건 배송완료 처리');await Promise.all(mocks.work);
  expect(notice(render)?.props.tone).toBe('success');
 });
@@ -251,8 +272,8 @@ it('데이터를 바꾼 처리가 끝나면 이전 바코드 경고를 거두고
  ready();await settle();
  expect(text(ready())).toContain('바코드가 없는 옵션 2개 — 파일의 바코드 칸이 비어 있습니다.');
  // 다른 운영자가 먼저 바꿔 내보내기가 거절됐다. 목록은 새로 고치고, 바코드 개수도 지금 값으로 다시 센다.
- mocks.export.mockResolvedValue({error:'배송 상태가 변경되었습니다. 목록을 새로고침한 뒤 다시 내보내주세요.'});
- (nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!.props.onClick as ()=>void)();
+ mocks.export.mockResolvedValue({error:'그 사이 배송 건이 바뀌었습니다. 목록을 새로고침한 뒤 다시 내려받아 주세요.'});
+ (nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내려받기')!.props.onClick as ()=>void)();
  await Promise.all(mocks.work);
  expect(mocks.export).toHaveBeenLastCalledWith([ids[0]],'xlsx','warehouse',undefined);
  expect(text(ready())).not.toContain('바코드가 없는 옵션 2개');
@@ -265,7 +286,7 @@ it('데이터를 바꾼 처리가 끝나면 이전 바코드 경고를 거두고
  mocks.export.mockResolvedValue({file:{base64:'',mime:'application/octet-stream',name:'f.xlsx'},message:'1건의 출고지시를 내려받았습니다. 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.'});
  const anchor={click:vi.fn(),href:'',download:''};
  vi.stubGlobal('document',{createElement:()=>anchor});vi.stubGlobal('URL',{createObjectURL:()=>'blob:x',revokeObjectURL:vi.fn()});
- (nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!.props.onClick as ()=>void)();
+ (nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내려받기')!.props.onClick as ()=>void)();
  await Promise.all(mocks.work);
  expect(anchor.click).toHaveBeenCalledOnce();
  expect(text(ready())).toContain('1건의 출고지시를 내려받았습니다. 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
@@ -276,7 +297,6 @@ it('배송완료·행 처리 결과를 표 위(표보다 앞) 고정 상자에 �
  const order=(tree:ReturnType<typeof ShipmentConsoleGrid>)=>{const all=nodes(tree);return {notice:all.findIndex(node=>node.type===AdminNotice&&node.props.role==='status'),grid:all.findIndex(node=>node.type===ConsoleGrid)};};
  mocks.complete.mockResolvedValue({message:'1건을 배송완료로 변경했습니다.',failed:[]});
  select([ids[2]]);click('선택 배송완료');
- const check=nodes(render()).find(node=>node.type==='input'&&node.props.type==='checkbox')!;(check.props.onChange as (event:unknown)=>void)({target:{checked:true}});
  click('1건 배송완료 처리');await Promise.all(mocks.work);
  const placed=order(render());
  expect(placed.notice).toBeGreaterThanOrEqual(0);expect(placed.notice).toBeLessThan(placed.grid);
@@ -299,19 +319,19 @@ it('재고 부족 옵션이 있으면 출고지시 내려받기 확인 단계(�
  const readyProps={...props,tab:'ready' as const,stockShortage:shortage,rows:props.rows.map(value=>({...value,status:'ready' as const,pack:null}))};
  function ready(){mocks.index=0;return ShipmentConsoleGrid(readyProps);}
  (nodes(ready()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (value:string[])=>void)([ids[0]]);
- const exportButton=()=>nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
+ const exportButton=()=>nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내려받기')!;
  (exportButton().props.onClick as ()=>void)();
  // ICONS 표준 XLSX: 비밀번호 창 안에 경고가 함께 보인다.
  expect(text(ready())).toContain('비밀번호 확인');
  const stockNotice=()=>nodes(ready()).find(node=>node.type===AdminNotice&&node.props.title==='창고 재고보다 출고할 주문이 많은 옵션 2개');
  expect(stockNotice()).toBeDefined();expect(text(stockNotice()!.props.children as ReactNode)).toContain('QA 물류 키링 / A형 (부족 4)');
- (nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='취소')!.props.onClick as ()=>void)();
+ (nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='돌아가기')!.props.onClick as ()=>void)();
  // 기존 창고 양식은 비밀번호가 없어도 같은 확인 창을 거친다.
  const layout=nodes(ready()).find(node=>isSelect(node))!;(layout.props.onChange as (event:unknown)=>void)({target:{value:'warehouse'}});
  (exportButton().props.onClick as ()=>void)();
  expect(mocks.export).not.toHaveBeenCalled();
  expect(stockNotice()).toBeDefined();
- expect(nodes(ready()).some(node=>node.type===CustomerServiceDialog&&node.props.title==='출고지시 내려받기 확인')).toBe(true);
+ expect(nodes(ready()).some(node=>node.type===CustomerServiceDialog&&node.props.title==='출고지시 내려받기')).toBe(true);
  expect(nodes(ready()).some(node=>isInput(node)&&node.props.type==='password')).toBe(false);
  mocks.export.mockResolvedValue({error:'합성 응답'});
  const form=nodes(ready()).find(node=>node.type==='form')!;
@@ -323,24 +343,26 @@ it('재고 부족 옵션이 있으면 출고지시 내려받기 확인 단계(�
  const plain=()=>{mocks.index=0;return ShipmentConsoleGrid(plainProps);};
  (nodes(plain()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (value:string[])=>void)([ids[0]]);
  (nodes(plain()).find(node=>isSelect(node))!.props.onChange as (event:unknown)=>void)({target:{value:'warehouse'}});
- (nodes(plain()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!.props.onClick as ()=>void)();await Promise.all(mocks.work);
+ (nodes(plain()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내려받기')!.props.onClick as ()=>void)();await Promise.all(mocks.work);
  expect(mocks.export).toHaveBeenLastCalledWith([ids[0]],'xlsx','warehouse',undefined);
  expect(nodes(plain()).some(node=>node.type===CustomerServiceDialog)).toBe(false);
 });
 
 afterEach(()=>{setAdminConfirmHandler(null);});
 
-/* ADR-0045(SHP-050·SHP-086): 선택 배송완료는 택배사 조회의 배송완료 일시를 받는다. 처음 값(창을 연 시각)을 그대로 두면 처리 시각(null)이고,
-   7일보다 이른 일시는 늦게 처리한 사유가 있어야 누를 수 있으며, 미래 일시는 막는다. 입력은 KST이고 서버에는 ISO로 보낸다. */
+/* ADR-0045(SHP-050·SHP-086): 선택 배송완료는 도착 일시를 둘 중 하나로 고른다. '지금 도착으로 기록'은 처리 시각(null)이고,
+   '택배사 조회의 도착 일시 넣기'를 고르면 일시 칸이 열린다. 7일보다 이른 일시는 늦게 처리한 사유가 있어야 누를 수 있으며, 미래 일시는 막는다.
+   입력은 KST이고 서버에는 ISO로 보낸다. */
 it('선택 배송완료는 택배사 배송완료 일시를 KST로 받아 ISO로 보내고, 7일보다 이르면 사유를 받는다', async () => {
   vi.useFakeTimers(); vi.setSystemTime(new Date('2026-11-19T03:00:00Z'));
   try {
     select([ids[2]]); click('선택 배송완료');
     const field = () => nodes(render()).find(node => isInput(node) && node.props.name === 'deliveredAt')!;
-    expect(field().props.value).toBe('2026-11-19T12:00');
-    expect(text(render())).toContain('택배사 조회의 배송완료 일시를 넣으세요');
-    const check = nodes(render()).find(node => node.type === 'input' && node.props.type === 'checkbox')!;
-    (check.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+    /* 처음에는 일시 칸이 없다. 설명 문단('처음 값을 그대로 두면…') 대신 선택 카드가 뜻을 말한다. */
+    expect(field()).toBeUndefined();
+    expect(text(render())).not.toContain('처음 채워진 값');
+    chooseArrival(render(), 'carrier');
+    expect(field().props).toMatchObject({ value: '', max: '2026-11-19T12:00' });
     // 미래 일시는 막는다.
     (field().props.onChange as (event: unknown) => void)({ target: { value: '2026-11-19T15:00' } });
     expect(text(render())).toContain('지금보다 뒤일 수 없습니다'); expect(button('1건 배송완료 처리').props.disabled).toBe(true);
@@ -364,13 +386,82 @@ it('물류 계정은 7일보다 이른 배송완료 일시를 넣지 못하고 �
     const grid = nodes(logistics()).find(node => node.type === ConsoleGrid)!;
     (grid.props.onSelectionChange as (ids: string[]) => void)([ids[2]]);
     (nodes(logistics()).find(node => isButton(node) && text(node.props.children as ReactNode) === '선택 배송완료')!.props.onClick as () => void)();
-    const check = nodes(logistics()).find(node => node.type === 'input' && node.props.type === 'checkbox')!;
-    (check.props.onChange as (event: unknown) => void)({ target: { checked: true } });
+    chooseArrival(logistics(), 'carrier');
     (nodes(logistics()).find(node => isInput(node) && node.props.name === 'deliveredAt')!.props.onChange as (event: unknown) => void)({ target: { value: '2026-11-01T09:00' } });
     expect(text(logistics())).toContain('판매 관리 권한이 있는 운영자만 사유와 함께 넣을 수 있습니다');
+    /* 다음 행동은 지금 화면의 선택지 이름으로 말한다. */
+    expect(text(logistics())).toContain("'지금 도착으로 기록'을 고르거나 판매 관리 담당에게 요청해주세요.");
     expect(nodes(logistics()).some(node => node.type === Textarea)).toBe(false);
     expect(nodes(logistics()).find(node => isButton(node) && text(node.props.children as ReactNode) === '1건 배송완료 처리')!.props.disabled).toBe(true);
     (nodes(logistics()).find(node => isInput(node) && node.props.name === 'deliveredAt')!.props.onChange as (event: unknown) => void)({ target: { value: '2026-11-15T09:00' } });
     expect(nodes(logistics()).find(node => isButton(node) && text(node.props.children as ReactNode) === '1건 배송완료 처리')!.props.disabled).toBe(false);
   } finally { vi.useRealTimers(); }
+});
+
+/* S-01: 신규주문 탭의 일괄 발주확인은 주문통합검색과 같은 확인창(건수 + 되돌릴 수 없는 결과)을 한 번 거친다. */
+it('일괄 발주확인은 건수를 말하는 확인창을 거치고, 돌아가면 아무것도 처리하지 않는다', async () => {
+  const [first, second] = [ids[0], ids[1]];
+  const fresh = () => { mocks.index = 0; return ShipmentConsoleGrid({ ...props, tab: 'new', rows: [{ ...row, id: first, orderId: first, pack: null }, { ...row, id: second, orderId: second, pack: null }] }); };
+  const confirmButton = () => nodes(fresh()).find(node => isButton(node) && text(node.props.children as ReactNode) === '선택 주문 2건 발주확인')!;
+  (nodes(fresh()).find(node => node.type === ConsoleGrid)!.props.onSelectionChange as (value: string[]) => void)([first, second]);
+  const asked = vi.fn(async () => false);
+  setAdminConfirmHandler(asked);
+  await (confirmButton().props.onClick as () => Promise<void>)(); await Promise.all(mocks.work);
+  /* 주문통합검색의 일괄 발주확인과 같은 문구다(lib/admin/order-confirmations). */
+  expect(asked).toHaveBeenCalledWith(adminBulkOrderConfirmRequest(2));
+  expect(asked).toHaveBeenCalledWith({ title: '신규주문 2건을 발주확인할까요?', message: '발주확인 뒤에는 고객이 직접 취소할 수 없습니다.', confirmLabel: '2건 발주확인', cancelLabel: '돌아가기' });
+  expect(bulkConfirmAdminOrdersAction).not.toHaveBeenCalled();
+  asked.mockResolvedValue(true);
+  vi.mocked(bulkConfirmAdminOrdersAction).mockResolvedValue({ message: '2건을 발주확인했습니다.', confirmedOrderIds: [first, second] } as never);
+  await (confirmButton().props.onClick as () => Promise<void>)(); await Promise.all(mocks.work);
+  expect(bulkConfirmAdminOrdersAction).toHaveBeenCalledOnce();
+});
+
+/* 화면 규칙 5: 누를 수 없는 버튼은 이유를 말한다. 발송 지연 탭은 고객 안내 때문에 출고할 수 없는 건도 고를 수 있다. */
+it('출고지시를 받을 수 없는 건이 섞이면 [출고지시 내려받기]를 잠그고 이유를 처리 막대에 적는다', () => {
+  const held = { ...row, status: 'ready' as const, pack: null, preorderReady: false };
+  const delayed = (rows: ShipmentConsoleRow[]) => { mocks.index = 0; return ShipmentConsoleGrid({ ...props, tab: 'delayed', dispatchActions: true, rows }); };
+  const exportButton = (rows: ShipmentConsoleRow[]) => nodes(delayed(rows)).find(node => isButton(node) && text(node.props.children as ReactNode) === '출고지시 내려받기')!;
+  /* 아무것도 고르지 않았으면 고르라고 말한다. */
+  expect(text(delayed([held]))).toContain('왼쪽 체크칸에서 배송 건을 고르면 누를 수 있습니다.');
+  (nodes(delayed([held])).find(node => node.type === ConsoleGrid)!.props.onSelectionChange as (value: string[]) => void)([ids[0]]);
+  expect(exportButton([held]).props.disabled).toBe(true);
+  const lock = nodes(delayed([held])).find(node => node.props['data-workbar-lock'] === '')!;
+  expect(text(lock.props.children as ReactNode)).toContain('예약 입고 확인 전·제작 완료 전·부분 취소 중·출고 보류·택배 외 배송 건을 빼면 [출고지시 내려받기]를 누를 수 있습니다.');
+  expect(exportButton([held]).props.title).toContain('출고지시를 내려받을 수 없는 건');
+  /* 출고할 수 있는 건만 고르면 잠기지 않고 이유도 없다. */
+  mocks.states = [];
+  const ok = { ...held, preorderReady: true };
+  (nodes(delayed([ok])).find(node => node.type === ConsoleGrid)!.props.onSelectionChange as (value: string[]) => void)([ids[0]]);
+  expect(exportButton([ok]).props.disabled).toBe(false);
+  expect(nodes(delayed([ok])).some(node => node.props['data-workbar-lock'] === '')).toBe(false);
+});
+
+/* S-02: 줄의 [발송처리]는 확인창 없이 실행된다. 고객 메일이 나가고 회수되지 않는다는 사실은 처리 막대 한 줄이 말한다. */
+it('줄에 [발송처리]가 있는 목록은 고객 메일과 되돌리는 곳을 한 줄로 알린다', () => {
+  const readyRows = [{ ...row, status: 'ready' as const, pack: null }];
+  const ready = (overrides: Partial<Parameters<typeof ShipmentConsoleGrid>[0]> = {}) => { mocks.index = 0; return ShipmentConsoleGrid({ ...props, tab: 'ready', dispatchActions: true, rows: readyRows, ...overrides }); };
+  const note = (tree: ReactNode) => nodes(tree).find(node => node.props['data-row-dispatch-note'] === '');
+  expect(text(note(ready())!.props.children as ReactNode)).toBe('줄의 [발송처리]를 누르면 바로 배송중으로 바뀌고 고객에게 배송 안내 메일이 갑니다. 잘못 처리했으면 배송현황 관리의 [발송 되돌리기]로 되돌립니다. 보낸 메일은 회수되지 않습니다.');
+  /* 되돌리기는 판매 관리 권한의 일이다 — 물류 계정에게는 누구에게 요청하는지 말한다. */
+  expect(text(note(ready({ canManageSales: false }))!.props.children as ReactNode)).toContain('계정 주매니저에게 배송현황 관리의 [발송 되돌리기]를 요청해주세요.');
+  /* 운송장 칸이 없는 목록(배송현황, 신규주문)에는 이 줄이 없다. */
+  expect(note(render())).toBeUndefined();
+  expect(note(ready({ tab: 'new' }))).toBeUndefined();
+});
+
+/* S-12: 발송 지연 탭에서 고른 배송 건의 주문(주문마다 한 번)에 같은 지연 메모를 넣는 창을 연다. */
+it('발송 지연 탭의 [선택 주문 N건 지연 메모]는 고른 주문을 주문번호와 함께 창에 넘긴다', () => {
+  const orderA = '50000000-0000-4000-8000-00000000000a', orderB = '50000000-0000-4000-8000-00000000000b';
+  const rows = [{ ...row, id: ids[0], orderId: orderA, orderNumber: '2026111210000001', status: 'ready' as const, pack: null },
+    { ...row, id: ids[1], orderId: orderA, orderNumber: '2026111210000001', status: 'ready' as const, pack: null },
+    { ...row, id: ids[2], orderId: orderB, status: 'ready' as const, pack: null }];
+  const delayed = (overrides: Partial<Parameters<typeof ShipmentConsoleGrid>[0]> = {}) => { mocks.index = 0; return ShipmentConsoleGrid({ ...props, tab: 'delayed', rows, ...overrides }); };
+  (nodes(delayed()).find(node => node.type === ConsoleGrid)!.props.onSelectionChange as (value: string[]) => void)(ids);
+  const open = nodes(delayed()).find(node => isButton(node) && text(node.props.children as ReactNode) === '선택 주문 2건 지연 메모')!;
+  (open.props.onClick as () => void)();
+  const dialog = nodes(delayed()).find(node => node.type === DispatchDelayBulkNote)!;
+  expect(dialog.props.targets).toEqual([{ orderId: orderA, reference: '2026111210000001' }, { orderId: orderB, reference: '0000000B' }]);
+  /* 지연 메모는 판매 관리(고객 응대) 일이다. */
+  expect(nodes(delayed({ canManageSales: false })).some(node => isButton(node) && text(node.props.children as ReactNode).endsWith('지연 메모'))).toBe(false);
 });

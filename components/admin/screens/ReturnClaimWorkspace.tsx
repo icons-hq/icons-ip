@@ -3,6 +3,7 @@
 import { useRef, type ReactNode } from 'react';
 import { Check, ChevronDown } from 'lucide-react';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
+import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import { orderClaimEffectiveStage, type OrderClaimStage } from '@/lib/orders/claims';
 import { CLAIM_STEP_MARK_CLASS } from './ClaimProgressSummary';
 import { returnFeeDeductionRowNote } from '@/lib/claims/return-fee-deduction';
@@ -68,20 +69,21 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
     if (id === 'hold') return closed || next === null ? 'closed' : 'optional';
     return evidence[id] ? 'done' : closed ? 'closed' : 'todo';
   };
-  const collectionSummary = progress.collectionPolicy === null ? '회수 기준 확인 필요'
-    : progress.collectionPolicy === 'legacy' ? progress.collectedAt ? '입고 확인 기록 있음' : '입고 확인 기록 없음'
-      : progress.collectionCount === 0 ? '회수 대상 확인 전'
-        : `${progress.collectedCount} / ${progress.collectionCount}개 출고지 확인 · ${progress.collectionComplete ? '전체 회수 확인 완료' : '전체 회수 확인 전'}`;
+  /* 요약은 운영자가 한 일로 말한다(D-13). '기록 있음·시각 없음' 같은 저장 상태를 그대로 옮기지 않는다. */
+  const collectionSummary = progress.collectionPolicy === null ? '회수 정보를 불러오지 못했습니다'
+    : progress.collectionPolicy === 'legacy' ? progress.collectedAt ? '입고 확인함' : '입고 확인 전'
+      : progress.collectionCount === 0 ? '회수할 출고지 확인 전'
+        : `출고지 ${progress.collectionCount}곳 가운데 ${progress.collectedCount}곳 회수 확인${progress.collectionComplete ? ' · 회수 끝' : ''}`;
   /* 처리 순서는 검토 → 회수 → 환불이고, 보류는 순서 밖의 예외라 번호 없이 맨 뒤에 둔다. */
   const steps: { id: StepId; number: number | null; title: string; label: string; summary: string; content: ReactNode }[] = [
-    { id: 'review', number: 1, title: '검토·승인', label: '검토·승인', summary: evidence.review ? '승인 완료' : `현재 단계: ${adminClaimStageLabel('return', progress.stage)}`, content: review },
+    { id: 'review', number: 1, title: '검토·승인', label: '검토·승인', summary: evidence.review ? '승인 완료' : `${V.claimStatus}: ${adminClaimStageLabel('return', progress.stage)}`, content: review },
     { id: 'collection', number: 2, title: '회수 확인', label: '회수 확인', summary: collectionSummary, content: collection },
-    { id: 'refund', number: 3, title: '환불 처리', label: '환불 처리', summary: [progress.refundCompleted ? '환불 완료 시각 기록됨'
-      : progress.refundLedgerOpen ? progress.refundFiled ? '환불 접수 기록 있음 · 완료 시각 없음' : '환불 확인 전 · 완료 시각 없음'
+    { id: 'refund', number: 3, title: '환불 처리', label: '환불 처리', summary: [progress.refundCompleted ? '환불 완료'
+      : progress.refundLedgerOpen ? progress.refundFiled ? '환불 접수함 · 완료 전' : '환불 전'
         : '환불 기록 없음', returnFeeDeductionRowNote(progress.refundDeductionAmount)].filter(Boolean).join(' · '), content: refund },
-    { id: 'hold', number: null, title: '보류 상태 · 필요 시 처리', label: '보류', summary: progress.stage === 'on_hold'
-      ? `보류 중 · 보류 전 ${progress.heldFrom ? adminClaimStageLabel('return', progress.heldFrom) : '단계 확인 필요'}`
-      : '현재 보류 중인 요청이 아닙니다.', content: hold },
+    { id: 'hold', number: null, title: '보류', label: '보류', summary: progress.stage === 'on_hold'
+      ? `보류 중${progress.heldFrom ? ` · 보류 전 ${adminClaimStageLabel('return', progress.heldFrom)}` : ''}`
+      : '보류 중 아님', content: hold },
   ];
   const nextStep = steps.find(step => step.id === next);
   /* 접힌 단계를 눌렀을 때도 내용이 보이도록 펼친 뒤 그 단계 제목으로 옮긴다. */
@@ -98,8 +100,8 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
       <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
         <h3 className="text-base leading-snug font-medium">반품 단계별 처리</h3>
         {/* 다음 할 일은 바로 아래 단계 칸이 '지금 할 일'로 말한다. 같은 말을 또 적지 않고 화면 낭독기로만 읽는다. */}
-        <p className={nextStep ? 'sr-only' : 'min-w-0 break-words text-muted-foreground'} role="status">{closed ? '요청 처리가 종료됐습니다. 기존 증빙과 환불 기록을 확인하세요.'
-          : nextStep ? `다음 확인: ${nextStep.title}` : attention ? '반품과 환불은 완료됐습니다. 아래 남은 일을 처리해주세요.' : '반품과 환불 완료 기록을 확인했습니다.'}</p>
+        <p className={nextStep ? 'sr-only' : 'min-w-0 break-words text-muted-foreground'} role="status">{closed ? '처리가 끝난 요청입니다.'
+          : nextStep ? `지금 할 일: ${nextStep.title}` : attention ? '반품과 환불은 완료됐습니다. 아래 남은 일을 처리해주세요.' : '반품과 환불이 모두 끝났습니다.'}</p>
       </div>
       {attention ? <div className="flex min-w-0 flex-col gap-2" data-claim-workspace-attention="">{attention}</div> : null}
       <nav aria-label="반품 처리 단계" className="grid grid-cols-2 gap-2 sm:grid-cols-4 print:hidden">
@@ -142,6 +144,5 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
       })}
     </div>
     {exception ? <section className="flex min-w-0 flex-col gap-3 border-t pt-3" aria-label="요청 거부">{exception}</section> : null}
-    <p className="text-xs text-muted-foreground">주문과 요청을 확인한 뒤 회수·환불을 각각 처리합니다. 보류는 필요한 경우에만 설정합니다.</p>
   </div>;
 }

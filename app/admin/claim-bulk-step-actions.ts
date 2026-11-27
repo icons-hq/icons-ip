@@ -11,17 +11,22 @@ import {
   ADMIN_CLAIM_BULK_RESHIP_DECISION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_PRODUCTION_REASON,
   ADMIN_CLAIM_BULK_RESHIP_WAIVER_REASON,
+  adminClaimBulkApproveEffect,
+  adminClaimBulkApproveTotals,
   adminClaimBulkCollectPlan,
   adminClaimBulkCollectTargetLabel,
+  adminClaimBulkDecisionBlocker,
   adminClaimBulkProviderLabel,
   adminClaimBulkRefundBlockerMessage,
   adminClaimBulkRefundTotals,
   adminClaimBulkSummary,
+  normalizeAdminClaimBulkApprovePreviewInput,
   normalizeAdminClaimBulkCollectInput,
   normalizeAdminClaimBulkRefundInput,
   normalizeAdminClaimBulkStepPreviewInput,
   parseAdminClaimBulkContexts,
   runAdminClaimBulkSequentially,
+  type AdminClaimBulkApproveRow,
   type AdminClaimBulkCollectRow,
   type AdminClaimBulkContext,
   type AdminClaimBulkRefundRow,
@@ -31,7 +36,7 @@ import {
   type AdminClaimBulkStepPreviewState,
 } from '@/lib/admin/claim-bulk';
 import { adminClaimPendingReshipments, adminClaimShipmentPartiallyReceived, adminClaimStockDecisionPending, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
-import { adminClaimBasePath } from '@/lib/admin/claims';
+import { adminClaimBasePath, adminClaimReceivedOnLabel } from '@/lib/admin/claims';
 import type { ClaimDefectiveItem } from '@/lib/admin/defective-stock';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimDetailLoadFailureMessage } from '@/lib/admin/claim-transaction-snapshot';
@@ -68,6 +73,9 @@ import {
  *
  * 재출고는 최종 주소 확인(10분 결속)이 브라우저 세션의 연락처 경로(/api/admin/claim-contact/*)에 묶여 있어 여기서는
  * 대상 배송 건과 품목만 읽는다(loadOrderClaimBulkReshipmentsAction). 주소는 싣지 않는다.
+ *
+ * 취소 일괄 승인(previewOrderClaimBulkApprovalAction)도 같은 읽기 RPC로 금액을 읽어 확인창에 보인다. 승인 자체는
+ * 이 파일이 아니라 bulkDecideOrderClaimsAction(app/admin/claim-actions.ts)이 지금처럼 건마다 단건 경로로 처리한다.
  */
 
 const ACCESS_DENIED = '관리자 권한이 필요합니다.';
@@ -89,7 +97,7 @@ async function readContexts(supabase: Supabase, claimIds: readonly string[]): Pr
 }
 
 function wrongType(claimType: OrderClaimType) {
-  return `${ORDER_CLAIM_TYPE_LABELS[claimType]} 요청이 아닙니다. 해당 목록에서 처리해주세요.`;
+  return `${ORDER_CLAIM_TYPE_LABELS[claimType]} 요청이 아닙니다. 이 요청의 유형에 맞는 목록에서 처리해주세요.`;
 }
 
 function form(entries: Record<string, string>) {
@@ -146,6 +154,40 @@ export async function previewOrderClaimBulkStepAction(input: unknown): Promise<A
   }
 }
 
+/**
+ * 취소 일괄 승인의 확인창을 연다(읽기 전용 — 아무것도 바꾸지 않는다). 승인은 하는 즉시 결제사에 취소를 요청하므로
+ * 환불 확정 확인창과 같은 방식으로 건수·취소 금액 합계·건너뛰는 건과 이유를 서버가 읽어 먼저 보인다.
+ *
+ * 금액은 환불 확정 확인창과 같은 읽기 값(admin_order_claim_bulk_context의 refundAmount)이다 — 환불 기록이 없을 때는
+ * 결제 금액에서 이미 부분 취소한 금액을 뺀 남은 금액이다. 새로 계산하지 않는다. 건너뛰는 단계는 DB의 승인 조건
+ * (요청·검토중만 승인)과 같다. 실행은 지금 그대로 bulkDecideOrderClaimsAction(승인)이 건마다 단건 경로를 탄다.
+ */
+export async function previewOrderClaimBulkApprovalAction(input: unknown): Promise<AdminClaimBulkStepPreviewState> {
+  try {
+    const normalized = normalizeAdminClaimBulkApprovePreviewInput(input);
+    if (!normalized.ok) return { error: normalized.error };
+    const { claimType, claimIds } = normalized.value;
+    if (!await access(claimType)) return { error: ACCESS_DENIED };
+
+    const contexts = await readContexts(await createClient(), claimIds);
+    if (!contexts) return { error: CONTEXT_FAILED };
+    const byId = new Map(contexts.map((context) => [context.claimId, context]));
+
+    const rows: AdminClaimBulkApproveRow[] = claimIds.map((claimId) => {
+      const context = byId.get(claimId);
+      if (!context) return { claimId, reference: '확인 불가', providerLabel: adminClaimBulkProviderLabel(null), amount: null, kind: 'manual', effect: '', blocker: CLAIM_MISSING };
+      const { kind, effect } = adminClaimBulkApproveEffect(context.paymentProvider);
+      const base = { claimId, reference: orderClaimReferenceLabel(context.reference), providerLabel: adminClaimBulkProviderLabel(context.paymentProvider), amount: context.refundAmount, kind, effect };
+      if (context.claimType !== claimType) return { ...base, blocker: wrongType(claimType) };
+      return { ...base, blocker: adminClaimBulkDecisionBlocker('approve', context.stage) };
+    });
+    return { preview: { step: 'approve', rows, totals: adminClaimBulkApproveTotals(rows) } };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { error: PREVIEW_FAILED };
+  }
+}
+
 async function referencesOf(supabase: Supabase, claimIds: readonly string[]) {
   const contexts = await readContexts(supabase, claimIds);
   return new Map((contexts ?? []).map((context) => [context.claimId, orderClaimReferenceLabel(context.reference)]));
@@ -175,7 +217,7 @@ export async function runOrderClaimBulkCollectionsAction(input: unknown): Promis
       if (context.collectionPolicy === 'legacy') {
         /* 레거시 회수에는 근거 열이 없어 공통 근거를 감사 기록에 남긴다(같은 단건 경로). */
         const state = await recordOrderClaimCollectionAction({}, form({ claimId: item.claimId, claimType, stage: 'collected', receivedOn, evidence }));
-        return state.error ? { ok: false, message: state.error } : { ok: true, message: `입고를 확인했습니다(실제 입고일 ${receivedOn}).` };
+        return state.error ? { ok: false, message: state.error } : { ok: true, message: `입고를 확인했습니다(실제 입고일 ${adminClaimReceivedOnLabel(receivedOn)}).` };
       }
 
       /* 확인창에서 고른 출고지(반품지가 갈린 배송 건은 회수 묶음) 가운데 아직 남은 것만 확인한다. 그 사이 다른 운영자가
@@ -196,7 +238,7 @@ export async function runOrderClaimBulkCollectionsAction(input: unknown): Promis
         done.push(label);
       }
       const rest = plan.targets.length - chosen.length + plan.skipped.length;
-      return { ok: true, message: `${done.join('·')} 회수를 확인했습니다(실제 입고일 ${receivedOn}).${rest > 0 ? ` 남은 출고지 ${rest}곳은 따로 확인해주세요.` : ''}` };
+      return { ok: true, message: `${done.join('·')} 회수를 확인했습니다(실제 입고일 ${adminClaimReceivedOnLabel(receivedOn)}).${rest > 0 ? ` 남은 출고지 ${rest}곳은 따로 확인해주세요.` : ''}` };
     }, {
       startedAt,
       reserveMs: (item) => ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS * (Math.max(1, item.shipmentIds.length + item.bundleIds.length) + 1),

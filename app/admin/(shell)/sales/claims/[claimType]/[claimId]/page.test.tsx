@@ -28,6 +28,13 @@ it('연 클레임 상세를 접속기록으로 남긴다', async () => {
     path: `/admin/sales/claims/returns/${CLAIM_ID}`, subjectKind: 'claim', subjectIds: [CLAIM_ID], detail: { via: 'page' } });
 });
 
+/* 반품·교환 승인 확인창은 자동 회수 접수가 켜져 있을 때만 '택배사에 회수가 접수됩니다'를 말한다 — 로더가 읽은 스위치 값을 화면에 그대로 내린다. */
+it.each([true, false])('자동 회수 접수 스위치(%s)를 상세 화면에 넘긴다', async (enabled) => {
+  mocks.workspace.mockResolvedValue({ detail: { claim: { id: CLAIM_ID, claimType: 'return' } }, carriers: [], cancellationForm: null, defectiveStock: null, autoPickupOnApproval: enabled });
+  const tree = await visit() as { props: { autoPickupOnApproval?: boolean } };
+  expect(tree.props.autoPickupOnApproval).toBe(enabled);
+});
+
 it('없는 요청·유형이 바뀐 요청은 기록하지 않고 404·현재 유형으로 보낸다', async () => {
   mocks.workspace.mockResolvedValueOnce(null);
   await expect(visit()).rejects.toThrow('notFound');

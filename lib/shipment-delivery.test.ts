@@ -10,11 +10,13 @@ const fields = {
 };
 
 describe('delivery method contracts', () => {
-  it('preserves unconfigured drafts and requires operational proof and an explicit proxy choice to activate', () => {
+  it('preserves unconfigured drafts and requires the customer-facing fields and an explicit proxy choice to activate', () => {
     expect(parseDeliveryPolicyInput({ state: 'draft' })).toMatchObject({ state: 'draft', allowDelegate: null, contactPhone: null });
     expect(parseDeliveryPolicyInput({ ...fields, contactPhone: '' })).toBeNull();
     expect(parseDeliveryPolicyInput({ ...fields, allowDelegate: null })).toBeNull();
-    expect(parseDeliveryPolicyInput({ ...fields, approvalReference: '' })).toBeNull();
+    // 근거 칸은 걷어 냈다(migration 20261127102000): 비어 있거나 아예 안 보내도 '사용'으로 켤 수 있고, 저장돼 있던 근거는 DB가 그대로 둔다.
+    expect(parseDeliveryPolicyInput({ ...fields, approvalReference: '' })).toEqual({ ...fields, approvalReference: null });
+    expect(parseDeliveryPolicyInput(Object.fromEntries(Object.entries(fields).filter(([key]) => key !== 'approvalReference')))).toEqual({ ...fields, approvalReference: null });
     expect(parseDeliveryPolicyInput(fields)).toEqual(fields);
     expect(parseDeliveryPolicyInput({ ...fields, shippingFee: 1000 })).toBeNull();
   });

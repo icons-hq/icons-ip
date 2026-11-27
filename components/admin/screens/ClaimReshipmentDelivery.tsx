@@ -6,6 +6,7 @@ import type { AdminClaimDetail, AdminClaimReshipment, AdminClaimReshipmentTarget
 import { claimEvidenceUrl } from '@/lib/admin/claim-evidence';
 import { adminClaimReshipmentProgress, adminClaimShipmentPartiallyReceived, adminClaimWaiverDecisions } from '@/lib/admin/claim-reshipments';
 import { ClaimCollectionWaiverDecision } from './ClaimCollectionWaiverDecision';
+import { confirmAdminSubmit, type AdminConfirmRequest } from '@/lib/admin/confirm';
 import { adminFormRemountKey, preservedFormValues } from '@/lib/admin/form-state';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { formatOrderDateTime } from '@/lib/orders';
@@ -21,23 +22,37 @@ import { useClaimPreviewBusy } from './ClaimPreviewDialog';
  *
  * 재출고는 배송 건(출고지)마다 기록하고, 배송완료도 송장마다 확인한다. 배송 건 기록이 없는 교환은 이 기능
  * 전의 클레임 단위 기록(택배사·운송장 한 쌍)이라 예전 모양 그대로 확인한다. 재출고 등록 자체는 최종 주소
- * 확인(회수·재배송 연락처 처리)에서 한다 — 여기서는 기록과 도착 확인만 다룬다. */
+ * 확인(ClaimContactOperations의 '재출고 등록')에서 한다 — 여기서는 기록과 도착 확인만 다룬다.
+ * 배송완료 확인은 되돌릴 수 없고(다른 근거로 다시 적으면 거절된다) 마지막 운송장이면 주문이 배송완료가 되므로 확인창으로 한 번 묻는다.
+ * 근거 글은 DB가 요구해 필수로 남긴다 — 배송완료 기록에 남아 이 칸에 다시 보이고, 고객에게는 배송완료 시각만 보인다. */
 
 type Claim = AdminClaimDetail['claim'];
 
-function DeliveryForm({ claimId, shipmentKey, label }: { claimId: string; shipmentKey: string | null; label: string }) {
+/** 교환품 배송완료 확인창. 어느 운송장인지와, 모든 운송장을 확인했을 때 일어나는 일(주문 배송완료·새 반품·교환 신청)을 말한다. */
+export function reshipmentDeliveryConfirmRequest(target: string | null, tracking: string | null): AdminConfirmRequest {
+  return {
+    title: `${target ? `${target} ` : ''}교환품 배송완료로 기록할까요?`,
+    message: `${tracking ? `운송장 ${tracking}의 ` : ''}교환품이 고객에게 도착한 것으로 기록합니다.\n이 교환의 모든 운송장을 확인하면 배송중이던 주문이 배송완료가 되고, 고객은 신청 기한 안에서 새 반품·교환을 신청할 수 있습니다.\n기록한 뒤에는 고치거나 되돌릴 수 없습니다.`,
+    confirmLabel: '배송완료 기록',
+    cancelLabel: '돌아가기',
+  };
+}
+
+function DeliveryForm({ claimId, shipmentKey, label, target, tracking }: { claimId: string; shipmentKey: string | null; label: string; target: string | null; tracking: string | null }) {
   const [state, action, pending] = useActionState(recordOrderClaimReshipmentDeliveryAction, {});
   useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const restored = preservedFormValues(state, claimId, { scopeKey: 'claimId' });
   const fieldId = `claim-reship-delivery-evidence-${shipmentKey ?? 'claim'}`;
-  return <form action={action} className="flex min-w-0 flex-col gap-3" key={adminFormRemountKey(state, { claimId, shipmentKey })}>
+  return <form action={action} className="flex min-w-0 flex-col gap-3" key={adminFormRemountKey(state, { claimId, shipmentKey })}
+    onSubmit={(event) => { confirmAdminSubmit(event, reshipmentDeliveryConfirmRequest(target, tracking)); }}>
     <input type="hidden" name="claimId" value={claimId} />
     {shipmentKey !== null ? <input type="hidden" name="reshipmentShipment" value={shipmentKey} /> : null}
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={fieldId}>{label}</Label>
+      <Label htmlFor={fieldId}>{label} (필수)</Label>
       <Textarea id={fieldId} name="evidence" required maxLength={500} rows={3}
         defaultValue={restored?.evidence ?? ''} disabled={pending}
-        placeholder="택배사 배송 조회 또는 고객의 전체 수령 확인" />
+        placeholder="예: 11/26 택배사 배송 조회에서 배송완료 확인" />
+      <p className="text-xs text-muted-foreground">이 운송장의 배송완료 기록에 남습니다. 고객에게는 도착을 확인한 시각만 보입니다.</p>
     </div>
     <Button className="w-fit" size="sm" type="submit" disabled={pending}>교환품 배송완료 확인</Button>
     {state.error ? <p className="text-destructive" role="alert">{adminClaimCopy(state.error)}</p> : null}
@@ -70,9 +85,9 @@ function PendingTarget({ claim, target, name, decide }: { claim: Claim; target: 
   const collected = target.collectionTracked ? target.collectedAt !== null : claim.stage === 'collected';
   const waiting = target.productionPending && (collected || target.waiver !== null);
   const guide = waiting ? PRODUCTION_WAIT
-    : target.waiver ? '회수·재배송 연락처 처리에서 회수 없이 재출고를 등록합니다.'
-      : !target.collectionTracked ? '입고 확인 뒤 회수·재배송 연락처 처리에서 재출고를 등록합니다.'
-        : target.collectedAt ? `회수 확인 ${formatOrderDateTime(target.collectedAt)} · 회수·재배송 연락처 처리에서 재출고를 등록합니다.`
+    : target.waiver ? `아래 '재출고 등록'에서 회수 없이 재출고를 등록합니다.`
+      : !target.collectionTracked ? `입고를 확인한 뒤 아래 '재출고 등록'에서 등록합니다.`
+        : target.collectedAt ? `회수 확인 ${formatOrderDateTime(target.collectedAt)} · 아래 '재출고 등록'에서 등록합니다.`
           : claim.collectionWaiverAllowed && adminClaimShipmentPartiallyReceived(claim, target.shipmentId) ? PARTIAL_RECEIPT
           : !claim.collectionWaiverAllowed ? '회수 확인 전입니다. 회수를 확인한 뒤 재출고합니다.'
             : target.productionRequired ? '회수 확인 전입니다. 주문제작 상품은 교환품을 새로 만들어야 해서, 회수 없이 보내려면 아래에서 회수 생략을 먼저 기록해 제작을 시작합니다.'
@@ -122,7 +137,7 @@ function ShipmentReshipments({ claim, carriers }: { claim: Claim; carriers?: Shi
             {row.collectionWaived ? <WaiverRecord caption="회수 생략 사유 · 회수 상품 재고는 복원하지 않았습니다" evidence={row.waiverEvidence} reason={row.waiverReason} /> : null}
             {row.deliveredAt ? <p className="text-muted-foreground"><time dateTime={row.deliveredAt}>{formatOrderDateTime(row.deliveredAt)}</time>
               {row.deliveredByName ? ` · ${row.deliveredByName}` : ''} · <span className="break-words whitespace-pre-wrap text-foreground">{row.deliveryEvidence}</span></p>
-              : <DeliveryForm claimId={claim.id} label={`${name} 배송완료 확인 근거`} shipmentKey={key} />}
+              : <DeliveryForm claimId={claim.id} label={`${name} 배송완료 확인 근거`} shipmentKey={key} target={name} tracking={`${row.carrierLabel ?? row.carrier} ${row.trackingNumber}`} />}
           </> : target ? <PendingTarget claim={claim} decide={decisions.has(target.shipmentId)} name={name} target={target} /> : null}
         </li>;
       })}
@@ -141,7 +156,7 @@ function LegacyReshipmentDelivery({ claim }: { claim: Claim }) {
       <p className="break-words whitespace-pre-wrap">{claim.reshipDeliveryEvidence}</p>
     </> : canConfirm ? <>
       <p className="text-muted-foreground">모든 교환품이 실제로 도착했는지 확인해주세요. 확인 전에는 새 반품·교환 신청이 열리지 않습니다.</p>
-      <DeliveryForm claimId={claim.id} label="배송완료 확인 근거" shipmentKey={null} />
+      <DeliveryForm claimId={claim.id} label="배송완료 확인 근거" shipmentKey={null} target={null} tracking={claim.reshipTrackingNumber} />
     </> : <p className="text-muted-foreground">재출고 이력을 확인한 뒤 배송완료를 기록해주세요.</p>}
   </section>;
 }

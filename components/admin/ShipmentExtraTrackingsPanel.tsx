@@ -10,6 +10,8 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { adminConfirm } from '@/lib/admin/confirm';
+import { adminExtraTrackingRemoveRequest } from '@/lib/admin/order-confirmations';
 import { SHIPMENT_EXTRA_TRACKING_LIMIT, SHIPMENT_EXTRA_TRACKING_REASON_LIMIT } from '@/lib/admin/shipment-tracking';
 import { findShippingCarrier, isTrackingNumber, normalizeTrackingNumber, orderShipment, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
 
@@ -23,13 +25,15 @@ export interface ShipmentExtraTrackingEntry { id: string; carrier: string; track
 const FIELD_CLASS = 'flex w-full min-w-0 flex-col gap-1.5';
 const NOTE_CLASS = 'text-xs text-muted-foreground';
 
-function RemoveForm({ extra, label, onDone }: { extra: ShipmentExtraTrackingEntry; label: string; onDone: (message: string) => void }) {
+function RemoveForm({ extra, label, reference, onDone }: { extra: ShipmentExtraTrackingEntry; label: string; reference: string; onDone: (message: string) => void }) {
   const [open, setOpen] = useState(false); const [error, setError] = useState(''); const [pending, startTransition] = useTransition();
   const requestId = useRef<string | null>(null); const fieldId = useId();
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (pending) return;
     const form = new FormData(event.currentTarget);
     if (!String(form.get('reason') ?? '').trim()) { setError('지우는 사유를 입력해주세요.'); return; }
+    /* 지우면 고객 주문 상세에서도 그 번호가 빠진다 — 어느 번호를 지우는지 보이고 확인받는다. */
+    if (!await adminConfirm(adminExtraTrackingRemoveRequest({ reference, label }))) return;
     requestId.current ??= crypto.randomUUID(); form.set('operationId', requestId.current); setError('');
     startTransition(async () => {
       try { const result = await removeShipmentExtraTrackingAction(form); if (result.ok) { requestId.current = null; onDone(result.message); } else setError(result.error); }
@@ -39,12 +43,12 @@ function RemoveForm({ extra, label, onDone }: { extra: ShipmentExtraTrackingEntr
   if (!open) return <Button size="sm" type="button" variant="outline" aria-label={`추가 운송장 ${label} 지우기`} onClick={() => setOpen(true)}>지우기</Button>;
   return <form className="flex w-full min-w-0 flex-col gap-2 rounded-lg border p-3" onSubmit={submit}>
     <input type="hidden" name="extraTrackingId" value={extra.id} />
-    <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-reason`}>{label} 지우는 사유</Label>
+    <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-reason`}>{label} 지우는 사유 (필수 · 감사 기록에 남습니다)</Label>
       <Textarea id={`${fieldId}-reason`} name="reason" rows={2} maxLength={SHIPMENT_EXTRA_TRACKING_REASON_LIMIT} required disabled={pending} placeholder="예: 회신 파일의 번호 오기" /></div>
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
     <div className="flex flex-wrap gap-2">
       <Button size="sm" type="submit" variant="destructive" disabled={pending}>{pending ? '지우는 중…' : '추가 운송장 지우기'}</Button>
-      <Button size="sm" type="button" variant="ghost" disabled={pending} onClick={() => { setOpen(false); setError(''); }}>취소</Button>
+      <Button size="sm" type="button" variant="ghost" disabled={pending} onClick={() => { setOpen(false); setError(''); }}>돌아가기</Button>
     </div>
   </form>;
 }
@@ -92,7 +96,7 @@ export function ShipmentExtraTrackingsPanel({ shipmentId, reference, carriers, d
       const label = `${findShippingCarrier(carriers, extra.carrier)?.label ?? extra.carrier} ${extra.trackingNumber}`;
       return <li className="flex flex-wrap items-center justify-between gap-2 rounded-lg border px-3 py-2" key={extra.id}>
         {shown ? <a className="tabular-nums underline underline-offset-4" href={shown.trackingUrl} rel="noreferrer noopener" target="_blank">{label}</a> : <span className="tabular-nums">{label}</span>}
-        <RemoveForm extra={extra} label={label} onDone={done} />
+        <RemoveForm extra={extra} label={label} reference={reference} onDone={done} />
       </li>;
     })}</ul> : <p className="text-muted-foreground">붙은 추가 운송장이 없습니다.</p>}
     {full ? <AdminNotice role="status" tone="neutral">추가 운송장은 배송 건마다 {SHIPMENT_EXTRA_TRACKING_LIMIT}개까지 붙일 수 있습니다.</AdminNotice> : <form className="flex w-full min-w-0 flex-col gap-2.5 border-t pt-3" onSubmit={submit}>
@@ -106,7 +110,7 @@ export function ShipmentExtraTrackingsPanel({ shipmentId, reference, carriers, d
           <Input id={`${fieldId}-tracking`} value={tracking} inputMode="text" autoComplete="off" maxLength={40} disabled={pending} placeholder="다른 상자의 운송장번호"
             onChange={event => setTracking(event.target.value)} /></div>
       </div>
-      <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-reason`}>사유</Label>
+      <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-reason`}>추가하는 사유 (필수 · 감사 기록에 남습니다)</Label>
         <Textarea id={`${fieldId}-reason`} rows={2} value={reason} maxLength={SHIPMENT_EXTRA_TRACKING_REASON_LIMIT} disabled={pending}
           placeholder="예: 서원 분리배송 추가 운송장 확인" onChange={event => setReason(event.target.value)} /></div>
       {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}

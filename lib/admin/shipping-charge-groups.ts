@@ -1,9 +1,10 @@
 import { isUuid } from '@/lib/uuid';
+import { SAVE_STOP_LABEL } from './goods-template-save';
 import { GOODS_TRANSACTION_INT_MAX, GOODS_TRANSACTION_MAX_LINES, GOODS_TRANSACTION_SELECTION_MAX_BYTES, transactionEpochMicros,
   transactionExactKeys, transactionGoodId, transactionInstant, transactionInteger } from '@/lib/goods-transaction-values';
 import { normalizeShippingAddress } from '@/lib/shipping-regions';
 import type { ShippingChargeGroupMode, ShippingChargeRegionMode } from '@/lib/shipping-charge-groups';
-import { MAX_SHIPPING_REGION_RULES, shippingRegionPolicyProblems, type ShippingRegionRuleInput } from './shipping-regions';
+import { MAX_SHIPPING_REGION_RULES, SHIPPING_REGION_PERIOD_PROBLEM, shippingRegionFeeSummary, shippingRegionPolicyProblems, type ShippingRegionRuleInput } from './shipping-regions';
 
 export const SHIPPING_CHARGE_GROUPS_PATH = '/admin/settings/origins';
 export const SHIPPING_CHARGE_GROUP_GOOD_LIMIT = 100;
@@ -101,17 +102,113 @@ const keys = <T extends object>(value: T, names: readonly string[]) => Object.fr
 export function emptyShippingChargeGroupRegionPolicy(carrierCode = ''): ShippingChargeGroupRegionPolicy {
   return { carrierCode, startsAt: null, endsAt: null, openEnded: null, sourceEvidence: '', unlistedDisposition: null, noRulesConfirmed: false, rules: [] };
 }
+/**
+ * 묶음그룹의 지역표를 새로 만들 때 채워 두는 값 — 대부분이 쓰는 값이다(오늘부터, 끝을 정하지 않음, 표에 없는 지역은 추가배송비 없음).
+ * 지역별 추가배송비 화면의 기본값(`SHIPPING_REGION_POLICY_DEFAULTS`)과 같다. `now`는 창을 연 시각이다.
+ * 적용 시작은 오늘 0시(KST)로 둔다 — 이 값은 DB가 다시 정하지 않으므로, 브라우저 시계가 조금 빨라도 저장하자마자 '아직 시작 전'이 되어 주문이 막히는 일이 없게 한다.
+ */
+export function defaultShippingChargeGroupRegionPolicy(carrierCode: string, now: number): ShippingChargeGroupRegionPolicy {
+  const kstOffset = 9 * 3_600_000, day = 86_400_000;
+  return { ...emptyShippingChargeGroupRegionPolicy(carrierCode), startsAt: new Date(Math.floor((now + kstOffset) / day) * day - kstOffset).toISOString(),
+    openEnded: true, unlistedDisposition: 'standard' };
+}
 export function emptyShippingChargeGroupValues(): ShippingChargeGroupValues {
   return { name: '', enabled: false, archived: false, isDefault: false, calculationMode: 'min', regional: { mode: 'inherit', policy: null } };
 }
+/**
+ * '사용'으로 저장하려면 고쳐야 할 것들. 지역별 추가배송비 화면과 같은 검사(`shippingRegionPolicyProblems`)를 쓴다.
+ * 물류사 회신·계약 근거(sourceEvidence)는 요구하지 않는다(2026-11-26, DB `assert_shipping_region_policy_complete`도 같다).
+ */
 export function shippingChargeGroupRegionalProblems(policy: ShippingChargeGroupRegionPolicy): string[] {
-  const periodProblem = '종료 일시는 시작 일시보다 뒤여야 합니다.';
-  const problems = shippingRegionPolicyProblems({ ...policy, originId: '', name: '배송비 묶음그룹 지역 정책', feeUnit: 'per_shipment',
-    chargePolicyGoods: true, waivePolicyThreshold: false, chargeFreeGoods: true, chargeIndividualGoods: true }).filter(problem => problem !== periodProblem);
+  /* 지역별 추가배송비 쪽의 같은 안내(`SHIPPING_REGION_PERIOD_PROBLEM`)를 걸러 낸다(마이크로초까지 비교하는 아래 검사로 바꿔 넣는다). */
+  const problems = shippingRegionPolicyProblems({ ...policy, originId: '', name: '배송비 묶음그룹 지역표', feeUnit: 'per_shipment',
+    chargePolicyGoods: true, waivePolicyThreshold: false, chargeFreeGoods: true, chargeIndividualGoods: true }).filter(problem => problem !== SHIPPING_REGION_PERIOD_PROBLEM);
   if (policy.startsAt && policy.endsAt && transactionInstant(policy.startsAt) && transactionInstant(policy.endsAt)
-    && transactionEpochMicros(policy.startsAt) >= transactionEpochMicros(policy.endsAt)) problems.push(periodProblem);
-  if (!policy.carrierCode) problems.unshift('출고지의 택배사를 확인해주세요.');
+    && transactionEpochMicros(policy.startsAt) >= transactionEpochMicros(policy.endsAt)) problems.push(SHIPPING_REGION_PERIOD_PROBLEM);
+  if (!policy.carrierCode) problems.unshift('택배사를 골라 주세요.');
   return problems;
+}
+
+/** 결과를 모를 때 그만두는 버튼. 누르면 앞서 누른 저장이 뒤늦게 처리되지 않게 막는다(배송정보 템플릿 화면과 같은 이름). */
+export const SHIPPING_CHARGE_GROUP_STOP_LABEL = SAVE_STOP_LABEL;
+/**
+ * 묶음그룹을 '사용'으로 저장하거나 상품을 넣고 빼려면 쇼핑몰 전체에 걸린 주문 설정이 켜져 있어야 한다(꺼져 있으면 DB가 거절한다).
+ * 그 설정을 켜는 어드민 화면은 없고 개발 담당자가 켠다 — '운영 설정을 확인'이 아니라 누구에게 요청하는지를 말한다
+ * (lib/admin/goods-fulfillment-messages.ts와 같은 말). 화면은 목록을 읽을 때 그 설정을 함께 읽어 누르기 전에 막는다(화면 규칙 5).
+ */
+export const SHIPPING_CHARGE_GROUP_RUNTIME_OFF = "지금 쇼핑몰 설정에서는 묶음그룹을 '사용'으로 저장하거나 상품을 넣고 뺄 수 없습니다. 써야 하면 개발 담당자에게 요청해 주세요.";
+/** 이 상품을 넣거나 뺄 수 없는 이유와 푸는 방법. '건너뜀 · ' 뒤와 결과 줄에 붙여 쓰도록 끝의 마침표 없이 적는다(배송정보 템플릿의 건너뜀 이유와 같은 말). */
+export const SHIPPING_CHARGE_GROUP_BLOCKER_LABELS: Record<ShippingChargeGroupBlocker, string> = {
+  goods_aggregation_policy_owned_by_source: '원상품에서 나눈 상품이라 원상품에서 바꿔야 합니다',
+  checkout_contract_upgrade_required: '지금 쇼핑몰 설정에서는 묶음그룹에 넣거나 뺄 수 없습니다',
+  shipping_charge_group_unavailable: "묶음그룹이 '사용 안 함'이거나 보관돼 있습니다",
+  shipping_charge_group_origin_mismatch: '상품과 묶음그룹의 출고지가 다릅니다',
+  shipping_charge_group_origin_unavailable: "상품의 출고지가 없거나 '사용 안 함'입니다. 배송정보 관리에서 출고지를 '사용'으로 바꿔 주세요",
+  collect_contract_not_ready: '출고지가 착불을 받을 준비가 돼 있지 않습니다. 배송정보 관리에서 출고지의 착불 조건을 먼저 준비해 주세요',
+};
+/** 넣기·빼기에서 건너뛴 상품과 이유. 미리보기와 결과 줄에 보인다. */
+export interface ShippingChargeGroupSkipped { id: string; name: string; reason: string }
+/**
+ * 미리보기에서 바꿀 수 있는 상품과 건너뛰는 상품을 가른다. DB의 배정(`admin_assign_shipping_charge_group`)은 한 상품이라도 막히면
+ * 전부 거절하므로, 화면이 막힌 상품을 빼고 나머지만 다시 미리보기해 보낸다(상품 일괄 변경·배송정보 템플릿과 같은 방식).
+ */
+export function shippingChargeGroupPreviewSplit(preview: ShippingChargeGroupAssignmentPreview): { ready: ShippingChargeGroupAssignmentPreview['goods']; skipped: ShippingChargeGroupSkipped[] } {
+  const ready = preview.goods.filter(good => good.editable && good.id === good.ownerGoodId && good.blocker === null);
+  const skipped = preview.goods.filter(good => !ready.includes(good)).map(good => ({ id: good.id, name: good.name,
+    reason: SHIPPING_CHARGE_GROUP_BLOCKER_LABELS[good.blocker ?? 'goods_aggregation_policy_owned_by_source'] }));
+  return { ready, skipped };
+}
+
+/**
+ * 묶음그룹의 지역표가 지금 주문에 쓰이지 않는 이유(쓰이면 null). 주문 견적(`private.calculate_shipping_charge_group_shipping`)과 같은 조건이다:
+ * 지역표를 쓰는 '사용' 묶음그룹은 적용 기간 안이고 택배사가 출고지의 기본 택배사(사용 중)와 같아야 하며, 아니면 그 묶음그룹 상품의 주문이 막힌다.
+ * `carrierActive`를 모르면(택배사 목록에 없음) undefined를 넘긴다 — 그 조건은 보지 않는다.
+ */
+export type ShippingChargeGroupRegionBlock = 'carrier_mismatch' | 'carrier_inactive' | 'not_started' | 'ended';
+export function shippingChargeGroupRegionBlock(policy: Pick<ShippingChargeGroupRegionPolicy, 'carrierCode' | 'startsAt' | 'endsAt'>,
+  origin: { defaultCarrier: string | null } | null | undefined, carrierActive: boolean | undefined, now: number): ShippingChargeGroupRegionBlock | null {
+  if (origin && policy.carrierCode !== origin.defaultCarrier) return 'carrier_mismatch';
+  if (carrierActive === false) return 'carrier_inactive';
+  if (policy.endsAt && Date.parse(policy.endsAt) <= now) return 'ended';
+  if (!policy.startsAt || Date.parse(policy.startsAt) > now) return 'not_started';
+  return null;
+}
+export const SHIPPING_CHARGE_GROUP_REGION_BLOCK_LABELS: Record<ShippingChargeGroupRegionBlock, string> = {
+  carrier_mismatch: '지역표의 택배사가 출고지의 기본 택배사와 달라',
+  carrier_inactive: "지역표의 택배사가 '사용 안 함'이라",
+  not_started: '지역표의 적용 시작 전이라',
+  ended: '지역표의 적용 기간이 끝나',
+};
+
+/**
+ * 지역별 추가배송비가 바뀌는 저장의 확인창 글. 저장하는 순간 이 묶음그룹 상품의 주문에 적용되므로
+ * 대상(출고지·묶음그룹·상품 수)과 금액·적용 기간, 그리고 주문이 막히는 경우를 말한다.
+ */
+export function shippingChargeGroupRegionConfirmMessage({ name, originName, assignedCount, enabled, regional, now, formatDate }: {
+  name: string; originName: string; assignedCount: number; enabled: boolean; regional: ShippingChargeGroupValues['regional'];
+  now: number; formatDate: (value: string) => string;
+}): string {
+  const lines = [`${originName} · ${name} · 넣은 상품 ${assignedCount.toLocaleString('ko-KR')}개`];
+  const effects: string[] = [];
+  let endedNow = false;
+  if (regional.mode === 'inherit') lines.push('지역별 추가배송비: 출고지 설정을 그대로 따릅니다. 이 묶음그룹의 지역표는 더 쓰지 않습니다.');
+  else {
+    const policy = regional.policy, started = Boolean(policy.startsAt) && Date.parse(policy.startsAt!) <= now;
+    const refused = policy.rules.filter(rule => rule.disposition === 'unavailable' || rule.disposition === 'manual_review').length;
+    lines.push(`추가배송비: ${shippingRegionFeeSummary(policy.rules) || '받는 지역 없음'}${refused ? ` · 주문받지 않는 지역 ${refused}줄` : ''} · 묶음그룹마다 한 번`,
+      `표에 없는 지역: ${policy.unlistedDisposition === 'manual_review' ? '주문받지 않음' : '추가배송비 없음'}`,
+      `적용 기간: ${policy.startsAt ? formatDate(policy.startsAt) : '정하지 않음'}부터${policy.endsAt ? ` ${formatDate(policy.endsAt)}까지` : ''}`);
+    if (enabled && !started && policy.startsAt) effects.push(`${formatDate(policy.startsAt)} 전에는 이 묶음그룹 상품의 새 주문이 막힙니다.`);
+    if (policy.unlistedDisposition === 'manual_review') effects.push('지역표에 없는 주소로는 이 묶음그룹 상품을 주문할 수 없게 됩니다.');
+    if (policy.endsAt && enabled && Date.parse(policy.endsAt) <= now) {
+      /* 끝나는 시각이 이미 지났다 — 나중에 막히는 것이 아니라 저장하는 순간 막힌다. */
+      endedNow = true;
+      effects.push(`적용 종료(${formatDate(policy.endsAt)})가 이미 지났습니다. 저장하면 바로 이 묶음그룹 상품의 새 주문이 막힙니다. 적용 종료를 지금보다 뒤로 고치거나 출고지 설정을 따르게 바꿔 주세요.`);
+    } else if (policy.endsAt) effects.push(`${formatDate(policy.endsAt)} 뒤에는 이 묶음그룹 상품의 새 주문이 막힙니다. 그 전에 적용 종료를 고치거나 출고지 설정을 따르게 바꿔 주세요.`);
+  }
+  effects.push(endedNow ? '이미 들어온 주문의 배송비는 그대로입니다.' : enabled ? '저장하면 바로 새 주문에 적용됩니다. 이미 들어온 주문의 배송비는 그대로입니다.'
+    : "'사용 안 함'이라 지금 주문에는 쓰이지 않습니다. '사용'으로 바꿔 저장하면 그때부터 적용됩니다.");
+  return [...lines, '', ...effects].join('\n');
 }
 export function parseShippingChargeGroupRegionPolicy(value: unknown): ShippingChargeGroupRegionPolicy | null {
   if (!record(value) || !transactionExactKeys(value, ['carrierCode', 'startsAt', 'endsAt', 'openEnded', 'sourceEvidence', 'unlistedDisposition', 'noRulesConfirmed', 'rules'])

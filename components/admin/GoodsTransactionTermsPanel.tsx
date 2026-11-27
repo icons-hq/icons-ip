@@ -138,7 +138,7 @@ export function GoodsDeliveryRuleFields({ value, onChange }: { value: GoodsTerms
       </AdminFormGrid> : null}
       <GoodReadback>
         {rows ? <>수량별 배송비 · {rows}<br /></> : null}
-        상품 상세에는 &lsquo;{GOODS_DELIVERY_PAYMENT_READBACK[fields.paymentMode] ?? GOODS_DELIVERY_PAYMENT_READBACK.prepaid}&rsquo;로 보입니다. 지역 추가 배송비는 따로 더해집니다.
+        상품 상세에는 &lsquo;{GOODS_DELIVERY_PAYMENT_READBACK[fields.paymentMode] ?? GOODS_DELIVERY_PAYMENT_READBACK.prepaid}&rsquo;로 보입니다. 지역별 추가배송비는 따로 더해집니다.
       </GoodReadback>
     </> : null}
   </div>;
@@ -163,14 +163,15 @@ export function GoodsDeliveryPricingFields({ value, onChange }: { value: GoodsTe
       <SelectRow label="배송비 결제" value={fields.paymentMode} onChange={next => patch('paymentMode', next)}><option value="prepaid">선결제</option><option value="collect">착불</option><option value="buyer_choice">구매자 선택 · 선결제 또는 착불</option></SelectRow>
       <SelectRow label="수량별 배송비" value={fields.kind} onChange={next => patch('kind', next)}><option value="existing">기본 상품의 배송비 설정 사용</option><option value="repeat">수량마다 배송비 반복</option><option value="tier2">2구간 배송비</option><option value="tier3">3구간 배송비</option></SelectRow>
       {fields.kind !== 'existing' && <NumberField label="기본 배송비 (원)" value={fields.baseFee} max={1000000} onChange={next => patch('baseFee', next)} />}
-      {fields.kind === 'repeat' && <NumberField label="배송비 부과 단위 (개마다)" value={fields.interval} min={1} onChange={next => patch('interval', next)} />}
-      {['tier2', 'tier3'].includes(fields.kind) && <><NumberField label="기본 배송비 적용 한도 (개 이하)" value={fields.firstLimit} min={1} onChange={next => patch('firstLimit', next)} />
-        <NumberField label="첫 번째 한도 초과 추가금 (원)" value={fields.extra1} max={1000000} onChange={next => patch('extra1', next)} /></>}
-      {fields.kind === 'tier3' && <><NumberField label="두 번째 수량 한도 (개 이하)" value={fields.secondLimit} min={2} onChange={next => patch('secondLimit', next)} />
-        <NumberField label="두 번째 한도 초과 추가금 (원)" value={fields.extra2} max={1000000} onChange={next => patch('extra2', next)} /></>}
+      {/* 칸 이름은 상품 화면의 같은 설정(GoodsDeliveryRuleFields)과 같은 말이다. */}
+      {fields.kind === 'repeat' && <NumberField label="몇 개마다 (개)" value={fields.interval} min={1} onChange={next => patch('interval', next)} />}
+      {['tier2', 'tier3'].includes(fields.kind) && <><NumberField label={fields.kind === 'tier3' ? '첫 구간 (개까지)' : '기본 배송비로 받는 개수 (개까지)'} value={fields.firstLimit} min={1} onChange={next => patch('firstLimit', next)} />
+        <NumberField label={fields.kind === 'tier3' ? '첫 구간을 넘으면 더하는 금액 (원)' : '그보다 많으면 더하는 금액 (원)'} value={fields.extra1} max={1000000} onChange={next => patch('extra1', next)} /></>}
+      {fields.kind === 'tier3' && <><NumberField label="둘째 구간 (개까지)" value={fields.secondLimit} min={2} onChange={next => patch('secondLimit', next)} />
+        <NumberField label="둘째 구간을 넘으면 더하는 금액 (원)" value={fields.extra2} max={1000000} onChange={next => patch('extra2', next)} /></>}
     </AdminFormGrid>
-    <p className="text-sm text-muted-foreground">수량은 같은 상품의 모든 옵션을 합산합니다. 반복 방식은 부과 단위마다 기본 배송비를 더하고, 구간 방식은 기본 배송비에 해당 구간의 추가금 하나를 더합니다. 지역 추가 배송비는 별도로 계산합니다.</p>
-    {fields.paymentMode !== 'prepaid' && <p className={GOOD_NOTE_CLASS}>착불은 출고지의 수납 주체·방법·증빙·분쟁 연락처가 준비되어야 사용할 수 있습니다. 고객이 배송 시 별도로 낼 금액을 주문서에 표시하며 온라인 환급에 합산하지 않습니다.</p>}
+    <p className="text-sm text-muted-foreground">수량은 같은 상품의 모든 옵션을 더해 셉니다. 반복은 정한 개수마다 기본 배송비를 한 번씩 더 받고, 구간은 기본 배송비에 그 구간의 금액 하나를 더합니다. 지역별 추가배송비는 따로 붙습니다.</p>
+    {fields.paymentMode !== 'prepaid' && <p className={GOOD_NOTE_CLASS}>착불은 출고지에서 착불을 받을 준비가 돼 있어야 쓸 수 있습니다. 배송정보 관리에서 출고지의 착불 조건을 먼저 준비해주세요. 고객이 물건을 받을 때 따로 낼 금액은 주문서에 보이고, 착불 배송비는 온라인 환불에 포함되지 않습니다.</p>}
   </div>;
 }
 

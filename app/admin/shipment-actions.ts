@@ -18,6 +18,7 @@ import {recordPiiAccess} from '@/lib/admin/pii-access-log.server';
 import {unstable_rethrow} from 'next/navigation';
 import {carrierTrackingNumberIssue,findShippingCarrier,isTrackingNumber,normalizeTrackingNumber} from '@/lib/orders/shipment';
 import {getShippingCarrierRegistry} from '@/lib/orders/shipment.server';
+import {ADMIN_DISPATCH_ACCESS_DENIED} from '@/lib/admin/vocabulary';
 import {enqueueOrderShippedEmails} from '@/lib/email/order-shipment-jobs.server';
 import {DISPATCH_HANDOFF_METHODS,DISPATCH_METHODS,DISPATCH_REASON_MAX_LENGTH,DISPATCH_TARGET_LIMIT,dispatchDeliveryError,parseDispatchDeliveryOptions,parseDispatchDeliveryReceipt,
  type DispatchDeliveryOptions,type DispatchDeliveryReceipt,type DispatchHandoffInput,type DispatchMethod} from '@/lib/admin/dispatch-delivery';
@@ -25,6 +26,8 @@ const INSTANT=/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,6})?(?:Z|[+-]\d{2}:
 function selection(value:unknown):string[]|null {if(!Array.isArray(value)||!value.length||value.length>1000||!value.every(id=>typeof id==='string'&&isUuid(id)))return null;return [...new Set((value as string[]).map(id=>id.toLowerCase()))];}
 /** 출고지시·배송완료는 출고 전용 권한(sales.dispatch, 1014-084)으로 한다. sales.manage도 이 권한을 포함한다. */
 const SHIPMENT_PATH='/admin/sales/dispatch';
+/** 권한이 없을 때의 안내. 주문·발송 화면이 같은 문장을 쓴다(lib/admin/vocabulary — 출고 = sales.dispatch, 판매 관리가 포함한다). */
+const NO_PERMISSION=ADMIN_DISPATCH_ACCESS_DENIED;
 async function staff(){return requireAdminActionAccess(SHIPMENT_PATH,{capability:'sales.dispatch'});}
 /** 화면이 백그라운드로 부르는 읽기 전용 경고용. 세션이 끝나도 로그인으로 옮기지 않고 거절(null)만 돌려준다. */
 async function backgroundStaff(){return requireAdminActionAccess(SHIPMENT_PATH,{capability:'sales.dispatch',onUnauthenticated:'error'});}
@@ -49,7 +52,7 @@ function exportInputError(format:unknown,layout:unknown,credentials?:ExportCrede
 async function exportShipments(actorId:string,client:Client,keys:string[],format:'xlsx'|'csv',layout:ShipmentExportLayout,credentials?:ExportCredentials,note='',readsOrderAmounts=true):Promise<ExportResult>{
  const result=await client.rpc(layout==='smartstore'?'admin_smartstore_shipment_export':'admin_shipment_export',{p_ids:keys});
  const exportError=result.error?.message??'';
- if(result.error||!result.data)return {error:exportError.startsWith('shipment_pack_')||exportError.startsWith('production_')||['shipment_item_export_mismatch','shipment_price_allocation_missing'].includes(exportError)?shipmentMutationError(exportError):exportError==='order cancellation in progress'?'재고 부족 부분 취소 또는 취소 요청이 진행 중인 주문이 포함되어 있어 출고지시를 만들지 못했습니다. 취소 처리가 끝난 뒤 다시 시도해주세요.':exportError==='order fulfillment hold'?'출고 보류 주문(결제 확인 필요)이 포함되어 있어 출고지시를 만들지 못했습니다. 해당 주문을 빼거나 주문 상세에서 보류를 확인한 뒤 다시 시도해주세요.':'출고지시를 만들지 못했습니다. 발송 대기가 아니거나 취소 요청이 열린 배송 건이 섞였을 수 있습니다. 목록을 새로고침해 상태를 확인한 뒤 다시 내려받아 주세요.'};
+ if(result.error||!result.data)return {error:exportError.startsWith('shipment_pack_')||exportError.startsWith('production_')||['shipment_item_export_mismatch','shipment_price_allocation_missing'].includes(exportError)?shipmentMutationError(exportError):exportError==='order cancellation in progress'?'재고 부족 부분 취소나 취소 요청이 진행 중인 주문이 들어 있어 출고지시를 만들지 못했습니다. 취소 처리가 끝난 뒤 다시 내려받아 주세요.':exportError==='order fulfillment hold'?'출고 보류 주문(결제 확인 필요)이 들어 있어 출고지시를 만들지 못했습니다. 그 주문을 빼거나 주문 상세에서 보류를 확인한 뒤 다시 내려받아 주세요.':'출고지시를 만들지 못했습니다. 발송 대기가 아니거나 취소 요청이 열린 배송 건이 섞였을 수 있습니다. 목록을 새로고침해 상태를 확인한 뒤 다시 내려받아 주세요.'};
  let data=result.data as ShipmentExportData;
  // 버전 1 할인 주문의 품목 금액은 거래확정 엑셀과 같은 공통 배분으로 채운다(10/14 회의 A5).
  // 1014-084 사용자 결정 "수령인 정보만": 주문 조회 권한(sales.read)이 없는 출고 전용 운영자가 받는 출고지시 파일은 어느 양식이든
@@ -77,7 +80,7 @@ async function exportShipments(actorId:string,client:Client,keys:string[],format
   const mark=labels.length
    ?await client.rpc('admin_mark_seowon_shipments_exported',{target_versions:versions,target_batch:randomUUID(),target_labels:labels})
    :await client.rpc('admin_mark_shipments_exported',{target_versions:versions});
-  if(mark.error||mark.data!==keys.length)return {error:'배송 상태가 변경되었습니다. 목록을 새로고침한 뒤 다시 내보내주세요.'};
+  if(mark.error||mark.data!==keys.length)return {error:'그 사이 배송 건이 바뀌었습니다. 목록을 새로고침한 뒤 다시 내려받아 주세요.'};
   const multipleOrigins=layout==='warehouse'&&new Set(data.shipments.map(shipment=>shipment.originId)).size>1;
   const operational=data.shipments.some(shipment=>shipment.isGift||(shipment.shippingCollectFee??0)>0||shipment.pack);
   const extra=operational?(file.extension==='xlsx'?' 별도 배송 운영 안내 시트에서 합포장·선물 포장·착불 조건을 함께 확인해주세요.':' ZIP에 포함된 각 출고 파일과 배송 운영 안내에서 합포장·선물 포장·착불 조건을 함께 확인해주세요.'):' ';
@@ -87,18 +90,18 @@ async function exportShipments(actorId:string,client:Client,keys:string[],format
   // 모든 행에 바코드 칸이 있다, 1027T-046). 경고라 조회 실패는 생략한다.
   const missing=await barcodeGaps(client,keys,layout);
   return {file:{base64:file.bytes.toString('base64'),mime:file.mime,name:file.name,...(sha256?{encryption:'ECMA-376-Agile' as const,sha256}:{})},
-   message:`${`${keys.length}건의 출고지시를 내려받았습니다.${multipleOrigins?' 출고지별 파일을 ZIP으로 묶었습니다. 각 파일을 해당 창고에 전달해주세요.':''}${extra}${note}`.trim()}${missing?` ${shipmentBarcodeGapWarning(missing)}`:''}`};
+   message:`${`${keys.length}건의 출고지시를 내려받았습니다.${multipleOrigins?' 출고지별 파일을 ZIP으로 묶었습니다. 각 파일을 그 창고에 보내주세요.':''}${extra}${note}`.trim()}${missing?` ${shipmentBarcodeGapWarning(missing)}`:''}`};
  }catch(error){return {error:error instanceof Error?error.message:'출고지시 파일을 만들지 못했습니다.'};}
 }
 export async function exportShipmentsAction(ids:unknown,format:'xlsx'|'csv',layout:ShipmentExportLayout='smartstore',credentials?:ExportCredentials):Promise<ExportResult>{
- const auth=await staff();if(!auth)return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
- if(!keys)return {error:'내보낼 배송 건을 1~1,000개 선택해주세요.'};
+ const auth=await staff();if(!auth)return {error:NO_PERMISSION};const keys=selection(ids);
+ if(!keys)return {error:'출고지시를 내려받을 배송 건을 1~1,000개 골라주세요.'};
  const invalid=exportInputError(format,layout,credentials);if(invalid)return {error:invalid};
  return exportShipments(auth.user.id,await createClient(),keys,format,layout,credentials,'',hasAdminCapability(auth,'sales.read'));
 }
 /** The origin batch has the same selected layout and password contract as a selected-row export. */
 export async function exportPendingOriginShipmentsAction(originId:unknown,format:'xlsx'|'csv',layout:ShipmentExportLayout='smartstore',credentials?:ExportCredentials):Promise<ExportResult>{
- const auth=await staff();if(!auth)return {error:'직원 권한이 필요합니다.'};
+ const auth=await staff();if(!auth)return {error:NO_PERMISSION};
  if(typeof originId!=='string'||!isUuid(originId))return {error:'출고지를 선택해주세요.'};
  const invalid=exportInputError(format,layout,credentials);if(invalid)return {error:invalid};
  const client=await createClient();
@@ -141,7 +144,7 @@ async function barcodeGaps(client:Client,target:string[]|{p_origin_id:string},la
  * 늦게 처리한 사유를 받는다. DB(admin_complete_shipments_at)가 같은 범위와 발송 등록 시각 하한을 배송 건마다 다시 본다.
  */
 export async function completeShipmentsAction(ids:unknown,arrival:{deliveredAt?:unknown;reason?:unknown}|null=null){
- const auth=await staff();if(!auth)return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
+ const auth=await staff();if(!auth)return {error:NO_PERMISSION};const keys=selection(ids);
  if(!keys)return {error:'배송완료 처리할 배송 건을 1~1,000개 선택해주세요.'};
  const deliveredAt=arrival?.deliveredAt??null;const reason=typeof arrival?.reason==='string'?arrival.reason.trim():'';
  if(deliveredAt!==null&&(typeof deliveredAt!=='string'||!INSTANT.test(deliveredAt)))return {error:'택배사 배송완료 일시를 확인해주세요.'};
@@ -175,7 +178,7 @@ type TrackingBatchRow={line:number;reference:string;ok:boolean;error?:string;shi
  * 합포장은 묶음 전체에 적용되고, 이미 발송된 배송 건의 운송장은 덮어쓰지 않는다(같은 번호는 그대로, 다르면 실패).
  */
 export async function registerShipmentTrackingAction(input:unknown):Promise<ShipmentTrackingRowResult>{
- if(!await dispatchStaff())return {ok:false,error:'직원 권한이 필요합니다.'};
+ if(!await dispatchStaff())return {ok:false,error:NO_PERMISSION};
  if(!Array.isArray(input)||!input.length||input.length>DISPATCH_TARGET_LIMIT)return {ok:false,error:'운송장을 등록할 배송 건을 확인하지 못했습니다. 목록을 새로고침한 뒤 다시 입력해주세요.'};
  const carriers=await getShippingCarrierRegistry();const rows:{line:number;reference:string;carrier:string;trackingNumber:string}[]=[];
  for(const [index,value] of input.entries()){
@@ -206,7 +209,7 @@ export async function registerShipmentTrackingAction(input:unknown):Promise<Ship
   let queueWarning=false;
   if(deliveries.length){try{await enqueueOrderShippedEmails([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);}catch{queueWarning=true;}}
   if(registered.length||unchanged.length)refreshDispatched();
-  const message=registered.length?`운송장 ${registered.length}건을 등록해 배송 중으로 옮겼습니다.${queueWarning?' 배송 안내 메일 발송 예약을 확인하지 못했습니다. 주문 상세의 배송 메일 처리 상태에서 확인해주세요.':' 배송 안내 메일은 잠시 뒤 차례로 발송됩니다.'}`
+  const message=registered.length?`운송장 ${registered.length}건을 등록해 배송중으로 옮겼습니다.${queueWarning?' 배송 안내 메일 발송 예약을 확인하지 못했습니다. 주문 상세의 배송 메일 처리 상태에서 확인해주세요.':' 배송 안내 메일은 잠시 뒤 차례로 발송됩니다.'}`
    :unchanged.length?'같은 운송장으로 이미 발송된 배송 건입니다. 그대로 두었습니다.':'운송장을 등록하지 못했습니다.';
   return {ok:true,message,registered,unchanged,failed,queueWarning};
  }catch(error){unstable_rethrow(error);return {ok:false,error:'등록 결과를 확인하지 못했습니다. 목록을 새로고침해 배송 상태를 확인해주세요.'};}
@@ -214,14 +217,14 @@ export async function registerShipmentTrackingAction(input:unknown):Promise<Ship
 
 /** 발송처리 화면의 배송 방법 팝업(S36-072·S36-X04)이 여는 대상 정보. 고객이 고른 방법·처리 가능 여부·켜진 운영 조건. */
 export async function readDispatchDeliveryOptionsAction(ids:unknown):Promise<{ok:true;options:DispatchDeliveryOptions}|{ok:false;error:string}>{
- if(!await dispatchStaff())return {ok:false,error:'직원 권한이 필요합니다.'};
+ if(!await dispatchStaff())return {ok:false,error:NO_PERMISSION};
  const keys=selection(ids);
  if(!keys||keys.length>DISPATCH_TARGET_LIMIT)return {ok:false,error:`배송 건을 1~${DISPATCH_TARGET_LIMIT}개 선택해주세요.`};
  try{
   const {data,error}=await (await createClient()).rpc('admin_dispatch_delivery_options',{p_shipment_ids:keys});
   const options=error?null:parseDispatchDeliveryOptions(data);
-  return options?{ok:true,options}:{ok:false,error:'배송 방법 정보를 불러오지 못했습니다. 잠시 후 다시 열어주세요.'};
- }catch(error){unstable_rethrow(error);return {ok:false,error:'배송 방법 정보를 불러오지 못했습니다. 잠시 후 다시 열어주세요.'};}
+  return options?{ok:true,options}:{ok:false,error:'배송 방식 정보를 불러오지 못했습니다. 잠시 후 다시 열어주세요.'};
+ }catch(error){unstable_rethrow(error);return {ok:false,error:'배송 방식 정보를 불러오지 못했습니다. 잠시 후 다시 열어주세요.'};}
 }
 
 export interface DispatchDeliveryRequest{targets:{shipmentId:string;updatedAt:string}[];method:DispatchMethod;reason:string;handoff:DispatchHandoffInput|null;operationId:string}
@@ -250,7 +253,7 @@ function dispatchRequest(input:unknown):DispatchDeliveryRequest|null{
  * 그대로이고, 고객이 고른 방법과 다르면 사유가 필요하다. 배송 건마다 결과를 돌려준다.
  */
 export async function applyDispatchDeliveryAction(input:unknown):Promise<{ok:true;receipt:DispatchDeliveryReceipt}|{ok:false;error:string}>{
- if(!await dispatchStaff())return {ok:false,error:'직원 권한이 필요합니다.'};
+ if(!await dispatchStaff())return {ok:false,error:NO_PERMISSION};
  const request=dispatchRequest(input);
  if(!request)return {ok:false,error:dispatchDeliveryError('invalid_dispatch_delivery_request')};
  try{

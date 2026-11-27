@@ -6,11 +6,13 @@ import { readStockDigestOriginAction, saveStockDigestOriginAction, type StockDig
 import { AdminField } from '@/components/admin/console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
 import { STOCK_RECONCILE_PATH } from '@/lib/admin/stock-reconcile';
 import { STOCK_DIGEST_ORIGIN_RECIPIENT_LIMIT, parseRecipientList, type StockDigestOrigin } from '@/lib/admin/stock-safety-digest';
 
 const HINT = 'text-sm text-muted-foreground';
-const UNKNOWN = '저장 결과를 확인하지 못했습니다. [같은 요청 결과 확인]을 누르면 방금 보낸 내용 그대로 다시 보내 결과를 받아 옵니다. 여러 번 눌러도 한 번만 저장됩니다.';
+/* 결과를 모를 때의 버튼·문장은 다른 화면과 같은 말을 쓴다(화면 규칙 4). 버튼은 방금 보낸 내용을 같은 번호로 다시 보내 두 번 저장되지 않는다. */
+const UNKNOWN = SAVE_UNKNOWN_MESSAGE;
 
 /**
  * 배송정보 관리 출고지 탭의 '안전재고 요약 메일 담당자' 칸(QNA-014). 탭이 열리면 그 출고지의 주소를 읽어 온다.
@@ -70,7 +72,7 @@ export function StockDigestOriginRecipientsPanel({ originId }: { originId: strin
           </AdminField>
         </fieldset>
         <div className="flex flex-wrap items-center gap-3">
-          <Button type="submit" variant="outline" disabled={pending || (!changed && !uncertain)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '담당자 주소 저장'}</Button>
+          <Button type="submit" variant="outline" disabled={pending || (!changed && !uncertain)}>{pending ? '저장 중…' : uncertain ? SAVE_CHECK_LABEL : '담당자 주소 저장'}</Button>
           {message ? <p className={`text-sm ${error ? 'text-destructive' : 'text-success'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}
         </div>
       </form>}

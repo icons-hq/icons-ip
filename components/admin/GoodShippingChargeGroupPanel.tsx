@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getGoodShippingChargeGroupAction, previewShippingChargeGroupAssignmentAction } from '@/app/admin/shipping-charge-group-actions';
-import { parseShippingChargeGroupAssignRequest, shippingChargeGroupGoodGuard, type ShippingChargeGroup, type ShippingChargeGroupAssignRequest,
+import { SAVE_CHECK_LABEL, SAVE_UNKNOWN_MESSAGE } from '@/lib/admin/goods-template-save';
+import { SHIPPING_CHARGE_GROUP_BLOCKER_LABELS, SHIPPING_CHARGE_GROUP_RUNTIME_OFF, SHIPPING_CHARGE_GROUP_STOP_LABEL,
+  parseShippingChargeGroupAssignRequest, shippingChargeGroupGoodGuard, type ShippingChargeGroup, type ShippingChargeGroupAssignRequest,
   type ShippingChargeGroupAssignmentPreview, type ShippingChargeGroupGoodData, type ShippingChargeGroupIdentity,
   type ShippingChargeGroupOperationContext, type ShippingChargeGroupOperationReceipt } from '@/lib/admin/shipping-charge-groups';
 import { ShippingChargeGroupField, ShippingChargeGroupSummary } from './ShippingChargeGroupField';
@@ -16,13 +18,12 @@ function PendingAssignment({ context, identity, scope, disabled, onReceipt }: {
   disabled: boolean; onReceipt: (receipt: ShippingChargeGroupOperationReceipt) => void;
 }) {
   const operation = useShippingChargeGroupOperation({ identity, scope, groupId: context.groupId, command: context.command, onReceipt });
-  /* 결과를 확인해야 하는 요청이라 경고 톤으로 둔다. */
+  /* 저장됐는지 모르는 채 남은 일이라 경고 톤으로 둔다. */
   return <div className="flex min-w-0 flex-col items-start gap-2 rounded-lg border border-[color-mix(in_oklab,var(--wc-warning)_40%,transparent)] bg-[color-mix(in_oklab,var(--wc-warning)_8%,transparent)] px-3 py-2.5 text-sm" data-shipping-charge-pending="">
-    <strong className="font-medium">저장됐는지 확인이 필요한 요청</strong>
-    <p className="text-muted-foreground">이번 로그인에서 보낸 요청의 저장 결과를 아직 모릅니다. [저장 결과 확인]을 먼저 눌러주세요. 결과가 없으면 [미처리 요청 종료]를 누른 뒤 미리보기를 다시 만들어주세요.</p>
+    <p><strong className="font-medium">{context.command === 'save' ? '묶음그룹을 저장하던 중이었습니다.' : '묶음그룹에 상품을 넣거나 빼던 중이었습니다.'}</strong> {SAVE_UNKNOWN_MESSAGE}</p>
     <div className="flex flex-wrap gap-2">
-      <button className={buttonVariants({ size: 'sm' })} data-slot="button" type="button" disabled={disabled || operation.busy} onClick={() => { if (!disabled && !operation.busy) void operation.recover(); }}>저장 결과 확인</button>
-      <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={disabled || operation.busy} onClick={() => { if (!disabled && !operation.busy) void operation.recover(true); }}>미처리 요청 종료</button>
+      <button className={buttonVariants({ size: 'sm' })} data-slot="button" type="button" disabled={disabled || operation.busy} onClick={() => { if (!disabled && !operation.busy) void operation.recover(); }}>{SAVE_CHECK_LABEL}</button>
+      <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={disabled || operation.busy} onClick={() => { if (!disabled && !operation.busy) void operation.recover(true); }}>{SHIPPING_CHARGE_GROUP_STOP_LABEL}</button>
     </div>
     {operation.error ? <p className="text-destructive" role="alert">{operation.error}</p> : null}
     {operation.message ? <p className="font-medium" role="status">{operation.message}</p> : null}
@@ -50,19 +51,21 @@ export function GoodShippingChargeGroupAssignmentEditor({ goodId, identity, scop
       if (!alive.current || number !== sequence.current || !scope.canApply(ticket)) return;
       if ('error' in result) { setError(result.error); if (result.authChanged) scope.authenticate(null, null); return; }
       if (result.data.actorId !== expectedActorId || result.data.sessionId !== expectedSessionId || result.data.good.id !== goodId) {
-        setError('현재 상품·계정과 다른 조회 결과입니다. 최신 배정을 다시 불러와주세요.'); return;
+        setError('다른 상품이나 계정의 결과가 돌아왔습니다. [지금 묶음그룹 불러오기]를 눌러 주세요.'); return;
       }
       setData(result.data); setTargetId(result.data.group?.id ?? null); setTarget(result.data.group); setPreview(null); setRequest(null);
-    } catch { if (alive.current && number === sequence.current && scope.canApply(ticket)) setError('상품의 묶음그룹을 읽지 못했습니다. 기존 배정을 변경하지 않았습니다.'); }
+    } catch { if (alive.current && number === sequence.current && scope.canApply(ticket)) setError('상품의 묶음그룹을 불러오지 못했습니다. 아무것도 바뀌지 않았습니다. [지금 묶음그룹 불러오기]를 눌러 주세요.'); }
     finally { if (number === sequence.current) { reading.current = false; if (alive.current && scope.canApply(ticket)) setLoading(false); } }
   }, [goodId, expectedActorId, expectedSessionId, scope]);
   const received = (receipt: ShippingChargeGroupOperationReceipt) => {
     if (!alive.current || !scope.capture()) return;
-    setMessage(receipt.state === 'sealed' ? '미처리 요청을 종료했습니다. 최신 상태를 확인하고 다시 미리보기해주세요.'
-      : receipt.state === 'assigned' ? `${receipt.appliedCount}개 상품의 묶음그룹 배정 결과를 확인했습니다.` : '묶음그룹 저장 결과를 확인했습니다.');
+    setMessage(receipt.state === 'sealed' ? '그만뒀습니다. 아무것도 바뀌지 않았습니다. 지금 묶음그룹을 확인한 뒤 다시 해 주세요.'
+      : receipt.state === 'assigned' ? `상품 ${receipt.appliedCount}개의 묶음그룹을 바꿨습니다.` : '묶음그룹을 저장했습니다.');
     void reload(true);
   };
-  const operation = useShippingChargeGroupOperation({ identity, scope, groupId: targetId, command: 'assign', onReceipt: received });
+  /* 저장되지 않은 것이 확실하면(그사이 상품·묶음그룹이 바뀐 경우 등) 낡은 미리보기를 지운다. 이유를 보고 [바뀌는 내용 보기]를 다시 누르면 지금 값으로 새로 만든다. */
+  const operation = useShippingChargeGroupOperation({ identity, scope, groupId: targetId, command: 'assign', onReceipt: received,
+    onFailure: failure => { if (alive.current && scope.capture()) { setPreview(null); setRequest(null); setError(failure.error); } } });
   const invalidateReads = useCallback(() => { sequence.current++; }, []);
   useEffect(() => {
     alive.current = true; let current = true;
@@ -86,15 +89,15 @@ export function GoodShippingChargeGroupAssignmentEditor({ goodId, identity, scop
       const value = result.data;
       if (value.actorId !== expectedActorId || value.sessionId !== expectedSessionId || (value.group?.id ?? null) !== targetId
         || value.goods.length !== 1 || value.goods[0].id !== goodId) {
-        setError('지금 상품·대상 그룹·로그인과 맞지 않는 미리보기입니다. 새로 미리보기를 만들어 최신 배정을 확인해주세요.'); return;
+        setError('지금 고른 것과 맞지 않는 미리보기가 돌아왔습니다. [바뀌는 내용 보기]를 다시 눌러 주세요.'); return;
       }
       setPreview(value);
       if (value.canAssign && value.runtimeEnabled && value.goods.every(good => good.editable && good.id === good.ownerGoodId && good.blocker === null)) {
         const parsed = parseShippingChargeGroupAssignRequest({ operationId: crypto.randomUUID(), command: 'assign', groupId: targetId,
           expectedRevision: value.group?.revision ?? 0, ...identity, origins: value.origins, goods: value.goods.map(shippingChargeGroupGoodGuard) });
-        if (parsed) setRequest(parsed); else setError('미리보기의 저장 기준을 확인하지 못했습니다. 배정을 저장하지 않았습니다.');
+        if (parsed) setRequest(parsed); else setError('미리보기를 읽지 못해 저장할 수 없습니다. [지금 묶음그룹 불러오기]를 누른 뒤 다시 해 주세요.');
       }
-    } catch { if (alive.current && number === sequence.current && scope.canApply(ticket)) setError('배정 미리보기를 불러오지 못했습니다. 다시 확인해주세요.'); }
+    } catch { if (alive.current && number === sequence.current && scope.canApply(ticket)) setError('미리보기를 불러오지 못했습니다. 잠시 뒤 [바뀌는 내용 보기]를 다시 눌러 주세요.'); }
     finally { if (number === sequence.current) { reading.current = false; if (alive.current && scope.canApply(ticket)) setLoading(false); } }
   }
   return <div className="flex min-w-0 flex-col gap-3" data-shipping-charge-assignment="">
@@ -103,22 +106,23 @@ export function GoodShippingChargeGroupAssignmentEditor({ goodId, identity, scop
       <ShippingChargeGroupField identity={identity} originId={data.good.originId} value={targetId} selectedGroup={target}
         onChange={(id, group) => { if (!locked && canEdit) { setTargetId(id); setTarget(group); setPreview(null); setRequest(null); setMessage(''); } }}
         disabled={locked || !canEdit} readOnly={!data.good.editable} ownerGoodId={data.good.ownerGoodId} />
-      {data.good.familyGoodIds.length > 1 ? <p className="text-sm text-muted-foreground">합산군 {data.good.familyGoodIds.length}개 상품이 원상품의 배정을 함께 씁니다. 구매 할인·한도와 전시 그룹 구성은 바뀌지 않습니다.</p> : null}
-      {!data.runtimeEnabled ? <p className="text-sm text-[var(--wc-warning)]">지금 쇼핑몰 설정에서는 묶음배송을 쓸 수 없습니다. 운영 설정을 확인해주세요.</p> : null}
-      <p className="text-sm text-muted-foreground">출고지를 바꾸려면 배정을 먼저 해제하거나, 배송정보 템플릿에서 출고지와 그룹을 함께 적용해주세요.</p>
-      {preview ? <div className={GOOD_SUBPANEL_CLASS} data-shipping-charge-preview=""><strong className="text-sm font-medium">상품 배정 변경 전후</strong>
+      {data.good.editable && data.good.familyGoodIds.length > 1 ? <p className="text-sm text-muted-foreground" data-shipping-charge-family="">함께 묶인 상품 {data.good.familyGoodIds.length - 1}개도 같은 묶음그룹을 씁니다.</p> : null}
+      {!data.runtimeEnabled ? <p className="text-sm text-[var(--wc-warning)]" data-shipping-charge-runtime-off="">{SHIPPING_CHARGE_GROUP_RUNTIME_OFF}</p> : null}
+      {/* 묶음그룹에 든 상품은 출고지를 바꿀 수 없다(DB가 거절한다). 묶음그룹에 들어 있을 때만 그 길을 말한다. */}
+      {data.group ? <p className="text-sm text-muted-foreground" data-shipping-charge-origin-note="">출고지를 바꾸려면 묶음그룹에서 먼저 빼거나, 배송정보 템플릿으로 출고지와 묶음그룹을 함께 바꿔 주세요.</p> : null}
+      {preview ? <div className={GOOD_SUBPANEL_CLASS} data-shipping-charge-preview=""><strong className="text-sm font-medium">바뀌는 내용</strong>
         {preview.goods.map(good => <div className="flex min-w-0 flex-col gap-2" key={good.id}><p className="text-sm font-medium wrap-anywhere">{good.name}</p>
-          <div className="grid min-w-0 gap-3 md:grid-cols-2"><div className="flex min-w-0 flex-col gap-1.5"><span className="text-xs font-medium text-muted-foreground">변경 전</span><ShippingChargeGroupSummary group={good.beforeGroup} /></div>
-          <div className="flex min-w-0 flex-col gap-1.5"><span className="text-xs font-medium text-muted-foreground">변경 후</span><ShippingChargeGroupSummary group={good.afterGroup} /></div></div>
-          {good.blocker ? <p className="text-sm text-destructive" role="alert">지금 출고지·권한·거래 준비 상태로는 적용할 수 없습니다. 최신 상품과 그룹 설정을 확인해주세요.</p> : null}</div>)}
-        <p className="text-sm text-muted-foreground">이미 확정된 주문은 바뀌지 않습니다.</p>
-        <button className={`${buttonVariants()} self-start`} data-slot="button" type="button" disabled={locked || !request || !preview.canAssign} onClick={() => { if (!locked && canEdit && request && preview.canAssign) void operation.send(request); }}>이 배정으로 저장</button>
+          <div className="grid min-w-0 gap-3 md:grid-cols-2"><div className="flex min-w-0 flex-col gap-1.5"><span className="text-xs font-medium text-muted-foreground">지금</span><ShippingChargeGroupSummary group={good.beforeGroup} /></div>
+          <div className="flex min-w-0 flex-col gap-1.5"><span className="text-xs font-medium text-muted-foreground">바꾼 뒤</span><ShippingChargeGroupSummary group={good.afterGroup} /></div></div>
+          {good.blocker ? <p className="text-sm text-destructive" role="alert">저장할 수 없습니다. {SHIPPING_CHARGE_GROUP_BLOCKER_LABELS[good.blocker]}.</p> : null}</div>)}
+        <p className="text-sm text-muted-foreground">이미 들어온 주문의 배송비는 그대로입니다.</p>
+        <button className={`${buttonVariants()} self-start`} data-slot="button" type="button" disabled={locked || !request || !preview.canAssign} onClick={() => { if (!locked && canEdit && request && preview.canAssign) void operation.send(request); }}>이대로 저장</button>
       </div> : null}
     </> : null}
-    <div className="flex flex-wrap gap-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={locked || !canEdit} onClick={() => { void prepare(); }}>배정 미리보기</button>
-      <button className={buttonVariants({ variant: 'ghost' })} data-slot="button" type="button" disabled={locked} onClick={() => { if (!locked) void reload(); }}>최신 배정 불러오기</button></div>
+    <div className="flex flex-wrap gap-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={locked || !canEdit} onClick={() => { void prepare(); }}>바뀌는 내용 보기</button>
+      <button className={buttonVariants({ variant: 'ghost' })} data-slot="button" type="button" disabled={locked} onClick={() => { if (!locked) void reload(); }}>지금 묶음그룹 불러오기</button></div>
     {showDisabledReason && disabledReason ? <p className={GOOD_NOTE_CLASS}>{disabledReason}</p> : null}
-    {loading || operation.busy ? <p className="text-sm text-muted-foreground" role="status">묶음배송 설정을 확인하고 있습니다.</p> : null}
+    {loading || operation.busy ? <p className="text-sm text-muted-foreground" role="status">묶음그룹을 확인하고 있습니다.</p> : null}
     {error || operation.error ? <p className="text-sm text-destructive" role="alert">{error || operation.error}</p> : null}
     {message || operation.message ? <p className="text-sm font-medium" role="status">{message || operation.message}</p> : null}
   </div>;

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { loadSellerClaimContextAction, readSellerClaimIntakeAction, submitSellerClaimIntakeAction } from './seller-claim-intake-actions';
+import { loadSellerClaimBalanceAction, loadSellerClaimContextAction, readSellerClaimIntakeAction, submitSellerClaimIntakeAction } from './seller-claim-intake-actions';
 import { SELLER_CLAIM_TEST_ORDER, SELLER_CLAIM_TEST_REQUEST, sellerClaimContextFixture, sellerClaimInputFixture, sellerClaimReceiptFixture } from '@/lib/admin/seller-claim-intake.fixture';
 const mocks = vi.hoisted(() => ({ allowed: true, rpc: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/admin/action-access.server', () => ({ requireAdminActionAccess: async () => mocks.allowed }));
@@ -84,5 +84,34 @@ describe('판매자 직접 접수 액션', () => {
     mocks.rpc.mockResolvedValueOnce({ error: { code: '23514', message: 'partial_return_item_shipment_not_dispatched' } });
     expect(await submitSellerClaimIntakeAction({ ...sellerClaimInputFixture, items: [{ orderItemId: item, qty: 1 }] }))
       .toMatchObject({ uncertain: false, error: expect.stringContaining('일부 반품할 수 없는 상품') });
+  });
+});
+
+/*
+ * F-05: 접수 창 머리글이 말할 남은 결제 금액. 일괄 승인 확인창과 같은 계산(결제 금액 − 부분 취소로 환불한 금액)을 DB가 balance로 돌려준다.
+ */
+describe('접수 창의 남은 결제 금액', () => {
+  const partial = { enabled: true, canManage: true, blockers: [], provider: 'bank_transfer', paymentAmount: 48000, balance: 33000, items: [], history: [] };
+  it('부분 취소 문맥의 결제 금액과 남은 금액을 읽는다 — 읽기 RPC 하나뿐이다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: partial, error: null });
+    expect(await loadSellerClaimBalanceAction(SELLER_CLAIM_TEST_ORDER)).toEqual({ paymentAmount: 48000, balance: 33000 });
+    expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('admin_order_partial_cancellation_context', { p_order_id: SELLER_CLAIM_TEST_ORDER });
+  });
+  it('부분 취소 설정이 꺼져 있거나 읽지 못하면 null — 머리글은 전액 기준으로 둔다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { enabled: false, canManage: true, blockers: ['partial_cancel_disabled'], history: [] }, error: null });
+    expect(await loadSellerClaimBalanceAction(SELLER_CLAIM_TEST_ORDER)).toBeNull();
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'boom' } });
+    expect(await loadSellerClaimBalanceAction(SELLER_CLAIM_TEST_ORDER)).toBeNull();
+    mocks.rpc.mockResolvedValueOnce({ data: { not: 'a context' }, error: null });
+    expect(await loadSellerClaimBalanceAction(SELLER_CLAIM_TEST_ORDER)).toBeNull();
+    mocks.rpc.mockRejectedValueOnce(new Error('network'));
+    expect(await loadSellerClaimBalanceAction(SELLER_CLAIM_TEST_ORDER)).toBeNull();
+  });
+  it('권한이 없거나 주문 번호가 아니면 RPC를 부르지 않는다', async () => {
+    mocks.allowed = false;
+    expect(await loadSellerClaimBalanceAction(SELLER_CLAIM_TEST_ORDER)).toBeNull();
+    mocks.allowed = true;
+    expect(await loadSellerClaimBalanceAction('not-a-uuid')).toBeNull();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });

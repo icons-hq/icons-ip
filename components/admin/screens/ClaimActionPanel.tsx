@@ -1,13 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { startTransition, useActionState, useState, type ReactNode } from 'react';
-import { ADMIN_CANCELLATION_RECHECK_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
+import { startTransition, useActionState, useRef, useState, type ReactNode } from 'react';
+import { ADMIN_CANCELLATION_RECHECK_LABELS, adminOrderPanelHref } from '@/lib/admin/orders';
 import { adminClaimStageLabel, adminClaimTodayKst } from '@/lib/admin/claims';
 import { krw } from '@/lib/format';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ADMIN_VOCABULARY as V, adminClaimCopy } from '@/lib/admin/vocabulary';
 import {
+  PAYMENT_PROVIDER_LABELS,
   automatedCancelProviderLabel,
   providerCancelsAutomatically,
 } from '@/lib/payments/provider-capabilities';
@@ -16,11 +17,13 @@ import {
   recordOrderClaimCollectionAction,
   planClaimDefectiveStockAction,
   planExchangeDefectiveStockAction,
+  readOrderClaimApprovalAmountAction,
   recordOrderClaimRefundAction,
-  recordOrderClaimReshipmentAction,
   retryClaimDefectiveStockAction,
   type AdminClaimActionState,
+  type AdminClaimApprovalAmountState,
 } from '@/app/admin/claim-actions';
+import { ADMIN_SUPPORT_CODE_LABEL, splitAdminSupportCode } from '@/lib/admin/payment-cancel-error';
 import {
   ORDER_CLAIM_REFUND_METHOD_LABELS,
   ORDER_CLAIM_REFUND_METHODS,
@@ -32,8 +35,7 @@ import {
   type OrderClaimStage,
   type OrderClaimType,
 } from '@/lib/orders/claims';
-import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
-import type { AdminClaimCollection, AdminClaimReshipItem } from '@/lib/admin/claims.server';
+import type { AdminClaimCollection } from '@/lib/admin/claims.server';
 import {
   returnFeeDeductionBasisLabel,
   returnFeeDeductionHeadline,
@@ -58,7 +60,21 @@ import { BankTransferRefund } from '@/components/admin/BankTransferRefund';
 import { ReturnClaimWorkspace } from './ReturnClaimWorkspace';
 import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 import { ClaimRejectionReasonField } from './ClaimRejectionReasonField';
-import { adminConfirm } from '@/lib/admin/confirm';
+import { adminConfirm, type AdminConfirmRequest } from '@/lib/admin/confirm';
+import {
+  CLAIM_CONFIRM_IRREVERSIBLE as IRREVERSIBLE,
+  claimCancelApprovalConfirm,
+  claimCancelApprovalMoneyConfirm,
+  claimConfirmBody as confirmBody,
+  claimConfirmTitle as confirmTitle,
+  claimPanelConfirmRequest,
+  type ClaimConfirmTarget,
+  type ClaimPanelConfirm,
+} from '@/lib/admin/claim-approval-confirm';
+
+/* 취소 승인 확인창의 문구는 주문 처리 패널과 함께 쓰는 한 곳(lib/admin/claim-approval-confirm)에 있다. 이 화면의 다른 부품·테스트가 쓰던 이름 그대로 다시 내보낸다. */
+export { claimCancelApprovalConfirm, claimCancelApprovalMoneyConfirm, claimPanelConfirmRequest };
+export type { ClaimConfirmTarget, ClaimPanelConfirm };
 
 /* 클레임 액션 패널(#252).
  *
@@ -98,7 +114,6 @@ const CLAIM_PANEL_ACTIONS = {
   decision: decideOrderClaimAction,
   collection: recordOrderClaimCollectionAction,
   refund: recordOrderClaimRefundAction,
-  reship: recordOrderClaimReshipmentAction,
   defectivePlan: planClaimDefectiveStockAction,
   defectiveRetry: retryClaimDefectiveStockAction,
   exchangeStockPlan: planExchangeDefectiveStockAction,
@@ -126,12 +141,22 @@ function PanelActionField({ kind }: { kind: ClaimPanelAction }) {
   return <input name={PANEL_ACTION_FIELD} type="hidden" value={kind} />;
 }
 
+function confirmAttributes(confirm: ClaimPanelConfirm | null | undefined) {
+  if (!confirm) return {};
+  return {
+    'data-confirm': confirm.message,
+    'data-confirm-title': confirm.title,
+    'data-confirm-label': confirm.confirmLabel,
+    'data-confirm-tone': confirm.destructive ? 'danger' : undefined,
+  };
+}
+
 /**
  * 되돌릴 수 없는 처리의 확인(2026-10-12 브라우저 QA QA-6).
  *
  * 취소 승인과 환불 완료 확정은 누르는 순간 결제사 전액 취소·주문 취소·재고 복원까지
- * 간다. 주문 콘솔의 청약철회 승인·운영자 전액 취소처럼 확인을 거친다. 문구는 누른 버튼의
- * data-confirm이 먼저고, 없으면 양식의 data-confirm이다 — 한 양식의 [검토중으로 표시]는
+ * 간다. 주문 콘솔의 청약철회 승인·운영자 전액 취소처럼 확인을 거친다. 확인 내용은 누른 버튼의
+ * data-confirm*이 먼저고, 없으면 양식의 data-confirm*이다 — 한 양식의 [검토중으로 표시]는
  * 묻지 않고 [승인…]만 묻는다.
  *
  * 양식의 기본 제출은 늘 막고, 보낼지만 돌려준다. 보내는 쪽은 transition으로 직접 보낸다 —
@@ -139,12 +164,19 @@ function PanelActionField({ kind }: { kind: ClaimPanelAction }) {
  */
 export async function confirmClaimPanelSubmit(
   event: React.FormEvent<HTMLFormElement>,
-  confirm: (message: string) => boolean | Promise<boolean> = adminConfirm,
+  confirm: (request: AdminConfirmRequest) => boolean | Promise<boolean> = adminConfirm,
 ): Promise<boolean> {
   event.preventDefault();
   const submitter = (event.nativeEvent as SubmitEvent).submitter ?? null;
-  const message = submitter?.getAttribute('data-confirm') ?? event.currentTarget.getAttribute('data-confirm');
-  return !message || (await confirm(message));
+  const source = submitter?.getAttribute('data-confirm') ? submitter : event.currentTarget;
+  const message = source.getAttribute('data-confirm');
+  if (!message) return true;
+  return confirm(claimPanelConfirmRequest({
+    message,
+    title: source.getAttribute('data-confirm-title') ?? undefined,
+    confirmLabel: source.getAttribute('data-confirm-label') ?? undefined,
+    destructive: source.getAttribute('data-confirm-tone') === 'danger',
+  }));
 }
 
 /*
@@ -154,47 +186,184 @@ export async function confirmClaimPanelSubmit(
  */
 function ignoreUnconfirmedClaimSubmit() {}
 
-/** 취소 승인 확인 문구. 결제마다 승인 뒤 일어나는 일이 다르다. */
-export function claimCancelApprovalConfirmation(paymentProvider: string | null) {
-  if (providerCancelsAutomatically(paymentProvider)) {
-    return `취소를 승인하고 ${automatedCancelProviderLabel(paymentProvider)} 결제 전액을 취소할까요? 되돌릴 수 없고, 취소가 확인되면 주문 취소·재고 복원까지 함께 끝납니다.`;
+const APPROVAL_AMOUNT_UNREAD = '취소할 금액을 다시 읽지 못해 승인하지 않았습니다. 새로고침한 뒤 다시 눌러주세요.';
+const APPROVAL_PAYMENT_CHANGED = '결제 정보가 그사이 바뀌어 승인하지 않았습니다. 새로고침해 결제 내역을 확인한 뒤 다시 눌러주세요.';
+
+/** 취소 승인 확인창을 누르는 시점의 금액으로 만든다. 읽지 못하면 확인창을 띄우지 않고 이유를 돌려준다 — 모르는 금액으로 묻지 않는다. */
+export async function resolveCancelApprovalConfirm(
+  input: { claimId: string; paidAmount: number | null; target?: ClaimConfirmTarget },
+  read: (claimId: string) => Promise<AdminClaimApprovalAmountState> = readOrderClaimApprovalAmountAction,
+): Promise<{ confirm: ClaimPanelConfirm; error?: undefined } | { error: string; confirm?: undefined }> {
+  let state: AdminClaimApprovalAmountState;
+  try {
+    state = await read(input.claimId);
+  } catch {
+    return { error: APPROVAL_AMOUNT_UNREAD };
   }
-  if (paymentProvider === 'korpay') return '취소를 승인할까요? 승인 뒤 Korpay 취소 접수와 환불 완료 확정으로 진행합니다.';
-  if (paymentProvider === 'bank_transfer') return '취소를 승인할까요? 승인 뒤 환불계좌 송금 절차로 진행합니다.';
-  return '취소를 승인할까요? 결제 전 주문은 바로 주문이 취소되고 되돌릴 수 없습니다.';
+  if (!state.ok) return { error: state.error };
+  if (state.amount === null || !providerCancelsAutomatically(state.paymentProvider)) return { error: APPROVAL_PAYMENT_CHANGED };
+  return {
+    confirm: claimCancelApprovalMoneyConfirm({
+      autoCancelLabel: automatedCancelProviderLabel(state.paymentProvider),
+      amount: state.amount,
+      paidAmount: input.paidAmount,
+      target: input.target,
+    }),
+  };
+}
+
+type ClaimPanelConfirmer = (request: AdminConfirmRequest) => boolean | Promise<boolean>;
+
+/**
+ * 결제사 취소가 바로 나가는 취소 승인의 확인 한 번. 금액을 읽지 못했거나 운영자가 돌아가면 보내지 않는다 —
+ * confirmed가 true일 때만 승인을 보낸다. 읽지 못한 이유는 error로 돌려준다.
+ */
+export async function confirmCancelApproval(
+  input: { claimId: string; paidAmount: number | null; target?: ClaimConfirmTarget },
+  read: (claimId: string) => Promise<AdminClaimApprovalAmountState> = readOrderClaimApprovalAmountAction,
+  confirm: ClaimPanelConfirmer = adminConfirm,
+): Promise<{ confirmed: boolean; error: string | null }> {
+  const resolved = await resolveCancelApprovalConfirm(input, read);
+  if (resolved.error !== undefined) return { confirmed: false, error: resolved.error };
+  return { confirmed: await confirm(claimPanelConfirmRequest(resolved.confirm)) === true, error: null };
+}
+
+/** 반품·교환 승인 확인창. 자동 회수가 켜져 있을 때만 묻는다 — 승인이 택배사 회수 접수로 이어진다. */
+export function claimCollectionApprovalConfirm(claimType: OrderClaimType, target: ClaimConfirmTarget = {}): ClaimPanelConfirm {
+  return {
+    title: confirmTitle(target, `${ORDER_CLAIM_TYPE_LABELS[claimType]} 승인`),
+    confirmLabel: '승인하고 수거 시작',
+    message: confirmBody(target, '승인하면 회수 계약 출고지는 몇 분 안에 택배사에 회수를 접수합니다.'),
+  };
+}
+
+/** 거부 확인창. 거부는 끝 단계라 되돌릴 수 없고, 적은 사유가 구매자에게 그대로 간다 — 보내기 전에 사유를 한 번 더 보인다. */
+export function claimRejectionConfirm(input: { claimType: OrderClaimType; reason: string; target?: ClaimConfirmTarget }): ClaimPanelConfirm {
+  const target = input.target ?? {};
+  return {
+    title: confirmTitle(target, `${ORDER_CLAIM_TYPE_LABELS[input.claimType]} 거부`),
+    confirmLabel: '거부',
+    destructive: true,
+    message: confirmBody(target, '구매자에게 아래 사유가 그대로 전달됩니다.', `“${input.reason}”`, `거부하면 ${IRREVERSIBLE}`),
+  };
+}
+
+export const CLAIM_REJECTION_REASON_LENGTH_ERROR = '거부 사유를 10자 이상 200자 이하로 입력해주세요.';
+
+/**
+ * 거부의 확인 한 번. 사유 길이(서버·DB와 같은 10~200자)를 먼저 보고, 맞으면 사유를 보여 주는 확인창을 띄운다.
+ * confirmed가 true일 때만 거부를 보낸다 — 길이가 맞지 않으면 확인창 없이 error로 알린다.
+ */
+export async function confirmClaimRejection(
+  input: { claimType: OrderClaimType; note: unknown; target?: ClaimConfirmTarget },
+  confirm: ClaimPanelConfirmer = adminConfirm,
+): Promise<{ confirmed: boolean; error: string | null }> {
+  const reason = typeof input.note === 'string' ? input.note.trim() : '';
+  if (reason.length < 10 || reason.length > 200) return { confirmed: false, error: CLAIM_REJECTION_REASON_LENGTH_ERROR };
+  const request = claimPanelConfirmRequest(claimRejectionConfirm({ claimType: input.claimType, reason, target: input.target }));
+  return { confirmed: await confirm(request) === true, error: null };
 }
 
 /**
- * 환불 완료 기록 확인 문구. 아직 종결되지 않은 클레임은 정합화(토스·나이스페이면 전액 취소
- * 발행)가 먼저 돈다. autoCancelLabel은 취소 API로 자동 취소되는 결제사 이름이고, 아니면 null이다.
+ * 반품의 첫 환불 접수 확인창(입고완료 단계). 접수하면 처리중이 돼 거부할 수 없고, 반품배송비 차감액이 이때 정해진다.
+ * 금액은 DB가 정한 차감 판정이 있을 때만 말한다 — 판정이 없는 접수 전에는 화면이 가진 금액이 환불 기록의 금액이 아니다.
  */
-export function claimRefundCompletionConfirmation(
-  finalizationPending: boolean,
-  autoCancelLabel: string | null,
-  /** 반품배송비를 뺀 부분 취소(ADR-0031). 없으면 지금 문구 그대로다. */
-  partialRefund: { refundAmount: number; deductionAmount: number } | null = null,
+export function claimRefundFilingConfirm(input: {
+  autoCancelLabel: string | null;
+  cancelScope: string;
+  deduction?: { refundAmount: number; deductionAmount: number } | null;
+  target?: ClaimConfirmTarget;
+}): ClaimPanelConfirm {
+  const target = input.target ?? {};
+  return {
+    title: confirmTitle(target, '환불 접수'),
+    confirmLabel: '환불 접수',
+    message: confirmBody(target,
+      input.deduction
+        ? `반품배송비 ${krwAmountWords(input.deduction.deductionAmount)}을 뺀 ${krwAmountWords(input.deduction.refundAmount)}으로 환불을 접수합니다. 접수하면 이 금액으로 정해집니다.`
+        : '환불 접수를 기록합니다.',
+      '접수한 뒤에는 이 요청을 거부할 수 없습니다.',
+      input.autoCancelLabel ? `돈은 아직 나가지 않습니다. ${input.autoCancelLabel} ${input.cancelScope}는 접수한 뒤 [환불 완료 확정]을 눌러야 요청됩니다.` : null),
+  };
+}
+
+/**
+ * 환불 완료 확정 확인창. 아직 종결되지 않은 요청은 정합화(토스·나이스페이면 결제사 취소 발행)가 먼저 돈다.
+ * 금액은 화면의 환불 금액(환불 기록·차감 결정)과 같은 값이다. autoCancelLabel은 취소 API로 자동 취소되는 결제사 이름이고, 아니면 null이다.
+ */
+export function claimRefundCompletionConfirm(input: {
+  finalizationPending: boolean;
+  autoCancelLabel: string | null;
+  /** 화면의 환불 금액(환불 기록 금액). 모르면 금액 없이 묻는다. */
+  amount?: number | null;
+  /**
+   * 반품배송비를 뺀 부분 취소(ADR-0031). paymentAmount는 결제사가 이 결제의 부분 취소를 받지 않을 때 대신 취소되는 전액이다 —
+   * 그때는 다시 묻지 않고 전액을 취소하므로 확인창이 미리 말한다.
+   */
+  partialRefund?: { refundAmount: number; deductionAmount: number; paymentAmount?: number | null } | null;
   /** 이미 일부 취소가 있어 남은 결제 금액만 취소하는 경우의 그 금액. 없으면 결제 전액이다. */
-  remainderAmount: number | null = null,
-  /** 부분 반품(ADR-0047): 고른 굿즈 몫만 부분 취소한다. 금액을 아직 모르면(접수 전) refundAmount가 null이다. */
-  partialReturn: { refundAmount: number | null; deductionAmount: number } | null = null,
-) {
-  if (!finalizationPending) return '환불 완료 기록만 남길까요? 주문 취소·재고 복원은 이미 끝나 다시 하지 않습니다.';
+  remainderAmount?: number | null;
+  /** 부분 반품(ADR-0047): 고른 상품 몫만 부분 취소한다. 금액을 아직 모르면(접수 전) refundAmount가 null이다. */
+  partialReturn?: { refundAmount: number | null; deductionAmount: number } | null;
+  target?: ClaimConfirmTarget;
+}): ClaimPanelConfirm {
+  const { autoCancelLabel, partialRefund = null, remainderAmount = null, partialReturn = null } = input;
+  const amount = input.amount ?? null;
+  const target = input.target ?? {};
+  if (!input.finalizationPending) {
+    return {
+      title: confirmTitle(target, '환불 완료 기록'), confirmLabel: '환불 완료 기록',
+      message: confirmBody(target, '환불 완료 기록만 남길까요? 주문 취소·재고 복원은 이미 끝나 다시 하지 않습니다.'),
+    };
+  }
+  const title = confirmTitle(target, '환불 완료 확정');
   if (partialReturn) {
-    const amount = partialReturn.refundAmount === null ? '고른 상품 몫' : krwAmountWords(partialReturn.refundAmount);
+    const share = partialReturn.refundAmount === null ? '고른 상품 몫' : `부분 반품한 상품 몫 ${krwAmountWords(partialReturn.refundAmount)}`;
     const deduction = partialReturn.deductionAmount > 0 ? `(반품배송비 ${krwAmountWords(partialReturn.deductionAmount)} 차감)` : '';
     return autoCancelLabel
-      ? `${autoCancelLabel} 결제에서 부분 반품한 상품 몫 ${amount}${deduction}을 부분 취소하고, 고른 상품의 재고를 되돌릴까요? 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.`
-      : `부분 반품한 상품 몫 ${amount}${deduction}의 환불 완료를 기록할까요?`;
+      ? {
+        title, destructive: true,
+        confirmLabel: partialReturn.refundAmount === null ? '부분 취소' : `${krwAmountWords(partialReturn.refundAmount)} 부분 취소`,
+        message: confirmBody(target,
+          `${autoCancelLabel} 결제에서 ${share}${deduction}을 부분 취소하고, 고른 상품의 재고를 되돌립니다. 남은 상품과 주문은 그대로 남습니다.`,
+          '결제사가 부분 취소를 받지 않으면 전액 환불로 돌리지 않고 확인 필요로 남습니다.',
+          IRREVERSIBLE),
+      }
+      : { title, confirmLabel: '환불 완료 기록', message: confirmBody(target, `${share}${deduction}의 환불 완료를 기록할까요?`) };
   }
   if (autoCancelLabel && partialRefund) {
-    return `${autoCancelLabel} 결제에서 반품배송비 ${krwAmountWords(partialRefund.deductionAmount)}을 뺀 ${krwAmountWords(partialRefund.refundAmount)}을 부분 취소하고 주문 취소·재고 복원을 확정할까요? 되돌릴 수 없습니다.`;
+    const fee = krwAmountWords(partialRefund.deductionAmount);
+    const full = typeof partialRefund.paymentAmount === 'number' ? ` ${krwAmountWords(partialRefund.paymentAmount)}` : '';
+    return {
+      title, confirmLabel: '환불 확정', destructive: true,
+      message: confirmBody(target,
+        `${autoCancelLabel} 결제에서 반품배송비 ${fee}을 뺀 ${krwAmountWords(partialRefund.refundAmount)}을 부분 취소하고 주문 취소·재고 복원을 확정합니다.`,
+        `결제사가 이 결제의 부분 취소를 받지 않으면 다시 묻지 않고 전액${full}을 취소합니다. 그때는 반품배송비 ${fee}을 배송비 청구로 따로 받아야 합니다.`,
+        IRREVERSIBLE),
+    };
   }
   if (autoCancelLabel && remainderAmount !== null) {
-    return `${autoCancelLabel} 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 ${krwAmountWords(remainderAmount)}을 취소하고 주문 취소·재고 복원을 확정할까요? 되돌릴 수 없습니다.`;
+    return {
+      title, confirmLabel: `${krwAmountWords(remainderAmount)} 취소`, destructive: true,
+      message: confirmBody(target,
+        `${autoCancelLabel} 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 ${krwAmountWords(remainderAmount)}을 취소하고 주문 취소·재고 복원을 확정합니다.`,
+        IRREVERSIBLE),
+    };
   }
-  return autoCancelLabel
-    ? `${autoCancelLabel} 결제 전액을 취소하고 주문 취소·재고 복원을 확정할까요? 되돌릴 수 없습니다.`
-    : '결제사 관리자 화면(거래 내역)에서 전액 취소된 것을 확인했나요? 확정하면 주문 취소·재고 복원이 진행되고 되돌릴 수 없습니다.';
+  if (autoCancelLabel) {
+    return {
+      title, confirmLabel: amount === null ? '환불 확정' : `${krwAmountWords(amount)} 취소`, destructive: true,
+      message: confirmBody(target,
+        `${autoCancelLabel} 결제 전액${amount === null ? '' : ` ${krwAmountWords(amount)}`}을 취소하고 주문 취소·재고 복원을 확정합니다.`,
+        IRREVERSIBLE),
+    };
+  }
+  return {
+    title, confirmLabel: '환불 확정', destructive: true,
+    message: confirmBody(target,
+      amount === null ? null : `환불 금액 ${krwAmountWords(amount)}`,
+      '결제사 관리자 화면(거래 내역)에서 전액 취소된 것을 확인했나요? 확정하면 주문 취소·재고 복원이 진행되고 되돌릴 수 없습니다.'),
+  };
 }
 
 /**
@@ -221,11 +390,32 @@ export function partialReturnBankFilingConfirmation(partialReturn: { refundAmoun
   return `부분 반품 환불 ${amount}${deduction}을 접수할까요? 접수하면 고른 상품의 재고를 지금 처리하고(불량으로 고른 상품은 판매 재고 제외) 환불 송금 대기에 올립니다. 남은 상품과 주문은 그대로 남습니다. 되돌릴 수 없습니다.`;
 }
 
+/** 부분 반품 환불 접수의 확인창. 문구는 위 두 함수 그대로이고, 대상·버튼 이름을 붙인다. */
+function partialReturnFilingConfirm(
+  partialReturn: { refundAmount: number | null; deductionAmount: number; bank?: boolean },
+  autoCancelLabel: string | null,
+  target: ClaimConfirmTarget,
+): ClaimPanelConfirm {
+  return {
+    title: confirmTitle(target, '부분 반품 환불 접수'), confirmLabel: '환불 접수', destructive: true,
+    message: confirmBody(target, partialReturnFilingConfirmation(partialReturn, autoCancelLabel)),
+  };
+}
+
 function Feedback({ state }: { state: AdminClaimActionState }) {
+  /* 결제사 확인 코드는 문장에 섞지 않고 아래 작은 글로 한 번만 보인다(L-12). 코드가 없는 문구는 그대로다. */
+  const error = state.error ? splitAdminSupportCode(adminClaimCopy(state.error)) : null;
   return (
     <>
-      {state.error ? (
-        <AdminNotice role="alert" tone="danger">{adminClaimCopy(state.error)}</AdminNotice>
+      {error ? (
+        <AdminNotice role="alert" tone="danger">
+          {error.text}
+          {error.code ? (
+            <span className="mt-1 block text-xs text-muted-foreground" data-claim-support-code="">
+              {ADMIN_SUPPORT_CODE_LABEL} <code className="font-mono">{error.code}</code>
+            </span>
+          ) : null}
+        </AdminNotice>
       ) : null}
       {state.message ? (
         <AdminNotice role="status" tone="info">{adminClaimCopy(state.message)}</AdminNotice>
@@ -285,11 +475,11 @@ function RefundMethodField({
   );
 }
 
-/** 상계·정산 메모. 환불 접수와 완료 확정 양식이 같은 칸을 쓴다. */
+/** 환불 메모(선택). 환불 접수와 완료 확정 양식이 같은 칸을 쓰고, 환불 기록에 남는다. */
 function SettlementNoteField({ id, placeholder }: { id: string; placeholder?: string }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id}>상계·정산 메모 (선택)</Label>
+      <Label htmlFor={id}>환불 메모 (선택)</Label>
       <Input id={id} maxLength={300} name="note" placeholder={placeholder} type="text" />
     </div>
   );
@@ -302,7 +492,16 @@ export interface ClaimActionPanelProps {
   claimType: OrderClaimType;
   orderId: string;
   stage: OrderClaimStage;
-  carriers: ShippingCarrierRegistry;
+  /** 확인창에 적는 요청번호(예: C00012). 없으면 확인창 제목에서 빠진다. */
+  claimReference?: string | null;
+  /** 확인창에 적는 주문번호. */
+  orderReference?: string | null;
+  /** 주문의 실제 주문번호(없는 옛 주문은 null). 주문 통합검색 링크가 이 번호로 찾아 그 주문의 처리 패널까지 연다. */
+  orderNumber?: string | null;
+  /** 확인창에 적는 구매자 이름. */
+  buyerName?: string | null;
+  /** 반품·교환을 승인하면 택배사에 회수가 자동으로 접수되는가(자동 회수 사용). 켜져 있을 때만 승인 전에 묻는다. */
+  autoPickupOnApproval?: boolean;
   /** 보류 해제 시 돌아갈 단계. 거부 가능 여부가 여기서 갈린다. */
   heldFrom: OrderClaimStage | null;
   /** 교환품을 한 출고지라도 재출고했는가. 그러면 거부할 수 없다(TKT-166). */
@@ -317,7 +516,6 @@ export interface ClaimActionPanelProps {
   paymentProvider: string | null;
   /** 환불 원장에 이미 기록된 수단. 첫 기록이 이긴다. */
   recordedRefundMethod: OrderClaimRefundMethod | null;
-  reshipItems?: AdminClaimReshipItem[];
   collectionPolicy: 'origin' | 'legacy' | null;
   collectionComplete: boolean;
   collectedAt?: string | null;
@@ -326,7 +524,11 @@ export interface ClaimActionPanelProps {
   collections: AdminClaimCollection[];
   /** 클레임 리비전(배송 분실 기록의 동시성 가드). 없으면 그 기록 폼을 그리지 않는다. */
   claimRevision?: number | null;
-  /** 돈이 나가는 버튼 옆에 적는 금액. 환불 원장 금액, 없으면 차감 판정의 환불액, 그것도 없으면 주문 금액이다. 표시 전용이다. */
+  /**
+   * 환불 완료 확정 버튼 옆과 확인창에 적는 금액. 환불 원장 금액, 없으면 차감 판정의 환불액, 그것도 없으면 주문 금액이다. 표시 전용이다.
+   * 환불 원장이 열리기 전(취소 승인 단계)의 값은 주문 금액이라 실제 취소액이 아닐 수 있다 — 그 단계에서는 이 값을 쓰지 않고
+   * 결제 금액(paidAmount)을 보이고, 취소 금액은 누르는 시점에 서버에서 읽는다.
+   */
   refundAmount?: number | null;
   /** 결제(승인) 금액. 환불 원장 금액이 이보다 작으면 이미 일부 취소한 주문이라 남은 금액만 취소한다. 표시 전용이다. */
   paidAmount?: number | null;
@@ -356,6 +558,11 @@ export function ClaimActionPanel({
   cancellationForm,
   claimId,
   claimType,
+  claimReference = null,
+  orderReference = null,
+  orderNumber = null,
+  buyerName = null,
+  autoPickupOnApproval = false,
   heldFrom,
   reshipmentStarted = false,
   orderId,
@@ -384,18 +591,31 @@ export function ClaimActionPanel({
   exchangeShipping = null,
   secondaryActions = null,
 }: ClaimActionPanelProps) {
-  const [result, panelAction, pending] = useActionState(runClaimPanelAction, EMPTY_STATE);
+  const [result, panelAction, actionPending] = useActionState(runClaimPanelAction, EMPTY_STATE);
+  /* 취소 승인은 확인창을 띄우기 전에 취소 금액을 서버에서 읽는다. 읽는 동안에도 다른 처리를 누르지 못하게 한다. */
+  const [checking, setChecking] = useState(false);
+  const checkingNow = useRef(false);
+  const pending = actionPending || checking;
   /* 목록 위 팝업(R8)에서는 결제사 취소·환불 완료 확정을 기다리는 동안 팝업이 닫히지 않게 한다. */
   useClaimPreviewBusy(pending);
   const [formCopied, setFormCopied] = useState(false);
   /* 레거시 회수 확인의 실제 입고일 기본값·상한(KST 오늘). */
   const [today] = useState(() => adminClaimTodayKst());
+  /* 서버에 보내기 전에 화면에서 멈춘 이유(취소 금액을 읽지 못함 · 거부 사유 길이). 보내면 지운다. */
+  const [localError, setLocalError] = useState<string | null>(null);
+  const [rejectError, setRejectError] = useState<string | null>(null);
+  const target: ClaimConfirmTarget = { claimReference, orderReference, buyerName };
+  const send = (formData: FormData) => {
+    setLocalError(null);
+    setRejectError(null);
+    startTransition(() => panelAction(formData));
+  };
   /* 확인을 통과한 제출만 보낸다. 누른 버튼의 name·value(결정)를 함께 싣는다. */
   const submitConfirmed = async (event: React.FormEvent<HTMLFormElement>) => {
     /* 확인창을 기다리는 사이 이벤트가 비워지므로 보낼 값은 누른 시점에 담아 둔다. */
     const formData = new FormData(event.currentTarget, (event.nativeEvent as SubmitEvent).submitter ?? null);
     if (!(await confirmClaimPanelSubmit(event))) return;
-    startTransition(() => panelAction(formData));
+    send(formData);
   };
 
   const next = orderClaimNextStages(claimType, stage);
@@ -450,22 +670,74 @@ export function ClaimActionPanel({
     : null;
   /* 취소 승인이 곧바로 결제사 전액 취소를 발행하는 경우. 다른 승인과 같은 버튼으로 보이면 안 된다. */
   const approvalMovesMoney = canApprove && claimType === 'cancel' && Boolean(autoCancelLabel);
+  /*
+   * 결정 양식의 제출. 결제사 취소가 바로 나가는 취소 승인만 길이 다르다 — 승인 전에는 환불 기록이 없어 화면이 가진 금액이
+   * 주문 금액뿐이라(앞서 부분 취소한 주문은 그보다 적게 취소된다), 누르는 시점에 취소할 금액을 읽어 확인창에 적는다.
+   * 읽지 못하면 확인창도 띄우지 않고 보내지도 않는다.
+   */
+  const submitDecision = async (event: React.FormEvent<HTMLFormElement>) => {
+    const formData = new FormData(event.currentTarget, (event.nativeEvent as SubmitEvent).submitter ?? null);
+    if (!approvalMovesMoney || formData.get('decision') !== 'approve') {
+      await submitConfirmed(event);
+      return;
+    }
+    event.preventDefault();
+    if (checkingNow.current) return;
+    checkingNow.current = true;
+    setChecking(true);
+    setLocalError(null);
+    try {
+      const { confirmed, error } = await confirmCancelApproval({ claimId, paidAmount, target });
+      if (error) setLocalError(error);
+      if (confirmed) send(formData);
+    } finally {
+      checkingNow.current = false;
+      setChecking(false);
+    }
+  };
+  /* 거부는 끝 단계라 되돌릴 수 없고 사유가 구매자에게 그대로 간다. 길이를 먼저 보고, 보낼 사유를 확인창에 그대로 보인다. */
+  const submitRejection = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const formData = new FormData(event.currentTarget, (event.nativeEvent as SubmitEvent).submitter ?? null);
+    const { confirmed, error } = await confirmClaimRejection({ claimType, note: formData.get('note'), target });
+    setRejectError(error);
+    if (confirmed) send(formData);
+  };
   /* 수단은 원장 기록 → 결제 provider 순으로 정해진다. 정해지지 않은 결제(Korpay)만
      운영자가 고른다. 서버 액션이 같은 규칙으로 다시 검사한다. */
   const fixedRefundMethod = recordedRefundMethod ?? orderClaimRefundMethodForProvider(paymentProvider);
   const panelTitle = `${ORDER_CLAIM_TYPE_LABELS[claimType]} 처리`;
+  const feedback: AdminClaimActionState = localError ? { error: localError } : result;
+  /* 승인 단계에는 결제 금액만 확실하다. 실제 취소 금액은 누른 뒤 확인창이 서버에서 읽어 말한다(submitDecision). */
+  const approvalPaidAmount = paidAmount ?? refundAmount;
   const amountAtStake = partialReturn ? (partialReturn.refundAmount === null ? null : krw(partialReturn.refundAmount))
     : refundAmount === null ? null : krw(refundAmount);
   /* 반품배송비를 빼고 결제사 부분 취소로 돌려주는 반품(ADR-0031). 판정·결정이 없으면 지금처럼 전액 취소다. */
   const returnDeduction = claimType === 'return' ? refundDeduction : null;
   const partialRefund = returnDeduction?.applicable && returnDeduction.refundAmount !== null && autoCancelLabel
-    ? { refundAmount: returnDeduction.refundAmount, deductionAmount: returnDeduction.deductionAmount }
+    /* paymentAmount: 결제사가 부분 취소를 받지 않으면 대신 취소되는 전액(차감 결정의 기준 금액). 확인창이 그 경우를 미리 말한다. */
+    ? { refundAmount: returnDeduction.refundAmount, deductionAmount: returnDeduction.deductionAmount, paymentAmount: returnDeduction.paymentAmount }
     : null;
   /* 이미 일부 취소가 있어 원장 환불액이 결제 금액보다 작으면 결제사 취소는 남은 금액이다. 화면이 이미 가진 두 금액을 비교할 뿐이다. */
   const remainderAmount = !partialReturn && !partialRefund && autoCancelLabel && refundLedgerOpen && refundAmount !== null && paidAmount !== null && refundAmount < paidAmount
     ? refundAmount
     : null;
   const cancelScope = partialReturn || partialRefund ? '부분 취소' : remainderAmount !== null ? '남은 금액 취소' : '전액 취소';
+  const completionLabel = autoCancelLabel ? `환불 완료 확정 (${autoCancelLabel} ${cancelScope})` : '환불 완료 확정 (재고 복원 포함)';
+  /*
+   * 환불 접수의 확인창. 부분 반품(ADR-0047)은 접수가 금액 고정·재고 처리라 늘 묻고, 주문 전체 반품은 입고완료 단계의 첫 접수만 묻는다 —
+   * 그 접수로 처리중이 돼 거부할 수 없게 되고 반품배송비 차감액이 정해진다. 이미 처리중인 요청의 접수·갱신은 다시 할 수 있어 묻지 않는다.
+   */
+  const filingConfirm = !canFileRefund || bankTransfer ? null
+    : partialReturn ? partialReturnFilingConfirm(partialReturn, autoCancelLabel, target)
+      : stage === 'collected' && !refundFiled ? claimRefundFilingConfirm({
+        autoCancelLabel, cancelScope, target,
+        deduction: returnDeduction?.applicable && returnDeduction.refundAmount !== null
+          ? { refundAmount: returnDeduction.refundAmount, deductionAmount: returnDeduction.deductionAmount } : null,
+      }) : null;
+  /* 입고완료 단계에서는 접수를 기록해야 [환불 완료 확정]이 열린다. 접수가 곧 적용·완료인 부분 반품(무통장·0원)은 다음 버튼이 없다. */
+  const completionLockedUntilFiled = canFileRefund && !bankTransfer && stage === 'collected' && !refundFiled
+    && !partialReturn?.bank && partialReturn?.refundAmount !== 0;
   const deductionHeadline = returnFeeDeductionHeadline(returnDeduction);
   const deductionSkipped = returnFeeDeductionSkippedNotice(returnDeduction);
   const deductionNotice = returnDeduction && (deductionHeadline || deductionSkipped) && stage !== 'completed' ? (
@@ -473,7 +745,8 @@ export function ClaimActionPanel({
       <div data-claim-refund-deduction="deduct"><AdminNotice title={deductionHeadline} tone="info">
         {`단순 변심 반품이라 결제 금액 ${krwAmountWords(returnDeduction.paymentAmount ?? 0)}에서 반품배송비(${returnFeeDeductionBasisLabel(returnDeduction)})를 빼고 환불합니다.`}
         {returnDeduction.source === 'plan' ? ' 환불 접수를 기록할 때 이 금액으로 정해집니다.' : ''}
-        {autoCancelLabel
+        {/* 확정 버튼이 열리면 같은 말을 버튼 바로 위 경고와 확인창이 금액과 함께 한다 — 여기서 되풀이하지 않는다. */}
+        {autoCancelLabel && !canCompleteRefund
           ? ` [환불 완료 확정]을 누르면 ${autoCancelLabel} 부분 취소로 환불액만 취소합니다. 결제사가 이 결제의 부분 취소를 받지 않으면 전액 환불하고, 반품배송비는 배송비 청구로 따로 받습니다.`
           : ''}
       </AdminNotice></div>
@@ -514,8 +787,8 @@ export function ClaimActionPanel({
           key={collection.shipmentId} claimId={claimId} claimType={claimType}
           /* 회수 생략으로 결정한 출고지는 회수가 끝난 것으로 보지만, 요청이 열려 있는 동안 늦게 도착한 입고는 기록할 수 있다(재고 변화 없음). */
           collection={collection} canRecord={canRecordOrigin || (originCollectionOpen && collection.collectionWaived === true)} claimRevision={claimRevision} />)
-          : <p className="text-muted-foreground">수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.</p>}
-      </section> : collectionPolicy === null ? <p className="text-destructive" role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
+          : <p className="text-muted-foreground">수거를 승인하면 출고지별 반품지 주소와 상품이 표시됩니다.</p>}
+      </section> : collectionPolicy === null ? <p className="text-destructive" role="alert">회수 정보를 불러오지 못했습니다. 새로고침해주세요.</p> : null}
   </>;
 
   /* 교환 회수품 재고 처리(CLM-046). 출고지마다 한 양식이다 — 회수를 확인한 곳부터 재출고하므로 결정도 출고지 단위다.
@@ -561,21 +834,24 @@ export function ClaimActionPanel({
 
   const decisionForm = <>
     {canReview || canApprove ? (
-        <form action={ignoreUnconfirmedClaimSubmit} className={FORM_CLASS} onSubmit={submitConfirmed}>
+        <form action={ignoreUnconfirmedClaimSubmit} className={FORM_CLASS} onSubmit={submitDecision}>
           <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           {/* 누르기 전에 읽도록 버튼 위에 둔다. 돈이 바로 나가는 승인만 경고 상자를 쓴다. */}
           {approvalMovesMoney ? (
             <AdminNotice title="승인하면 되돌릴 수 없습니다" tone="warning">
-              {`승인하면 바로 ${autoCancelLabel} 결제 전액을 취소하고 결제사에 결과를 확인합니다. 취소가 확인되면 주문 취소·재고 복원까지 함께 끝납니다.`}
+              {`승인하면 바로 ${autoCancelLabel} 결제를 취소하고 결제사에 결과를 확인합니다. 취소가 확인되면 주문 취소·재고 복원까지 함께 끝납니다. 취소 금액은 버튼을 누르면 확인창에 나옵니다.`}
             </AdminNotice>
           ) : null}
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-            {approvalMovesMoney ? <MoneyAtStake amount={amountAtStake} label="취소 금액" /> : null}
+            {approvalMovesMoney ? <MoneyAtStake amount={approvalPaidAmount === null ? null : krw(approvalPaidAmount)} label="결제 금액" /> : null}
             {canApprove ? (
               <Button
-                data-confirm={claimType === 'cancel' ? claimCancelApprovalConfirmation(paymentProvider) : undefined}
+                /* 결제사 취소가 바로 나가는 승인은 속성이 아니라 submitDecision이 누르는 시점의 금액으로 확인창을 만든다. */
+                {...confirmAttributes(approvalMovesMoney ? null
+                  : claimType === 'cancel' ? claimCancelApprovalConfirm(paymentProvider, target)
+                    : autoPickupOnApproval ? claimCollectionApprovalConfirm(claimType, target) : null)}
                 disabled={pending}
                 name="decision"
                 type="submit"
@@ -584,7 +860,8 @@ export function ClaimActionPanel({
               >
                 {claimType !== 'cancel'
                   ? '승인하고 수거 시작'
-                  : autoCancelLabel ? `승인하고 ${autoCancelLabel} 전액 취소` : '승인하고 환불 처리 시작'}
+                  : autoCancelLabel ? `승인하고 ${autoCancelLabel} 전액 취소`
+                    : paymentProvider === null ? '승인하고 주문 취소' : '승인하고 환불 처리 시작'}
               </Button>
             ) : null}
             {canReview ? (
@@ -603,7 +880,7 @@ export function ClaimActionPanel({
           {canApprove && claimType === 'cancel' && !approvalMovesMoney ? (
             <p className={HINT_CLASS}>
               {paymentProvider === 'korpay'
-                ? 'Korpay 결제는 승인 뒤 결제사 취소 접수 양식으로 접수하고 환불 완료를 확정합니다.'
+                ? `${PAYMENT_PROVIDER_LABELS.korpay} 결제는 승인 뒤 결제사 취소 접수 양식으로 접수하고 환불 완료를 확정합니다.`
                 : paymentProvider === 'bank_transfer'
                   ? '무통장 입금 결제는 승인 뒤 환불계좌 송금 절차로 진행합니다.'
                   : '결제 전 주문은 승인하면 결제사 취소 없이 주문을 취소합니다.'}
@@ -637,7 +914,7 @@ export function ClaimActionPanel({
             반송 {V.goods} 입고 확인
           </Button>
           <p className={HINT_CLASS}>
-            환급 기한(영업일 3일)은 확인 버튼을 누른 때가 아니라 실제 입고일부터 셉니다.
+            환불 기한(영업일 3일)은 확인 버튼을 누른 때가 아니라 실제 입고일부터 셉니다.
           </p>
         </form>
       ) : null}
@@ -651,7 +928,7 @@ export function ClaimActionPanel({
             결제사 취소 접수 양식
           </h4>
           <p className={HINT_CLASS}>
-            Korpay 취소는 자동으로 요청되지 않고 이메일로 접수합니다. 아래 본문을 그대로 보낸 뒤
+            {PAYMENT_PROVIDER_LABELS.korpay} 취소는 자동으로 요청되지 않고 이메일로 접수합니다. 아래 본문을 그대로 보낸 뒤
             [환불 접수 완료로 기록]을 눌러 환불 기록에 남겨주세요.
           </p>
           <Textarea
@@ -678,7 +955,7 @@ export function ClaimActionPanel({
         </section>
       ) : null}
 
-      {stage !== 'withdrawn' && bankTransfer && actorId && claimType !== 'exchange' ? <BankTransferRefund actorId={actorId} orderId={orderId} claimId={claimId} /> : null}
+      {stage !== 'withdrawn' && bankTransfer && actorId && claimType !== 'exchange' ? <BankTransferRefund actorId={actorId} orderId={orderId} claimId={claimId} stage={stage} /> : null}
 
       {(bankTransfer || partialReturn?.convertible) && claimType === 'return' && defectiveStock && !defectiveStock.frozen && stage !== 'completed' && stage !== 'withdrawn' && stage !== 'rejected'
         && defectiveStock.items.some((item) => item.state !== 'recorded') ? (
@@ -705,10 +982,10 @@ export function ClaimActionPanel({
          * 셸 확인창을 거치고, 품목별 재고 처리(불량 선택)를 이 양식에서 함께 저장한 뒤 접수한다(Codex 리뷰: 0원 반품이 선택 전에 재고를 복원).
          */
         <form
-          action={partialReturn ? ignoreUnconfirmedClaimSubmit : panelAction}
+          action={filingConfirm ? ignoreUnconfirmedClaimSubmit : panelAction}
           className={FORM_CLASS}
-          data-confirm={partialReturn ? partialReturnFilingConfirmation(partialReturn, autoCancelLabel) : undefined}
-          onSubmit={partialReturn ? submitConfirmed : undefined}
+          {...confirmAttributes(filingConfirm)}
+          onSubmit={filingConfirm ? submitConfirmed : undefined}
         >
           <PanelActionField kind="refund" />
           <input name="claimId" type="hidden" value={claimId} />
@@ -716,7 +993,7 @@ export function ClaimActionPanel({
           <input name="orderId" type="hidden" value={orderId} />
           <input name="stage" type="hidden" value="filed" />
           <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-method" autoCancelLabel={autoCancelLabel} cancelScope={cancelScope} />
-          <SettlementNoteField id="claim-refund-note" placeholder="예: 정산 완료분이라 코페이 상계 처리" />
+          <SettlementNoteField id="claim-refund-note" placeholder="예: 이미 정산된 결제라 다음 정산에서 빼기로 결제사와 확인" />
           {partialReturn && claimType === 'return' && defectiveStock && !defectiveStock.frozen
             ? <ClaimDefectiveStockChoice idPrefix="claim-refund-file-stock" items={defectiveStock.items} /> : null}
           <Button className="w-fit" disabled={pending} size="sm" type="submit" variant={refundFiled ? 'outline' : 'default'}>
@@ -738,6 +1015,14 @@ export function ClaimActionPanel({
         </form>
       ) : null}
 
+      {/* 접수 전에는 확정을 누를 수 없다 — 다음 단계의 버튼을 잠근 채 보여 두 버튼의 순서가 드러나게 한다. */}
+      {completionLockedUntilFiled ? (
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1" data-claim-refund-locked="">
+          <Button className="h-auto min-h-7 w-fit max-w-full py-1 whitespace-normal" disabled size="sm" type="button" variant="outline">{completionLabel}</Button>
+          <span className={HINT_CLASS}>환불 접수를 기록하면 누를 수 있습니다.</span>
+        </div>
+      ) : null}
+
       {canCompleteRefund && partialReturn?.bank && stage !== 'completed' ? (
         <AdminNotice tone="info">계좌 송금으로 돌려주는 부분 반품 환불은 송금 대기에 올라 있습니다. 송금한 뒤 주문 상세의 부분 환불 기록에서 [송금 완료 기록]을 누르면 이 요청이 완료됩니다.</AdminNotice>
       ) : null}
@@ -746,7 +1031,9 @@ export function ClaimActionPanel({
         <form
           action={ignoreUnconfirmedClaimSubmit}
           className={FORM_CLASS}
-          data-confirm={claimRefundCompletionConfirmation(refundFinalizationPending, autoCancelLabel, partialRefund, remainderAmount, partialReturn)}
+          {...confirmAttributes(claimRefundCompletionConfirm({
+            finalizationPending: refundFinalizationPending, autoCancelLabel, amount: refundAmount, partialRefund, remainderAmount, partialReturn, target,
+          }))}
           onSubmit={submitConfirmed}
         >
           <PanelActionField kind="refund" />
@@ -764,7 +1051,7 @@ export function ClaimActionPanel({
                 : partialReturn
                 ? '무통장 부분 반품은 환불 접수 때 환불 송금 대기에 올라갑니다. 송금한 뒤 주문 상세의 부분 환불 기록에서 [송금 완료 기록]을 눌러주세요.'
                 : autoCancelLabel && partialRefund
-                ? `누르면 ${autoCancelLabel} 결제에서 반품배송비 ${krwAmountWords(partialRefund.deductionAmount)}을 뺀 ${krwAmountWords(partialRefund.refundAmount)}만 부분 취소하고, 결제사에 남은 결제 금액을 조회해 취소됐는지 확인합니다. 이미 취소된 금액이면 확인만 합니다. 확인되지 않으면 주문과 재고는 그대로 두고 결제확인필요로 남습니다.`
+                ? `누르면 ${autoCancelLabel} 결제에서 반품배송비 ${krwAmountWords(partialRefund.deductionAmount)}을 뺀 ${krwAmountWords(partialRefund.refundAmount)}을 부분 취소하고, 결제사에 남은 결제 금액을 조회해 취소됐는지 확인합니다. 이미 취소된 금액이면 확인만 합니다. 결제사가 이 결제의 부분 취소를 받지 않으면 전액${typeof partialRefund.paymentAmount === 'number' ? ` ${krwAmountWords(partialRefund.paymentAmount)}` : ''}을 취소하고, 반품배송비는 배송비 청구로 따로 받아야 합니다. 그 밖에 확인되지 않으면 주문과 재고는 그대로 두고 결제확인필요로 남습니다.`
                 : autoCancelLabel && remainderAmount !== null
                 ? `누르면 ${autoCancelLabel} 결제에서 이미 취소한 금액을 뺀 남은 결제 금액 ${krwAmountWords(remainderAmount)}을 취소하고 결제사에 결과를 확인합니다. 이미 취소된 금액이면 확인만 합니다. 확인되지 않으면 주문과 재고는 그대로 두고 결제확인필요로 남습니다.`
                 : autoCancelLabel
@@ -775,11 +1062,7 @@ export function ClaimActionPanel({
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             {refundFinalizationPending ? <MoneyAtStake amount={amountAtStake} label="환불 금액" /> : null}
             <Button className="h-auto min-h-7 w-fit max-w-full py-1 whitespace-normal" disabled={pending} size="sm" type="submit" variant={refundFinalizationPending ? 'danger' : 'default'}>
-              {!refundFinalizationPending
-                ? '환불 완료 기록만 남기기'
-                : autoCancelLabel
-                  ? `환불 완료 확정 (${autoCancelLabel} ${cancelScope})`
-                  : '환불 완료 확정 (재고 복원 포함)'}
+              {!refundFinalizationPending ? '환불 완료 기록만 남기기' : completionLabel}
             </Button>
           </div>
           {!refundFinalizationPending ? (
@@ -794,9 +1077,9 @@ export function ClaimActionPanel({
         <p className="text-muted-foreground">
           이 주문에는 환불 기록이 없어 [환불 완료 확정]을 쓸 수 없습니다. 결제 내역이
           없는 주문(결제창만 열렸거나 결제 결과가 정해지기 전)의 취소는{' '}
-          <Link className="text-foreground underline underline-offset-4" href={adminOrderSearchHref(orderId)}>주문 통합검색에서 이 주문을 열어</Link>
-          {' '}[{orderPanelRecheckLabel}]으로 닫습니다. Korpay 결제창 주문은 그 자리의
-          Korpay 버튼으로 처리합니다.
+          <Link className="text-foreground underline underline-offset-4" href={adminOrderPanelHref(orderId, orderNumber)}>주문 통합검색에서 이 주문을 열어</Link>
+          {' '}[{orderPanelRecheckLabel}]으로 닫습니다. {PAYMENT_PROVIDER_LABELS.korpay} 결제창 주문은 그 자리의
+          [{ADMIN_CANCELLATION_RECHECK_LABELS.preparedKorpay}] 버튼으로 처리합니다.
         </p>
       ) : refundLedgerMissing ? (
         <p className="text-muted-foreground">
@@ -808,12 +1091,12 @@ export function ClaimActionPanel({
 
   const rejectionForm = <>
     {canReject ? (
-        <form action={panelAction} className={FORM_CLASS}>
+        <form action={ignoreUnconfirmedClaimSubmit} className={FORM_CLASS} onSubmit={submitRejection}>
           <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="decision" type="hidden" value="reject" />
-          <ClaimRejectionReasonField claimType={claimType} id="claim-reject-note" label="거부 사유 (10~200자, 구매자에게 전달됩니다)" />
+          <ClaimRejectionReasonField claimType={claimType} error={rejectError} id="claim-reject-note" onChange={() => setRejectError(null)} />
           {/* 승인이 이 칸의 주 행동이다. 거부까지 빨강이면 둘 다 위험 표시로 읽혀 멈칫한다. */}
           <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="outline">
             거부
@@ -829,14 +1112,13 @@ export function ClaimActionPanel({
   </details> : null;
 
   if (claimType === 'return') return <>
-    <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={result} /></div>
+    <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={feedback} /></div>
     <ReturnClaimWorkspace
     progress={{ stage, heldFrom, collectionPolicy, collectionComplete, collectedAt,
       collectionCount: collections.length, collectedCount: collections.filter(item => item.collectedAt !== null).length,
       refundLedgerOpen, refundFiled, refundCompleted,
       ...(returnDeduction?.applicable ? { refundDeductionAmount: returnDeduction.deductionAmount } : {}) }}
     review={<>
-      <p>주문 전체의 상품·금액과 반품 사유를 먼저 확인해주세요.</p>
       <div className="flex flex-wrap gap-3"><a className="underline underline-offset-4" href="#claim-order">주문정보 보기</a><a className="underline underline-offset-4" href="#claim-request">요청·처리이력 보기</a></div>
       {stage === 'withdrawn' ? <p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p> : decisionForm}
       {/* 승인과 거부는 둘 중 하나를 고르는 일이다 — 취소·교환 처리 칸과 같이 승인 바로 아래에 둔다. */}
@@ -855,10 +1137,7 @@ export function ClaimActionPanel({
         </ul> : null}
       </>
       : <>{originCollection}{legacyCollection}</>}{returnCollectionContact}</>}
-    hold={<>{holdControl}<p className="text-muted-foreground">{stage === 'withdrawn' || stage === 'rejected' || stage === 'completed'
-      ? '종결된 요청은 보류하거나 보류를 해제할 수 없습니다.' : canResume
-      ? '보류를 해제한 뒤 돌아온 단계에서 회수·환불을 별도로 확인해주세요.'
-      : '추가 확인이 필요한 경우에만 보류합니다. 보류할 사유가 없으면 다음 작업을 진행하세요.'}</p></>}
+    hold={<>{holdControl}{canHold || canResume ? null : <p className="text-muted-foreground">지금 단계에서는 보류할 수 없습니다.</p>}</>}
     refund={<>{stage !== 'withdrawn' ? refundControls : null}{returnRefundSummary}</>}
     exception={canReject && !canApprove ? rejectionFold : null}
     attention={defectiveRetry}
@@ -869,10 +1148,10 @@ export function ClaimActionPanel({
     return <div className="flex min-w-0 flex-col gap-4" data-claim-actions="">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
         <h3 className="text-base leading-snug font-medium">{panelTitle}</h3>
-        <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">현재 단계 <AdminStatusBadge tone={statusTone('claim', stage)}>{adminClaimStageLabel(claimType, stage)}</AdminStatusBadge></p>
+        <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">{V.claimStatus} <AdminStatusBadge tone={statusTone('claim', stage)}>{adminClaimStageLabel(claimType, stage)}</AdminStatusBadge></p>
       </div>
       {exchangeSteps}
-      <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={result} /></div>
+      <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={feedback} /></div>
       {requestSummary}
       {/* 보류 설정과 해제는 한 부품의 두 상태다. 보류 직후 다시 마운트되면 완료 문구와 포커스가 사라지므로 트리의 자리는 아래 묶음 하나로 두고, 보류 중일 때만 CSS order로 위로 올린다(보류 해제가 지금 할 일이다). */}
       <div className={`flex min-w-0 flex-col gap-4 ${canResume ? 'order-2' : 'order-1'}`}>
@@ -888,9 +1167,9 @@ export function ClaimActionPanel({
   return <div className="flex min-w-0 flex-col gap-4" data-claim-actions="">
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <h3 className="text-base leading-snug font-medium">{panelTitle}</h3>
-      <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">현재 단계 <AdminStatusBadge tone={statusTone('claim', stage)}>{adminClaimStageLabel(claimType, stage)}</AdminStatusBadge></p>
+      <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">{V.claimStatus} <AdminStatusBadge tone={statusTone('claim', stage)}>{adminClaimStageLabel(claimType, stage)}</AdminStatusBadge></p>
     </div>
-    <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={result} /></div>
+    <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={feedback} /></div>
     {requestSummary}
     {/* 승인할 수 있는 단계에서는 거부를 승인 바로 아래에 둔다 — 둘 중 하나를 고르는 것이 지금 할 일이다. */}
     {originCollection}{decisionForm}{canApprove ? rejectionForm : null}{holdControl}{legacyCollection}{refundControls}{canApprove ? null : rejectionForm}

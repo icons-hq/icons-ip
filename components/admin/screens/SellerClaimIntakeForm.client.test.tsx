@@ -33,7 +33,7 @@ describe('seller claim uncertain request identity',()=>{
  it('keeps the dispatched payload locked when readback has no receipt yet',async()=>{
   fill();submit();await settle();
   expect(mocks.submit).toHaveBeenCalledTimes(1);const original=structuredClone(mocks.submit.mock.calls[0][0]);
-  click('같은 요청의 저장 결과 확인');await settle();
+  click('저장됐는지 확인');await settle();
   expect(mocks.read).toHaveBeenCalledWith(original);
   expect(elements(render()).filter(element=>element.type==='fieldset').every(element=>element.props.disabled)).toBe(true);
   expect(text(render())).toContain('같은 내용으로 다시 접수');
@@ -60,9 +60,11 @@ describe('seller claim uncertain request identity',()=>{
   fill();change('seller-claim-bankName','합성은행');change('seller-claim-accountNumber','000000001234');change('seller-claim-accountHolder','합성 고객');
   submit();await settle();const original=structuredClone(mocks.submit.mock.calls[0][0]);
   mocks.read.mockResolvedValueOnce({receipt:{...receiptFor(original),agreementEvidence:'다른 합의'}});
-  click('같은 요청의 저장 결과 확인');await settle();expect(mocks.refresh).not.toHaveBeenCalled();expect(text(render())).toContain('일치하지 않습니다');
-  mocks.read.mockResolvedValueOnce({receipt:receiptFor(original)});click('같은 요청의 저장 결과 확인');await settle();
+  click('저장됐는지 확인');await settle();expect(mocks.refresh).not.toHaveBeenCalled();expect(text(render())).toContain('일치하지 않습니다');
+  mocks.read.mockResolvedValueOnce({receipt:receiptFor(original)});click('저장됐는지 확인');await settle();
   expect(text(render())).toContain('요청을 저장했습니다');expect(mocks.submit).toHaveBeenCalledTimes(1);expect(mocks.refresh).toHaveBeenCalledTimes(1);
+  /* F-04: 목록·상세·결과표가 쓰는 요청번호(C00012)로 말한다. 접수번호 #12라고 따로 부르지 않는다. */
+  expect(text(render())).toContain('요청번호 C00012 · 현재 단계');expect(text(render())).not.toContain('접수번호');
   expect((hooks.state[0] as SellerClaimInput).refundAccount).toBeNull();
   expect(hooks.refs.every(ref=>!(ref.current&&typeof ref.current==='object'&&'refundAccount' in ref.current))).toBe(true);
   click('닫기');expect(mocks.close).toHaveBeenCalledTimes(1);

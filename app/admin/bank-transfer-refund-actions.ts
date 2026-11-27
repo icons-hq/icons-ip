@@ -6,7 +6,7 @@ import { createClient } from '@/lib/supabase/server';
 import { recordClaimDefectiveStock } from '@/lib/admin/defective-stock.server';
 import { normalizeClaimRefundAccountIdentity } from '@/lib/orders/claim-refund-account';
 import {
-  bankRefundError, bankRefundReceiptMatches, normalizeBankRefundRequest,
+  BANK_REFUND_LOAD_FAILED, bankRefundError, bankRefundReceiptMatches, normalizeBankRefundRequest,
   parseBankRefundContext, parseBankRefundReceipt, parseBankRefundRecovery,
   type BankRefundContext, type BankRefundFailure, type BankRefundReceipt, type BankRefundIdentity, type BankRefundResult,
 } from '@/lib/admin/bank-transfer-refund';
@@ -37,11 +37,15 @@ export async function loadBankRefundContextAction(input: unknown): Promise<{ con
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_bank_transfer_refund_context', identityArgs(identity));
-    if (error) return bankRefundError(error.code, error.message);
+    if (error) {
+      /* 읽기 실패에는 '저장됐는지 확인' 안내가 맞지 않는다 — 권한·단계처럼 이유를 아는 오류만 그대로 보이고 나머지는 문구만 '다시 불러오라'로 바꾼다(응답 분류는 그대로). */
+      const failure = bankRefundError(error.code, error.message);
+      return failure.uncertain ? { ...failure, error: BANK_REFUND_LOAD_FAILED } : failure;
+    }
     const context = parseBankRefundContext(data);
-    if (!context || context.actorId !== identity.actorId || context.orderId !== identity.orderId || context.claimId !== identity.claimId) return { error: '최신 환불 상태를 읽지 못했습니다.' };
+    if (!context || context.actorId !== identity.actorId || context.orderId !== identity.orderId || context.claimId !== identity.claimId) return { error: BANK_REFUND_LOAD_FAILED };
     return { context };
-  } catch (error) { unstable_rethrow(error); return { error: '최신 환불 상태를 읽지 못했습니다.' }; }
+  } catch (error) { unstable_rethrow(error); return { error: BANK_REFUND_LOAD_FAILED }; }
 }
 export async function recordBankRefundAction(input: unknown): Promise<BankRefundResult> {
   const request = normalizeBankRefundRequest(input);

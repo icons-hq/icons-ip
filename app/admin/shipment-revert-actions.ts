@@ -57,7 +57,7 @@ export async function revertShipmentDeliveryAction(input: { shipmentId: unknown;
     // 운송장 없이 강제 배송완료한 건은 발송된 적이 없어 발송 대기로(주문은 발주확인으로) 돌아간다.
     if (receipt.shipmentStatus === 'ready') return { ok: true, tone: 'success', message: `배송 건 ${reference}${objectParticle(reference)} 발송 대기로 되돌렸습니다${pack}. `
       + '운송장 없이 강제 배송완료한 건이라 주문은 발주확인으로 돌아갔습니다. 실제로 발송하면 운송장을 등록해 발송 처리해주세요. 사유는 감사 기록에 남았습니다.' };
-    return { ok: true, tone: 'success', message: `배송 건 ${reference}${objectParticle(reference)} 배송 중으로 되돌렸습니다${pack}. `
+    return { ok: true, tone: 'success', message: `배송 건 ${reference}${objectParticle(reference)} 배송중으로 되돌렸습니다${pack}. `
       + '실제 도착을 확인하면 택배사 배송완료 일시를 넣어 다시 배송완료 처리해주세요. 사유는 감사 기록에 남았습니다.' };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: shipmentRevertError() }; }
 }
@@ -84,6 +84,6 @@ export async function revertShipmentDispatchAction(input: { shipmentId: unknown;
     const sent = receipt.emailSent === true;
     return { ok: true, tone: sent ? 'warning' : 'success', message: `배송 건 ${reference}${objectParticle(reference)} 발송 대기로 되돌렸습니다${count > 1 ? `(합포장으로 주문 ${count}건 함께)` : ''}. `
       + '올바른 운송장으로 다시 발송 처리해주세요.'
-      + (sent ? ' 발송 안내 메일이 이미 나갔습니다. 다시 발송해도 같은 배송 건의 메일은 다시 보내지 않으니 고객에게 올바른 운송장을 직접 안내해주세요.' : '') };
+      + (sent ? ' 배송 안내 메일이 이미 나갔습니다. 다시 발송처리해도 같은 배송 건의 메일은 다시 보내지 않으니 고객에게 올바른 운송장을 직접 안내해주세요.' : '') };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: shipmentRevertError() }; }
 }

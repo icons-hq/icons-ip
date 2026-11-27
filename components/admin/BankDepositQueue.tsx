@@ -6,7 +6,8 @@ import {
   ignoreBankDepositAction,
   type AdminUnpaidActionState,
 } from '../../app/admin/unpaid-actions';
-import type { AdminBankDepositRow } from '../../lib/admin/unpaid';
+import { ADMIN_UNPAID_MEMO_MAX, ADMIN_UNPAID_MEMO_MIN, type AdminBankDepositRow } from '../../lib/admin/unpaid';
+import { bankDepositConfirmRequest, bankDepositIgnoreRequest } from '../../lib/admin/unpaid-copy';
 import {
   bankDepositConfidenceLabel,
   bankDepositNeedsSecondLook,
@@ -15,6 +16,7 @@ import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { krw } from '@/lib/format';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
+import { ignoreUnconfirmedUnpaidSubmit, submitUnpaidAfterConfirm } from './unpaid-submit';
 
 const initialState: AdminUnpaidActionState = {};
 
@@ -38,8 +40,11 @@ function ActionResult({ state }: { state: AdminUnpaidActionState }) {
  *
  * 제안이 없는 입금(미아 입금)도 큐에 남는다. 반환 절차의 근거가 이 행이므로
  * 지우지 않고 사유와 함께 내린다.
+ *
+ * 확정은 주문을 결제완료로 바꾸고 고객 메일이 나가며, 내리기는 목록에서 다시 올릴 길이 없다. 둘 다 확인창을 거친다 —
+ * 제출 방식은 `unpaid-submit.ts` 참고.
  */
-function DepositCard({ deposit }: { deposit: AdminBankDepositRow }) {
+export function DepositCard({ deposit }: { deposit: AdminBankDepositRow }) {
   const [confirmState, confirmAction, confirmPending] = useActionState(
     confirmBankDepositAction,
     initialState,
@@ -60,7 +65,11 @@ function DepositCard({ deposit }: { deposit: AdminBankDepositRow }) {
       {deposit.rawReference && <p className="text-muted-foreground">{deposit.rawReference}</p>}
 
       {suggested ? (
-        <form action={confirmAction} className={FORM_CLASS}>
+        <form
+          action={ignoreUnconfirmedUnpaidSubmit}
+          className={FORM_CLASS}
+          onSubmit={(event) => { void submitUnpaidAfterConfirm(event, bankDepositConfirmRequest(deposit), confirmAction); }}
+        >
           <input name="depositId" type="hidden" value={deposit.id} />
           <input name="orderId" type="hidden" value={suggested} />
           <p className={`flex flex-wrap items-center gap-1.5 ${bankDepositNeedsSecondLook(deposit.suggestedConfidence) ? 'text-warning' : 'text-muted-foreground'}`}>
@@ -70,10 +79,11 @@ function DepositCard({ deposit }: { deposit: AdminBankDepositRow }) {
               && <span>금액이 다릅니다. 부분 입금인지 먼저 확인해주세요.</span>}
           </p>
           <label className={LABEL_CLASS}>
-            <span>입금 근거</span>
+            <span>입금 근거 (필수)</span>
             <Input
               name="memo"
-              maxLength={200}
+              minLength={ADMIN_UNPAID_MEMO_MIN}
+              maxLength={ADMIN_UNPAID_MEMO_MAX}
               placeholder="예: 입금자명 주문코드 일치, 금액 동일"
               required
             />
@@ -90,13 +100,18 @@ function DepositCard({ deposit }: { deposit: AdminBankDepositRow }) {
         </p>
       )}
 
-      <form action={ignoreAction} className={`${FORM_CLASS} border-t pt-3`}>
+      <form
+        action={ignoreUnconfirmedUnpaidSubmit}
+        className={`${FORM_CLASS} border-t pt-3`}
+        onSubmit={(event) => { void submitUnpaidAfterConfirm(event, bankDepositIgnoreRequest(deposit), ignoreAction); }}
+      >
         <input name="depositId" type="hidden" value={deposit.id} />
         <label className={LABEL_CLASS}>
-          <span>보류 사유</span>
+          <span>보류 사유 (필수)</span>
           <Input
             name="reason"
-            maxLength={200}
+            minLength={ADMIN_UNPAID_MEMO_MIN}
+            maxLength={ADMIN_UNPAID_MEMO_MAX}
             placeholder="예: 주문과 대조되지 않아 반환 안내 예정"
             required
           />
@@ -116,13 +131,13 @@ export function BankDepositQueue({ deposits }: { deposits: AdminBankDepositRow[]
       <header className="flex flex-col gap-1">
         <h3 className="text-base font-medium text-foreground">입금 내역</h3>
         <p className="text-muted-foreground">
-          계좌수집 서비스가 가져온 입금 중 아직 주문과 연결하지 않은 건입니다. 맞을 만한 주문을 제안하지만, 제안을 보고 확정 버튼을 직접 눌러야 입금 확인이 됩니다.
+          계좌수집 서비스가 가져온 입금 중 주문과 연결하지 않은 건입니다. 주문을 제안하지만 확정은 직접 눌러야 합니다.
         </p>
       </header>
       {deposits.length === 0 ? (
         <p className="py-6 text-center text-muted-foreground">
-          주문과 연결할 입금이 없습니다. 계좌수집 서비스를 연결하기 전에는 이 목록이 늘 비어 있으니,
-          입금 확인은 위 목록에서 주문을 골라 직접 처리합니다.
+          주문과 연결할 입금이 없습니다. 계좌수집 서비스를 연결하기 전에는 늘 비어 있으니,
+          위 목록에서 직접 입금 확인합니다.
         </p>
       ) : (
         <ul className="grid gap-3 lg:grid-cols-2">

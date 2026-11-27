@@ -9,6 +9,7 @@ import { ClaimPreviewLink } from './ClaimPreviewDialog';
 /**
  * 일괄 처리의 건별 결과표(승인·거부·검토중·전환과 회수 확인·환불 완료 확정·재출고 공통). 목록에서 빠진 요청도 남고,
  * 요청번호는 같은 목록 위 팝업을 연다. 재출고처럼 한 요청을 출고지마다 처리하면 번호 옆에 출고지를 적는다.
+ * 결과는 처리됨·실패·건너뜀(할 수 없어 뺀 건)·아직 안 함(시간이 모자라 시작 못 한 건)으로 나뉘고, 내용 칸에 처리 결과나 이유가 남는다.
  */
 export function ClaimKitBulkResult({ previewHrefBase, state }: { previewHrefBase: string; state: AdminClaimBulkState }) {
   const section = useRef<HTMLElement>(null);
@@ -26,8 +27,9 @@ export function ClaimKitBulkResult({ previewHrefBase, state }: { previewHrefBase
     <p className="text-sm" role="status">{state.summary}</p>
     <div className="overflow-hidden rounded-lg border">
       <Table>
-        <TableCaption>일괄 처리 결과</TableCaption>
-        <TableHeader><TableRow><TableHead scope="col">번호</TableHead><TableHead scope="col">결과</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
+        {/* 표 제목은 화면 낭독용이다. 보이게 두면 kit 표의 제목 자리(표 아래)에 떠 있는 글자로 보인다(F-02). */}
+        <TableCaption className="sr-only">일괄 처리 결과</TableCaption>
+        <TableHeader><TableRow><TableHead scope="col">요청번호</TableHead><TableHead scope="col">결과</TableHead><TableHead scope="col">내용</TableHead></TableRow></TableHeader>
         <TableBody>
           {state.results.map((result) => <TableRow data-outcome={result.outcome} key={`${result.claimId}:${result.scope ?? ''}`}>
             <TableCell>{result.reference

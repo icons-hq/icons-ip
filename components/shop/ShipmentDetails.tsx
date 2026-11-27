@@ -3,6 +3,7 @@ import { krw } from '@/lib/format';
 import { shipmentStatusLabel, type ShipmentExtraTracking, type ShipmentRecord } from '@/lib/orders/shipments';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { DELIVERY_METHOD_LABELS, deliveryFeeRuleNote, deliveryStatusLabel } from '@/lib/shipment-delivery';
+import { adminDeliveryStatusLabel, adminShipmentStatusLabel } from '@/lib/admin/shipment-status-labels';
 import { ShipmentReceiptConfirmation } from './ShipmentReceiptConfirmation';
 import type { GoodsTransactionShippingGroup } from '@/lib/goods-transaction';
 import { ShippingChargeDetailsDisplay } from './ShippingChargeDetailsDisplay';
@@ -35,8 +36,13 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
     const groupName = admin ? shipment.originName : shipmentGroupLabel(carriers, index);
     const candidates = transactionShipping?.filter(group => group.originId === shipment.originId) ?? [];
     const charge = candidates.length === 1 ? candidates[0] : candidates.find(group => group.components.every(component => items.some(item => item.goodId === component.goodId && shipment.orderItemIds.includes(item.id))));
+    /* 어드민은 발송관리·주문 타임라인과 같은 이름(발송 대기 · 배송중 · 배송완료)으로 부른다. 고객 화면의 이름(배송 준비 · 배송 중 · 배송 완료)은 그대로다. */
+    const statusLabel = admin
+      ? (shipment.delivery ? adminDeliveryStatusLabel(shipment.delivery.method, shipment.status) : adminShipmentStatusLabel(shipment.status))
+      : (shipment.delivery ? deliveryStatusLabel(shipment.delivery.method, shipment.status) : shipmentStatusLabel(shipment.status));
+    const regional = shipment.regionalShipping;
     return <section className={admin ? 'admin-order-detail__shipment' : 'order-receipt-section wc-shipment-details'} key={shipment.id}>
-    <h3>{groupName} · {shipment.delivery ? deliveryStatusLabel(shipment.delivery.method, shipment.status) : shipmentStatusLabel(shipment.status)}</h3>
+    <h3>{groupName} · {statusLabel}</h3>
     <dl className={admin ? 'admin-order-detail__facts' : 'order-payment-summary'}>
       <div><dt>배송건번호</dt><dd className="mono">{commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</dd></div>
       <div><dt>{transactionShipping ? '선불 배송비' : '배송비'}</dt><dd>{krw(shipment.shippingFee)}</dd></div>
@@ -46,10 +52,12 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
         <dt>포함된 지역 추가 배송비</dt><dd>{krw(shipment.regionalShipping.regionalFee)}
           {shipment.regionalShipping.regionLabel ? ` · ${shipment.regionalShipping.regionLabel}` : ''}</dd>
       </div> : null}
-      {admin && shipment.regionalShipping ? <div><dt>주문 당시 지역 배송 정책</dt><dd>
-        {shipment.regionalShipping.regionMode === 'legacy_base_only' ? '지역 요금표 미등록 · 기존 배송비로 확정' : `버전 ${shipment.regionalShipping.policyVersion} · ${shipment.regionalShipping.carrierCode}`}
-        {shipment.regionalShipping.regionMode === 'managed' && shipment.regionalShipping.regionalContractFee != null
-          ? ` · 계약 추가료 ${krw(shipment.regionalShipping.regionalContractFee)} × ${shipment.regionalShipping.unitCount}${shipment.regionalShipping.feeUnit === 'per_good' ? '개 상품' : '건'}` : ''}
+      {/* 어드민만 보는 줄. 설정의 버전·택배사 영문 값은 운영자가 할 일이 없어 보이지 않는다(화면 규칙 8). */}
+      {admin && regional ? <div><dt>주문 당시 지역별 추가배송비</dt><dd>
+        {regional.regionMode === 'legacy_base_only' ? '지역표가 없던 때의 주문 · 기본 배송비만 받음'
+          : regional.regionMode === 'managed' && regional.regionalContractFee != null
+            ? `추가배송비 ${krw(regional.regionalContractFee)} × ${regional.unitCount}${regional.feeUnit === 'per_good' ? '개 상품' : '건'}`
+            : '추가배송비 없음'}
       </dd></div> : null}
       {shipment.originalExpectedShipDate ? <div><dt>주문 당시 발송 예정일</dt><dd>{goodsShipDateLabel(shipment.originalExpectedShipDate)}</dd></div> : null}
       {shipment.expectedShipDate && shipment.expectedShipDate !== shipment.originalExpectedShipDate ? <div><dt>변경된 발송 예정일</dt><dd>{goodsShipDateLabel(shipment.expectedShipDate)}</dd></div> : null}

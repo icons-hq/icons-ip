@@ -1,4 +1,5 @@
 import { CRON_JOBS, systemJobLabel } from '@/lib/system-health/cron-jobs';
+import { PAYMENT_PROVIDER_VALUE_LABELS } from '@/lib/payments/provider-capabilities';
 import { isUuid } from '@/lib/uuid';
 
 /*
@@ -183,7 +184,8 @@ export const UNRESOLVED_PAYMENT_REASON_HINTS: Record<UnresolvedPaymentReason, st
   awaiting_deposit: '가상계좌 입금 기한이 2시간 넘게 지났는데 자동 재확인이 주문을 닫지 못했습니다. [결제 상태 다시 확인]을 눌러 결제사 상태를 다시 조회하고, 그래도 남아 있으면 토스페이먼츠 상점관리자에서 이 결제의 입금 여부를 확인한 뒤 개발 담당자에게 알려주세요.',
 };
 export const PAYMENT_PURPOSE_LABELS: Record<string, string> = { order: '상품 주문', ticket: '티켓 예매', prize_sale: '실물 쿠지', wallet: '폐기된 결제 유형' };
-export const PAYMENT_PROVIDER_LABELS: Record<string, string> = { toss: '토스페이먼츠', nicepay: '나이스페이', korpay: '코페이', bank_transfer: '무통장입금' };
+/** 결제 칸의 이름. 주문·클레임 화면과 같은 이름표(lib/payments/provider-capabilities)를 쓴다. */
+export const PAYMENT_PROVIDER_LABELS: Record<string, string> = PAYMENT_PROVIDER_VALUE_LABELS;
 
 export interface UnresolvedPaymentAttempt {
   attemptId: string;

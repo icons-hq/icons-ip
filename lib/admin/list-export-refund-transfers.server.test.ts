@@ -98,7 +98,7 @@ describe('환불 송금 대기 목록 시트 로더', () => {
     expect(sheet.filters).toEqual({ accountExportId: mocks.serviceRpc.mock.calls[0][1].p_export_id });
     const at = (header: string, index: number) => sheet.rows[index][sheet.columns.findIndex(column => column.header === header)];
     expect([at('은행', 0), at('계좌번호', 0), at('예금주', 0), at('계좌 상태', 0)]).toEqual(['합성은행', '110-123-456789', '합성 예금주', '확인됨']);
-    expect([at('은행', 1), at('계좌번호', 1), at('계좌 상태', 1)]).toEqual([null, null, '환불 접수 전']);
+    expect([at('은행', 1), at('계좌번호', 1), at('계좌 상태', 1)]).toEqual([null, null, '접수 전']);
   });
   it('계좌를 열기 전에 세션 운영자를 확인하고, 다르면 목록도 계좌도 읽지 않는다', async () => {
     await expect(loadAdminListExportSheet('refund-transfers', { screen: 'refund-transfers' }, new Date(), 'a0000000-0000-4000-8000-000000000009')).rejects.toMatchObject({ status: 403 });
@@ -120,7 +120,7 @@ describe('환불 송금 대기 목록 시트 로더', () => {
     expect(mocks.serviceRpc.mock.calls[1][1]).toEqual({ p_actor_id: ACTOR, p_session_id: SESSION, p_export_id: mocks.serviceRpc.mock.calls[0][1].p_export_id,
       p_items: [{ partialCancellationId: partial.partialCancellationId, orderId: partial.orderId }] });
     const at = (header: string, index: number) => sheet.rows[index][sheet.columns.findIndex(column => column.header === header)];
-    expect([at('유형', 1), at('계좌번호', 1), at('송금 대기 금액', 1), at('요청자', 1)]).toEqual(['부분 취소', '220-000-1111', 9500, '운영자 처리']);
+    expect([at('유형', 1), at('계좌번호', 1), at('송금할 금액', 1), at('요청자', 1)]).toEqual(['부분 취소', '220-000-1111', 9500, '운영자 처리']);
     expect(sheet.notes.join(' ')).toContain('재고 부족 부분 취소');
     // 부분 취소 계좌 응답이 순서·키가 다르면 파일을 만들지 않는다.
     expect(parsePartialCancellationRefundAccounts({ exportId: 'e', rows: [{ partialCancellationId: 'other', status: 'revealed', bankName: 'a', accountNumber: 'b', accountHolder: 'c' }] }, 'e', [partial])).toBeNull();

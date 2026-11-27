@@ -67,8 +67,8 @@ describe('주문 통합검색 목록 엑셀', () => {
       주문일시: '2026-10-07 00:10',
       '주문 상태': '배송중',
       구매자: 'maple_fan',
-      수취인: '김수취',
-      결제수단: '무통장 입금',
+      수령인: '김수취',
+      결제수단: '무통장 입금(직접 이체)',
       '결제 상태': '결제완료',
       결제금액: 45_000,
       상품명: '아크릴 키링',
@@ -90,7 +90,7 @@ describe('주문 통합검색 목록 엑셀', () => {
     expect(sheet.columns.map((column) => column.header)).not.toEqual(expect.arrayContaining(['전체 주문번호']));
     expect(sheet.columns.map((column) => column.header)).not.toContain('계산 버전');
     expect(sheet.columns.find((column) => column.header === '이메일')?.width).toBeGreaterThanOrEqual(34);
-    /* 주문 통합검색은 수취인 이름만 싣고 연락처·주소는 담지 않는다. */
+    /* 주문 통합검색은 수령인 이름만 싣고 연락처·주소는 담지 않는다. */
     expect(sheet.columns.map((column) => column.header)).not.toContain('연락처');
     expect(sheet.conditions).toEqual([
       ['검색 대상', '수령인'], ['검색어', '김수취'], ['주문 상태', '전체 상태'], ['주문일', '2026-10-01 ~ 종료 제한 없음'],
@@ -112,7 +112,7 @@ describe('주문 통합검색 목록 엑셀', () => {
       filters,
     });
     expect(sheet.rows).toHaveLength(1);
-    expect(cells(sheet)).toMatchObject({ 상품명: null, 수량: null, '취소·반품·교환 요청': '반품 · 수거중', 결제수단: null });
+    expect(cells(sheet)).toMatchObject({ 상품명: null, 수량: null, '취소·반품·교환 요청': '수거중', 결제수단: null });
   });
 });
 
@@ -147,9 +147,9 @@ describe('발주·발송/배송현황 목록 엑셀', () => {
     expect(sheet.recordCount).toBe(2);
     expect(sheet).not.toHaveProperty('columns');
     expect(sheet.conditions).toContainEqual(['출고지', '김포']);
-    expect(sheet.conditions).toContainEqual(['발송지연 안내여부', '전체']);
+    expect(sheet.conditions).toContainEqual(['지연 안내 결과', '전체']);
     expect(sheet.notes.join(' ')).toContain('출고지시 파일과 다른 확인용 목록');
-    expect(sheet.notes.join(' ')).toContain('엑셀 일괄 운송장 등록');
+    expect(sheet.notes.join(' ')).toContain('"운송장 올리기"');
     expect(sheet.filters).toMatchObject({ tab: 'ready', originId: 'one' });
   });
 
@@ -159,7 +159,7 @@ describe('발주·발송/배송현황 목록 엑셀', () => {
     });
     expect(sheet.title).toBe('배송현황 관리 - 배송중');
     expect(sheet.conditions).toContainEqual(['출고지', '전체 출고지']);
-    expect(sheet.conditions.map(([label]) => label)).not.toContain('발송지연 안내여부');
+    expect(sheet.conditions.map(([label]) => label)).not.toContain('지연 안내 결과');
     expect(sheet.notes.join(' ')).not.toMatch(/출고지시 파일과 다른|네이버|스마트스토어/);
   });
 });
@@ -182,8 +182,8 @@ describe('취소·반품·교환 목록 엑셀', () => {
     expect(sheet.screen).toBe('claims-returns');
     expect(cells(sheet)).toMatchObject({
       요청번호: 'C00042', 주문번호: '11111111', 유형: '반품', 사유: '상품 하자·오배송', '처리 상태': '수거중',
-      접수일시: '2026-10-06 09:00', '환급 기한': '입고 전', '환불 수단': '미접수', 처리자: '미배정',
-      상품명: '아크릴 키링', 수량: 2, 수취인: '김수취', 연락처: '01012345678', 우편번호: '04524', 운송장번호: '123456789012',
+      접수일: '2026-10-06 09:00', '환불 기한': '입고 전', '환불 수단': '접수 전', 처리자: '미배정',
+      상품명: '아크릴 키링', 수량: 2, 수령인: '김수취', 연락처: '01012345678', 우편번호: '04524', 운송장번호: '123456789012',
       '직접 입력 옵션':'각인 문구: 합성 문구',
     });
     expect(sheet.conditions).toContainEqual(['처리 상태', '미처리 전체']);
@@ -235,20 +235,20 @@ describe('환불 송금 대기 목록 엑셀(1007-047·048)', () => {
 
   it('요청 한 건이 한 행이고 송금에 쓸 계좌·계좌 상태를 화면 열과 함께 싣는다', () => {
     const sheet = refundTransfersListExportSheet({ rows: [row(), second], accounts, accountExportId: 'e0000000-0000-4000-8000-000000000001', now });
-    expect(sheet.columns.map(column => column.header)).toEqual(['요청번호', '송금 대기 금액', '결제자', '은행', '계좌번호', '예금주', '계좌 상태',
+    expect(sheet.columns.map(column => column.header)).toEqual(['요청번호', '송금할 금액', '결제자', '은행', '계좌번호', '예금주', '계좌 상태',
       '대기 일수', '유형', '주문번호', '취소 확정일', '환불 접수일', '요청자']);
     expect(sheet.columns.find(column => column.header === '계좌번호')?.kind).toBe('code');
     // 11/7 23:30(KST) 확정 → 11/11 00:10(KST) 내려받기는 한국 달력으로 4일째다.
-    expect(cells(sheet, 0)).toMatchObject({ 요청번호: 'C00045', '송금 대기 금액': 12000, 결제자: '결제자별명', 은행: null, 계좌번호: null, 예금주: null,
-      '계좌 상태': '환불 접수 전', '대기 일수': 4, 유형: '선물 · 반품', 주문번호: '2026110810000001', '취소 확정일': '2026-11-07 23:30', '환불 접수일': '미접수', 요청자: '이름 미등록' });
+    expect(cells(sheet, 0)).toMatchObject({ 요청번호: 'C00045', '송금할 금액': 12000, 결제자: '결제자별명', 은행: null, 계좌번호: null, 예금주: null,
+      '계좌 상태': '접수 전', '대기 일수': 4, 유형: '선물 · 반품', 주문번호: '2026110810000001', '취소 확정일': '2026-11-07 23:30', '환불 접수일': '접수 전', 요청자: '이름 없음' });
     // 계좌번호는 앞자리 0을 지키는 문자열 칸이다. 주문번호가 없는 옛 응답은 화면과 같은 짧은 참조를 쓴다.
-    expect(cells(sheet, 1)).toMatchObject({ 결제자: '이름 미등록', 은행: '합성은행', 계좌번호: '0012-345-678901', 예금주: '합성 예금주', '계좌 상태': '확인됨',
+    expect(cells(sheet, 1)).toMatchObject({ 결제자: '이름 없음', 은행: '합성은행', 계좌번호: '0012-345-678901', 예금주: '합성 예금주', '계좌 상태': '확인됨',
       유형: '취소', 주문번호: '00000002', '환불 접수일': '2026-11-08 10:00', 요청자: '요청자' });
     expect(sheet.screen).toBe('refund-transfers');
     expect(sheet.title).toBe('환불 송금 대기');
     expect(sheet.recordCount).toBe(2);
     expect(sheet.filters).toEqual({ accountExportId: 'e0000000-0000-4000-8000-000000000001' });
-    expect(sheet.notes.join(' ')).toContain('계좌 열람 기록');
+    expect(sheet.notes.join(' ')).toContain('누가 언제 계좌를 봤는지 기록');
     expect(sheet.notes.join(' ')).toContain('결제자 기준');
   });
 
@@ -260,8 +260,8 @@ describe('환불 송금 대기 목록 엑셀(1007-047·048)', () => {
 
   it('스위치를 끄면 계좌 열과 열람 안내 없이 화면과 같은 열만 남는다', () => {
     const sheet = refundTransfersListExportSheet({ rows: [row()], accounts: null, accountExportId: null, now, includeAccount: false });
-    expect(sheet.columns.map(column => column.header)).toEqual(['요청번호', '송금 대기 금액', '결제자', '대기 일수', '유형', '주문번호', '취소 확정일', '환불 접수일', '요청자']);
+    expect(sheet.columns.map(column => column.header)).toEqual(['요청번호', '송금할 금액', '결제자', '대기 일수', '유형', '주문번호', '취소 확정일', '환불 접수일', '요청자']);
     expect(sheet.filters).toEqual({});
-    expect(sheet.notes.join(' ')).not.toContain('계좌 열람 기록');
+    expect(sheet.notes.join(' ')).not.toContain('계좌를 봤는지 기록');
   });
 });

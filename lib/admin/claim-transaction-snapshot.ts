@@ -130,7 +130,7 @@ const LOAD_FAILURE_COPY: Record<AdminClaimDetailLoadCode, string> = {
   transaction_receipt_unavailable: `주문의 결제 기록(거래 영수증)을 읽지 못해 처리하지 않았습니다. ${UNCHANGED} 잠시 뒤 다시 시도해주세요.`,
   transaction_snapshot_mismatch: `주문 상품·수량이 결제 기록(거래 영수증)과 맞지 않아 처리하지 않았습니다. ${UNCHANGED} 주문 상세에서 상품과 부분 취소 이력을 확인한 뒤 개발 담당자에게 알려주세요.`,
   gift_requester_invalid: `선물 요청자 정보를 확인하지 못해 처리하지 않았습니다. ${UNCHANGED} 새로고침한 뒤 다시 시도해주세요.`,
-  seller_intake_invalid: `판매자 대리 접수 근거를 확인하지 못해 처리하지 않았습니다. ${UNCHANGED} 새로고침한 뒤 다시 시도해주세요.`,
+  seller_intake_invalid: `판매자 직접 접수 근거를 확인하지 못해 처리하지 않았습니다. ${UNCHANGED} 새로고침한 뒤 다시 시도해주세요.`,
 };
 
 /** 로더 실패를 운영자 문구로 옮긴다. 이유를 알 수 없는 실패는 fallback이다. 원문 코드는 노출하지 않는다. */

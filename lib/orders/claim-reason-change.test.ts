@@ -1,5 +1,6 @@
 import { expect, it } from 'vitest';
-import { CLAIM_REASON_RETURN_REFUND_FILED_MESSAGE, claimReasonBlockedMessage, claimReasonConfirmMessage, claimReasonError, claimReasonReceiptMatches, claimReasonReturnFeeNote, claimReasonSavedMessage, normalizeClaimReasonRequest, parseClaimReasonContext, parseClaimReasonHistory, parseClaimReasonReceipt } from './claim-reason-change';
+import { CLAIM_CHANGE_CONFLICT_MESSAGE, CLAIM_CHANGE_UNKNOWN_MESSAGE } from '@/lib/admin/claim-change-copy';
+import { CLAIM_REASON_AGREEMENT_MAX, CLAIM_REASON_AGREEMENT_MIN, CLAIM_REASON_INPUT_ERROR, CLAIM_REASON_RETURN_REFUND_FILED_MESSAGE, CLAIM_REASON_TEXT_MAX, claimReasonBlockedMessage, claimReasonConfirmMessage, claimReasonError, claimReasonReceiptMatches, claimReasonReturnFeeNote, claimReasonSavedMessage, normalizeClaimReasonRequest, parseClaimReasonContext, parseClaimReasonHistory, parseClaimReasonReceipt } from './claim-reason-change';
 import { reasonContext as context, reasonReceipt as receipt, reasonRequest as request, returnReasonContext, returnReasonReceipt } from './claim-reason-change.fixture';
 it('최초 actor·행 버전·분류·고객 설명·협의·비용 확인만 받는다', () => {
   expect(normalizeClaimReasonRequest(request)).toEqual(request);
@@ -68,6 +69,15 @@ it('반품배송비 안내와 저장 결과 문장', () => {
   expect(claimReasonReturnFeeNote({ ...returnReasonContext, returnFee: { ...returnReasonContext.returnFee!, deductionAmount: null } })).toContain('환불 접수 때 정해집니다');
   expect(claimReasonReturnFeeNote({ ...returnReasonContext, returnFee: { ...returnReasonContext.returnFee!, enabled: false } })).toContain('설정이 꺼져 있어');
   expect(claimReasonReturnFeeNote(context)).toBeNull();
+  /* F-16: 지금 사유가 이미 단순 변심이면 '단순 변심으로 정정하면 뺄 수 있다'를 되풀이하지 않는다. 빼지 않는 단순 변심 반품은 정정해도 같다고 말한다. */
+  const changeOfMind = claimReasonReturnFeeNote({ ...returnReasonContext, reasonType: 'change_of_mind' });
+  expect(changeOfMind).toContain('하자·오배송으로 정정하면 빼지 않습니다.'); expect(changeOfMind).not.toContain('단순 변심으로 정정하면');
+  const noDeduction = claimReasonReturnFeeNote({ ...returnReasonContext, reasonType: 'change_of_mind', returnFee: { ...returnReasonContext.returnFee!, deductionAmount: 0 } })!;
+  expect(noDeduction).toContain('지금 사유로는 반품배송비를 빼지 않습니다.'); expect(noDeduction).toContain('단순 변심이지만 환불 금액에서 빼지 않는 반품이라');
+  expect(noDeduction).not.toContain('단순 변심으로 정정하면'); expect(noDeduction).not.toContain('하자·오배송으로 정정하면 빼지 않');
+  const defect = claimReasonReturnFeeNote({ ...returnReasonContext, reasonType: 'defect', returnFee: { ...returnReasonContext.returnFee!, deductionAmount: 0 } })!;
+  expect(defect).toContain('지금 사유로는 반품배송비를 빼지 않습니다. 단순 변심으로 정정하면 반품배송비(편도 3,000원, 최초 무료배송 주문은 왕복)를 뺄 수 있습니다.');
+  expect(defect).not.toContain('하자·오배송으로 정정하면');
   expect(claimReasonSavedMessage(returnReasonReceipt)).toBe('반품 사유를 정정하고 고객에게 앱 알림을 남겼습니다. 반품배송비 차감이 3,000원에서 0원으로 바뀌었습니다.');
   expect(claimReasonSavedMessage(receipt)).toBe('교환 사유를 정정하고 고객에게 앱 알림을 남겼습니다.');
   expect(claimReasonSavedMessage({ ...receipt, changed: false })).toContain('고객 알림을 추가하지 않았습니다');
@@ -84,4 +94,23 @@ it('반품이 환불 접수 뒤라 막히면 다음 할 일(결제 담당 요청
   expect(claimReasonBlockedMessage({ claimType: 'return', stage: 'rejected', blocker: 'claim_reason_stage_unavailable' })).toBe(claimReasonError(undefined, 'claim_reason_stage_unavailable'));
   expect(claimReasonBlockedMessage({ claimType: 'exchange', stage: 'processing', blocker: 'claim_reason_finance_started' })).toBe(claimReasonError(undefined, 'claim_reason_finance_started'));
   expect(claimReasonBlockedMessage({ claimType: 'exchange', stage: 'collected', blocker: 'claim_reason_reshipped' })).toContain('재출고');
+});
+
+it('입력 제한은 화면 칸과 요청 검증이 같은 값이다(고객용 설명 1~200자, 정정 사유 2~500자)', () => {
+  expect([CLAIM_REASON_TEXT_MAX, CLAIM_REASON_AGREEMENT_MIN, CLAIM_REASON_AGREEMENT_MAX]).toEqual([200, 2, 500]);
+  expect(normalizeClaimReasonRequest({ ...request, reason: '가'.repeat(CLAIM_REASON_TEXT_MAX), agreement: '가'.repeat(CLAIM_REASON_AGREEMENT_MAX) })).not.toBeNull();
+  expect(normalizeClaimReasonRequest({ ...request, reason: '가'.repeat(CLAIM_REASON_TEXT_MAX + 1) })).toBeNull();
+  expect(normalizeClaimReasonRequest({ ...request, agreement: '가'.repeat(CLAIM_REASON_AGREEMENT_MAX + 1) })).toBeNull();
+  expect(normalizeClaimReasonRequest({ ...request, agreement: '가'.repeat(CLAIM_REASON_AGREEMENT_MIN - 1) })).toBeNull();
+  expect(CLAIM_REASON_INPUT_ERROR).toContain('고객용 설명은 1~200자'); expect(CLAIM_REASON_INPUT_ERROR).toContain('정정 사유는 2~500자');
+});
+it('오류 문구는 확인 체크를 말하지 않고, 다른 사람이 먼저 바꿨다고 말하며, 환급·정합성 같은 옛 말을 쓰지 않는다', () => {
+  expect(claimReasonError('PT409')).toBe(CLAIM_CHANGE_CONFLICT_MESSAGE);
+  expect(claimReasonError(undefined, 'unknown_code')).toBe(CLAIM_CHANGE_UNKNOWN_MESSAGE);
+  expect(claimReasonError(undefined, 'invalid_claim_reason_change')).toBe(CLAIM_REASON_INPUT_ERROR);
+  for (const message of ['claim_not_found', 'invalid_claim_reason_change', 'claim_reason_type_unavailable', 'claim_reason_stage_unavailable', 'claim_reason_reshipped', 'claim_reason_finance_started',
+    'claim_reason_fee_review_required', 'claim_reason_original_deadline_expired', 'claim_reason_request_conflict']) {
+    expect(claimReasonError(undefined, message), message).not.toMatch(/같은 요청|환급|정합성|해당|확인 항목/);
+  }
+  expect(CLAIM_REASON_RETURN_REFUND_FILED_MESSAGE).not.toContain('환급');
 });

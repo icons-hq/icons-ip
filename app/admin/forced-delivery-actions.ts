@@ -12,7 +12,7 @@ import { isUuid } from '@/lib/uuid';
 
 /*
  * 운영 강제 배송완료(1014-083). 스테이징 전용이던 테스트 배송완료를 운영에서도 연다 — 대신 사유 필수, 확인창(미리보기),
- * 같은 요청 번호 재전송, 감사 기록. 권한은 배송 처리 권한(sales.manage)이고 DB가 다시 확인한다.
+ * 같은 요청 번호 재전송, 감사 기록. 권한은 판매 관리(sales.manage)이고 DB가 다시 확인한다.
  */
 export type ForcedDeliveryPreviewResult = { preview: ForcedDeliveryPreview } | { error: string };
 export type ForcedDeliveryResult = { receipt: ForcedDeliveryReceipt } | { error: string };

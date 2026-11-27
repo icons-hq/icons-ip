@@ -56,7 +56,7 @@ export function OrderDelayNoticePanel({ shipmentIds, onClose }: { shipmentIds: s
         const result = await action();
         setReceipt((previous) => (result.notice ? result : { ...previous, ...result }));
       } catch {
-        setReceipt((previous) => ({ ...previous, error: '연결이 끊겼습니다. 같은 안내의 결과 새로고침으로 접수 여부를 먼저 확인해주세요.' }));
+        setReceipt((previous) => ({ ...previous, error: '연결이 끊겼습니다. 다시 보내기 전에 [안내 결과 새로고침]이나 [미리보기가 만들어졌는지 확인]으로 먼저 확인해주세요.' }));
       }
     });
   }
@@ -206,8 +206,9 @@ export function OrderDelayNoticePanel({ shipmentIds, onClose }: { shipmentIds: s
             {new Set(notice.targets.map((target) => target.orderId)).size}건 · 수신자 {notice.targets.length}명 ·{' '}
             {notice.expectedShipDate ? `발송 예정일 ${notice.expectedShipDate} 확정` : '발송 예정일 확인 중'}
           </p>
+          {/* 내부 번호는 보이지 않는다(화면 규칙 8). 어느 안내인지는 시각으로 구분한다. */}
           <p className="text-xs text-muted-foreground tabular-nums">
-            안내번호 {notice.id} · {formatOrderDateTime(notice.createdAt)}
+            {notice.requestedAt ? `발송 요청 ${formatOrderDateTime(notice.requestedAt)}` : `미리보기 작성 ${formatOrderDateTime(notice.createdAt)}`}
           </p>
           {!emailReady ? (
             <AdminNotice role="status" tone="danger">
@@ -326,7 +327,7 @@ export function OrderDelayNoticePanel({ shipmentIds, onClose }: { shipmentIds: s
       </div>
       {!notice && attemptId ? (
         <Button type="button" variant="outline" disabled={pending} onClick={() => perform(() => readOrderDelayNoticeAction(attemptId))}>
-          같은 미리보기 접수 확인
+          미리보기가 만들어졌는지 확인
         </Button>
       ) : null}
       <Button type="button" variant="outline" disabled={pending} onClick={loadHistory}>

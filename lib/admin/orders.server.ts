@@ -268,9 +268,9 @@ export async function getAdminOrderRecords(
 
   const orderIds = rows.map((row) => row.id);
   /* 가상계좌 입금 정보(ADR-0049)는 처리 패널이 여는 주문 하나만 읽는다 — 패널의 '결제·환불'은 주문 처리 권한에만 보이고,
-     화면(건수를 읽는 호출)에서만 그린다(목록 엑셀은 읽지 않는다). 패널은 지정한 주문, 없으면 첫 주문을 연다(OrdersSection). */
-  const panelOrderId = canManage && options.includeCounts !== false
-    ? (filters.orderId && orderIds.includes(filters.orderId) ? filters.orderId : orderIds[0])
+     화면(건수를 읽는 호출)에서만 그린다(목록 엑셀은 읽지 않는다). 패널은 목록에서 고른 주문만 연다(OrdersSection) — 고르지 않았으면 읽지 않는다. */
+  const panelOrderId = canManage && options.includeCounts !== false && filters.orderId && orderIds.includes(filters.orderId)
+    ? filters.orderId
     : null;
   /* 출고 보류는 주문 조회 권한이면 읽는다(발주확인·출고를 막는 상태라 처리 권한이 없어도 보여야 한다). */
   const [shipments, deliveries, transactions, holds, panelVirtualAccount] = await Promise.all([

@@ -95,7 +95,21 @@ describe('admin unpaid actions', () => {
 
     const result = await confirmBankTransferDepositAction({}, transferForm());
 
-    expect(result.error).toContain('needs_review');
+    /* 결과는 목록의 상태 이름으로 말한다 — 영문 상태값이나 '결과 코드'를 운영자에게 내보이지 않고, 다음 할 일을 쓴다. */
+    expect(result.error).toContain('주문이 결제완료로 확정되지 않았습니다(상태: 결제 확인 필요)');
+    expect(result.error).toContain('주문 상세의 결제 내역을 확인하고');
+    expect(result.error).not.toMatch(/needs_review|결과 코드/);
+    expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
+  });
+
+  it('입금 내역 연결 확정이 approved가 아니어도 같은 말로 알린다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'unknown', error: null });
+    const result = await confirmBankDepositAction({}, depositForm());
+    expect(result.error).toContain('(상태: 결과 미확인)');
+    expect(result.error).not.toContain('unknown');
+
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+    expect((await confirmBankDepositAction({}, depositForm())).error).toContain('(상태: 확인 필요)');
     expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
   });
 

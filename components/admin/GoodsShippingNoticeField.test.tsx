@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('next/link', () => ({ default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => <a href={href} {...props}>{children}</a> }));
+vi.mock('@/app/admin/shipping-notice-template-actions', () => ({ listShippingNoticeTemplateOptionsAction: vi.fn() }));
 
 import { GoodsShippingNoticeField, shippingNoticeRowView, type GoodsShippingNoticeOption } from './GoodsShippingNoticeField';
 
@@ -40,10 +41,16 @@ describe('배송·교환·반품 안내 템플릿 칸', () => {
   });
 
   it('목록에 없는 예전 안내가 적용 중이면 이름을 그대로 보이고, 바꾸지 않으면 유지된다고 알린다', () => {
-    const named = renderToStaticMarkup(<GoodsShippingNoticeField options={options} value="FIGURE@0" currentName="피규어 안내" />);
-    expect(boxText(named)).toBe('피규어 안내');
-    expect(hiddenValue(named)).toBe('FIGURE@0');
+    const named = renderToStaticMarkup(<GoodsShippingNoticeField options={options} value="LEGACY@1" currentName="예전 안내" />);
+    expect(boxText(named)).toBe('예전 안내');
+    expect(hiddenValue(named)).toBe('LEGACY@1');
     expect(named).toContain('지금 적용 중인 안내는 템플릿 목록에 없습니다. 바꾸지 않으면 저장해도 그대로 유지됩니다.');
+    /* 같은 템플릿을 그 뒤에 고쳤으면(목록에는 지금 내용만 있다) 상품을 저장하면 지금 내용으로 바뀐다고 알린다. 값은 그대로 제출한다. */
+    const outdated = renderToStaticMarkup(<GoodsShippingNoticeField options={options} value="FIGURE@0" currentName="피규어 안내" />);
+    expect(boxText(outdated)).toBe('피규어 안내');
+    expect(hiddenValue(outdated)).toBe('FIGURE@0');
+    expect(outdated).toContain('이 상품에는 템플릿을 고치기 전 내용이 적용돼 있습니다. 상품을 저장하면 지금 내용으로 바뀝니다.');
+    expect(outdated).not.toContain('data-goods-shipping-notice-unlisted');
     const unnamed = renderToStaticMarkup(<GoodsShippingNoticeField options={options} value="OLD@3" />);
     expect(boxText(unnamed)).toBe('지금 적용 중인 안내');
     expect(hiddenValue(unnamed)).toBe('OLD@3');

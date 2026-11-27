@@ -22,7 +22,7 @@ describe('배송 상태 되돌리기 서버 액션 (ADR-0045)', () => {
     mocks.rpc.mockResolvedValue({ data: { orderId, shipmentId, orderCount: 2, orderStatus: 'shipping' }, error: null });
     const result = await revertShipmentDeliveryAction({ shipmentId: shipmentId.toUpperCase(), reason: '  엉뚱한 배송 건 처리  ', operationId, expectedDeliveredAt: deliveredAt, reference: '2026111930000001' });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_revert_shipment_delivery', { p_shipment_id: shipmentId, p_reason: '엉뚱한 배송 건 처리', p_operation_id: operationId, p_expected_delivered_at: deliveredAt });
-    expect(result).toEqual({ ok: true, tone: 'success', message: expect.stringContaining('배송 건 2026111930000001을 배송 중으로 되돌렸습니다(합포장으로 주문 2건 함께)') });
+    expect(result).toEqual({ ok: true, tone: 'success', message: expect.stringContaining('배송 건 2026111930000001을 배송중으로 되돌렸습니다(합포장으로 주문 2건 함께)') });
     expect(mocks.revalidate).toHaveBeenCalledWith(`/admin/sales/orders/${orderId}`);
     expect(mocks.revalidate).toHaveBeenCalledWith('/admin/sales/shipping');
     // 리뷰 R1: 운송장 없이 강제 배송완료한 건은 발송 대기·발주확인으로 돌아갔다고 알린다.

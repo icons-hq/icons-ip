@@ -3,7 +3,8 @@ import { AdminNotice } from '@/components/admin/console/AdminKit';
 import { krw } from '@/lib/format';
 import { orderPartialCancellationSummary } from '@/lib/orders/partial-cancellation';
 import type { AdminClaimPartialReturn } from '@/lib/orders/partial-return';
-import { adminOrderSearchHref } from '@/lib/admin/orders';
+import { adminOrderDetailHrefFromBack } from '@/lib/admin/orders';
+import { ADMIN_SUPPORT_CODE_LABEL } from '@/lib/admin/payment-cancel-error';
 import { ClaimPartialReturnTransfer } from './ClaimPartialReturnTransfer';
 
 const STATE_LABELS: Record<string, string> = {
@@ -13,6 +14,8 @@ const STATE_LABELS: Record<string, string> = {
   completed: '환불 완료',
   rejected: '결제사가 부분 취소를 받지 않음(돈은 움직이지 않음)',
 };
+/* 이름표에 없는 원장 상태는 영문 값을 그대로 내지 않고 이 말로 받는다(화면 규칙 8). */
+const UNKNOWN_STATE_LABEL = '확인 필요';
 
 const FEE_REASON_LABELS: Record<string, string> = {
   disabled: '반품배송비 차감이 꺼져 있습니다',
@@ -54,7 +57,7 @@ export function ClaimPartialReturnPanel({ partialReturn, orderId, claimId }: {
       {live ? (
         <p data-partial-return-refund={live.state}>
           <strong>{orderPartialCancellationSummary(live)}</strong>
-          <span className="block text-xs text-muted-foreground">{STATE_LABELS[live.state] ?? live.state}</span>
+          <span className="block text-xs text-muted-foreground">{STATE_LABELS[live.state] ?? UNKNOWN_STATE_LABEL}</span>
         </p>
       ) : preview ? (
         <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1" data-partial-return-preview>
@@ -68,12 +71,18 @@ export function ClaimPartialReturnPanel({ partialReturn, orderId, claimId }: {
           {preview.storeCreditRestoreAmount > 0 ? <><dt className="text-muted-foreground">적립금 되돌림</dt><dd className="tabular-nums">{krw(preview.storeCreditRestoreAmount)}</dd></> : null}
         </dl>
       ) : partialReturn.previewError ? (
-        <AdminNotice tone="warning">부분 반품 환불 금액을 계산하지 못했습니다(사유 코드: {partialReturn.previewError}). 결제 수단, 상품별 결제 금액 기록, 품목 상태 가운데 맞지 않는 것이 있습니다. 새로고침해도 같으면 요청번호와 사유 코드를 개발팀에 알려주세요.</AdminNotice>
+        /* 코드는 문장에 섞지 않고 작은 글로 한 번만 보인다(처리 칸의 결제사 확인 오류와 같은 방식). */
+        <AdminNotice tone="warning">
+          부분 반품 환불 금액을 계산하지 못했습니다. 결제 수단, 상품별 결제 금액, 품목 상태 가운데 맞지 않는 것이 있습니다. 새로고침해도 같으면 요청번호와 아래 코드를 결제 담당자에게 알려주세요.
+          <span className="mt-1 block text-xs text-muted-foreground" data-claim-support-code="">
+            {ADMIN_SUPPORT_CODE_LABEL} <code className="font-mono">{partialReturn.previewError}</code>
+          </span>
+        </AdminNotice>
       ) : null}
       {refused.length && !live ? (
         <AdminNotice tone="warning">
           결제사가 이 결제의 부분 취소를 받지 않았습니다(돈은 움직이지 않았습니다). 전액 환불로 돌리지 마세요 — 결제 담당이 고객에게 환불계좌를 받아
-          [계좌 송금 부분 환불로 전환]으로 환급 기한(입고 확인 뒤 3영업일) 안에 송금합니다. 결제사 설정이 바뀌었으면 [환불 접수]를 다시 기록해 새로 시도할 수 있습니다.
+          [계좌 송금 부분 환불로 전환]으로 환불 기한(입고 확인 뒤 3영업일) 안에 송금합니다. 결제사 설정이 바뀌었으면 [환불 접수 완료로 기록]을 다시 눌러 새로 시도할 수 있습니다.
         </AdminNotice>
       ) : null}
       {!live && partialReturn.transferConvertible && claimId && preview ? (
@@ -81,12 +90,12 @@ export function ClaimPartialReturnPanel({ partialReturn, orderId, claimId }: {
       ) : null}
       {live && live.state === 'awaiting_transfer' && partialReturn.history.some((record) => record.state === 'rejected') ? (
         <p className="text-xs text-muted-foreground" data-partial-return-converted="">
-          결제사가 부분 취소를 받지 않아 계좌 송금으로 바꾼 환불입니다. 송금한 금액은 결제사에 남은 결제 금액에서 빠지지 않아 결제사와 우리 기록이 달라졌으므로, 이후 이 주문의 일부 반품은 받지 않습니다.
+          결제사가 부분 취소를 받지 않아 계좌 송금으로 바꾼 환불입니다. 송금한 금액은 결제사에 남은 결제 금액에서 빠지지 않아 결제사 기록과 달라졌으므로, 이후 이 주문의 일부 반품은 받지 않습니다.
         </p>
       ) : null}
       <p className="text-xs text-muted-foreground">
-        환불 금액은 [환불 접수]를 기록할 때 정해지고 바뀌지 않습니다. 남은 상품은 주문에 그대로 남고, 남은 상품을 모두 반품하면 주문 전체 반품으로 받습니다.{' '}
-        <Link className="underline" href={adminOrderSearchHref(orderId)}>주문 상세의 부분 환불 기록</Link>
+        환불 금액은 [환불 접수 완료로 기록]을 누를 때 정해지고 바뀌지 않습니다. 남은 상품은 주문에 그대로 남고, 남은 상품을 모두 반품하면 주문 전체 반품으로 받습니다.{' '}
+        <Link className="underline" href={`${adminOrderDetailHrefFromBack(orderId)}#partial-cancellation`}>주문 상세의 부분 환불 기록</Link>
       </p>
     </section>
   );

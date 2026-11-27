@@ -13,13 +13,13 @@ const preview = { orderId, orderNumber, status: 'confirmed', createdAt: '2026-11
 beforeEach(() => { vi.clearAllMocks(); mocks.access.mockResolvedValue(true); });
 
 describe('운영 강제 배송완료 (1014-083)', () => {
-  it('운영 환경 판별 없이 배송 처리 권한만 확인하고, 하이픈·공백을 뺀 주문번호로 대상을 미리 본다', async () => {
+  it('운영 환경 판별 없이 판매 관리 권한만 확인하고, 하이픈·공백을 뺀 주문번호로 대상을 미리 본다', async () => {
     mocks.rpc.mockResolvedValue({ data: preview, error: null });
     expect(await previewForcedDeliveryAction('2026-1111-1000-0001')).toEqual({ preview });
     expect(mocks.access).toHaveBeenCalledWith('/admin/sales/dispatch', { capability: 'sales.manage' });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_force_order_delivery_preview', { p_order_number: orderNumber });
     mocks.access.mockResolvedValue(null);
-    expect(await previewForcedDeliveryAction(orderNumber)).toEqual({ error: '현재 로그인 계정과 배송 처리 권한을 확인해주세요.' });
+    expect(await previewForcedDeliveryAction(orderNumber)).toEqual({ error: '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.' });
     mocks.access.mockResolvedValue(true);
     expect(await previewForcedDeliveryAction('12345')).toHaveProperty('error');
     expect(mocks.rpc).toHaveBeenCalledTimes(1);
@@ -43,7 +43,7 @@ describe('운영 강제 배송완료 (1014-083)', () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '23514', message: 'forced_delivery_digital_access_only' } });
     expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toEqual({ error: expect.stringContaining('디지털 파일') });
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'operation_conflict' } });
-    expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toEqual({ error: expect.stringContaining('같은 요청 번호') });
+    expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toEqual({ error: expect.stringContaining('같은 처리가 다른 내용으로') });
     mocks.rpc.mockResolvedValueOnce({ data: { ...receipt, orderNumber: '2026111110000002' }, error: null });
     expect(await forceOrderDeliveredAction(orderNumber, '시험', id)).toHaveProperty('error');
     mocks.rpc.mockResolvedValueOnce({ data: { ...preview, blockers: ['unknown'] }, error: null });

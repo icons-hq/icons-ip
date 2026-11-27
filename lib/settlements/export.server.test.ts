@@ -10,7 +10,7 @@ describe('settlement workbook', () => {
     report.transactions[0].amount = '9007199254740993.12345678'; report.transactions[0].method = '=1+1';
     const bytes = await buildPgSettlementWorkbook(report, filters, new Date('2026-10-13T13:00:00Z'));
     const book = new ExcelJS.Workbook(); await book.xlsx.load(bytes as never);
-    expect(book.worksheets.map(sheet => sheet.name)).toEqual(['건별 정산내역', '일별 정산내역', '수수료 내역', '내려받기 정보']);
+    expect(book.worksheets.map(sheet => sheet.name)).toEqual(['건별 정산 내역', '일별 정산 내역', '수수료 내역', '내려받기 정보']);
     expect(book.worksheets[0].getCell('A1').value).toBe('주문번호'); expect(book.worksheets[0].getCell('M1').value).toBe('승인 시각');
     expect(book.worksheets[0].getCell('A1').font).toMatchObject({ name: '맑은 고딕', size: 10, bold: true }); expect(book.worksheets[0].getRow(1).height).toBe(22);
     expect(book.worksheets[0].getCell('E2').value).toBe('9007199254740993.12345678');
@@ -20,6 +20,9 @@ describe('settlement workbook', () => {
     expect(book.worksheets[1].getCell('D2').value).toBe(1);
     const values = JSON.stringify(book.worksheets[3].getSheetValues());
     expect(values).toContain(report.snapshot!.id); expect(values).toContain(report.fingerprint); expect(values).toContain('실입금');
+    /* 화면과 같은 말(가져오기·비교 결과)을 쓰고, 영문 코드값은 내보내지 않는다. */
+    expect(values).toContain('자료를 가져온 시각 (KST)'); expect(book.worksheets[0].getCell('O1').value).toBe('비교 결과'); expect(book.worksheets[0].getCell('P1').value).toBe('비교한 이유');
+    expect(JSON.stringify(book.worksheets.map(sheet => sheet.getSheetValues()))).not.toMatch(/수집|대조|원문|PG |toss_payment|toss_billing|verified|amount_mismatch/);
     expect(JSON.stringify(book.worksheets.map(sheet => sheet.getSheetValues()))).not.toMatch(/paymentKey|scopeHash|mId|merchantId|profileId|상점 MID|프로필 ID|secretKey/);
   });
   it('exports a confirmed empty snapshot and refuses partial or over-limit rows', async () => {

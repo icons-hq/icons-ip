@@ -6,6 +6,8 @@ vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: () => {} }));
 import { changeClaimHoldAction, loadClaimHoldContextAction, readClaimHoldAction } from './claim-hold-actions';
 import { holdContext as context, holdReceipt as receipt, holdRequest as request } from '@/lib/orders/claim-hold.fixture';
+import { CLAIM_CHANGE_CONFLICT_MESSAGE, CLAIM_CHANGE_PERMISSION_MESSAGE, CLAIM_CHANGE_UNKNOWN_MESSAGE } from '@/lib/admin/claim-change-copy';
+import { CLAIM_HOLD_NOTE_ERROR } from '@/lib/orders/claim-hold';
 
 beforeEach(() => {
   vi.clearAllMocks(); mocks.access.mockResolvedValue({ user: { id: context.actorId } });
@@ -38,4 +40,21 @@ it('현재 계정의 문맥과 같은 operation의 읽기만 채택한다', asyn
   mocks.rpc.mockResolvedValue({ data: { ...context, actorId: context.orderId } }); expect(await loadClaimHoldContextAction(context.claimId)).toHaveProperty('error');
   mocks.rpc.mockResolvedValue({ data: null }); expect(await readClaimHoldAction(request.id)).toEqual({ receipt: null });
   mocks.rpc.mockResolvedValue({ data: { ...receipt, id: context.orderId } }); expect(await readClaimHoldAction(request.id)).toMatchObject({ uncertain: true });
+});
+it('화면 버튼 이름과 같은 말로 알린다: 다른 사람이 먼저 바꿨음, 저장됐는지 확인, 보류 사유 글자 수', async () => {
+  mocks.rpc.mockResolvedValue({ error: { code: 'PT409' } });
+  expect(await changeClaimHoldAction(request)).toEqual({ error: CLAIM_CHANGE_CONFLICT_MESSAGE, conflict: true, uncertain: false });
+  mocks.rpc.mockResolvedValue({ error: { code: '57014', message: 'statement timeout' } });
+  const unknown = await changeClaimHoldAction(request);
+  expect(unknown).toMatchObject({ error: CLAIM_CHANGE_UNKNOWN_MESSAGE, uncertain: true });
+  expect('error' in unknown && unknown.error).toContain('[저장됐는지 확인]');
+  mocks.rpc.mockRejectedValue(new Error('private detail'));
+  expect(await changeClaimHoldAction(request)).toEqual({ error: CLAIM_CHANGE_UNKNOWN_MESSAGE, uncertain: true });
+  mocks.rpc.mockResolvedValue({ data: receipt }); mocks.rpc.mockClear();
+  /* 확인 체크 칸이 없어졌으니 사유만 본다. 사유가 10자보다 짧으면 DB를 부르지 않고 글자 수를 말한다. */
+  expect(await changeClaimHoldAction({ ...request, note: '짧음' })).toEqual({ error: CLAIM_HOLD_NOTE_ERROR });
+  expect(await changeClaimHoldAction({ ...request, confirmed: undefined })).toEqual({ error: CLAIM_HOLD_NOTE_ERROR });
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  mocks.access.mockResolvedValue(null);
+  expect(await changeClaimHoldAction(request)).toEqual({ error: CLAIM_CHANGE_PERMISSION_MESSAGE });
 });

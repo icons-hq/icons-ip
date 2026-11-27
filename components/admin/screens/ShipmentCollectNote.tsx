@@ -3,7 +3,7 @@ import { SHIPMENT_COLLECTOR_LABELS, type ShipmentCollectSummary } from '@/lib/ad
 
 /**
  * 발송·배송현황 행의 착불 표시(읽기 전용). 창고·택배사가 수령인에게 받을 착불 배송비를 보이고, 펼치면 출고지시 파일의 배송 운영 안내와
- * 같은 착불 수납 주체·수납 방법·고객 안내·착불 환급 문의를 보인다. 출고 전용 운영자에게도 보인다(2026-11-12 "착불 금액은 보이게").
+ * 같은 착불 수납 주체·수납 방법·고객 안내·착불 환불 문의(파일의 열 이름은 '착불 환급 문의')를 보인다. 출고 전용 운영자에게도 보인다(2026-11-12 "착불 금액은 보이게").
  * 수납·환급 기록과 합포장 관리는 주문 상세·합포장 관리(판매 관리 권한)에서 한다.
  */
 export function ShipmentCollectNote({ collect }: { collect: ShipmentCollectSummary }) {

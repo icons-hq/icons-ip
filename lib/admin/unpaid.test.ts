@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
+  adminUnpaidAttemptStateLabel,
   adminUnpaidHref,
+  adminUnpaidStateFilterOptions,
   normalizeAdminUnpaidFilters,
   normalizeAdminUnpaidReasonForm,
 } from './unpaid';
@@ -67,5 +69,43 @@ describe('normalizeAdminUnpaidReasonForm', () => {
   it('주문이 없으면 근거를 보기 전에 멈춘다', () => {
     expect(normalizeAdminUnpaidReasonForm(form({ memo: '충분히 긴 메모' }), 'memo', '메모 필요'))
       .toEqual({ ok: false, error: '주문을 찾을 수 없습니다.' });
+  });
+});
+
+/* U-05·U-06: 표의 상태와 결제상태 조건은 같은 이름 표에서 나온다. 같은 상태를 두 이름으로 부르지 않고, 모르는 값을 영문 그대로 내보이지 않는다. */
+describe('adminUnpaidAttemptStateLabel', () => {
+  it('상태마다 운영자 이름이 있고 서로 다르다', () => {
+    const labels = ['prepared', 'confirming', 'needs_review', 'unknown', null].map(adminUnpaidAttemptStateLabel);
+    expect(labels).toEqual(['입금 대기', '입금 확인 처리 중', '결제 확인 필요', '결과 미확인', '결제 기록 없음']);
+    expect(new Set(labels).size).toBe(labels.length);
+    expect(adminUnpaidAttemptStateLabel('awaiting_deposit')).toBe('입금 대기(가상계좌)');
+  });
+
+  it('모르는 값은 영문 그대로가 아니라 확인 필요다', () => {
+    expect(adminUnpaidAttemptStateLabel('declined')).toBe('확인 필요');
+    expect(adminUnpaidAttemptStateLabel('brand_new_state')).toBe('확인 필요');
+    /* 객체의 기본 이름(toString 등)이 상태로 읽혀 함수가 이름 자리에 들어가지 않는다. */
+    expect(adminUnpaidAttemptStateLabel('toString')).toBe('확인 필요');
+    expect(adminUnpaidAttemptStateLabel('constructor')).toBe('확인 필요');
+  });
+});
+
+describe('adminUnpaidStateFilterOptions', () => {
+  it('전체 다음에 표와 같은 이름으로 다섯 상태를 순서대로 준다', () => {
+    expect(adminUnpaidStateFilterOptions()).toEqual([
+      { value: '', label: '전체' },
+      { value: 'prepared', label: '입금 대기' },
+      { value: 'confirming', label: '입금 확인 처리 중' },
+      { value: 'needs_review', label: '결제 확인 필요' },
+      { value: 'unknown', label: '결과 미확인' },
+      { value: 'missing', label: '결제 기록 없음' },
+    ]);
+  });
+
+  it('고른 값은 모두 목록 조회가 받는 조건이다(조건에 없는 값을 고르게 하지 않는다)', () => {
+    for (const { value } of adminUnpaidStateFilterOptions().filter((option) => option.value)) {
+      expect(normalizeAdminUnpaidFilters({ state: value }).state, value).toBe(value);
+    }
+    expect(normalizeAdminUnpaidFilters({ state: '' }).state).toBeUndefined();
   });
 });

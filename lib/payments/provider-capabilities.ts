@@ -17,7 +17,41 @@ export function providerCancelsAutomatically(provider: unknown): provider is Aut
     && (AUTOMATED_CANCEL_PROVIDERS as readonly string[]).includes(provider);
 }
 
+/**
+ * 운영 화면 문장에 쓰는 결제사 이름표. 결제사 이름을 문장에 직접 적지 않고 이 표에서 읽는다 —
+ * 나이스페이 결제에 '토스'라고 말하거나 같은 결제사를 Korpay·코페이 두 이름으로 부르지 않게 한다.
+ */
+export const PAYMENT_PROVIDER_LABELS = {
+  toss: '토스',
+  nicepay: '나이스페이',
+  korpay: '코페이',
+  bank_transfer: '무통장 입금',
+} as const;
+
+/**
+ * 표·타임라인·상세의 '결제' 칸에 값으로 보이는 이름(토스 결제·나이스페이·코페이·무통장 입금). 위 이름표에서 만든다 —
+ * 문장은 짧은 이름 뒤에 '결제'를 붙여 같은 말이 된다("토스 결제 전액 …을 취소합니다"). '토스페이먼츠'는 상점관리자처럼 그 회사의 서비스 이름에만 쓴다.
+ */
+export const PAYMENT_PROVIDER_VALUE_LABELS = {
+  ...PAYMENT_PROVIDER_LABELS,
+  toss: `${PAYMENT_PROVIDER_LABELS.toss} 결제`,
+} as const;
+
 /** 운영 화면 문구에 쓰는 결제사 짧은 이름. 토스 문구("토스 전액 취소")는 그대로 유지한다. */
 export function automatedCancelProviderLabel(provider: AutomatedCancelProvider) {
-  return provider === 'nicepay' ? '나이스페이' : '토스';
+  return PAYMENT_PROVIDER_LABELS[provider];
+}
+
+/** 결제사 이름. 이름표에 없는 값이나 결제가 없는 주문은 null이다 — 화면은 '결제사'처럼 이름 없는 말로 받는다. */
+export function paymentProviderLabel(provider: unknown): string | null {
+  return typeof provider === 'string' && Object.prototype.hasOwnProperty.call(PAYMENT_PROVIDER_LABELS, provider)
+    ? PAYMENT_PROVIDER_LABELS[provider as keyof typeof PAYMENT_PROVIDER_LABELS]
+    : null;
+}
+
+/** '결제' 칸에 값으로 보이는 이름. 이름표에 없는 값이나 결제가 없는 주문은 null이다(영문 코드를 그대로 보이지 않는다). */
+export function paymentProviderValueLabel(provider: unknown): string | null {
+  return typeof provider === 'string' && Object.prototype.hasOwnProperty.call(PAYMENT_PROVIDER_VALUE_LABELS, provider)
+    ? PAYMENT_PROVIDER_VALUE_LABELS[provider as keyof typeof PAYMENT_PROVIDER_VALUE_LABELS]
+    : null;
 }

@@ -115,7 +115,7 @@ describe('주문 후 제작 패널', () => {
 describe('수령 방식 패널', () => {
   const file = { id: '99000000-0000-4000-8000-000000000901', name: '설명서.pdf', mimeType: 'application/pdf', size: 2048 };
   const settings = { version: 1, goodId: 'good-1', revision: 2, mode: 'shipping', methods: [{ method: 'parcel', feeAmount: null, feeBasis: 'per_order', installationFee: 0 }], files: [], publicNote: '' };
-  const READ = '현재 배송·제공 설정 불러오기';
+  const READ = '현재 수령 방식 불러오기';
   const draft = () => hooks.state[1] as { publicNote: string; methods: { method: string; enabled: boolean; amount: string }[] };
 
   /* F4(2026-11-26 QA-B): 쇼핑몰 설정이 택배 외 수령 방식을 받지 않으면 이 영역의 저장이 모두 거절된다. 상품 화면이 이유를 넘기면 입력과 저장을 잠그고 그 이유를 보인다. */
@@ -126,13 +126,13 @@ describe('수령 방식 패널', () => {
     button(body(GoodsFulfillmentPanel, locked), READ).props.onClick!(); await settle();
     const tree = body(GoodsFulfillmentPanel, locked);
     expect(tree.find(node => node.type === 'fieldset')!.props.disabled).toBe(true);
-    expect(button(tree, '배송·제공 설정 저장').props.disabled).toBe(true);
+    expect(button(tree, '수령 방식 저장').props.disabled).toBe(true);
     expect(tree.some(node => node.type === 'p' && text(node) === reason)).toBe(true);
     submit(tree); await settle();
     expect(mocks.saveFulfillment).not.toHaveBeenCalled();
   });
 
-  it('[현재 배송·제공 설정 불러오기]는 적은 내용이 저장된 설정과 다를 때만 사라진다고 묻는다', async () => {
+  it('[현재 수령 방식 불러오기]는 적은 내용이 저장된 설정과 다를 때만 사라진다고 묻는다', async () => {
     mocks.readFulfillment.mockResolvedValue({ settings });
     button(body(GoodsFulfillmentPanel), READ).props.onClick!(); await settle();
     expect(confirm).not.toHaveBeenCalled(); expect(draft().methods.find(method => method.method === 'parcel')?.enabled).toBe(true);
@@ -147,18 +147,18 @@ describe('수령 방식 패널', () => {
     mocks.readFulfillment.mockResolvedValue({ settings });
     button(body(GoodsFulfillmentPanel), READ).props.onClick!(); await settle();
     body(GoodsFulfillmentPanel);
-    expect(guard.options).toEqual({ dirty: false, blocked: false, message: '수령 방식을 고친 뒤 [배송·제공 설정 저장]을 누르지 않았습니다. 이 화면을 떠나면 적은 내용이 사라집니다. 이동할까요?' });
+    expect(guard.options).toEqual({ dirty: false, blocked: false, message: '수령 방식을 고친 뒤 [수령 방식 저장]을 누르지 않았습니다. 이 화면을 떠나면 적은 내용이 사라집니다. 이동할까요?' });
     hooks.state[1] = { ...draft(), publicNote: '고치던 안내' };
     body(GoodsFulfillmentPanel); expect(guard.options?.dirty).toBe(true);
   });
 
-  /* S9: 받을 방식을 하나도 안 고른 것과 금액이 숫자가 아닌 것은 고치는 곳이 다르다. */
-  it('저장하기 전에 받을 방식을 안 고른 것과 금액이 숫자가 아닌 것을 따로 말한다', async () => {
+  /* S9: 수령 방식을 하나도 안 고른 것과 금액이 숫자가 아닌 것은 고치는 곳이 다르다. */
+  it('저장하기 전에 수령 방식을 안 고른 것과 금액이 숫자가 아닌 것을 따로 말한다', async () => {
     mocks.readFulfillment.mockResolvedValue({ settings });
     button(body(GoodsFulfillmentPanel), READ).props.onClick!(); await settle();
     hooks.state[1] = { ...draft(), methods: draft().methods.map(method => ({ ...method, enabled: false })) };
     submit(body(GoodsFulfillmentPanel)); await settle();
-    expect(text(body(GoodsFulfillmentPanel))).toContain('받을 방식을 하나 이상 골라 주세요.');
+    expect(text(body(GoodsFulfillmentPanel))).toContain('수령 방식을 하나 이상 골라 주세요.');
     hooks.state[1] = { ...draft(), methods: draft().methods.map(method => method.method === 'quick' ? { ...method, enabled: true, amount: '삼천' } : method) };
     submit(body(GoodsFulfillmentPanel)); await settle();
     expect(text(body(GoodsFulfillmentPanel))).toContain('선결제 배송비와 설치비는 0 이상의 숫자(원)로 적어 주세요.');
@@ -171,10 +171,10 @@ describe('수령 방식 패널', () => {
     mocks.saveFulfillment.mockRejectedValueOnce(new Error('offline'));
     submit(body(GoodsFulfillmentPanel)); await settle();
     expect(button(body(GoodsFulfillmentPanel), READ).props.disabled).toBe(true);
-    mocks.saveFulfillment.mockResolvedValueOnce({ error: '다른 사람이 먼저 바꿨습니다. [현재 배송·제공 설정 불러오기]를 눌러 지금 설정을 확인한 뒤 다시 저장해주세요.', uncertain: false });
+    mocks.saveFulfillment.mockResolvedValueOnce({ error: '다른 사람이 먼저 바꿨습니다. [현재 수령 방식 불러오기]를 눌러 지금 수령 방식을 확인한 뒤 다시 저장해주세요.', uncertain: false });
     submit(body(GoodsFulfillmentPanel)); await settle();
     expect(button(body(GoodsFulfillmentPanel), READ).props.disabled).toBe(false);
-    expect(button(body(GoodsFulfillmentPanel), '배송·제공 설정 저장').props.type).toBe('submit');
+    expect(button(body(GoodsFulfillmentPanel), '수령 방식 저장').props.type).toBe('submit');
   });
 
   /* G6: 뺀 파일을 다시 넣으려면 다시 올려야 한다. */

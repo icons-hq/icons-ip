@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { loadSellerClaimContextAction, loadSellerPartialReturnContextAction, readSellerClaimIntakeAction, submitSellerClaimIntakeAction } from '@/app/admin/seller-claim-intake-actions';
+import { loadSellerClaimBalanceAction, loadSellerClaimContextAction, loadSellerPartialReturnContextAction, readSellerClaimIntakeAction, submitSellerClaimIntakeAction } from '@/app/admin/seller-claim-intake-actions';
 import {
   DISABLED_PARTIAL_RETURN, partialReturnItemBlockerLabel, partialReturnOrderBlockerLabel, partialReturnSelectionFromQuantities, selectablePartialReturnItems,
   type OrderPartialReturnContext, type OrderPartialReturnSelection,
@@ -12,7 +12,7 @@ import { SELLER_CLAIM_COLLECTION_METHODS, SELLER_CLAIM_SOURCES, sellerClaimBlock
   sellerClaimReceiptMatchesInput,
   type SellerClaimAddress, type SellerClaimContext, type SellerClaimInput, type SellerClaimReceipt } from '@/lib/admin/seller-claim-intake';
 import { formatOrderDateTime, ORDER_WITHDRAWAL_REASON_LABELS, orderReferenceLabel } from '@/lib/orders';
-import { ORDER_CLAIM_BUYER_REASON_TYPES, ORDER_CLAIM_TYPE_SLUGS, ORDER_CLAIM_TYPE_LABELS } from '@/lib/orders/claims';
+import { ORDER_CLAIM_BUYER_REASON_TYPES, ORDER_CLAIM_TYPE_SLUGS, ORDER_CLAIM_TYPE_LABELS, orderClaimReferenceLabel } from '@/lib/orders/claims';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { selectableShippingCarriers, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
@@ -41,10 +41,12 @@ const ADDRESS_FIELDS: { key: keyof SellerClaimAddress; label: string; max: numbe
 /** 대리 접수 전송 본문. 부분 반품(ADR-0047)이면 고른 굿즈·수량(`items`)이 붙고 수거 계획은 고른 굿즈의 출고지만이다. */
 type SellerClaimSubmission = SellerClaimInput & { items?: OrderPartialReturnSelection[] };
 
-export function SellerClaimIntakeForm({ context, carriers, onClose, partialReturn = DISABLED_PARTIAL_RETURN }: {
+export function SellerClaimIntakeForm({ context, carriers, onClose, partialReturn = DISABLED_PARTIAL_RETURN, balance = null }: {
   context: SellerClaimContext; carriers: ShippingCarrierRegistry; onClose: () => void;
   /** 부분 반품 문맥(ADR-0047). 꺼져 있으면(기본) 반품은 지금처럼 주문 전체만 받는다. */
   partialReturn?: OrderPartialReturnContext;
+  /** 결제 금액과 남은 금액(앞선 재고 부족 부분 취소로 환불한 금액을 뺀 값). 모르면 null — 머리글은 전액 기준으로 말한다. */
+  balance?: { paymentAmount: number; balance: number } | null;
 }) {
   const router = useRouter();
   const cancellation = context.orderStatus === 'pending' || context.orderStatus === 'paid'
@@ -103,7 +105,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
           dispatched.current = null; setInput(previous => ({ ...previous, requestId: crypto.randomUUID() }));
         }
       } else acceptReceipt(result.receipt, original);
-    } catch { setUncertain(true); setError('접수됐는지 확인하지 못했습니다. 새로 접수하지 말고 [같은 요청의 저장 결과 확인]을 먼저 눌러주세요.'); }
+    } catch { setUncertain(true); setError('접수됐는지 확인하지 못했습니다. 새로 접수하지 말고 [저장됐는지 확인]을 먼저 눌러주세요.'); }
     finally { busy.current = false; setPending(false); }
   }
   async function readback() {
@@ -116,20 +118,23 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
       if ('error' in result) { setError(result.error); return; }
       if (result.receipt) acceptReceipt(result.receipt, original);
       else setMessage('아직 저장된 접수가 없습니다. 처음 보낸 내용 그대로 [같은 내용으로 다시 접수]를 누르면 됩니다(두 번 접수되지 않습니다).');
-    } catch { setError('접수 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청의 저장 결과 확인]을 다시 눌러주세요.'); }
+    } catch { setError('접수 결과를 불러오지 못했습니다. 잠시 뒤 [저장됐는지 확인]을 다시 눌러주세요.'); }
     finally { busy.current = false; setPending(false); }
   }
   return <CustomerServiceDialog title={cancellation ? "판매자 직접 취소 접수" : "판매자 직접 반품·교환 접수"} onClose={close} busy={pending || uncertain} wide>
     <div className="flex min-w-0 flex-col gap-4 text-sm break-words" data-seller-claim-intake="">
       <div className="flex min-w-0 flex-col gap-1 rounded-lg border bg-muted/40 p-3">
         <strong className="font-medium">주문 {orderReferenceLabel(context.orderId, context.orderNumber)} · {context.buyerName || '고객'}</strong>
-        <span>주문 전체 {formatKrwExact(context.orderTotal)} · 최초 배송비 포함 전액 기준</span>
+        {/* 앞선 부분 취소로 이미 환불한 금액이 있으면 환불은 전액이 아니라 남은 금액 기준이다(일괄 승인 확인창과 같은 남은 금액). */}
+        <span>{balance && balance.balance < balance.paymentAmount
+          ? `주문 전체 ${formatKrwExact(context.orderTotal)} · 앞선 부분 취소 ${formatKrwExact(balance.paymentAmount - balance.balance)} · 남은 금액 ${formatKrwExact(balance.balance)} 기준`
+          : `주문 전체 ${formatKrwExact(context.orderTotal)} · 최초 배송비 포함 전액 기준`}</span>
         <small className="text-xs text-muted-foreground">{context.digitalExchangeBlocked ? '디지털 파일 포함 · 재다운로드 및 문의·취소·환불 심사' : cancellation ? '발주확인·출고지시서 출력 전 주문' : context.deliveredAt ? `원주문 배송완료 ${formatOrderDateTime(context.deliveredAt)}` : context.orderStatus === 'shipping' ? '배송 중 접수 · 전체 실물 회수 후 환불/재배송' : '배송 상태 확인 필요'}</small>
       </div>
-      <p className="text-muted-foreground">{cancellation ? '고객과 확인한 주문 전체의 취소 요청을 접수합니다. 승인과 결제 취소·환급은 접수 후 별도로 진행합니다.' : '고객과 확인한 주문 전체의 요청을 접수합니다. 승인·수거완료·환급·재배송은 접수 후 별도로 진행합니다.'}</p>
+      <p className="text-muted-foreground">{cancellation ? '고객과 확인한 주문 전체의 취소 요청을 접수합니다. 승인과 결제 취소·환불은 접수한 뒤 따로 진행합니다.' : '고객과 확인한 주문 전체의 요청을 접수합니다. 승인·입고 확인·환불·재출고는 접수한 뒤 따로 진행합니다.'}</p>
       {receipt ? <div className="flex flex-wrap items-center gap-2 rounded-lg border p-4" role="status">
         <h3 className="basis-full text-base leading-snug font-medium">{ORDER_CLAIM_TYPE_LABELS[receipt.claimType]} 요청을 저장했습니다.</h3>
-        <p className="basis-full">접수번호 #{receipt.reference} · 현재 단계 {adminClaimStageLabel(receipt.claimType, receipt.stage)}</p>
+        <p className="basis-full">요청번호 {orderClaimReferenceLabel(receipt.reference)} · 현재 단계 {adminClaimStageLabel(receipt.claimType, receipt.stage)}</p>
         <p className="basis-full text-muted-foreground">접수 시각 {formatOrderDateTime(receipt.requestedAt)} · 담당자 {receipt.actorName || receipt.actorId}</p>
         <Link className={PRIMARY} data-slot="button" href={sellerClaimReceiptHref(receipt)}>접수 내용과 후속 처리 열기</Link>
         <button className={OUTLINE} data-slot="button" type="button" onClick={close}>닫기</button>
@@ -173,7 +178,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
         {input.claimType !== 'cancel' ? <><fieldset className={FIELDSET} disabled={locked}>
           <legend className={LEGEND}>수거 주소</legend>
           <div className={FIELDS}>{ADDRESS_FIELDS.map(field => <label key={field.key} htmlFor={`seller-claim-${field.key}`} className={field.key.startsWith('address') ? `${FIELD} ${WIDE}` : FIELD}><span className={FIELD_LABEL}>{field.label}</span><input className="w-full" id={`seller-claim-${field.key}`} required={field.key !== 'address2'} maxLength={field.max} inputMode={field.key === 'phone' || field.key === 'postalCode' ? 'numeric' : undefined} value={(input.collectionAddress ?? context.address)[field.key]} onChange={event => change('collectionAddress', { ...(input.collectionAddress ?? context.address), [field.key]: event.target.value })} /></label>)}</div>
-          <p className={HINT}>수거 안내용 주소입니다. 원주문 배송지와 교환 재배송지는 바꾸지 않습니다.</p>
+          <p className={HINT}>수거 안내용 주소입니다. 원주문 배송지와 교환품 받을 곳은 바꾸지 않습니다.</p>
         </fieldset>
         <fieldset className={FIELDSET} disabled={locked}>
           <legend className={LEGEND}>출고지별 수거 계획</legend>
@@ -204,7 +209,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
         </fieldset> : null}
         <label className="flex items-start gap-2 leading-relaxed"><input className="mt-0.5" type="checkbox" required disabled={locked} checked={input.agreementConfirmed} onChange={event => change('agreementConfirmed', event.target.checked)} /><span>고객이 {partialScope ? '고른 상품' : '주문 전체'}의 {claimLabel}{input.claimType === 'cancel' ? '를' : '을'} 요청했고, 입력한 사유{input.claimType === 'cancel' ? '' : '와 수거 계획'}에 동의했음을 확인했습니다.</span></label>
         <div className="flex flex-wrap items-center gap-2">
-          {uncertain ? <><button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void readback(); }}>같은 요청의 저장 결과 확인</button>
+          {uncertain ? <><button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void readback(); }}>저장됐는지 확인</button>
             <button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={() => { void submit(true); }}>같은 내용으로 다시 접수</button></>
             : <button className={PRIMARY} data-slot="button" type="submit" disabled={pending || Boolean(blocked) || !input.agreementConfirmed}>{pending ? '접수 중…' : `${claimLabel} 요청 접수`}</button>}
           <button className={OUTLINE} data-slot="button" type="button" disabled={pending || uncertain} onClick={close}>닫기</button>
@@ -212,7 +217,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
       </form>}
       {error ? <p ref={errorRef} tabIndex={-1} className="text-destructive outline-none" role="alert">{error}</p> : null}
       {message ? <p className="text-muted-foreground" role="status">{message}</p> : null}
-      {uncertain ? <p className="text-muted-foreground">결과를 확인할 때까지 처음 보낸 내용을 그대로 둡니다. [같은 요청의 저장 결과 확인]을 먼저 누르고, 저장된 결과가 없으면 [같은 내용으로 다시 접수]를 눌러주세요(두 번 접수되지 않습니다).</p> : null}
+      {uncertain ? <p className="text-muted-foreground">결과를 확인할 때까지 처음 보낸 내용을 그대로 둡니다. [저장됐는지 확인]을 먼저 누르고, 저장된 결과가 없으면 [같은 내용으로 다시 접수]를 눌러주세요(두 번 접수되지 않습니다).</p> : null}
     </div>
   </CustomerServiceDialog>;
 }
@@ -220,12 +225,13 @@ export function SellerClaimIntakeForm({ context, carriers, onClose, partialRetur
 export function SellerClaimIntakeButton({ orderId, mode = 'return-exchange' }: { orderId: string; mode?: 'cancel' | 'return-exchange' }) {
   const [context, setContext] = useState<SellerClaimContext | null>(null); const [pending, setPending] = useState(false); const [error, setError] = useState('');
   const [partialReturn, setPartialReturn] = useState<OrderPartialReturnContext>(DISABLED_PARTIAL_RETURN);
+  const [balance, setBalance] = useState<{ paymentAmount: number; balance: number } | null>(null);
   async function open() {
     if (pending) return; setPending(true); setError('');
     try {
-      const [result, partial] = await Promise.all([loadSellerClaimContextAction(orderId),
-        mode === 'cancel' ? Promise.resolve(DISABLED_PARTIAL_RETURN) : loadSellerPartialReturnContextAction(orderId)]);
-      setPartialReturn(partial);
+      const [result, partial, remaining] = await Promise.all([loadSellerClaimContextAction(orderId),
+        mode === 'cancel' ? Promise.resolve(DISABLED_PARTIAL_RETURN) : loadSellerPartialReturnContextAction(orderId), loadSellerClaimBalanceAction(orderId)]);
+      setPartialReturn(partial); setBalance(remaining);
       if ('error' in result) setError(result.error); else setContext(result.context);
     }
     catch { setError('접수 가능 여부를 확인하지 못했습니다. 다시 열어주세요.'); }
@@ -234,6 +240,6 @@ export function SellerClaimIntakeButton({ orderId, mode = 'return-exchange' }: {
   return <div className="flex min-w-0 flex-col items-start gap-2" data-seller-claim-intake-entry="">
     <button className={cn(buttonVariants({ variant: mode === 'cancel' ? 'destructive' : 'outline' }))} data-slot="button" type="button" disabled={pending} onClick={() => { void open(); }}>{pending ? '접수 가능 여부 확인 중…' : mode === 'cancel' ? '판매자 직접 취소 접수' : '판매자 직접 반품·교환 접수'}</button>
     {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
-    {context ? <SellerClaimIntakeForm key={context.orderId} context={context} carriers={context.carriers} partialReturn={partialReturn} onClose={() => setContext(null)} /> : null}
+    {context ? <SellerClaimIntakeForm key={context.orderId} context={context} carriers={context.carriers} partialReturn={partialReturn} balance={balance} onClose={() => setContext(null)} /> : null}
   </div>;
 }

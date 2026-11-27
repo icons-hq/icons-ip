@@ -87,10 +87,19 @@ describe('이 상품만의 배송비 규칙 입력', () => {
     expect(choice).toContain('data-good-collect-note');
   });
 
-  it('긴 설명 문단 대신 "?"를 달고, 지역 추가 배송비는 한 줄로만 말한다', () => {
+  it('긴 설명 문단 대신 "?"를 달고, 지역별 추가배송비는 한 줄로만 말한다', () => {
     const html = renderDelivery(delivery({ kind: 'repeat', baseFee: '3000', interval: '2' }));
     expect(html.match(/data-admin-help=""/g)?.length).toBeGreaterThanOrEqual(2);
-    expect(html).toContain('지역 추가 배송비는 따로 더해집니다.');
+    expect(html).toContain('지역별 추가배송비는 따로 더해집니다.');
     expect(html).not.toContain('구간 방식은 기본 배송비에');
+  });
+});
+
+/* W-1: 상품 수정 화면은 배송 설정 화면과 같은 낱말을 쓴다 — 지역에 따라 더 받는 배송비는 '지역별 추가배송비'다(옛말 '지역 추가 배송비'·'추가료'가 아니다). */
+describe('수량별 배송비 한 줄 요약의 낱말', () => {
+  it('지역에 따라 더 받는 배송비를 지역별 추가배송비라 부른다', () => {
+    const html = renderDelivery(delivery({ kind: 'repeat', interval: '2', baseFee: '3000' }));
+    expect(html).toContain('지역별 추가배송비는 따로 더해집니다.');
+    expect(html).not.toMatch(/지역 추가 배송비|지역 추가료|추가료/);
   });
 });

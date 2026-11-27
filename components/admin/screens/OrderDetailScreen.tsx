@@ -5,13 +5,14 @@ import type { AdminOrderDownloads as DownloadDocument } from '@/lib/admin/order-
 import type { OrderProduction } from '@/lib/order-production';
 import type { AdminOrderAcknowledgement } from '@/lib/admin/order-acknowledgement';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
-import { shipmentStatusLabel, type ShipmentStatus } from '@/lib/orders/shipments';
+import type { ShipmentStatus } from '@/lib/orders/shipments';
+import { adminShipmentStatusLabel } from '@/lib/admin/shipment-status-labels';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import Link from 'next/link';
 import { AdminNotice, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminHelpTip } from '@/components/admin/console/AdminHelpTip';
 import { AdminPageHeading } from '@/components/admin/console/admin-shell-title';
 import { LARGE_STATUS_BADGE_CLASS, OrderStatusBadge } from '@/components/admin/sales/OrderStatusBadge';
-import { ShortId } from '@/components/admin/sales/SalesConsole';
 import { ConsoleTableHeader } from '@/components/admin/console';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
@@ -36,18 +37,19 @@ import { VirtualAccountRefundNotice } from '@/components/admin/VirtualAccountRef
 import { adminVirtualAccountPartialCancelHint } from '@/lib/admin/virtual-account-refund-account';
 import { tossBankLabel } from '@/lib/payments/toss-bank-codes';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
+import { ORDER_DETAIL_HELP } from '@/lib/admin/help/order-detail';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
 import { forcedDeliveryHref } from '@/lib/admin/forced-delivery';
 import { statusTone } from '@/lib/admin/status-tone';
 import { krw } from '@/lib/format';
-import { formatOrderDateTime, refundStatusLabel } from '@/lib/orders';
+import { formatOrderDateTime, paymentStatusLabel, refundStatusLabel } from '@/lib/orders';
 import { isOpenOrderClaimStage, isOrderClaimStage, isOrderClaimType, ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
 import { OrderNoteForm } from './OrderNoteForm';
 import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmationPanel';
 import { ShipmentPreorderPromisePanel } from '@/components/admin/ShipmentPreorderPromisePanel';
 import { ShipmentDeliveryPanel } from '@/components/admin/ShipmentDeliveryPanel';
 import { ShipmentStatusRevertPanel } from '@/components/admin/ShipmentStatusRevertPanel';
-import { shipmentRevertKind } from '@/lib/admin/shipment-revert';
+import { shipmentDispatchRevertBlock, shipmentRevertKind } from '@/lib/admin/shipment-revert';
 import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { DELIVERY_METHOD_LABELS } from '@/lib/shipment-delivery';
 import { SellerClaimIntakeButton } from './SellerClaimIntakeForm';
@@ -62,8 +64,8 @@ const SOURCE_LABELS: Record<AdminOrderTimelineSource, string> = {
   claim: V.claims, inquiry: '문의', email: '메일', note: '운영자 메모',
 };
 const ACTION_LABELS: Record<string, string> = {
-  'order.purchase_confirmation.request': '구매확정 요청', 'order.purchase_confirmation.hold': '구매확정 보류',
-  'order.purchase_confirmation.resume': '구매확정 보류 해제', 'order.purchase_confirmation.extend': '구매자 기간 연장', 'order.purchase_confirmation.confirm': '구매자 직접 확정',
+  'order.purchase_confirmation.request': '거래확정 요청', 'order.purchase_confirmation.hold': '거래확정 보류',
+  'order.purchase_confirmation.resume': '거래확정 보류 해제', 'order.purchase_confirmation.extend': '구매자 기간 연장', 'order.purchase_confirmation.confirm': '구매자 직접 확정',
   'admin.shipment.status_updated': '배송 건 상태 변경', 'admin.shipment.tracking_updated': '배송 건 운송장 수정',
   'admin.shipment.extra_tracking_added': '추가 운송장 등록', 'admin.shipment.extra_tracking_removed': '추가 운송장 삭제',
   'system.shipment.tracking_delivered': '배송완료 (택배 추적 자동)',
@@ -87,18 +89,20 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료',
   'admin.order.bank_transfer_canceled': '무통장 주문 취소', 'admin.order.bank_transfer_confirmed': '무통장 입금 확인',
   'admin.order.bank_transfer_extended': '무통장 입금 기한 연장',
-  'admin.order.claim_approved': '요청 승인', 'admin.order.claim_collected': '반송 상품 입고',
+  'admin.order.claim_approved': '요청 승인', 'admin.order.claim_collected': '반품·교환 상품 입고 확인',
   'admin.order.claim_held': '요청 보류', 'admin.order.claim_in_review': '요청 검토 시작',
   'admin.order.claim_refund_completed': '환불 완료', 'admin.order.claim_refund_filed': '환불 접수',
-  'admin.order.claim_rejected': '요청 거부', 'admin.order.claim_reshipped': '교환 상품 발송',
-  'admin.order.claim_resumed': '요청 처리 재개',
-  'admin.order.claim_intake_created': '판매자 대리 접수',
+  'admin.order.claim_rejected': '요청 거부', 'admin.order.claim_reshipped': '교환 재출고',
+  'admin.order.claim_resumed': '요청 보류 해제',
+  'admin.order.claim_intake_created': '판매자 직접 접수',
   'order.claim_withdrawn': '고객 요청 철회',
   'order.claim_refund_account_confirmed': '고객 환불계좌 등록',
   'admin.order.claim_refund_account_entered': '운영자 환불계좌 대신 입력',
   'admin.order.bank_refund_confirm_cancellation': '무통장 취소 확정 · 재고 복원',
-  'admin.order.bank_refund_file_transfer': '계좌 송금 접수',
-  'admin.order.bank_refund_complete_transfer': '계좌 송금 완료',
+  /* 무통장 환불 칸의 버튼 이름·요청 상세 타임라인과 같은 말이다(환불 접수 기록 / 송금 완료 기록 / 계좌번호 전체 보기). */
+  'admin.order.bank_refund_file_transfer': '환불 접수 기록',
+  'admin.order.bank_refund_complete_transfer': '송금 완료 기록',
+  'admin.order.bank_refund_account_viewed': '계좌번호 전체 보기',
   'system.order.unpaid_cart_order_closed': '결제 대기 주문 자동 취소 (재주문·장바구니 복귀)',
   'system.order.cart_hold_detached': '장바구니 보류 해제 (결제 확인 필요 주문)',
   'system.order.fulfillment_hold_placed': '출고 보류 (결제 확인 필요)',
@@ -128,7 +132,8 @@ const STATUS_LABELS: Record<string, string> = {
   awaiting_transfer: '환불 송금 대기',
   sent: '발송 완료', open: '미답변', answered: '답변 완료', closed: '종결',
 };
-const shipmentState = (status: string) => ['ready','shipping','delivered','canceled'].includes(status) ? shipmentStatusLabel(status as ShipmentStatus) : '상태 변경';
+/* 배송 건 상태는 발송관리·배송현황과 같은 어드민 이름이다(고객 화면은 '배송 준비'·'배송 중'을 그대로 쓴다). */
+const shipmentState = (status: string) => ['ready','shipping','delivered','canceled'].includes(status) ? adminShipmentStatusLabel(status as ShipmentStatus) : '상태 변경';
 const orderStatus = (status: string) => (ADMIN_ORDER_STATUS_LABELS as Record<string, string>)[status] ?? '변경';
 /* 배송 건별 현황(공개 부품 ShipmentDetails)과 주문 목록이 ₩로 적으므로 이 화면의 금액도 같은 표기를 쓴다. */
 const money = krw;
@@ -178,7 +183,7 @@ function OrderVirtualAccountCard({ detail }: { detail: AdminOrderDetail }) {
       <div className={FACT_ROW}><dt className={FACT_TERM}>입금 기한 (KST)</dt><dd className={`${FACT_VALUE} tabular-nums`}><time dateTime={account.dueAt}>{dateTime(account.dueAt)}</time></dd></div>
       <div className={FACT_ROW}><dt className={FACT_TERM}>구매안전서비스 (에스크로)</dt><dd className={FACT_VALUE}>{adminVirtualAccountEscrowLabel(account.useEscrow)}</dd></div>
       {escrow ? <>
-        <div className={FACT_ROW} data-order-escrow-delivery={escrow.deliveryState}><dt className={FACT_TERM}>에스크로 배송 정보</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('escrowDelivery', escrow.deliveryState)}>{ADMIN_ESCROW_DELIVERY_STATE_LABELS[escrow.deliveryState]}</AdminStatusBadge>{escrow.lastErrorCode ? <span className="mt-1 block text-xs text-muted-foreground">확인 코드 · {escrow.lastErrorCode}</span> : null}</dd></div>
+        <div className={FACT_ROW} data-order-escrow-delivery={escrow.deliveryState}><dt className={FACT_TERM}>에스크로 배송 정보</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('escrowDelivery', escrow.deliveryState)}>{ADMIN_ESCROW_DELIVERY_STATE_LABELS[escrow.deliveryState]}</AdminStatusBadge></dd></div>
         <div className={FACT_ROW}><dt className={FACT_TERM}>에스크로 거래 상태</dt><dd className={FACT_VALUE}>{escrow.escrowStatus ? <AdminStatusBadge tone={statusTone('escrowStatus', escrow.escrowStatus)}>{ADMIN_ESCROW_STATUS_LABELS[escrow.escrowStatus]}</AdminStatusBadge> : '아직 확인 전'}</dd></div>
       </> : null}
       {account.refund ? <div className={FACT_ROW} data-order-virtual-account-refund={account.refund.state}><dt className={FACT_TERM}>환불 송금</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('virtualAccountRefund', account.refund.state)}>{adminVirtualAccountRefundStateLabel(account.refund)}</AdminStatusBadge>{account.refund.resolutionNote ? <span className="mt-1 block text-xs text-muted-foreground">처리 내용 · {account.refund.resolutionNote}</span> : null}</dd></div> : null}
@@ -201,7 +206,7 @@ function OrderTransferEscrowCard({ detail }: { detail: AdminOrderDetail }) {
     <dl className={FACTS} data-order-transfer-escrow={job.deliveryState}>
       <div className={FACT_ROW}><dt className={FACT_TERM}>결제수단</dt><dd className={FACT_VALUE}>계좌이체</dd></div>
       <div className={FACT_ROW}><dt className={FACT_TERM}>구매안전서비스 (에스크로)</dt><dd className={FACT_VALUE}>{adminTransferEscrowLabel(escrow.useEscrow)}</dd></div>
-      <div className={FACT_ROW} data-order-escrow-delivery={job.deliveryState}><dt className={FACT_TERM}>에스크로 배송 정보</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('escrowDelivery', job.deliveryState)}>{ADMIN_ESCROW_DELIVERY_STATE_LABELS[job.deliveryState]}</AdminStatusBadge>{job.lastErrorCode ? <span className="mt-1 block text-xs text-muted-foreground">확인 코드 · {job.lastErrorCode}</span> : null}</dd></div>
+      <div className={FACT_ROW} data-order-escrow-delivery={job.deliveryState}><dt className={FACT_TERM}>에스크로 배송 정보</dt><dd className={FACT_VALUE}><AdminStatusBadge tone={statusTone('escrowDelivery', job.deliveryState)}>{ADMIN_ESCROW_DELIVERY_STATE_LABELS[job.deliveryState]}</AdminStatusBadge></dd></div>
       <div className={FACT_ROW}><dt className={FACT_TERM}>에스크로 거래 상태</dt><dd className={FACT_VALUE}>{job.escrowStatus ? <AdminStatusBadge tone={statusTone('escrowStatus', job.escrowStatus)}>{ADMIN_ESCROW_STATUS_LABELS[job.escrowStatus]}</AdminStatusBadge> : '아직 확인 전'}</dd></div>
     </dl>
     {job.deliveryState === 'manual_required' ? <AdminNotice role="status" tone="danger">{ADMIN_ESCROW_MANUAL_REQUIRED_HINT}</AdminNotice> : null}
@@ -256,10 +261,19 @@ function entryTitle(entry: AdminOrderTimelineEntry) {
   }
 }
 
-function TimelineEntry({ entry, digital = false }: { entry: AdminOrderTimelineEntry; digital?: boolean }) {
-  const status = entry.status ? (entry.source === 'claim'
-    ? isOrderClaimType(entry.claimType) && isOrderClaimStage(entry.status) ? adminClaimStageLabel(entry.claimType, entry.status) : (ORDER_CLAIM_STAGE_LABELS as Record<string, string>)[entry.status]
-    : STATUS_LABELS[entry.status]) : null;
+/** 기록 줄의 '현재 상태'. 결제·환불은 주문 처리 패널과 같은 이름이다(lib/orders) — 같은 상태를 두 이름으로 부르지 않는다. */
+function timelineStatus(entry: AdminOrderTimelineEntry) {
+  if (!entry.status) return null;
+  if (entry.source === 'claim') {
+    return isOrderClaimType(entry.claimType) && isOrderClaimStage(entry.status) ? adminClaimStageLabel(entry.claimType, entry.status) : (ORDER_CLAIM_STAGE_LABELS as Record<string, string>)[entry.status];
+  }
+  if (entry.source === 'payment') return paymentStatusLabel(entry.status);
+  if (entry.source === 'refund') return refundStatusLabel(entry.status);
+  return STATUS_LABELS[entry.status];
+}
+
+function TimelineEntry({ entry, digital = false, shipmentNumber }: { entry: AdminOrderTimelineEntry; digital?: boolean; shipmentNumber?: string }) {
+  const status = timelineStatus(entry);
   const href = entry.relatedId && entry.source === 'inquiry' ? `/admin/cs/inquiries/${entry.relatedId}`
     : entry.relatedId && entry.source === 'claim' && isOrderClaimType(entry.claimType)
       ? `/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[entry.claimType]}/${entry.relatedId}` : null;
@@ -275,7 +289,7 @@ function TimelineEntry({ entry, digital = false }: { entry: AdminOrderTimelineEn
     {entry.fromStatus && entry.toStatus ? <p className={EVENT_TEXT}>{stateLabel(entry.fromStatus)} → {stateLabel(entry.toStatus)}</p> : null}
     {entry.amount != null ? <p className={`${EVENT_TEXT} tabular-nums`}>{money(entry.amount)}{entry.provider ? ` · ${adminClaimBulkProviderLabel(entry.provider)}` : ''}</p> : null}
     {status ? <p className={`${EVENT_TEXT} text-muted-foreground`}>현재 상태 · {status}</p> : null}
-    {entry.shipmentId ? <p className={EVENT_TEXT}>{entry.originName ?? '배송 건'} · <ShortId value={entry.shipmentId} /></p> : null}
+    {entry.shipmentId ? <p className={EVENT_TEXT}>{entry.originName ?? '배송 건'}{shipmentNumber ? ` · ${shipmentNumber}` : ''}</p> : null}
     {entry.trackingNumber ? <p className={EVENT_TEXT}>운송장 · {[entry.carrierLabel ?? entry.carrier, entry.trackingNumber].filter(Boolean).join(' ')}</p> : null}
     {entry.body ? <p className={`${EVENT_TEXT} whitespace-pre-wrap`}>{entry.body}</p> : null}
     {href ? <Link className="inline-flex min-h-10 items-center text-sm underline underline-offset-4" href={href}>{entry.source === 'inquiry' ? '문의 상세 열기' : '요청 상세 열기'}</Link> : null}
@@ -294,6 +308,7 @@ export function OrderDetailScreen({
   canViewCustomer = true,
   actorId,
   embedded = false,
+  now = new Date(),
 }: {
   backHref?: string;
   backLabel?: string;
@@ -308,10 +323,18 @@ export function OrderDetailScreen({
   actorId?: string;
   /** 목록 위 상세 팝업(S36-075) 안. 목록 돌아가기 버튼은 팝업 닫기와 겹치고 기록을 쌓으며 스크롤을 올리므로 숨긴다. */
   embedded?: boolean;
+  /** 배송 안내 메일을 보내는 중인지 가르는 기준 시각. 테스트 주입용. */
+  now?: Date;
 }) {
   const { order, items } = detail;
   const orderDiscounted = order.discountTotal > 0 || order.storeCreditTotal > 0 || (order.transaction?.totals.volumeDiscountTotal ?? 0) > 0;
   const digitalShipments = new Set(detail.shipments.filter(shipment => shipment.delivery?.method === 'digital').map(shipment => shipment.id));
+  const shipmentById = new Map(detail.shipments.map(shipment => [shipment.id, shipment]));
+  /* 발송관리와 같은 [배송 방식 바꾸기] 창이 '수령인 · 상품' 칸에 보일 이 배송 건의 요약. 없으면 창이 '목록 밖 배송 건'이라고 적는다. */
+  const itemById = new Map(items.map(item => [item.id, item]));
+  const deliverySummary = (orderItemIds: readonly string[]) => ({ recipient: order.address.recipientName || null,
+    items: orderItemIds.flatMap(id => { const item = itemById.get(id); return item ? [`${item.name}${item.variantName ? ` · ${item.variantName}` : ''} × ${item.qty}`] : []; }) });
+  const emailJobByShipment = new Map(detail.emailJobs.map(job => [job.shipmentId, job]));
   const timeline = (canManage ? detail.timeline : detail.timeline.filter(entry => ['order', 'shipment'].includes(entry.source)))
     .filter(entry => !(entry.source === 'shipment' && entry.action === 'shipped' && entry.shipmentId && digitalShipments.has(entry.shipmentId)));
   const addressNotRequired = detail.shipments.length > 0 && detail.shipments.every(shipment => shipment.delivery && ['pickup', 'none', 'digital'].includes(shipment.delivery.method));
@@ -324,19 +347,22 @@ export function OrderDetailScreen({
   const canceledClaim = canceled ? [...timeline].reverse().find(entry => entry.source === 'claim' && entry.relatedId && isOrderClaimType(entry.claimType)) ?? null : null;
   const cancelRecord = canceled ? canceledEntry(timeline) : null;
   const cancelBy = cancelRecord ? cancelActor(cancelRecord) : null;
-  const consoleHref = `/admin/sales/orders?status=all&query=${order.id}&order=${order.id}`;
+  /* 주문통합검색 검색칸에 보이는 값이라 주문번호를 싣는다(번호가 없는 옛 주문만 내부 번호). 고를 주문은 order로 가리킨다. */
+  const consoleHref = `/admin/sales/orders?status=all&query=${encodeURIComponent(order.orderNumber ?? order.id)}&order=${order.id}`;
   /* 상품 금액은 저장돼 있지 않아 품목으로 더한다. 더한 값이 결제금액과 맞을 때만 적어 틀린 합계를 보이지 않는다. */
   const goodsTotal = items.reduce((sum, item) => sum + item.unitPrice * item.qty, 0);
   const volumeDiscount = order.transaction?.totals.volumeDiscountTotal ?? 0;
   const goodsTotalMatches = goodsTotal + order.shippingFee - order.discountTotal - order.storeCreditTotal - volumeDiscount === order.total;
   /* 배송 건이 하나면 품목 줄이 맨 위 주문 상품과 겹친다. 여러 건일 때만 어떤 상품이 어느 건에 있는지 남긴다. */
   const shipmentItemsRedundant = detail.shipments.length === 1;
+  /* 거래확정 패널은 배송완료·거래확정 주문에만 있다. 그 밖의 주문은 메모 칸만 있어 카드 이름도 메모만 말한다. */
+  const showConfirmation = Boolean(actorId) && ['delivered', 'done'].includes(order.status);
   return <div className="flex min-w-0 flex-col gap-6" data-order-detail-screen="">
     {/* 이 주문의 번호와 지금 상태를 맨 위 한 줄에서 먼저 읽고, 같은 줄 오른쪽에서 처리한다. */}
     <header className="flex flex-wrap items-center justify-between gap-3" data-admin-kit="page-header">
       <section aria-label="주문 현재 상태" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2" data-order-status-strip="">
         <AdminPageHeading title="주문 상세" />
-        <strong className="text-base font-semibold tabular-nums">{order.orderNumber ?? order.id}</strong>
+        <strong className="text-base font-semibold tabular-nums">{order.orderNumber ?? '주문번호 없음'}</strong>
         <OrderStatusBadge className={LARGE_STATUS_BADGE_CLASS} status={order.status} />
         <OrderFulfillmentHoldBadges holds={detail.fulfillmentHolds ?? []} />
         <span className="flex items-baseline gap-1.5"><span className="text-muted-foreground">{canceled && !charged && !reversed && !latestRefund ? '주문금액' : '결제금액'}</span><strong className="text-base font-semibold tabular-nums">{money(order.total)}</strong></span>
@@ -344,8 +370,9 @@ export function OrderDetailScreen({
       <div className="flex flex-wrap items-center gap-2">
         {embedded ? null : <Link href={backHref} className={buttonVariants({ variant: 'outline' })} data-slot="button">{backLabel}</Link>}
         {canManage ? <Link href={trackingMissing ? `${consoleHref}#sales-order-detail` : consoleHref} className={buttonVariants({ variant: nextStep ? 'default' : 'outline' })} data-slot="button">{nextStep ? `주문 처리 · ${nextStep}` : canceled ? '주문 통합검색에서 보기' : '주문 처리'}</Link> : null}
-        {/* 끝난 주문의 배송지는 바꿀 일이 없다. 바뀐 이력은 아래 타임라인에 남아 있다. */}
-        {canManage && !addressNotRequired && !canceled ? <OrderAddressButton orderId={order.id} /> : null}
+        {/* 끝난 주문의 배송지는 바꿀 일이 없다. 바뀐 이력은 아래 타임라인에 남아 있다.
+            신규주문·발주확인이 아닌 주문은 DB가 배송지 변경을 막는다(order_not_ready) — 버튼이 처음부터 '배송지 변경 이력'으로 보인다. 그 밖의 막힘(출고지시·요청)은 버튼이 DB에 미리 물어 정한다. */}
+        {canManage && !addressNotRequired && !canceled ? <OrderAddressButton orderId={order.id} blocker={['paid', 'confirmed'].includes(order.status) ? null : 'order_not_ready'} /> : null}
         {canManage && ['shipping', 'delivered', 'done'].includes(order.status) ? <SellerClaimIntakeButton orderId={order.id} /> : null}
         {canManage && (order.status === 'pending' || order.status === 'paid') ? <SellerClaimIntakeButton orderId={order.id} mode="cancel" /> : null}
         {/* QA1 S-T04-05: 발주확인 뒤 발송 전·배송 중 주문은 발주·발송 화면의 강제 배송완료 카드를 이 주문번호로 바로 연다(사유·확인창·감사는 카드에서). */}
@@ -364,7 +391,7 @@ export function OrderDetailScreen({
       </AdminNotice>
     </div> : null}
     {/* 출고 보류(테스트 결제·결제사 취소·입금 오류 되돌림·에스크로 취소 요청)는 출고를 막는 상태라 머리 바로 아래에서 다음 행동과 함께 보인다. */}
-    <OrderFulfillmentHoldNotice canManage={canManage} holds={detail.fulfillmentHolds ?? []} orderId={order.id} />
+    <OrderFulfillmentHoldNotice canManage={canManage} holds={detail.fulfillmentHolds ?? []} orderId={order.id} orderNumber={order.orderNumber} />
     {/* 출고지시가 나간 배송 건의 창고 회신과 취소 뒤 출고 발견(ADR-0046). 해당 배송 건·발견이 없으면 그리지 않는다. */}
     <OrderWarehouseStopPanel key={`warehouse-stop:${order.id}`} orderId={order.id} />
     {/* 운송장이 빠졌다는 경고는 눌러야 할 일이라 머리 바로 아래에 둔다. 등록은 바로 위 주 버튼 하나로 간다 — 같은 일을 하는 버튼이 둘이면 다른 일인지 망설인다. */}
@@ -390,14 +417,14 @@ export function OrderDetailScreen({
       </Table></div> : <p className="text-muted-foreground">주문 상품 기록이 없습니다.</p>}
     </AdminSectionCard>
     {/* 기록은 조회 권한(sales.read)에도 보인다 — 처리 버튼은 DB가 알려주는 canManage로만 그린다. */}
-    <OrderPartialCancellationPanel key={order.id} orderId={order.id} />
+    <OrderPartialCancellationPanel key={order.id} orderId={order.id} orderNumber={order.orderNumber} />
     {/* 두 칸은 lg부터다 — 768에서는 사이드바 옆 본문이 좁아 값 칸이 글자 단위로 끊긴다. */}
     <div className="grid min-w-0 gap-6 lg:grid-cols-2">
       <AdminSectionCard title="주문 정보">
         <dl className={FACTS}>
           <div className={FACT_ROW}><dt className={FACT_TERM}>현재 상태</dt><dd className={FACT_VALUE}><OrderStatusBadge status={order.status} /></dd></div>
-          <div className={FACT_ROW}><dt className={FACT_TERM}>주문 일시</dt><dd className={FACT_VALUE}>{dateTime(order.createdAt)}</dd></div>
-          <div className={FACT_ROW}><dt className={FACT_TERM}>주문자</dt><dd className={FACT_VALUE}>{order.buyerName || '이름 미등록'}{order.buyerEmail ? <span className="mt-1 block text-xs text-muted-foreground">{order.buyerEmail}</span> : null}{canViewCustomer ? <Link className="mt-1 block w-fit underline underline-offset-4" href={`/admin/customers/${order.userId}`}>고객 상세</Link> : null}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>주문일시</dt><dd className={FACT_VALUE}>{dateTime(order.createdAt)}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>구매자</dt><dd className={FACT_VALUE}>{order.buyerName || '이름 미등록'}{order.buyerEmail ? <span className="mt-1 block text-xs text-muted-foreground">{order.buyerEmail}</span> : null}{canViewCustomer ? <Link className="mt-1 block w-fit underline underline-offset-4" href={`/admin/customers/${order.userId}`}>고객 상세</Link> : null}</dd></div>
           {goodsTotalMatches ? <div className={FACT_ROW}><dt className={FACT_TERM}>상품 금액</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(goodsTotal)}</dd></div> : null}
           <div className={FACT_ROW}><dt className={FACT_TERM}>배송비</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.shippingFee)}</dd></div>
           <div className={FACT_ROW}><dt className={FACT_TERM}>쿠폰 할인</dt><dd className={`${FACT_VALUE} tabular-nums`}>{minus(order.discountTotal)}</dd></div>
@@ -407,17 +434,17 @@ export function OrderDetailScreen({
             <div className={FACT_ROW}><dt className={FACT_TERM}>온라인 결제금액 / 착불 배송비</dt><dd className={FACT_VALUE}>{money(order.transaction.totals.onlineTotal)} / {money(order.transaction.totals.collectShippingTotal)} · 착불은 착불 수납 기록에서 확인</dd></div>
           </>}
           <div className={`${FACT_ROW} border-t pt-3`}><dt className="font-medium">최종 결제금액</dt><dd className={`${FACT_VALUE} text-base font-semibold tabular-nums`}>{money(order.total)}</dd></div>
-          {canManage && detail.virtualAccount ? <div className={FACT_ROW}><dt className={FACT_TERM}>결제수단</dt><dd className={FACT_VALUE}>가상계좌</dd></div> : null}
+          {canManage && detail.virtualAccount ? <div className={FACT_ROW}><dt className={FACT_TERM}>결제수단</dt><dd className={FACT_VALUE}>무통장입금(가상계좌)</dd></div> : null}
           {order.isGift && <div className={FACT_ROW}><dt className={FACT_TERM}>선물 배송</dt><dd className={FACT_VALUE}>수령인 배송지 · 수령인용 포장 명세에는 가격·결제정보를 제외합니다.</dd></div>}
         </dl>
       </AdminSectionCard>
       <AdminSectionCard title="배송 정보">
-        {order.addressNeedsReview && <AdminNotice role="status" tone="warning">주문 당시 주소 형식 확인이 필요합니다. 배송 처리 전 원본 기록과 수령 주소를 확인해주세요.</AdminNotice>}
+        {order.addressNeedsReview && <AdminNotice role="status" tone="warning">이 주문의 주소는 옛 형식으로 저장돼 있어 저장된 그대로 보입니다. 발송 전에 우편번호와 연락처가 맞는지 확인해주세요.</AdminNotice>}
         {addressNotRequired ? <p className="text-muted-foreground">배송 주소가 필요하지 않은 수령 방식입니다.</p> : <dl className={FACTS}>
-          <div className={FACT_ROW}><dt className={FACT_TERM}>수령자</dt><dd className={FACT_VALUE}>{order.address.recipientName || '정보 없음'}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>수령인</dt><dd className={FACT_VALUE}>{order.address.recipientName || '정보 없음'}</dd></div>
           <div className={FACT_ROW}><dt className={FACT_TERM}>연락처</dt><dd className={FACT_VALUE}>{order.address.phone || '정보 없음'}</dd></div>
           <div className={FACT_ROW}><dt className={FACT_TERM}>배송지</dt><dd className={FACT_VALUE}>{order.address.postalCode ? `(${order.address.postalCode}) ` : ''}{order.address.address1 || '정보 없음'} {order.address.address2}</dd></div>
-          <div className={FACT_ROW}><dt className={FACT_TERM}>배송 요청</dt><dd className={FACT_VALUE}>{order.address.deliveryNote || '없음'}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>배송 메모</dt><dd className={FACT_VALUE}>{order.address.deliveryNote || '없음'}</dd></div>
         </dl>}
       </AdminSectionCard>
     </div>
@@ -427,41 +454,40 @@ export function OrderDetailScreen({
     {acknowledgement !== undefined ? <AdminSectionCard title="결제 전 확인 동의">
       {acknowledgement ? <dl className={FACTS} data-order-acknowledgement="recorded">
         <div className={FACT_ROW}><dt className={FACT_TERM}>동의 일시</dt><dd className={FACT_VALUE}><time className="tabular-nums" dateTime={acknowledgement.acknowledgedAt}>{dateTime(acknowledgement.acknowledgedAt)}</time></dd></div>
-        <div className={FACT_ROW}><dt className={FACT_TERM}>고지 문구 버전</dt><dd className={FACT_VALUE}>{acknowledgement.noticeVersion}</dd></div>
         <div className={FACT_ROW}><dt className={FACT_TERM}>청약철회·교환 제한 상품</dt><dd className={FACT_VALUE}>{acknowledgement.restrictedGoods.length
-          ? <ul className="flex flex-col gap-1">{acknowledgement.restrictedGoods.map(good => <li key={good.goodId}>{good.name || good.goodId}{good.reason ? ` — ${good.reason}` : ''}</li>)}</ul>
+          ? <ul className="flex flex-col gap-1">{acknowledgement.restrictedGoods.map(good => <li key={good.goodId}>{good.name || '상품명 없음'}{good.reason ? ` — ${good.reason}` : ''}</li>)}</ul>
           : '없음'}</dd></div>
-      </dl> : <p className="text-muted-foreground" data-order-acknowledgement="missing">동의 기록이 없습니다. 동의 기록을 도입하기 전에 만든 주문, 기록에 실패한 주문, 정기구매 주문(정기구매 약관 동의로 받습니다)이 해당합니다.</p>}
+      </dl> : <p className="flex flex-wrap items-center gap-1 text-muted-foreground" data-order-acknowledgement="missing">동의 기록이 없습니다.<AdminHelpTip help={ORDER_DETAIL_HELP.acknowledgementMissing} label="동의 기록이 없는 주문" /></p>}
     </AdminSectionCard> : null}
     <AdminSectionCard title="배송 건별 현황">
       <div className={shipmentItemsRedundant ? '[&_section>ul]:hidden' : undefined}><ShipmentDetails admin shipments={detail.shipments} items={items} transactionShipping={order.transaction?.shipping} /></div>
-      {actorId && (order.transaction?.totals.collectShippingTotal ?? 0) > 0 ? <ShippingCollectPanel key={`${actorId}:${order.id}`} orderId={order.id} expectedActorId={actorId} canManage={canManage} /> : null}
-      {canManage ? detail.shipments.map(shipment => <ShipmentDeliveryPanel orderId={order.id} shipmentId={shipment.id} shipmentNumber={shipment.shipmentNumber} originName={shipment.originName} key={shipment.id} />) : null}
+      {actorId && (order.transaction?.totals.collectShippingTotal ?? 0) > 0 ? <ShippingCollectPanel key={`${actorId}:${order.id}`} orderId={order.id} expectedActorId={actorId} canManage={canManage} orderStatus={order.status} /> : null}
+      {canManage ? detail.shipments.map(shipment => <ShipmentDeliveryPanel orderId={order.id} shipmentId={shipment.id} shipmentNumber={shipment.shipmentNumber} originName={shipment.originName} summary={deliverySummary(shipment.orderItemIds)} key={shipment.id} />) : null}
       {/* 배송 상태 정정(ADR-0045): 엉뚱한 배송 건의 발송·배송완료를 한 단계 되돌린다. 끝난 주문(거래확정·취소)은 DB가 막으므로 그리지 않는다. */}
       {canManage && !['done', 'canceled'].includes(order.status) ? <ShipmentStatusRevertPanel targets={detail.shipments.flatMap(shipment => {
         const kind = shipmentRevertKind(shipment.status, isParcelShipment(shipment));
         return kind ? [{ id: shipment.id, reference: commerceReferenceLabel(shipment.id, shipment.shipmentNumber), originName: shipment.originName, kind,
           expected: kind === 'delivery' ? shipment.deliveredAt : shipment.trackingNumber,
-          trackingLabel: shipment.trackingNumber ? `${shipment.carrierLabel ?? shipment.carrier ?? ''} ${shipment.trackingNumber}`.trim() : null }] : [];
+          trackingLabel: shipment.trackingNumber ? `${shipment.carrierLabel ?? shipment.carrier ?? ''} ${shipment.trackingNumber}`.trim() : null,
+          /* 배송 안내 메일을 보내는 중에는 DB가 발송 되돌리기를 받지 않는다 — 누르기 전에 잠그고 이유를 보인다. */
+          blockedReason: kind === 'dispatch' ? shipmentDispatchRevertBlock(emailJobByShipment.get(shipment.id), now) : null }] : [];
       })} /> : null}
       {canManage ? detail.shipments.filter(shipment => shipment.originalExpectedShipDate).map(shipment => <ShipmentPreorderPromisePanel orderId={order.id} shipmentId={shipment.id} key={shipment.id} />) : null}
       {canManage && detail.emailJobs.length ? <section className="flex flex-col gap-2 border-t pt-4" aria-label="배송 메일 처리 상태">
-        <h3 className="text-sm font-medium text-foreground">배송 안내 메일</h3>
-        <ul className="flex flex-col gap-2">{detail.emailJobs.map(job=><li className="flex flex-col gap-0.5 rounded-lg border px-3 py-2.5 wrap-anywhere" key={job.shipmentId}>
-          <strong className="font-medium">{detail.shipments.find(shipment=>shipment.id===job.shipmentId)?.originName ?? '배송 건'} · {detail.shipments.find(shipment=>shipment.id===job.shipmentId)?.shipmentNumber ?? job.shipmentId}</strong>
-          <p className="flex flex-wrap items-center gap-2"><AdminStatusBadge tone={statusTone('shipmentEmail', job.status)}>{{pending:'발송 대기',processing:'발송 처리 중',completed:'처리 완료',review:'운영자 확인 필요'}[job.status]}</AdminStatusBadge> 시도 {job.attempts}회</p>
-          {job.lastErrorCode ? <p className="text-muted-foreground">확인 코드 · {job.lastErrorCode}</p> : null}
+        <h3 className="text-sm font-medium text-foreground">배송 메일 처리 상태</h3>
+        <ul className="flex flex-col gap-2">{detail.emailJobs.map(job=>{ const shipment = shipmentById.get(job.shipmentId); return <li className="flex flex-col gap-0.5 rounded-lg border px-3 py-2.5 wrap-anywhere" key={job.shipmentId}>
+          <strong className="font-medium">{shipment?.originName ?? '배송 건'}{shipment?.shipmentNumber ? ` · ${shipment.shipmentNumber}` : ''}</strong>
+          <p className="flex flex-wrap items-center gap-2"><AdminStatusBadge tone={statusTone('shipmentEmail', job.status)}>{{pending:'발송 대기',processing:'발송 처리 중',completed:'처리 완료',review:'운영자 확인 필요'}[job.status]}</AdminStatusBadge></p>
           <time className="text-xs text-muted-foreground tabular-nums" dateTime={job.updatedAt}>{dateTime(job.updatedAt)}</time>
-        </li>)}</ul>
+        </li>; })}</ul>
       </section> : null}
     </AdminSectionCard>
     <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(17.5rem,1fr)]">
       <AdminSectionCard title="주문 타임라인">
-        <p className="text-sm text-muted-foreground">이른 기록부터 표시합니다. 결제·배송·취소 같은 기록마다 지금 처리 상태를 함께 보여 줍니다.</p>
-        <ol className="mt-2 flex flex-col">{timeline.map((entry) => <TimelineEntry key={entry.id} entry={entry} digital={Boolean(entry.shipmentId && digitalShipments.has(entry.shipmentId))} />)}</ol>
+        <ol className="flex flex-col">{timeline.map((entry) => <TimelineEntry key={entry.id} entry={entry} digital={Boolean(entry.shipmentId && digitalShipments.has(entry.shipmentId))} shipmentNumber={entry.shipmentId ? shipmentById.get(entry.shipmentId)?.shipmentNumber : undefined} />)}</ol>
       </AdminSectionCard>
-      {canManage ? <AdminSectionCard title="구매확정·운영자 메모">
-        {actorId && ['delivered', 'done'].includes(order.status) ? <PurchaseConfirmationPanel key={`confirmation:${order.id}`} orderId={order.id} actorId={actorId} admin /> : null}
+      {canManage ? <AdminSectionCard title={showConfirmation ? '거래확정·운영자 메모' : '운영자 메모'}>
+        {showConfirmation && actorId ? <PurchaseConfirmationPanel key={`confirmation:${order.id}`} orderId={order.id} orderNumber={order.orderNumber} actorId={actorId} admin /> : null}
         <OrderNoteForm key={order.id} orderId={order.id} initialOperationId={noteOperationId} />
       </AdminSectionCard> : null}
     </div>

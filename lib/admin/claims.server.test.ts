@@ -68,3 +68,15 @@ it('does not reconcile version 1 orders without a receipt (T12c partial cancels 
     partialCancels: [{ orderItemId: transactionLineId, canceledQty: 1 }] } }, error: null });
   expect((await loadAdminClaimDetail(transactionQuoteId))?.order?.transaction).toBeUndefined();
 });
+
+/* 화면 규칙 PR 3: 회수 묶음의 반품지 준비 여부는 DB가 준 불리언만 싣는다. 없는 응답은 값을 만들지 않아 화면이 양식을 잠그지 않는다. */
+it('reads the return-address readiness of each collection bundle only when the response carries a boolean', async () => {
+  const value = payload();
+  const bundle = (bundleId: string, extra: Record<string, unknown> = {}) => ({ bundleId, returnAddressId: null, returnName: '', returnAddress: '', returnPhone: '',
+    items: [], collectedAt: null, collectorName: null, evidence: null, receivedOn: null, ...extra });
+  mocks.rpc.mockResolvedValue({ data: { ...value, claim: { ...value.claim, collections: [{ shipmentId: 's1', originId: 'o1', originName: '김포', returnAddress: '', items: [],
+    bundles: [bundle('b1', { returnAddressReady: false }), bundle('b2', { returnAddressReady: true }), bundle('b3'), bundle('b4', { returnAddressReady: 'yes' })] }] } }, error: null });
+  const bundles = (await loadAdminClaimDetail(transactionQuoteId))?.claim.collections[0].bundles ?? [];
+  expect(bundles.map((entry) => entry.returnAddressReady)).toEqual([false, true, undefined, undefined]);
+  expect(bundles.map((entry) => 'returnAddressReady' in entry)).toEqual([true, true, false, false]);
+});

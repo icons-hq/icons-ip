@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { orderClaimReferenceLabel } from '@/lib/orders/claims';
 import {
   adminClaimBackHref,
   adminClaimBasePath,
@@ -10,10 +11,15 @@ import {
   adminClaimPreviewId,
   adminClaimReasonOptions,
   adminClaimReasonText,
+  adminClaimReceivedOnLabel,
   adminClaimRejectionPresets,
+  adminClaimSearchQuery,
+  adminClaimStageLabel,
   adminClaimTodayKst,
+  ADMIN_CLAIM_DATE_FIELDS,
   ADMIN_CLAIM_REASON_OPTIONS,
   ADMIN_CLAIM_REJECTION_PRESETS,
+  ADMIN_CLAIM_SEARCH_FIELDS,
   normalizeAdminClaimCollectionForm,
   normalizeAdminClaimOriginCollectionForm,
   normalizeAdminClaimOperationalFeeForm,
@@ -21,7 +27,6 @@ import {
   normalizeAdminClaimFilters,
   normalizeAdminClaimReceivedOn,
   normalizeAdminClaimRefundForm,
-  normalizeAdminClaimReshipmentForm,
   type AdminClaimFilters,
 } from './claims';
 
@@ -130,7 +135,7 @@ describe('클레임 콘솔 경로', () => {
 });
 
 describe('클레임 필터 정규화', () => {
-  it.each(['recipient', 'item', 'product'] as const)('새 상세조건 %s을 페이지·상세 복귀에도 보존한다', (field) => {
+  it.each(['recipient', 'item'] as const)('새 상세조건 %s을 페이지·상세 복귀에도 보존한다', (field) => {
     const query = '전체%_번호-AB12';
     const result = normalizeAdminClaimFilters({ field, query: `  ${query}  `, dateField: 'paid', stage: 'all', page: '3' });
     expect(result).toMatchObject({ field, query, dateField: 'paid', page: 3 });
@@ -145,6 +150,33 @@ describe('클레임 필터 정규화', () => {
     for (const field of [['recipient', 'item'], 'recipientName', 'goodId', 'all']) {
       expect(normalizeAdminClaimFilters({ field }).field).toBeUndefined();
     }
+  });
+
+  /* L-06: 상품 URL(고객 화면 주소 끝의 영문 값)은 검색 항목에서 뺐다. 전체 검색이 그 값도 찾으므로 옛 주소는 전체로 읽는다. */
+  it('상품 URL은 검색 항목에 없고, 옛 주소의 field=product는 전체로 읽는다', () => {
+    expect(ADMIN_CLAIM_SEARCH_FIELDS.map((option) => option.label)).toEqual(['전체', '주문·요청번호', '구매자', '구매자 이메일', '수령인명', '상품주문번호']);
+    expect(normalizeAdminClaimFilters({ field: 'product', query: 'abc' })).toMatchObject({ query: 'abc' });
+    expect(normalizeAdminClaimFilters({ field: 'product', query: 'abc' }).field).toBeUndefined();
+  });
+
+  /* L-01·L-03: 기간 기준 이름은 표의 열 이름과 같다(접수일·입고완료일). 단계 이름은 세 유형이 같은 틀이다. */
+  it('기간 기준과 단계 이름은 표와 같은 말을 쓰고 세 유형이 같은 틀이다', () => {
+    expect(ADMIN_CLAIM_DATE_FIELDS.map((option) => option.label)).toEqual(['접수일', '결제일', '입고완료일', '처리완료일']);
+    for (const type of ['cancel', 'return', 'exchange'] as const) {
+      const name = { cancel: '취소', return: '반품', exchange: '교환' }[type];
+      expect(adminClaimStageLabel(type, 'requested')).toBe(`${name}요청`);
+      expect(adminClaimStageLabel(type, 'in_review')).toBe(`${name}검토중`);
+      expect(adminClaimStageLabel(type, 'on_hold')).toBe(`${name}보류`);
+      expect(adminClaimStageLabel(type, 'completed')).toBe(`${name}완료`);
+      expect(adminClaimStageLabel(type, 'rejected')).toBe(`${name}거부`);
+      expect(adminClaimStageLabel(type, 'withdrawn')).toBe(`${name}철회`);
+    }
+    /* 창고에 돌아온 단계는 고객 화면·엑셀의 '입고완료'와 같은 말이다. */
+    expect(adminClaimStageLabel('return', 'collected')).toBe('입고완료');
+    expect(adminClaimStageLabel('exchange', 'collected')).toBe('입고완료');
+    expect(adminClaimStageLabel('return', 'collecting')).toBe('수거중');
+    expect(adminClaimStageLabel('cancel', 'processing')).toBe('처리중');
+    expect(adminClaimStageLabel('cancel', 'needs_review')).toBe('결제확인필요');
   });
 
   it('기본 필터는 미처리다', () => {
@@ -306,29 +338,6 @@ describe('콘솔 폼 정규화', () => {
     )).toMatchObject({ ok: true, value: { method: 'bank_transfer', stage: 'completed' } });
   });
 
-  /* 운송장 형식은 orders.tracking_number CHECK와 같다. 갈라지면 링크가 깨진다. */
-  it('재출고 운송장 형식을 DB와 맞춘다', () => {
-    expect(normalizeAdminClaimReshipmentForm(
-      formData({ carrier: 'hanjin', claimId: CLAIM_ID, trackingNumber: 'ab-12' }),
-    )).toMatchObject({ ok: false });
-    expect(normalizeAdminClaimReshipmentForm(
-      formData({ carrier: 'hanjin', claimId: CLAIM_ID, trackingNumber: 'ld00000000c04' }),
-    )).toEqual({
-      ok: true,
-      value: { claimId: CLAIM_ID, carrier: 'hanjin', trackingNumber: 'LD00000000C04', items: [] },
-    });
-  });
-
-  it('재출고 옵션을 주문 품목별로 받고 중복·잘못된 식별자를 거절한다', () => {
-    const data = formData({ claimId: CLAIM_ID, carrier: 'hanjin', trackingNumber: 'EX44000001' });
-    data.set(`variant:${CLAIM_ID}`, '00000000-0000-4000-8000-000000044011');
-    expect(normalizeAdminClaimReshipmentForm(data)).toMatchObject({ ok: true, value: { items: [{ orderItemId: CLAIM_ID, variantId: '00000000-0000-4000-8000-000000044011' }] } });
-    data.append(`variant:${CLAIM_ID}`, '00000000-0000-4000-8000-000000044010');
-    expect(normalizeAdminClaimReshipmentForm(data)).toMatchObject({ ok: false });
-    data.delete(`variant:${CLAIM_ID}`); data.set('variant:not-an-item', 'bad');
-    expect(normalizeAdminClaimReshipmentForm(data)).toMatchObject({ ok: false });
-  });
-
   it('수거 단계는 두 값만 받는다', () => {
     expect(normalizeAdminClaimCollectionForm(
       formData({ claimId: CLAIM_ID, stage: 'processing' }),
@@ -352,5 +361,45 @@ describe('콘솔 폼 정규화', () => {
     expect(normalizeAdminClaimDecisionForm(
       formData({ claimId: 'not-a-uuid', decision: 'approve' }),
     )).toMatchObject({ ok: false });
+  });
+});
+
+/* F-10: 목록에 보이는 요청번호 'C00021'을 그대로 붙여 넣어도 찾아져야 한다. DB는 숫자 글자로 비교하므로 DB가 받는 값('21')으로 바꿔 보낸다. */
+describe('요청번호 검색어', () => {
+  it('화면에 보이는 요청번호는 앞의 C와 0을 떼어 DB가 받는 숫자로 바꾼다 — 표시 형식(orderClaimReferenceLabel)의 역이다', () => {
+    expect(adminClaimSearchQuery('C00021')).toBe('21');
+    expect(adminClaimSearchQuery('c00021')).toBe('21');
+    expect(adminClaimSearchQuery('  C00021  ')).toBe('21');
+    expect(adminClaimSearchQuery('C21')).toBe('21');
+    expect(adminClaimSearchQuery('C00100')).toBe('100');
+    expect(adminClaimSearchQuery('C123456')).toBe('123456');
+    /* 화면이 만드는 모든 번호가 되돌아온다. */
+    for (const reference of [1, 9, 21, 100, 99999, 100000, 1234567]) expect(adminClaimSearchQuery(orderClaimReferenceLabel(reference))).toBe(String(reference));
+  });
+
+  it("요청번호를 찾는 '전체'·'주문·요청번호' 검색에서만 바꾸고, 그 밖의 검색 항목은 적은 그대로 보낸다", () => {
+    expect(adminClaimSearchQuery('C00021', undefined)).toBe('21');
+    expect(adminClaimSearchQuery('C00021', 'order')).toBe('21');
+    for (const field of ['buyer', 'email', 'recipient', 'item'] as const) expect(adminClaimSearchQuery('C00021', field)).toBe('C00021');
+  });
+
+  it('요청번호 모양이 아니면 그대로 둔다 — 숫자만, 번호가 아닌 글, 0, 다른 글자가 섞인 값', () => {
+    for (const query of ['21', '00021', '', 'C', 'C0', 'C00', 'C-21', 'C00021A', 'CC00021', 'C 00021', 'X00021', '20261126-0000012', 'abc']) {
+      expect(adminClaimSearchQuery(query), query).toBe(query.trim());
+    }
+  });
+});
+
+/* F-14: 회수 확인 창·결과 글의 입고일도 목록·상세와 같은 날짜 표기("2026. 11. 26.")로 보인다. */
+describe('입고일 표기', () => {
+  it('날짜 칸의 값(YYYY-MM-DD)을 목록·상세가 쓰는 표기로 바꾼다 — 월·일의 앞자리 0은 붙이지 않는다', () => {
+    expect(adminClaimReceivedOnLabel('2026-11-26')).toBe('2026. 11. 26.');
+    expect(adminClaimReceivedOnLabel('2026-01-02')).toBe('2026. 1. 2.');
+    expect(adminClaimReceivedOnLabel('2026-12-31')).toBe('2026. 12. 31.');
+  });
+
+  it('날짜로 읽을 수 없는 값은 받은 그대로 둔다', () => {
+    expect(adminClaimReceivedOnLabel('')).toBe('');
+    expect(adminClaimReceivedOnLabel('오늘')).toBe('오늘');
   });
 });

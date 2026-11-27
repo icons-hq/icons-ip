@@ -1,7 +1,11 @@
 /**
  * 재고 부족 부분 취소(ADR-0032)의 운영 화면 문구. DB 판정 코드를 운영팀 어휘(상품·옵션)로 옮긴다. 원문 코드는 노출하지 않는다.
  */
-import type { OrderPartialCancellationState } from '@/lib/orders/partial-cancellation';
+import { krwAmountWords } from '@/lib/format';
+import { BANK_REFUND_LABELS } from './bank-transfer-refund';
+import type { AdminConfirmRequest } from './confirm';
+import { ADMIN_SALES_ACCESS_DENIED } from './vocabulary';
+import type { OrderPartialCancellationPlan, OrderPartialCancellationState } from '@/lib/orders/partial-cancellation';
 
 export const ORDER_PARTIAL_CANCELLATION_STATE_LABELS: Record<OrderPartialCancellationState, string> = {
   processing: '결제사 확인 중',
@@ -13,17 +17,17 @@ export const ORDER_PARTIAL_CANCELLATION_STATE_LABELS: Record<OrderPartialCancell
 
 /** 주문 단위로 부분 취소를 열 수 없는 이유. */
 const ORDER_BLOCKERS: Record<string, string> = {
-  partial_cancel_disabled: '재고 부족 부분 취소 설정이 꺼져 있습니다.',
+  partial_cancel_disabled: '재고 부족 부분 취소가 꺼져 있습니다. 운영 준비 → 운영 스위치에서 켤 수 있습니다.',
   order_not_found: '주문을 찾을 수 없습니다.',
-  order_not_partial_cancelable: '결제완료·발주확인·배송중(일부 발송) 주문의 발송 전 배송 건만 부분 취소할 수 있습니다. 배송완료·구매확정 주문은 반품으로 처리해주세요.',
+  order_not_partial_cancelable: '신규주문·발주확인·배송중(일부 발송) 주문의 발송 전 배송 건만 부분 취소할 수 있습니다. 배송완료·거래확정 주문은 반품으로 처리해주세요.',
   shipment_already_dispatched: '모든 배송 건이 이미 발송돼 부분 취소할 몫이 없습니다. 발송된 상품은 반품으로 처리해주세요.',
   order_claim_in_progress: '진행 중인 취소·반품·교환 요청이 있습니다. 그 요청을 먼저 처리해주세요.',
   partial_cancel_in_progress: '결제사 확인을 기다리는 부분 취소가 있습니다. 아래 기록에서 결과를 먼저 확인해주세요.',
   payment_reconciliation_required: '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.',
-  payment_unavailable: '결제 기록이 한 건의 결제완료가 아니라 부분 취소할 수 없습니다.',
-  partial_cancel_unsupported: '이 결제는 결제사 부분 취소를 받지 않아 품목 부분 취소를 진행할 수 없습니다(나이스페이·코페이·정기배송, 구매안전서비스(에스크로)를 쓴 무통장입금·계좌이체, 에스크로 적용 여부를 아직 확인하지 못한 무통장입금·계좌이체, 은행이 입금을 되돌린 무통장입금). 전액 환불로 돌리지 않습니다. 에스크로 여부는 보통 결제 뒤 15분 안에 확인되니 잠시 뒤 다시 열어 보고, 그래도 막히면 고객과 다시 상의해 운영자 전액 취소 여부를 정해주세요.',
-  legacy_order: '금액 배분 기록이 없는 이전 주문이라 품목별 환불액을 정할 수 없습니다.',
-  partial_cancel_v1_allocation_mismatch: '결제 금액이 상품·쿠폰·적립금·배송비 기록과 맞지 않아 상품별 환불액을 확정할 수 없습니다. 부분 취소하지 않고 개발 담당에게 대조를 요청해주세요. 이 주문은 재고 부족 부분 취소 대신 운영자 전액 취소로 처리합니다.',
+  payment_unavailable: '결제 기록이 결제완료 한 건이 아니거나 주문 금액과 달라서 부분 취소할 수 없습니다.',
+  partial_cancel_unsupported: '이 결제는 결제사 부분 취소를 받지 않아 상품 부분 취소를 할 수 없습니다. 전액 환불로 돌리지 않습니다. 부분 취소가 안 되는 결제는 나이스페이·코페이·정기배송, 구매안전서비스(에스크로)를 쓴 무통장입금·계좌이체, 에스크로 적용 여부를 아직 확인하지 못한 무통장입금·계좌이체, 은행이 입금을 되돌린 무통장입금입니다. 에스크로 여부는 보통 결제 15분 안에 확인되니 잠시 뒤 다시 열어 보세요. 그래도 막히면 고객과 다시 상의해 운영자 전액 취소로 처리할지 정해주세요.',
+  legacy_order: '주문 당시 상품별 결제 금액이 기록되지 않은 옛 주문이라 상품별 환불액을 정할 수 없습니다.',
+  partial_cancel_v1_allocation_mismatch: '결제 금액이 상품·쿠폰·적립금·배송비 기록과 맞지 않아 상품별 환불액을 확정할 수 없습니다. 부분 취소하지 않고 개발 담당에게 확인을 요청해주세요. 이 주문은 재고 부족 부분 취소 대신 운영자 전액 취소로 처리합니다.',
   partial_cancel_v1_allocation_unavailable: '주문 당시 기록만으로는 상품별 금액 배분을 확정할 수 없어 부분 취소할 수 없습니다.',
 };
 
@@ -44,17 +48,17 @@ const V1_ALLOCATION_ISSUES: Record<string, string> = {
   items_missing: '주문 상품 기록이 없습니다.',
 };
 
-/** 품목 단위로 고를 수 없는 이유(문맥 items[].blocker). */
+/** 상품 단위로 고를 수 없는 이유(문맥 items[].blocker). */
 const ITEM_BLOCKERS: Record<string, string> = {
   fully_canceled: '이미 모두 취소됨',
   preorder_item: '예약 판매 상품',
   production_item: '주문제작 상품',
   digital_item: '디지털·배송없음 상품',
-  allocation_missing: '금액 배분 기록 없음',
+  allocation_missing: '주문 당시 금액 기록 없음',
   shipment_missing: '배송 건 확인 필요',
   shipment_dispatched: '이미 발송된 배송 건(반품으로 처리)',
   stock_topology_changed: '상품 통합·교환 재출고 이력 있음',
-  order_item_not_found: '품목 없음',
+  order_item_not_found: '이 주문의 상품이 아님',
 };
 
 /** 시작·미리보기·송금 기록 RPC 거절 코드. */
@@ -65,28 +69,29 @@ const START_ERRORS: Record<string, string> = {
   warehouse_already_shipped: '창고가 그 배송 건을 이미 출고했다고 회신했습니다. 부분 취소하지 말고 운송장 회신을 받아 발송 처리한 뒤 고객 반품으로 접수해주세요.',
   warehouse_stop_reply_used: '그 배송 건의 출고 중단 회신은 이미 다른 취소에 쓰였습니다. 창고에 다시 확인하고 회신을 새로 기록해주세요.',
   partial_cancel_amount_changed: '확인창을 연 뒤 금액이 바뀌었습니다. 내용을 다시 확인해주세요.',
-  partial_cancel_customer_decision_required: '고객 결정 기록을 2자 이상 입력해주세요(최대 500자).',
+  partial_cancel_customer_decision_required: '고객이 정한 내용을 2자 이상 적어주세요(최대 500자).',
   invalid_partial_cancel_note: '메모는 500자 이내로 입력해주세요.',
   partial_cancel_refund_account_required: '무통장 주문은 환불받을 계좌(은행·계좌번호·예금주)를 모두 입력해주세요.',
-  partial_cancel_refund_account_not_allowed: '카드 결제 주문에는 환불계좌를 받지 않습니다.',
+  partial_cancel_refund_account_not_allowed: '환불계좌는 무통장 주문에 환불액이 있을 때만 받습니다. 이 주문은 계좌를 적지 않고 다시 시도해주세요.',
   partial_cancel_leaves_nothing: '남는 상품이 없습니다. 주문 전체를 취소하려면 운영자 전액 취소를 쓰세요.',
   partial_cancel_exceeds_balance: '환불액이 남은 결제 금액보다 큽니다. 새로고침해 남은 금액을 확인해주세요.',
-  partial_cancel_shipment_packed: '이 상품을 빼면 합포장으로 묶인 배송 건이 비게 됩니다. 출고 관리에서 먼저 합포장을 해제한 뒤 다시 시도해주세요.',
-  partial_cancel_resolution_reason_required: '해소 사유를 5~500자로 입력해주세요.',
-  invalid_partial_cancel_resolution: '해소 방법을 확인해주세요.',
+  partial_cancel_shipment_packed: '이 상품을 빼면 합포장으로 묶인 배송 건이 비게 됩니다. 발주(주문)확인/발송관리의 [합포장 관리]에서 먼저 합포장을 해제한 뒤 다시 시도해주세요.',
+  partial_cancel_resolution_reason_required: '해소 사유를 5~500자로 적어주세요.',
+  invalid_partial_cancel_resolution: '결제사 잔액 조회 결과로 해소 방법을 정하지 못했습니다. 새로고침한 뒤 다시 시도해주세요.',
   partial_cancel_not_needs_review: '결제확인필요 상태가 아닙니다. 새로고침해주세요.',
-  partial_cancel_resolution_evidence_mismatch: '결제사 잔액이 해소 근거와 맞지 않습니다. 다시 조회해주세요.',  partial_cancel_qty_exceeds_remaining: '남은 수량보다 많이 고를 수 없습니다.',
+  partial_cancel_resolution_evidence_mismatch: '조회한 결제사 잔액이 이 부분 취소 기록과 맞지 않습니다. 새로고침한 뒤 다시 조회해주세요.',
+  partial_cancel_qty_exceeds_remaining: '남은 수량보다 많이 고를 수 없습니다.',
   partial_cancel_item_not_found: '이 주문의 상품이 아닙니다. 새로고침해주세요.',
   invalid_partial_cancel_items: '취소할 상품을 고르고 수량을 남은 수량 안에서 입력해주세요.',
-  partial_cancel_operation_conflict: '같은 요청 번호가 다른 주문에 쓰였습니다. 새로고침해주세요.',
+  partial_cancel_operation_conflict: '이 처리는 다른 주문이나 다른 계정에서 이미 쓰였습니다. 화면을 새로고침한 뒤 다시 시도해주세요.',
   partial_cancel_transfer_evidence_required: '송금 근거와 확인 메모를 각각 2~300자로 입력해주세요.',
   partial_cancel_transfer_already_recorded: '이미 다른 송금 완료가 기록됐습니다.',
   partial_cancel_not_awaiting_transfer: '송금 대기 상태가 아닙니다. 새로고침해주세요.',
   partial_cancel_not_bank_transfer: '무통장 주문의 부분 취소가 아닙니다.',
-  partial_cancel_refund_account_missing: '환불계좌 원문이 없습니다(파기됨). 고객에게 계좌를 다시 받아 담당자에게 넘겨주세요.',
+  partial_cancel_refund_account_missing: '저장해 둔 환불 계좌가 없습니다(보관 기간이 지나 지웠습니다). 고객에게 계좌를 다시 받아 담당자에게 넘겨주세요.',
   bank_refund_permission_required: '송금 담당 권한이 필요합니다. 송금 권한이 있는 관리자 계정으로 로그인했는지 확인해주세요.',
   refund_account_auth_changed: '로그인 상태나 송금 담당 권한이 바뀌었습니다. 새로고침 뒤 다시 시도해주세요.',
-  operator_capability_required: '관리자 권한이 필요합니다.',
+  operator_capability_required: ADMIN_SALES_ACCESS_DENIED,
 };
 
 /** 결제사 확인 결과 사유(오케스트레이터 코드). */
@@ -115,7 +120,7 @@ const RESOLUTION_ERRORS: Record<string, string> = {
   local_state_unavailable: '부분 취소 상태를 읽지 못했습니다. 잠시 뒤 다시 시도해주세요.',
   provider_unavailable: '결제사 잔액을 조회하지 못했습니다. 잠시 뒤 다시 시도해주세요.',
   provider_mismatch: '결제사가 알려 준 결제가 엑스스퀘어에 기록된 결제와 다릅니다. 아무것도 바꾸지 않았습니다. 결제사 상점관리자의 결제 내역과 주문 상세의 결제 내역을 맞춰 봐 주세요.',
-  balance_unexplained: '결제사 잔액이 시작 때 잔액도, 이 취소를 뺀 잔액도 아닙니다(다른 취소가 끼었을 수 있음). 해소하지 않았습니다. 상점관리자의 취소 내역을 대조해주세요.',
+  balance_unexplained: '결제사 잔액이 시작 때 잔액도, 이 취소를 뺀 잔액도 아닙니다(다른 취소가 끼었을 수 있음). 해소하지 않았습니다. 상점관리자의 취소 내역을 확인해주세요.',
 };
 
 /** 해소 기록 라벨. */
@@ -176,15 +181,67 @@ export function orderPartialCancellationErrorMessage(message: string | null | un
   }
   if (value === 'goods_group_retry') return '재고를 함께 바꾸는 다른 작업이 진행 중입니다. 잠시 뒤 다시 시도해주세요.';
   if (value === 'partial_cancel_state_changed') return '확인창을 연 뒤 주문·배송 건이 바뀌었습니다. 새로고침해 최신 상태로 다시 확인해주세요.';
-  return '부분 취소를 처리하지 못했습니다. 최신 상태를 확인해주세요.';
+  return '부분 취소를 처리하지 못했습니다. 다른 사람이 먼저 처리했을 수 있으니 새로고침해 부분 취소 기록을 확인해주세요.';
 }
 
 export function orderPartialCancellationReconcileMessage(code: string) {
   if (RECONCILE_ERRORS[code]) return RECONCILE_ERRORS[code];
-  if (code.startsWith('provider_')) return `결제사 확인이 끝나지 않았습니다(${code}). 잠시 뒤 [결제사 확인 다시 하기]를 누르고, 계속 같으면 이 코드와 함께 결제 담당자에게 넘겨주세요. 그동안 이 주문은 출고되지 않습니다.`;
+  if (code.startsWith('provider_')) return `결제사 확인이 끝나지 않았습니다. 잠시 뒤 [결제사 확인 다시 하기]를 누르고, 계속 같으면 결제 담당자에게 코드(${code})를 알려 주세요. 그동안 이 주문은 출고되지 않습니다.`;
   return '결제사 확인을 마치지 못했습니다. 새로고침해 아래 부분 취소 기록의 상태를 확인한 뒤 다시 시도해주세요.';
 }
 
 export function orderPartialCancellationResolutionMessage(code: string) {
   return RESOLUTION_ERRORS[code] ?? '결제확인필요를 해소하지 못했습니다. 새로고침해 아래 부분 취소 기록의 상태를 확인한 뒤 다시 시도해주세요.';
+}
+
+/**
+ * 부분 취소 확인창의 제목·결과 문장·확정 버튼 이름. 금액은 확인창을 열 때 서버가 시작과 같은 계산으로 돌려준 값이라 실제 처리와 같다.
+ * 되돌릴 수 없고 돈·재고·구매자 알림이 움직이므로, 결제 방식마다 확정하면 무엇이 일어나는지를 말한다.
+ */
+export function orderPartialCancellationConfirmCopy(plan: Pick<OrderPartialCancellationPlan, 'provider' | 'refundAmount'>) {
+  const zero = plan.refundAmount === 0;
+  const bank = plan.provider === 'bank_transfer';
+  const outcome = zero
+    ? '고른 상품의 결제 금액이 0원(전액 할인)이라 결제사에 취소를 요청하지 않고, 바로 재고를 되돌리고 배송 건에서 뺍니다.'
+    : bank
+      ? '확정하면 바로 재고를 되돌리고 배송 건에서 빼며, 환불은 송금 대기로 남습니다.'
+      : '확정하면 결제사(토스)에서 이 금액만 부분 취소하고, 결제사 확인 뒤 재고를 되돌리고 배송 건에서 뺍니다. 결제사가 부분 취소를 받지 않는 결제면 아무것도 바꾸지 않습니다.';
+  return {
+    title: zero ? '이 상품만 취소할까요? (환불 0원)' : `이 상품만 취소하고 ${krwAmountWords(plan.refundAmount)}을 환불할까요?`,
+    description: `되돌릴 수 없습니다. ${outcome} 적용되면 구매자에게 알림이 갑니다.`,
+    confirmLabel: zero ? '부분 취소 확정 (환불 0원)' : bank ? '부분 취소 확정 (송금 대기)' : '부분 취소 확정',
+  };
+}
+
+/**
+ * 무통장 부분 취소·부분 반품 환불의 [송금 완료 기록] 확인창. 기록하면 그 환불이 끝나고 고객에게 알림이 가며 되돌릴 수 없다
+ * (DB: admin_record_order_partial_cancellation_transfer). 무통장 환불 칸의 같은 버튼(bankRefundConfirm의 송금 완료 기록)과 같은 말을 쓴다.
+ *
+ * 값은 화면에 이미 보이는 것만 쓴다 — 주문번호, 송금할 환불액, 가린 계좌(은행·계좌번호 뒷자리)와 가린 예금주.
+ * [계좌번호 전체 보기]로 전체 번호를 봤어도 확인창에는 가린 값만 적는다. 고객 알림 제목은 DB가 보내는 그대로다
+ * (private.notify_order_partial_cancellation · notify_order_partial_return의 'transferred').
+ */
+export function orderPartialCancellationTransferConfirm(input: {
+  orderNumber?: string | null;
+  refundAmount: number;
+  refundAccount?: { maskedAccount: string; maskedHolder: string } | null;
+  /** 부분 반품 환불 줄이면 true. 재고 부족 부분 취소와 이름·고객 알림 제목이 다르다. */
+  partialReturn?: boolean;
+}): AdminConfirmRequest {
+  const account = input.refundAccount?.maskedAccount
+    ? `받는 계좌: ${input.refundAccount.maskedAccount}${input.refundAccount.maskedHolder ? ` (예금주 ${input.refundAccount.maskedHolder})` : ''}` : null;
+  const done = input.partialReturn
+    ? "기록하면 이 부분 반품 환불이 끝나고 고객에게 '반품 환불을 송금했어요' 알림이 갑니다. 되돌릴 수 없습니다."
+    : "기록하면 이 부분 취소 환불이 끝나고 고객에게 '부분 취소 환불을 송금했어요' 알림이 갑니다. 되돌릴 수 없습니다.";
+  return {
+    title: '송금을 마쳤다고 기록할까요?', confirmLabel: BANK_REFUND_LABELS.complete_transfer, cancelLabel: '돌아가기', destructive: true,
+    message: [
+      input.orderNumber ? `주문 ${input.orderNumber}` : null,
+      `보낸 금액: ${krwAmountWords(input.refundAmount)}`,
+      account,
+      '',
+      '은행에서 송금을 마친 뒤에만 누릅니다. 이 버튼은 돈을 보내지 않고 기록만 남깁니다.',
+      done,
+    ].filter((line): line is string => typeof line === 'string').join('\n'),
+  };
 }

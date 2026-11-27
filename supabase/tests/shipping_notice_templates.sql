@@ -42,12 +42,15 @@ select pg_temp.expect_error(format('select public.admin_activate_shipping_notice
 select public.admin_save_shipping_notice_template(:'template_id'::uuid, 'shipping-test-v2', 2, '배송 검증',
   E'검증 배송 안내\n둘째 줄', E'검증 교환 반품 안내\n둘째 줄', E'검증 CS', '02-0000-0000', 'shipping@example.test', :'template_updated_at'::timestamptz) as saved \gset
 select (:'saved'::jsonb->>'updatedAt') as template_updated_at \gset
+-- 확인 근거는 더는 필수가 아니다(20261127106000). 보낸 근거는 전처럼 길이(2000자)를 보고 저장한다.
+-- 근거 없이 활성화하는 길은 shipping_notice_template_single_save.sql이 본다.
 select pg_temp.expect_error(format($sql$select public.admin_activate_shipping_notice_template(%L,%L,%L)$sql$,
-  :'template_id'::uuid, :'template_updated_at'::timestamptz, E' \n\t'), 'shipping_notice_template_required', '23514');
+  :'template_id'::uuid, :'template_updated_at'::timestamptz, repeat('가', 2001)), 'shipping_notice_template_required', '23514');
 select public.admin_activate_shipping_notice_template(:'template_id'::uuid, :'template_updated_at'::timestamptz, E'운영 자료 확인\n문서 대조') as activated \gset
 select 1 / case when (:'activated'::jsonb->>'status') = 'active'
-  and exists(select 1 from public.shipping_notice_templates where id = :'template_id'::uuid and confirmed_by = '00000000-0000-4000-8000-000000049011')
-  then 1 else 0 end as assert_activation_requires_confirmation_and_audit;
+  and exists(select 1 from public.shipping_notice_templates where id = :'template_id'::uuid and confirmed_by = '00000000-0000-4000-8000-000000049011'
+    and confirmation_evidence = E'운영 자료 확인\n문서 대조')
+  then 1 else 0 end as assert_activation_records_actor_and_sent_evidence;
 
 reset role;
 select set_config('request.jwt.claim.sub', '', true);

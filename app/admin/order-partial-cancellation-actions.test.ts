@@ -96,8 +96,8 @@ describe('결제확인필요 해소 서버 액션', () => {
   it('조회 전용(sales.read) 사용자는 처리 액션이 거절되고 읽기만 허용된다', async () => {
     mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, user: { id: ids.actor }, capabilities: ['sales.read'] });
     mocks.inspect.mockResolvedValue({ ok: true, resolution: 'not_moved', observedBalance: 40000 });
-    expect(await resolveOrderPartialCancellationAction(input)).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
-    expect(await startOrderPartialCancellationAction({ orderId: ids.orderId } as never)).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
+    expect(await resolveOrderPartialCancellationAction(input)).toEqual({ ok: false, error: '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.' });
+    expect(await startOrderPartialCancellationAction({ orderId: ids.orderId } as never)).toEqual({ ok: false, error: '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.' });
     expect(mocks.inspect).not.toHaveBeenCalled();
     expect(mocks.serviceRpc).not.toHaveBeenCalled();
     mocks.userRpc.mockResolvedValue({ data: null, error: { message: 'x' } });
@@ -107,7 +107,8 @@ describe('결제확인필요 해소 서버 액션', () => {
 
   it('capability가 없는 사용자는 읽기도 거절된다', async () => {
     mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, user: { id: ids.actor }, capabilities: ['cs.manage'] });
-    expect(await loadOrderPartialCancellationAction(ids.orderId)).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
+    /* 기록 읽기는 주문 조회 권한(sales.read)이다 — 판매 관리가 아니라 그 권한의 이름으로 말한다. */
+    expect(await loadOrderPartialCancellationAction(ids.orderId)).toEqual({ ok: false, error: '주문 조회 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.' });
     expect(mocks.userRpc).not.toHaveBeenCalled();
   });
 });

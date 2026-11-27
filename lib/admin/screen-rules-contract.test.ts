@@ -39,12 +39,9 @@ const LEGACY_PICKERS: readonly string[] = [
   'components/admin/screens/OperatorInvitationConsole.tsx', // 운영자 초대 목록(목록 화면)
   'components/admin/screens/PgSettlementScreen.tsx', // PG 정산 대조(목록 화면)
   'components/admin/screens/ReviewEventTemplatesScreen.tsx', // 리뷰이벤트 문구 템플릿 관리·고르기
-  'components/admin/screens/ShippingChargeGroupsPanel.tsx', // 배송비 묶음그룹 관리
   'components/admin/screens/ShippingNoticeTemplatesScreen.tsx', // 배송 안내 템플릿 관리(목록 화면)
-  'components/admin/screens/ShippingSettingsApplyDialog.tsx', // 배송정보 적용 상품 선택
   'components/admin/screens/ShippingSettingsTemplatesScreen.tsx', // 배송정보 템플릿 관리(목록 화면)
   'components/admin/screens/ShoppingStoriesScreen.tsx', // 쇼핑스토리 목록
-  'components/admin/shipping-charge-groups/ShippingChargeGroupAssignmentDialog.tsx', // 묶음그룹 연결 상품·배정
 ];
 
 function files(dir: string, extension: RegExp): string[] {

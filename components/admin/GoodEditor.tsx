@@ -549,13 +549,19 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
    * 공개 미리보기·상세 HTML 정리는 무겁다(R19). 입력과 무관한 상태 변화(오류·안내·업로드 진행)에는 다시 계산하지 않고,
    * 입력 변화도 지연 값으로 받아 입력칸 응답을 먼저 그린 뒤 미리보기를 낮은 우선순위로 다시 그린다.
    */
+  /*
+   * 배송 안내 템플릿 목록. 선택창을 열 때 다시 읽은 목록(GoodsShippingNoticeField의 onOptionsChange)을 받아, 방금 만들거나 고친 템플릿을
+   * 골라도 접힌 줄 요약과 미리보기가 같은 목록에서 그 템플릿을 찾게 한다. 화면이 새 목록을 주면(저장 뒤 다시 그린 화면) 그쪽이 더 새것이라 버린다.
+   */
+  const [freshNoticeOptions, setFreshNoticeOptions] = useState<{ base: GoodsShippingNoticeOption[]; list: GoodsShippingNoticeOption[] } | null>(null);
+  const noticeOptions = freshNoticeOptions?.base === shippingNoticeOptions ? freshNoticeOptions.list : shippingNoticeOptions;
   const previewValues = useDeferredValue(values);
   const previewImageUrls = useDeferredValue(imageUrls);
   /* 특정기간만 할인은 폼의 price가 판매가 그대로라 화면 입력(priceDraft)에서 기간을 읽어야 미리보기에 할인이 나온다. */
   const previewPriceDraft = useDeferredValue(priceDraft);
   const { ip: previewIp, detail: previewDetail, shippingPolicy } = useMemo(() => buildGoodEditorPreview({
-    values: previewValues, imageUrls: previewImageUrls, selected, catalogIps, origins, returnAddresses, shippingNoticeOptions, priceDraft: previewPriceDraft,
-  }), [previewValues, previewImageUrls, previewPriceDraft, selected, catalogIps, origins, returnAddresses, shippingNoticeOptions]);
+    values: previewValues, imageUrls: previewImageUrls, selected, catalogIps, origins, returnAddresses, shippingNoticeOptions: noticeOptions, priceDraft: previewPriceDraft,
+  }), [previewValues, previewImageUrls, previewPriceDraft, selected, catalogIps, origins, returnAddresses, noticeOptions]);
   const previewWithAttributes = useMemo(() => ({ ...previewDetail, attributes: attributePreview }), [previewDetail, attributePreview]);
   /* 특정기간만 할인은 기간 안에서만 고객 화면에 나온다. 시작 전이면 미리보기에 할인이 없는 까닭을 알린다. */
   const periodNote = goodPreviewPeriodNote(priceResult.period);
@@ -601,7 +607,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const won = (amount: number) => `${amount.toLocaleString('ko-KR')}원`;
   const shippingFee = values.shippingFeeType === 'free' ? '무료배송' : values.shippingFeeType === 'individual' ? `개별 배송비 ${won(Number(values.individualFee) || 0)}`
     : origin ? `출고지 정책(기본 ${won(origin.baseFee)}${origin.freeThreshold === null ? '' : ` · ${won(origin.freeThreshold)} 이상 무료`})` : '출고지 정책';
-  const shippingNotice = goodShippingNoticeSummaryName(values.shippingNoticeTemplate, shippingNoticeOptions, selected?.shippingNoticeSnapshot);
+  const shippingNotice = goodShippingNoticeSummaryName(values.shippingNoticeTemplate, noticeOptions, selected?.shippingNoticeSnapshot);
   const shippingDefault = values.shippingFeeType === 'policy' && !values.shippingNoticeTemplate && values.originId === DEFAULT_FULFILLMENT_ORIGIN_ID && Boolean(origin);
   /* KC를 끝낸 뒤에도 지난 공개 보류 안내가 남지 않게 지금 서버 판정을 함께 본다. */
   const kcBlockedVisible = Boolean(state.kcPublishBlocked && state.message && !published && readiness?.publicReview !== 'current' && !draftSaved);
@@ -757,8 +763,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <GoodEditorSection title="배송·반품·결제" id="good-section-delivery" errorCount={errorCount('shipping', 'claims', 'sale')} summary={`${origin?.name ?? '출고지 확인 필요'} · ${shippingFee}`}>
         <GoodFoldedRow title="출고지·배송비" id="good-section-shipping" errorCount={errorCount('shipping')} isDefault={shippingDefault} defaultOpen={!initial.originId} summary={`${origin?.name ?? '출고지 확인 필요'} · ${shippingFee} · ${shippingNotice}`}>
           <OwnedFields locked={aggregationOwned} fields={SHARED_SHIPPING_FIELDS} values={initial}><GoodsFulfillmentFields regionSummaries={regionSummaries} origins={origins} value={{ originId: initial.originId || null, shippingFeeType: initial.shippingFeeType as 'policy' | 'free' | 'individual', individualFee: Number(initial.individualFee) }} errors={errors} /></OwnedFields>
-          <GoodsShippingNoticeField options={shippingNoticeOptions} value={initial.shippingNoticeTemplate} error={errors.shippingNoticeTemplate} currentName={selected?.shippingNoticeSnapshot?.name}
-            savedValue={selected?.shippingNoticeSnapshot ? `${selected.shippingNoticeSnapshot.code}@${selected.shippingNoticeSnapshot.version}` : ''} />
+          <GoodsShippingNoticeField options={noticeOptions} value={initial.shippingNoticeTemplate} error={errors.shippingNoticeTemplate} currentName={selected?.shippingNoticeSnapshot?.name}
+            savedValue={selected?.shippingNoticeSnapshot ? `${selected.shippingNoticeSnapshot.code}@${selected.shippingNoticeSnapshot.version}` : ''}
+            onOptionsChange={(list) => setFreshNoticeOptions({ base: shippingNoticeOptions, list })} />
         </GoodFoldedRow>
         <GoodsClaimPolicyFields values={initial} current={values} errors={errors as Record<string, string>} returnAddresses={returnAddresses} />
         <GoodsPaymentMethodFields values={initial} current={values} errors={errors} />

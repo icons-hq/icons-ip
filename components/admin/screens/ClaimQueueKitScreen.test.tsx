@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { adminClaimHref, normalizeAdminClaimFilters, type AdminClaimConsoleData, type AdminClaimFilters } from '@/lib/admin/claims';
 import { KitDatePresets } from '@/components/admin/kit/date-presets';
 import { ClaimQueueKitScreen } from './ClaimQueueKitScreen';
+import { CLAIM_QUEUE_HELP } from '@/lib/admin/help/claim-queue';
 import { claimKitFilterOptions, claimKitFiltersFor, claimKitStateFor } from './ClaimQueueKitTable';
 
 /* kit 표는 useRouter로 이동한다. 기존 목록 테스트는 라우터 없이 렌더됐지만 이 화면은 목이 필요하다. */
@@ -44,8 +45,11 @@ describe('ClaimQueueKitScreen (admin kit)', () => {
   it('서버 렌더에서 운영팀 어휘로 그리고 영어 부품 문구를 남기지 않는다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />);
     expect(html).toContain('요청번호');
-    expect(html).toContain('취소처리상태');
-    expect(html).toContain('취소사유');
+    /* 세 목록 모두 같은 이름이다 — 유형 접두('취소사유'·'취소처리상태')를 붙이지 않는다. */
+    expect(html).toContain('>처리 상태<');
+    expect(html).toContain('>사유<');
+    expect(html).not.toContain('취소처리상태');
+    expect(html).not.toContain('취소사유');
     expect(html).toContain('페이지당 행');
     expect(html).toContain('1 / 1 페이지');
     expect(html).toContain('0건 선택');
@@ -64,15 +68,33 @@ describe('ClaimQueueKitScreen (admin kit)', () => {
     /* 결제 확인 건이 없으면 새 요청이 먼저다. */
     expect(renderToStaticMarkup(<ClaimQueueKitScreen data={data({ counts: { ...counts, needs_review: 0 } })} now={NOW} />)).toContain('취소요청 2건 오래된 순으로 보기');
     const onIt = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ counts, filters: { ...FILTERS, stage: 'needs_review', sort: 'oldest' } })} now={NOW} />);
-    expect(onIt).not.toContain('오래된 순으로 처리'); expect(onIt).toContain('맨 위 요청부터 요청번호를 누르면');
+    expect(onIt).not.toContain('오래된 순으로 처리'); expect(onIt).toContain('맨 위 요청부터 처리합니다.');
     expect(html).toContain('최장 대기 1일째');
   });
 
-  /* 사람 눈 판정: 검색은 위 줄, 조건은 아래 줄이라 조건을 바꾼 뒤 검색을 눌러야 하는지 몰랐다. */
-  it('사유·처리상태·기간은 바로 적용된다고 목록 머리에서 말한다', () => {
+  /* 보일 것이 없는 줄은 그리지 않는다 — 빈 테두리 상자를 남기지 않는다. */
+  it('먼저 처리할 단계도 오래 기다린 요청도 없으면 그 줄을 그리지 않는다', () => {
+    const none = { requested: 0, in_review: 0, collecting: 0, collected: 0, on_hold: 0, processing: 0, needs_review: 0, completed: 0, rejected: 0, withdrawn: 0 };
+    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ counts: none, rows: [], total: 0 })} now={NOW} />);
+    expect(html).not.toContain('data-claim-next-action');
+  });
+
+  /* 글보다 화면(L-05): 조건은 한 양식에 모여 있고 [검색] 버튼이 그 안에 있다. '검색을 눌러야 조회됩니다' 같은 늘 보이는 안내를 두지 않는다. */
+  it('조건과 [검색]·[초기화]는 한 양식에 있고, 검색을 눌러야 조회된다는 안내 글은 두지 않는다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />);
-    expect(html).toContain('검색어·사유·처리상태·기간을 고른 뒤 검색을 눌러야 조회됩니다.');
-    expect(html.indexOf('고르면 바로 적용')).toBeLessThan(html.indexOf('data-claim-next-action'));
+    expect(html).not.toContain('검색을 눌러야 조회됩니다');
+    const form = html.slice(html.indexOf('<form'), html.indexOf('</form>'));
+    expect(form).toContain('for="claim-filter-reason"');
+    expect(form).toContain('for="claim-filter-stage"');
+    expect(form).toMatch(/<button[^>]*type="submit"[^>]*>검색<\/button>/);
+    expect(form).toContain('>초기화<');
+  });
+
+  /* L-04: [초기화]는 처음 열었을 때 상태(미처리 전체)로 돌아간다. 완료·거부까지 다 나오는 '전체'가 아니다. */
+  it('[초기화]는 조건을 비우고 처음 열었을 때의 미처리 전체로 돌아간다', () => {
+    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ filters: { ...FILTERS, stage: 'completed', query: 'C00031', reasonType: 'change_of_mind' } })} now={NOW} />);
+    const reset = html.match(/<a[^>]*href="([^"]*)"[^>]*>초기화<\/a>/)?.[1] ?? '';
+    expect(reset).toBe('/admin/sales/claims/cancels?stage=open&amp;page=1');
   });
 
   /* 사람 눈 판정: 세 목록 중 취소에만 '이 페이지'가 붙었다. 말은 같게 두고 페이지 기준은 도움말로 밝힌다. */
@@ -95,11 +117,14 @@ describe('ClaimQueueKitScreen (admin kit)', () => {
   });
 
   /* 사람 눈 판정: 체크칸은 있는데 체크하고 누를 버튼이 보이지 않아 체크해야 나오는 건지 알 수 없었다. */
-  it('표 위에 상세에서 처리한다고 말하고 지금 걸린 단계 조건을 적는다', () => {
+  it('표 위에는 지금 걸린 단계 조건을 적고, 요청번호 링크가 스스로 말하므로 상세가 열린다는 글은 접힌 메뉴설명에만 둔다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ filters: { ...FILTERS, stage: 'open' } })} now={NOW} />);
-    expect(html).toContain('요청번호를 누르면 이 자리에서 상세가 열려 처리합니다.');
-    expect(html.indexOf('요청번호를 누르면 이 자리에서')).toBeLessThan(html.indexOf('<thead'));
+    expect(html).not.toContain('요청번호를 누르면 이 자리에서 상세가 열려 처리합니다.');
     expect(html).toContain(' · 미처리 전체');
+    /* 접힌 메뉴설명(details) 안에만 있다 — 가이드가 인용하는 문장이라 그대로 둔다. */
+    const guide = html.slice(html.indexOf('data-sales-guide'), html.indexOf('</details>'));
+    expect(guide).toContain('요청번호를 누르면 목록 위에 상세가 열리고');
+    expect(html.indexOf('요청번호를 누르면 목록 위에 상세가 열리고')).toBeLessThan(html.indexOf('data-sales-results'));
   });
 
   it('요청번호는 같은 목록 위 상세 팝업 링크다', () => {
@@ -236,7 +261,7 @@ function selectValue(html: string, label: string, id?: string) {
 }
 
 describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
-  it.each([['recipient', '수령인명'], ['item', '상품주문번호'], ['product', '상품 URL']] as const)('%s 상세조건과 전체 주문 처리 경계를 표시한다', (field, label) => {
+  it.each([['recipient', '수령인명'], ['item', '상품주문번호']] as const)('%s 상세조건과 전체 주문 처리 경계를 표시한다', (field, label) => {
     const source = returns(); source.filters = { ...source.filters, field, query: '번호_%', page: 2 };
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={source} now={RETURN_NOW} />);
     expect(selectValue(html, '검색 항목')).toBe(label);
@@ -262,7 +287,7 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
     const header = html.slice(html.indexOf('<thead'), html.indexOf('</thead>'));
     /* 사람 눈 판정: 유형은 목록마다 값이 하나뿐이라 자리만 차지하고 그 탓에 환급 기한이 1440 화면에서 잘렸다. 기본으로 숨기고 조회항목 설정에서 켠다. */
     expect(header).not.toContain('>유형<');
-    const order = ['요청번호', '주문번호', '사유', '상태', '구매자', '주문금액', '접수일', '환급 기한', '환불 수단', '처리자'].map((column) => header.indexOf(`>${column}<`));
+    const order = ['요청번호', '주문번호', '사유', '처리 상태', '구매자', '결제금액', '접수일', '환불 기한', '환불 수단', '처리자'].map((column) => header.indexOf(`>${column}<`));
     expect(order.every((at) => at > 0)).toBe(true);
     expect([...order].sort((a, b) => a - b)).toEqual(order);
     expect(html).toContain('C00012');
@@ -272,6 +297,8 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
     expect(html).toContain('₩43,000');
     expect(html).toContain('단순 변심');
     expect(html).toContain('상품 하자·오배송');
+    /* 환불 기한이 언제부터 세는지는 표 아래 약관 문단이 아니라 칸 이름 옆 "?"가 말한다. */
+    expect(header).toContain('aria-label="환불 기한 도움말"');
   });
 
   /* 2026-10-12 QA-4: 운영자 전액 취소는 단순 변심이 아니라 운영 사유로 적고 거른다. */
@@ -300,18 +327,20 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
       expect(options.reason.map((option) => option.label)).not.toContain('운영자 전액 취소 전체');
       expect(options.stage.map((option) => option.value)).toEqual(expect.arrayContaining(['open', 'collecting', 'collected']));
     }
-    /* 표 도구 막대의 필터 이름도 유형을 따른다. */
+    /* 조건 이름은 세 목록이 같다. 어느 목록인지는 화면 제목과 양식의 이름(반품 요청 조회 조건)이 말한다. */
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={returns()} now={RETURN_NOW} />);
-    expect(html).toContain('반품사유');
-    expect(html).toContain('반품처리상태');
-    expect(html).not.toContain('취소처리상태');
+    expect(html).toContain('aria-label="반품 요청 조회 조건"');
+    expect(html).toMatch(/<label[^>]*for="claim-filter-reason"[^>]*>사유<\/label>/);
+    expect(html).toMatch(/<label[^>]*for="claim-filter-stage"[^>]*>처리 상태<\/label>/);
+    expect(html).not.toMatch(/반품사유|반품처리상태|취소처리상태/);
   });
 
-  /* SLA는 목록에서 가장 먼저 보는 값이다. 색만이 아니라 톤 속성으로 강조가 남아야 한다. */
-  it('환급 기한을 넘긴 행을 danger 톤으로 표시하고, 입고 전 요청에는 기한을 지어내지 않는다', () => {
+  /* SLA는 목록에서 가장 먼저 보는 값이다. 색만이 아니라 톤 속성으로 강조가 남아야 한다. 기한이 없을 때는 말이 제각각이던 '입고 전'·'종료' 대신 '-'로 같게 둔다(L-14). */
+  it('환불 기한을 넘긴 행을 danger 톤으로 표시하고, 입고 전 요청에는 기한을 지어내지 않고 -로 둔다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={returns()} now={RETURN_NOW} />);
     expect(html).toMatch(/<span[^>]* data-sla-tone="danger">기한 초과<\/span>/);
-    expect(html).toMatch(/<span[^>]* data-sla-tone="[a-z]+">입고 전<\/span>/);
+    expect(html).toMatch(/<span[^>]* data-sla-tone="muted">-<\/span>/);
+    expect(html).not.toMatch(/>입고 전<|>회수 없음<|>재출고 대기<|>종료</);
   });
 
   /* 결제수단은 private.payment_provider_evidence에만 있고 staff 표면이 없다(#250).
@@ -319,13 +348,15 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
   it('환불 수단은 원장에 적힌 값만 말한다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={returns()} now={RETURN_NOW} />);
     expect(html).toContain('>결제사 취소<');
-    expect(html).toContain('미접수');
+    /* 값이 없을 때는 '미접수'·'미배정'이 아니라 '-'다(L-14). */
+    expect(html).toMatch(/<span class="text-muted-foreground">-<\/span>/);
+    expect(html).not.toMatch(/미접수|미배정/);
   });
 
   /* 0건 칩을 감추면 "정말 0건"과 "집계 실패"를 구분할 수 없다. 반품·교환에는 수거 단계 칩이 있다. */
   it('0건 단계도 칩으로 남기고 수거 단계를 함께 센다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={returns()} now={RETURN_NOW} />);
-    for (const chip of ['반품요청 2건', '반품 검토중 0건', '수거중 1건', '수거완료 0건', '반품보류 1건', '처리중 0건', '결제확인필요 0건', '반품완료 0건', '반품거부 0건']) {
+    for (const chip of ['반품요청 2건', '반품검토중 0건', '수거중 1건', '입고완료 0건', '반품보류 1건', '처리중 0건', '결제확인필요 0건', '반품완료 0건', '반품거부 0건']) {
       expect(html).toContain(`aria-label="${chip}"`);
     }
     const cancel = renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />);
@@ -352,17 +383,18 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
     expect(checkbox('요청 C00012 선택')).not.toContain('aria-disabled="true"');
     expect(checkbox('요청 C00013 선택')).toContain('aria-disabled="true"');
     expect(html).toContain('aria-label="이 페이지에서 처리할 수 있는 요청 모두 선택"');
-    expect(html).toContain('승인·검토중·거부와 회수 확인·환불 완료 확정을 한 번에 처리합니다(최대 50건)');
+    /* 일괄 처리의 규칙은 확인창이 건수·금액·건너뛰는 건으로 보이므로 메뉴설명에 한 문단으로 적지 않는다(L-05). */
+    expect(html).not.toContain('한 번에 처리합니다(최대 50건)');
   });
 
-  it('반품·교환 메뉴설명은 배송비 정책·대기 목록과 상세에서 한 건씩 하는 처리를 안내한다', () => {
+  it('반품·교환 메뉴설명은 배송비 청구 설정·내역과 환불 송금 대기로 가는 링크만 두고, 일괄 처리 규칙은 적지 않는다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen canViewRefundTransfers data={returns()} now={RETURN_NOW} />);
-    expect(html).toContain('href="/admin/sales/claims/returns/fee-policy"');
-    expect(html).toContain('href="/admin/sales/claims/returns/fees"');
-    expect(html).toContain('반품·교환 전환도 처리 막대에서 고객 합의 근거를 한 번 입력해 한 번에 처리합니다.');
-    expect(html).toContain('회수 없이 재출고와 환불계좌를 새로 받아야 하는 무통장 건의 전환은 상세에서 한 건씩 처리합니다.');
-    expect(html).toContain('무통장·가상계좌·코페이 결제처럼 결제사 취소로 끝낼 수 없는 건은 사유와 함께 뺍니다.');
+    expect(html).toMatch(/<a[^>]*href="\/admin\/sales\/claims\/returns\/fee-policy"[^>]*>배송비 청구 설정<\/a>/);
+    expect(html).toMatch(/<a[^>]*href="\/admin\/sales\/claims\/returns\/fees"[^>]*>배송비 청구 내역<\/a>/);
     expect(html).toContain('환불 송금 대기');
+    for (const gone of ['반품·교환 전환도 처리 막대에서', '회수 없이 재출고와 환불계좌를 새로 받아야 하는', '결제사 취소로 끝낼 수 없는 건은 사유와 함께 뺍니다', '상품 URL', '배송비 입금·반환 대기 목록']) {
+      expect(html).not.toContain(gone);
+    }
     /* 교환에는 환불이 없어 송금 대기 안내를 하지 않는다. 취소에는 배송비 청구가 없다. */
     const exchange = renderToStaticMarkup(<ClaimQueueKitScreen canViewRefundTransfers data={returns({ claimType: 'exchange', rows: [], total: 0 })} now={RETURN_NOW} />);
     expect(exchange).not.toContain('환불 송금 대기');
@@ -371,12 +403,15 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
     expect(cancel).toContain('환불 송금 대기');
   });
 
-  /* 부분 환불은 계획의 명시적 제외 항목이다. 화면이 약속하는 순간 운영이 따라간다. */
-  it('부분 환불을 약속하지 않고 환급 기한의 기산점을 밝힌다', () => {
+  /* 부분 환불은 계획의 명시적 제외 항목이다. 화면이 약속하는 순간 운영이 따라간다 — 없는 기능을 안내하지 않고, 상세의 부분 반품 칸이 말하는 것을 목록에서 되풀이하지도 않는다. */
+  it('목록 아래에 약관 문단·부분 환급 안내를 늘 적어 두지 않고, 환불 기한의 기산점은 "?"로 밝힌다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={returns()} now={RETURN_NOW} />);
-    expect(html).toContain('주문 단위 전액');
-    expect(html).toContain('일부만 환급하는 처리는 제공하지 않습니다');
-    expect(html).toContain('약관 제16조');
+    expect(html).not.toContain('일부만 환급하는 처리는 제공하지 않습니다');
+    expect(html).not.toContain('주문 단위 전액');
+    expect(html).not.toContain('약관 제16조');
+    expect(CLAIM_QUEUE_HELP.refundDue.what).toContain('약관 제16조');
+    expect(CLAIM_QUEUE_HELP.refundDue.what).toContain('실제 입고일');
+    expect(CLAIM_QUEUE_HELP.refundDue.what).toContain('가장 늦은 날');
   });
 
   it('행이 없으면 조건에 맞는 요청이 없다고 알린다', () => {

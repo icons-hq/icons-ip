@@ -82,3 +82,12 @@ export function adminClaimCopy(copy: string): string {
 
 /** 판매상태(goods.stock) 값의 화면 이름. 목록·건수 칸·일괄 변경·상품 수정·가이드가 같은 말을 쓴다(저장 값은 그대로다). */
 export const ADMIN_STOCK_LABELS = { ok: '판매중', low: '소량 재고', soldout: '판매중지' } satisfies Record<import('@/lib/data').Stock, string>;
+
+/**
+ * 판매·출고 화면의 서버 액션이 권한이 없을 때 돌려주는 문장(주문·발송·미결제·지연 안내·배송 방식이 한 문장을 쓴다).
+ * 로그인이 끝난 경우도 같은 길로 오므로 둘 다 말하고, 다음 행동(계정 확인 → 권한 요청)을 쓴다.
+ * 권한 이름은 설정 화면의 낱말이다(판매 관리 = sales.manage, 출고 = sales.dispatch). 주문을 읽기만 하는 조회(sales.read)는 '주문 조회'다.
+ */
+export const ADMIN_SALES_ACCESS_DENIED = '판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';
+export const ADMIN_DISPATCH_ACCESS_DENIED = '출고 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';
+export const ADMIN_ORDER_READ_ACCESS_DENIED = '주문 조회 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.';

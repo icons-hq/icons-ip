@@ -39,7 +39,7 @@ describe('sales worklist URL contract', () => {
     const href = adminClaimHref('return', filters);
     expect(adminClaimBackHref('return', href.split('?')[1])).toBe(href);
     expect(adminClaimStageLabel('return', 'rejected')).toBe('반품거부');
-    expect(adminClaimStageLabel('exchange', 'completed')).toBe('재배송 처리완료');
+    expect(adminClaimStageLabel('exchange', 'completed')).toBe('교환완료');
   });
   it('serializes unpaid state and report date basis without introducing unsupported choices', () => {
     const unpaid = normalizeAdminUnpaidFilters({ state: 'unknown', sort: 'newest', pageSize: '100', q: '대조' });

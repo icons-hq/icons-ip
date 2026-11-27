@@ -12,6 +12,10 @@ import {
 } from '@/lib/admin/claim-bulk';
 import { createClient } from '@/lib/supabase/server';
 import { isUuid } from '@/lib/uuid';
+import {
+  CLAIM_CHANGE_ID_MESSAGE, CLAIM_CHANGE_LOAD_FAILED_MESSAGE, CLAIM_CHANGE_NOT_FOUND_MESSAGE, CLAIM_CHANGE_RECEIPT_MISMATCH_MESSAGE,
+  CLAIM_CHANGE_RECEIPT_READ_FAILED_MESSAGE, CLAIM_CHANGE_UNKNOWN_MESSAGE,
+} from '@/lib/admin/claim-change-copy';
 import { CLAIM_TYPE_DEFINITE_ERROR_CODES, claimTypeBulkError, claimTypeError, claimTypeReceiptMatches, normalizeClaimTypeRequest, parseClaimTypeContext, parseClaimTypeReceipt, type ClaimTypeResult } from '@/lib/orders/claim-type-conversion';
 import { ORDER_CLAIM_TYPE_LABELS, orderClaimReferenceLabel } from '@/lib/orders/claims';
 const access = () => requireAdminActionAccess('/admin/sales/claims/returns', { capability: 'sales.manage' });
@@ -20,21 +24,21 @@ function revalidateConversion(orderId: string) {
 }
 export async function loadClaimTypeContextAction(claimId: string): Promise<ClaimTypeResult> {
   if (!await access()) return { error: claimTypeError('42501') };
-  if (!isUuid(claimId)) return { error: '요청을 찾지 못했습니다. 화면을 새로고침한 뒤 다시 열어주세요.' };
+  if (!isUuid(claimId)) return { error: CLAIM_CHANGE_NOT_FOUND_MESSAGE };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_order_claim_type_change_context', { p_claim_id: claimId });
     const context = parseClaimTypeContext(data); return !error && context?.claimId === claimId ? { context } : { error: claimTypeError(error?.code, error?.message) };
-  } catch (error) { unstable_rethrow(error); return { error: '최신 요청을 불러오지 못했습니다. 잠시 뒤 다시 눌러주세요.' }; }
+  } catch (error) { unstable_rethrow(error); return { error: CLAIM_CHANGE_LOAD_FAILED_MESSAGE }; }
 }
 export async function readClaimTypeChangeAction(id: string): Promise<ClaimTypeResult> {
   if (!await access()) return { error: claimTypeError('42501'), uncertain: true };
-  if (!isUuid(id)) return { error: '저장 결과를 확인할 번호가 올바르지 않습니다. 새로고침해 처리 이력을 확인해주세요.', uncertain: true };
+  if (!isUuid(id)) return { error: CLAIM_CHANGE_ID_MESSAGE, uncertain: true };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_read_order_claim_type_change', { p_operation_id: id });
     if (error) return { error: claimTypeError(error.code, error.message), uncertain: true };
     if (data === null) return { receipt: null };
-    const receipt = parseClaimTypeReceipt(data); return receipt?.id === id ? { receipt } : { error: '불러온 저장 결과가 이 요청과 맞지 않습니다. 새로고침해 처리 이력을 확인해주세요.', uncertain: true };
-  } catch (error) { unstable_rethrow(error); return { error: '저장 결과를 불러오지 못했습니다. 잠시 뒤 [같은 요청 결과 확인]을 다시 눌러주세요.', uncertain: true }; }
+    const receipt = parseClaimTypeReceipt(data); return receipt?.id === id ? { receipt } : { error: CLAIM_CHANGE_RECEIPT_MISMATCH_MESSAGE, uncertain: true };
+  } catch (error) { unstable_rethrow(error); return { error: CLAIM_CHANGE_RECEIPT_READ_FAILED_MESSAGE, uncertain: true }; }
 }
 export async function convertClaimTypeAction(input: unknown): Promise<ClaimTypeResult> {
   if (!await access()) return { error: claimTypeError('42501') };
@@ -46,10 +50,10 @@ export async function convertClaimTypeAction(input: unknown): Promise<ClaimTypeR
     });
     if (error) return { error: claimTypeError(error.code, error.message), conflict: error.code === 'PT409', uncertain: !CLAIM_TYPE_DEFINITE_ERROR_CODES.includes(error.code ?? '') };
     const receipt = parseClaimTypeReceipt(data);
-    if (!receipt || !claimTypeReceiptMatches(receipt, request)) return { error: '저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.', uncertain: true };
+    if (!receipt || !claimTypeReceiptMatches(receipt, request)) return { error: CLAIM_CHANGE_UNKNOWN_MESSAGE, uncertain: true };
     revalidateConversion(receipt.orderId);
     return { receipt };
-  } catch (error) { unstable_rethrow(error); return { error: '저장됐는지 확인하지 못했습니다. [같은 요청 결과 확인]을 눌러 먼저 확인해주세요.', uncertain: true }; }
+  } catch (error) { unstable_rethrow(error); return { error: CLAIM_CHANGE_UNKNOWN_MESSAGE, uncertain: true }; }
 }
 
 /**
@@ -81,7 +85,7 @@ export async function bulkConvertClaimTypesAction(_state: AdminClaimBulkState, f
     const loaded = await client.rpc('admin_order_claim_type_change_context', { p_claim_id: claimId });
     const context = parseClaimTypeContext(loaded.data);
     if (loaded.error || context?.claimId !== claimId) return { ok: false, message: '요청을 다시 불러오지 못해 전환하지 않았습니다. 목록을 새로고침한 뒤 다시 실행해주세요.' };
-    if (context.claimType !== fromType) return { ok: false, message: `${ORDER_CLAIM_TYPE_LABELS[fromType]} 요청이 아닙니다. 해당 목록에서 처리해주세요.` };
+    if (context.claimType !== fromType) return { ok: false, message: `이미 ${ORDER_CLAIM_TYPE_LABELS[context.claimType]} 요청이라 바꾸지 않았습니다. 목록을 새로고침해 주세요.` };
     if (!context.allowed) return { ok: false, message: claimTypeError(undefined, context.blocker ?? '') };
     if (toType === 'return' && context.bankRequired && !context.savedAccount) return { ok: false, message: claimTypeBulkError(undefined, 'claim_conversion_account_required') };
 

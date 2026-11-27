@@ -87,7 +87,8 @@ export function parseDeliveryPolicyInput(value: unknown): DeliveryPolicyInput | 
   const allowDelegate = value.allowDelegate === '' || value.allowDelegate == null ? null
     : typeof value.allowDelegate === 'boolean' ? value.allowDelegate : null;
   if (value.allowDelegate !== '' && value.allowDelegate != null && typeof value.allowDelegate !== 'boolean') return null;
-  if (value.state === 'active' && (allowDelegate === null || Object.values(fields).some((field) => field === null))) return null;
+  // '운영 승인 근거'(approvalReference)는 화면에서 걷어 냈다(migration 20261127102000) — 비어 있어도 '사용'으로 켤 수 있다. 고객에게 보이는 나머지 칸은 모두 채워야 한다.
+  if (value.state === 'active' && (allowDelegate === null || Object.entries(fields).some(([key, field]) => key !== 'approvalReference' && field === null))) return null;
   return { state: value.state as DeliveryPolicyState, ...fields, allowDelegate } as DeliveryPolicyInput;
 }
 
@@ -183,20 +184,23 @@ export function deliveryStatusLabel(method: DeliveryMethod, status: 'ready' | 's
 
 export function deliveryErrorMessage(code?: string): string {
   const messages: Record<string, string> = {
-    delivery_policy_changed: '운영 정책이 변경되었습니다. 새로고침한 뒤 다시 확인해주세요.',
-    shipment_delivery_changed: '배송 건이 변경되었습니다. 새로고침한 뒤 다시 확인해주세요.',
-    delivery_operation_conflict: '같은 요청 번호에 다른 내용이 있습니다. 처리 결과를 새로고침해주세요.',
-    delivery_policy_incomplete: '실제 연락처·인계 안내·완료 기준·취소 안내·승인 근거를 모두 입력해주세요.',
-    delivery_policy_unavailable: '선택할 수 있는 활성 운영 정책이 없습니다.',
-    delivery_method_selection_unavailable: '결제된 주문의 아직 발주 전달하지 않은 배송 준비 건만 방식을 바꿀 수 있습니다.',
-    delivery_method_evidence_required: '이 배송 방식의 인계·수령 확인 절차를 이용해주세요.',
-    delivery_receipt_code_invalid: '수령 확인값이 일치하지 않습니다. 주문자가 표시한 값을 다시 확인해주세요.',
-    delivery_receipt_code_unavailable: '수령 확인값이 만료되었거나 이미 사용되었습니다. 주문 화면에서 다시 발급해주세요.',
-    delivery_delegate_not_allowed: '이 출고지의 현재 인계 조건에서는 대리수령을 허용하지 않습니다.',
-    invalid_delivery_evidence: '실제 인계 담당자·시각과 방식에 맞는 근거를 모두 입력해주세요.',
+    delivery_policy_changed: '다른 사람이 먼저 바꿨습니다. [다시 불러오기]를 눌러 운영 조건을 확인한 뒤 다시 해주세요.',
+    delivery_policy_already_active: "이 방식에는 이미 '사용'인 운영 조건이 있습니다. 사용 중인 조건을 [사용 안 함으로 바꾸기] 한 뒤 다시 켜주세요.",
+    activated_delivery_policy_immutable: '한 번 켠 운영 조건은 고칠 수 없습니다. 내용을 바꾸려면 운영 조건을 새로 추가해주세요.',
+    delivery_policy_not_found: '운영 조건을 찾지 못했습니다. [다시 불러오기]를 눌러 목록을 확인해주세요.',
+    shipment_delivery_changed: '다른 사람이 먼저 바꿨습니다. 새로고침해 배송 건의 상태를 확인한 뒤 다시 해주세요.',
+    delivery_operation_conflict: '같은 처리에 다른 내용이 이미 저장돼 있습니다. 새로고침해 이력을 확인해주세요.',
+    delivery_policy_incomplete: "'사용'으로 저장하려면 담당자 이름·담당자 연락처·인계 장소·인계 방법 안내·예약·방문 시간 안내·받았는지 확인하는 방법·취소 안내·대리수령을 모두 채워주세요.",
+    delivery_policy_unavailable: "이 출고지에서 켜져 있지 않은 배송 방식입니다. 배송정보 관리에서 운영 조건을 '사용'으로 켠 뒤 다시 해주세요.",
+    delivery_method_selection_unavailable: '결제가 확인됐고 출고지시를 아직 보내지 않은 발송 대기 배송 건만 방식을 바꿀 수 있습니다.',
+    delivery_method_evidence_required: "이 배송 방식은 주문 상세의 '배송 방식·인계 확인'에서 인계·수령을 기록해주세요.",
+    delivery_receipt_code_invalid: '고객이 보여 준 확인값이 맞지 않습니다. 고객의 주문 화면에 보이는 값을 다시 확인해주세요.',
+    delivery_receipt_code_unavailable: '확인값이 만료됐거나 이미 쓰였습니다. 고객에게 주문 화면에서 다시 발급해 달라고 안내해주세요.',
+    delivery_delegate_not_allowed: '이 출고지의 운영 조건은 대리수령을 허용하지 않습니다.',
+    invalid_delivery_evidence: '담당자·시각·확인 내용을 모두 적어주세요. 인계 기록에는 배송 업체·기사와 업체 연락처도 필요하고, 시각은 발주확인 뒤부터 지금까지여야 합니다.',
     preorder_allocation_required: '예약 품목의 입고 확인을 먼저 해주세요(예약판매의 [선택한 예약 주문 입고 확인]).',
-    'order cancellation in progress': '진행 중인 취소·클레임을 먼저 확인해주세요.',
+    'order cancellation in progress': '취소·반품·교환 요청이 진행 중입니다. 그 요청을 먼저 처리해주세요.',
     'order fulfillment hold': '출고 보류 중인 주문입니다(결제 확인 필요). 주문 상세의 출고 보류 안내를 확인해주세요.',
   };
-  return (code && messages[code]) || '배송 방식 처리 결과를 확인하지 못했습니다. 새로고침한 뒤 기록을 확인해주세요.';
+  return (code && messages[code]) || '저장됐는지 확인하지 못했습니다. 새로고침한 뒤 이력에서 확인해주세요.';
 }

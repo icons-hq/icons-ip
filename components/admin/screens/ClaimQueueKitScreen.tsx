@@ -1,6 +1,6 @@
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
 import Link from 'next/link';
-import { adminClaimBulkGuideText, adminClaimBulkSelectable } from '@/lib/admin/claim-bulk';
+import { adminClaimBulkSelectable } from '@/lib/admin/claim-bulk';
 import {
   ADMIN_CLAIM_DATE_FIELDS,
   ADMIN_CLAIM_SEARCH_FIELDS,
@@ -36,6 +36,10 @@ import { ClaimQueueKitTable, type ClaimKitRow } from './ClaimQueueKitTable';
  * 처리 액션은 유형과 무관하게 같다. 유형마다 다른 것은 단계 칩(반품·교환의 수거 단계)·메뉴설명·아래 안내뿐이다.
  * 엑셀 다운로드만 기존 부품이다.
  *
+ * 글보다 화면: 표 위·아래에 늘 적어 두던 안내(검색을 눌러야 조회, 요청번호를 누르면 상세, 약관 문단, 부분 환급 안내)는 지웠다.
+ * 검색 버튼과 요청번호 링크가 스스로 말하고, 환불 기한이 언제부터 세는지는 칸 이름 옆 "?"가 말하며, 일괄 처리의 건수·금액·
+ * 건너뛰는 건은 확인창이 보인다.
+ *
  * "환불 수단" 칸은 결제수단(카드/무통장)이 아니라 refunds.method다. 결제수단은
  * private.payment_provider_evidence에만 있고 staff 읽기 표면이 없다(#250) — 없는 값을 지어내는 대신
  * 실제로 원장에 적힌 것을 보여준다.
@@ -69,14 +73,14 @@ const STAGE_GRID_CLASS: Record<OrderClaimType, string> = {
 };
 
 export function ClaimQueueKitScreen({
+  autoPickupEnabled = false,
   canViewRefundTransfers = false,
   data,
   now = new Date(),
-  partialReturnEnabled = false,
 }: {
+  /** 반품 자동 회수 접수 스위치(QNA-032). 켜져 있으면 반품·교환 승인 확인창이 택배사에 회수가 접수된다고 말한다. */
+  autoPickupEnabled?: boolean;
   canViewRefundTransfers?: boolean;
-  /** 부분 반품(ADR-0047) 스위치. 켜져 있으면 반품 목록의 안내가 굿즈·수량 단위 처리를 말한다(취소·교환은 그대로 주문 단위). */
-  partialReturnEnabled?: boolean;
   data: AdminClaimConsoleData;
   /** SLA 기준 시각. 테스트 주입용. */
   now?: Date;
@@ -85,9 +89,6 @@ export function ClaimQueueKitScreen({
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const currentHref = adminClaimHref(claimType, filters);
   const collects = claimType !== 'cancel';
-  const scopeNotice = partialReturnEnabled && claimType === 'return'
-    ? '반품은 고객이 고른 상품·수량만 회수·환불할 수 있습니다(부분 반품). 부분 반품은 고른 상품의 결제 몫과, 상품이 모두 빠진 배송 묶음의 배송비를 환불하고, 단순 변심이면 반품배송비를 뺍니다. 품목을 고르지 않은 요청은 주문 단위 전액입니다.'
-    : `${typeLabel} 요청은 주문 단위 전액으로만 처리되고, 한 주문의 일부만 환급하는 처리는 제공하지 않습니다.`;
   const stageFilterLabel = filters.stage === 'all' ? null : adminClaimStageOptions(claimType).find((option) => option.value === filters.stage)?.label ?? null;
   /* 오래 기다린 건부터 처리하는 것이 이 화면의 주 행동이다. 이미 그 조건이면 버튼 대신 맨 위부터 처리하라고 말한다. */
   const nextStage = NEXT_ACTION_STAGES[claimType].find((stage) => (counts[stage] ?? 0) > 0) ?? null;
@@ -106,12 +107,14 @@ export function ClaimQueueKitScreen({
       type: ORDER_CLAIM_TYPE_LABELS[row.claimType],
       reason: adminGoodsCopy(adminClaimReasonText(row.reasonType, row.staffReasonCode)),
       stage: adminClaimStageLabel(claimType, row.stage),
+      stageKey: row.stage,
       buyer: row.buyerName,
       amount: row.orderTotal,
       amountLabel: krw(row.orderTotal),
       requestedAt: row.requestedAt,
       requestedLabel: formatOrderDateTime(row.requestedAt),
-      slaLabel: sla.label,
+      /* 기한이 없는 때('종료'·'회수 없음'·'입고 전'·'재출고 대기')는 말이 제각각이라 '-'로 같게 둔다. */
+      slaLabel: sla.tone === 'muted' ? '-' : sla.label,
       slaTone: sla.tone,
       refund: row.refundMethod ? ORDER_CLAIM_REFUND_METHOD_LABELS[row.refundMethod] : null,
       handler: row.handlerName,
@@ -122,16 +125,15 @@ export function ClaimQueueKitScreen({
      kit 부품을 덮지 않는다. */
   return (
     <div className="flex min-w-0 flex-col gap-4 text-sm text-foreground" data-admin-kit="claims" data-claim-type={claimType}>
-      <SalesGuide title={`${typeLabel} 요청과 처리상태를 확인할 수 있습니다.`}>
+      <SalesGuide title={`${typeLabel} 요청과 처리 상태를 확인할 수 있습니다.`}>
         <ul className="list-disc space-y-1 pl-5">
-          {collects ? <li>별도 배송비 청구는 <Link href="/admin/sales/claims/returns/fee-policy">반품·교환 배송비 정책</Link>을 설정한 뒤 각 요청 상세에서 처리합니다. <Link href="/admin/sales/claims/returns/fees">배송비 입금·반환 대기 목록</Link></li> : null}
+          {collects ? <li>별도 배송비 청구는 <Link href="/admin/sales/claims/returns/fee-policy">배송비 청구 설정</Link>을 정한 뒤 각 요청 상세에서 처리합니다. <Link href="/admin/sales/claims/returns/fees">배송비 청구 내역</Link></li> : null}
           {canViewRefundTransfers && claimType !== 'exchange' ? <li>실제 송금이 남은 무통장 환불은 <a href={REFUND_TRANSFERS_PATH}>환불 송금 대기</a>에서 확인합니다.</li> : null}
           <li>요청번호를 누르면 목록 위에 상세가 열리고 그 자리에서 {typeLabel} 처리를 진행합니다.{collects ? ' 회수 확인이나 결제사 취소 확인이 필요한 단계는 그 확인이 끝나야 완료할 수 있습니다.' : ''}</li>
-          <li>{adminClaimBulkGuideText(claimType)}</li>
-          <li>수령인명과 번호는 입력한 내용이 포함된 요청을 찾습니다. 상품주문번호는 주문 품목, 상품 URL은 고객 화면 상품 주소 끝의 영문 값입니다. 품목으로 찾아도 처리와 엑셀은 요청 주문 전체를 대상으로 합니다.</li>
+          <li>수령인명과 번호는 입력한 내용이 포함된 요청을 찾습니다. 상품주문번호는 주문 품목을 찾습니다. 품목으로 찾아도 처리와 엑셀은 요청 주문 전체를 대상으로 합니다.</li>
         </ul>
       </SalesGuide>
-      <nav aria-label="단계별 건수" className="flex min-w-0 flex-col gap-2 xl:flex-row xl:items-stretch">
+      <nav aria-label="처리 상태별 건수" className="flex min-w-0 flex-col gap-2 xl:flex-row xl:items-stretch">
         <div className={STAGE_GRID_CLASS[claimType]}>
           {CHIP_STAGES[claimType].map((stage) => {
             const count = counts[stage] ?? 0;
@@ -151,20 +153,17 @@ export function ClaimQueueKitScreen({
       {/* 건수·검색·표를 판매관리 목록과 같은 카드 한 구역으로 묶는다. */}
       <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
         <div className="flex flex-wrap items-center justify-between gap-2">
-          <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
-            <p className="shrink-0 whitespace-nowrap">총 <strong className="tabular-nums">{total.toLocaleString('ko-KR')}</strong>건{stageFilterLabel ? <span className="text-muted-foreground"> · {stageFilterLabel}</span> : null}</p>
-            {/* 다른 목록과 같이 조건(검색어·사유·처리상태·기간)은 [검색]을 눌러야 조회된다(ADM-016 #13). */}
-            <p className="min-w-0 text-xs text-muted-foreground">검색어·사유·처리상태·기간을 고른 뒤 검색을 눌러야 조회됩니다.</p>
-          </div>
+          <p className="shrink-0 whitespace-nowrap">총 <strong className="tabular-nums">{total.toLocaleString('ko-KR')}</strong>건{stageFilterLabel ? <span className="text-muted-foreground"> · {stageFilterLabel}</span> : null}</p>
           <AdminListExportButton href={adminListExportHref(adminListExportClaimScreenId(claimType), currentHref)} total={total} />
         </div>
-        {/* 눌러야 할 것을 글이 아니라 버튼으로 먼저 보인다. 처리 막대는 체크한 뒤에야 화면 아래에 뜨므로 표 위에 말해 둔다. */}
-        <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2" data-claim-next-action="">
+        {/* 눌러야 할 것을 글이 아니라 버튼으로 먼저 보인다. 이미 그 조건이면 버튼 대신 맨 위부터 처리하라고만 말하고, 보일 것이 없으면 이 줄을 그리지 않는다. */}
+        {nextStage !== null || longestWait >= 1 ? <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2" data-claim-next-action="">
           {nextStage !== null && !onNextStage ? <Link className={buttonVariants({ size: 'sm' })} data-slot="button" href={adminClaimHref(claimType, filters, { page: 1, sort: 'oldest', stage: nextStage })}>{adminClaimStageLabel(claimType, nextStage)} {(counts[nextStage] ?? 0).toLocaleString('ko-KR')}건 오래된 순으로 보기</Link> : null}
           {longestWait >= 1 ? <span className="font-medium whitespace-nowrap" title={total > rows.length ? '이 페이지에서 가장 오래 기다린 요청 기준입니다.' : undefined}>최장 대기 {longestWait}일째</span> : null}
-          <p className="text-xs text-muted-foreground">{onNextStage ? '맨 위 요청부터 ' : ''}요청번호를 누르면 이 자리에서 상세가 열려 처리합니다.</p>
-        </div>
+          {onNextStage ? <p className="text-xs text-muted-foreground">맨 위 요청부터 처리합니다.</p> : null}
+        </div> : null}
         <ClaimQueueKitTable
+          autoPickupEnabled={autoPickupEnabled}
           claimType={claimType}
           dateFieldOptions={ADMIN_CLAIM_DATE_FIELDS}
           filters={filters}
@@ -175,12 +174,6 @@ export function ClaimQueueKitScreen({
           total={total}
         />
       </div>
-      {collects ? <p className="text-muted-foreground">
-        환급 기한은 약관 제16조의 &ldquo;굿즈를 반환받은 날부터 3영업일&rdquo;입니다. 기한은 회수 확인 때
-        적은 실제 입고일(출고지가 여럿이면 가장 늦은 날)부터 셉니다. 상품을 돌려받지 않는 취소 요청에는 이 기한이 없습니다. {scopeNotice}
-      </p> : <p className="text-muted-foreground">
-        {scopeNotice}
-      </p>}
     </div>
   );
 }

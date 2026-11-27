@@ -5,6 +5,7 @@ import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { OPERATIONS_SETTINGS_PATH } from '@/lib/admin/operations-contacts';
 import { loadAdminOperationsContacts } from '@/lib/admin/operations-contacts.server';
 import { loadAdminShippingRegionExpiry, loadAdminShippingRegionPolicies } from '@/lib/admin/shipping-regions.server';
+import { shippingRegionOriginOverview } from '@/lib/admin/shipping-regions';
 import { canAccessAdminScreen, hasAdminCapability } from '@/lib/admin/access';
 import { loadGoodsFulfillmentOptions } from '@/lib/admin/fulfillment-origins.server';
 import { loadActiveShippingNoticeTemplateOptions } from '@/lib/admin/shipping-notice-templates.server';
@@ -27,10 +28,12 @@ export default async function Page() {
     readable(loadGoodsFulfillmentOptions), readable(loadAdminShippingRegionPolicies), readable(loadAdminShippingCarriers),
     readable(loadActiveShippingNoticeTemplateOptions), canEdit ? readable(loadAdminStoreCreditPolicy) : undefined,
   ]);
+  /* 출고지·택배사·설정을 모두 읽었을 때만 말한다 — 지역별 추가배송비 화면과 같은 판정으로 새 주문이 막힌 출고지를 가린다. */
+  const regionOverview = origins && carriers && regions ? shippingRegionOriginOverview({ origins, carriers, policies: regions.policies, adoptions: regions.adoptions, now: new Date().getTime() }) : undefined;
   const readiness = operationsReadiness({
     business: canReadBusiness ? store?.settings.business : undefined,
     bankTransfer: canReadAccount && store ? store.settings.bankTransfer : undefined,
-    origins, regions: regions?.policies, carriers, activeNoticeTemplates: notices?.length, storeCreditsEnabled: credits?.enabled,
+    origins, regions: regionOverview?.statuses, carriers, activeNoticeTemplates: notices?.length, storeCreditsEnabled: credits?.enabled,
   });
-  return <OperationsSettingsScreen {...data} shippingRegionExpiry={shippingRegionExpiry} canEdit={canEdit} readiness={readiness}/>;
+  return <OperationsSettingsScreen {...data} shippingRegionExpiry={regionOverview?.blocked.length ? { ...shippingRegionExpiry, blocked: regionOverview.blocked } : shippingRegionExpiry} canEdit={canEdit} readiness={readiness}/>;
 }

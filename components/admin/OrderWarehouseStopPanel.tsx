@@ -21,9 +21,15 @@ import {
   WAREHOUSE_STOP_CHANNELS,
   WAREHOUSE_STOP_NOTE_LIMIT,
   WAREHOUSE_STOP_OUTCOME_LABELS,
+  WAREHOUSE_STOP_RETURNED_LOCK_REASON,
   WAREHOUSE_STOP_STATUS_LABELS,
+  canceledDispatchResolveConfirm,
+  canceledDispatchResolveMissing,
   isoToKstLocal,
+  warehouseStopReplyConfirm,
+  warehouseStopReplyMissing,
   warehouseStopRequirement,
+  warehouseStopReturnedAllowed,
   type CanceledDispatchResolution,
   type CanceledShipmentDispatch,
   type OrderWarehouseStopContext,
@@ -31,7 +37,6 @@ import {
   type WarehouseStopOutcome,
   type WarehouseStopShipment,
 } from '@/lib/admin/warehouse-stop';
-import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { formatOrderDateTime } from '@/lib/orders';
 
 const HINT = 'text-xs text-muted-foreground';
@@ -39,10 +44,11 @@ const FIELD = 'flex min-w-0 flex-col gap-1.5';
 /** 주문 상세 안의 이 패널 위치. 취소 양식의 '창고 회신 기록' 링크가 가리킨다. */
 export const WAREHOUSE_STOP_ANCHOR = 'warehouse-stop';
 
-const shipmentLabel = (shipment: { originName: string; shipmentId: string; shipmentNumber: string | null }) =>
-  `${shipment.originName} · ${commerceReferenceLabel(shipment.shipmentId, shipment.shipmentNumber)}`;
+/** 배송 건 이름: 출고지 · 배송건번호. 번호가 없는 옛 배송 건은 내부 번호 대신 '번호 없음'으로 보인다. */
+const shipmentLabel = (shipment: { originName: string; shipmentNumber: string | null }) =>
+  `${shipment.originName} · ${shipment.shipmentNumber ?? '번호 없음'}`;
 const USED_LABELS = { staff_cancellation: '운영자 전액 취소에 씀', partial_cancellation: '재고 부족 부분 취소에 씀', claim_collection: '반품·교환 회수 확인에 씀' } as const;
-const SOURCE_LABELS = { tracking_reply: '운송장 회신 올리기', warehouse_reply: '창고 이미 출고 회신' } as const;
+const SOURCE_LABELS = { tracking_reply: '운송장 회신 올리기', warehouse_reply: '창고 회신(이미 출고)' } as const;
 
 function ReplyHistory({ shipment }: { shipment: WarehouseStopShipment }) {
   if (!shipment.replies.length) return <p className={HINT}>기록된 창고 회신이 없습니다.</p>;
@@ -59,7 +65,10 @@ function ReplyHistory({ shipment }: { shipment: WarehouseStopShipment }) {
   </li>)}</ol>;
 }
 
-/** 창고 회신 기록 양식. 같은 회신을 이 주문의 여러 배송 건에 한 번에 남길 수 있다. */
+/**
+ * 창고 회신 기록 양식. 같은 회신을 이 주문의 여러 배송 건에 한 번에 남길 수 있다.
+ * 못 하는 것은 누르기 전에 막고 이유를 보인다: 빠진 칸이 있으면 [회신 기록]이, 이미 출고 회신이 없는 배송 건이 섞이면 반송 입고가 잠긴다.
+ */
 function ReplyForm({ orderId, shipments, onRecorded }: { orderId: string; shipments: WarehouseStopShipment[]; onRecorded: (message: string) => void }) {
   const id = useId();
   const [selected, setSelected] = useState<string[]>(() => shipments.filter(shipment => shipment.stopStatus !== 'stopped').map(shipment => shipment.shipmentId));
@@ -71,34 +80,33 @@ function ReplyForm({ orderId, shipments, onRecorded }: { orderId: string; shipme
   const [error, setError] = useState<string | null>(null);
   const operationId = useRef<string | null>(null);
   useClaimPreviewBusy(pending);
-  const canceledSelected = shipments.some(shipment => selected.includes(shipment.shipmentId) && shipment.status === 'canceled');
+  const picked = shipments.filter(shipment => selected.includes(shipment.shipmentId));
+  const canceledSelected = picked.some(shipment => shipment.status === 'canceled');
+  const returnedAllowed = warehouseStopReturnedAllowed(picked);
+  /* 반송 입고를 골라 둔 채 배송 건을 바꿔 못 고르게 되면 고른 것으로 치지 않는다(저장한 선택은 그대로 두고 여기서만 걷어 낸다). */
+  const chosen: WarehouseStopOutcome | '' = outcome === 'returned' && !returnedAllowed ? '' : outcome;
+  const missing = warehouseStopReplyMissing({ selected: picked.length, outcome: chosen, channel, repliedAt, note });
 
   async function submit() {
     setError(null);
-    if (!selected.length || !outcome || !channel || !repliedAt) { setError('배송 건·회신 결과·경로·회신 시각을 모두 골라주세요.'); return; }
-    const targets = shipments.filter(shipment => selected.includes(shipment.shipmentId)).map(shipmentLabel).join(', ');
-    const confirmed = await adminConfirm({
-      title: '창고 회신 기록',
-      message: outcome === 'already_shipped' && canceledSelected
-        ? `${targets}에 창고의 '이미 출고' 회신을 남깁니다. 이미 취소된 배송 건은 취소 뒤 출고 발견으로 기록되고 그 수량만큼 재고를 다시 뺍니다. 기록은 지울 수 없습니다. 계속할까요?`
-        : `${targets}에 창고 회신(${WAREHOUSE_STOP_OUTCOME_LABELS[outcome]})을 남깁니다. 기록은 지울 수 없고, 잘못 남겼다면 바른 회신을 새로 기록합니다. 계속할까요?`,
-      confirmLabel: '회신 기록',
-      destructive: outcome === 'already_shipped' && canceledSelected,
-    });
+    if (missing || !chosen) { setError(missing ?? '창고 회신 결과를 골라주세요.'); return; }
+    const targets = picked.map(shipmentLabel).join(', ');
+    const confirmed = await adminConfirm({ ...warehouseStopReplyConfirm({ targets, outcome: chosen, canceledSelected }), cancelLabel: '돌아가기' });
     if (!confirmed) return;
     operationId.current ??= crypto.randomUUID();
     setPending(true);
     try {
-      const result = await recordWarehouseStopReplyAction({ orderId, shipmentIds: selected, outcome, channel, repliedAt, note, operationId: operationId.current });
+      const result = await recordWarehouseStopReplyAction({ orderId, shipmentIds: selected, outcome: chosen, channel, repliedAt, note, operationId: operationId.current });
       if (result.ok) { operationId.current = null; onRecorded(result.value.message); } else setError(result.error);
     } catch {
-      setError('기록 결과를 확인하지 못했습니다. 새로고침해 회신 기록에 남았는지 확인하고, 없을 때만 다시 기록해주세요.');
+      setError('기록됐는지 확인하지 못했습니다. 새로고침해 회신 기록에 남았는지 보고, 없을 때만 다시 기록해주세요.');
     } finally { setPending(false); }
   }
 
   return <form className="flex min-w-0 flex-col gap-3 border-t pt-3" aria-label="창고 회신 기록" noValidate
     onSubmit={event => { event.preventDefault(); void submit(); }}>
     <h4 className="font-medium">창고 회신 기록</h4>
+    <p className={HINT}>회신을 받은 뒤에 적습니다. 출고지시를 다시 보냈다면 회신도 새로 받아야 합니다.</p>
     <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0" disabled={pending}>
       <legend className="p-0 text-sm font-medium">배송 건</legend>
       {shipments.map(shipment => <label className="flex items-center gap-2" key={shipment.shipmentId}>
@@ -109,12 +117,16 @@ function ReplyForm({ orderId, shipments, onRecorded }: { orderId: string; shipme
     </fieldset>
     <fieldset className="m-0 flex min-w-0 flex-col gap-1.5 border-0 p-0" disabled={pending}>
       <legend className="p-0 text-sm font-medium">창고 회신 결과</legend>
-      {(['stopped', 'already_shipped', 'returned'] as const).map(value => <label className="flex items-start gap-2" key={value}>
-        <input checked={outcome === value} name={`${id}-outcome`} onChange={() => { operationId.current = null; setOutcome(value); }} type="radio" value={value} />
-        <span>{value === 'stopped' ? '출고 중단 확인 — 창고가 이 배송 건(부분 취소면 그 상품·수량)을 내보내지 않기로 확인했습니다'
-          : value === 'already_shipped' ? '이미 출고 — 창고가 이미 내보냈다고 알렸습니다'
-            : '반송 입고 — 이미 나간 상품을 고객이 돌려보내 창고에 다시 들어왔습니다(이미 출고 회신 뒤에만)'}</span>
-      </label>)}
+      {(['stopped', 'already_shipped', 'returned'] as const).map(value => {
+        const locked = value === 'returned' && !returnedAllowed;
+        return <label className={locked ? 'flex items-start gap-2 text-muted-foreground' : 'flex items-start gap-2'} key={value}>
+          <input checked={chosen === value} disabled={locked} name={`${id}-outcome`} onChange={() => { operationId.current = null; setOutcome(value); }} type="radio" value={value} />
+          <span>{value === 'stopped' ? '출고 중단 확인 — 창고가 이 배송 건(부분 취소면 그 상품·수량)을 내보내지 않기로 확인했습니다'
+            : value === 'already_shipped' ? '이미 출고 — 창고가 이미 내보냈다고 알렸습니다'
+              : '반송 입고 — 이미 나간 상품을 고객이 돌려보내 창고에 다시 들어왔습니다'}
+            {locked ? <span className="block text-xs" data-warehouse-stop-returned-lock="">{WAREHOUSE_STOP_RETURNED_LOCK_REASON}</span> : null}</span>
+        </label>;
+      })}
     </fieldset>
     <div className="grid gap-3 sm:grid-cols-2">
       <label className={FIELD}><span className="text-sm font-medium">회신 경로</span>
@@ -128,13 +140,15 @@ function ReplyForm({ orderId, shipments, onRecorded }: { orderId: string; shipme
       </label>
     </div>
     <Button className="w-fit" disabled={pending} onClick={() => setRepliedAt(isoToKstLocal(new Date()))} size="sm" type="button" variant="outline">현재 시각 입력</Button>
-    <label className={FIELD}><span className="text-sm font-medium">메모 (경로가 기타면 필수)</span>
+    <label className={FIELD}><span className="text-sm font-medium">{channel === 'other' ? '메모 (필수)' : '메모 (선택)'}</span>
       <Textarea disabled={pending} maxLength={WAREHOUSE_STOP_NOTE_LIMIT} onChange={event => { operationId.current = null; setNote(event.target.value); }}
         placeholder="예: 서원 김OO 담당 카카오톡 14:05 — 포장 전 회수, 출고 목록에서 뺌" rows={2} value={note} />
     </label>
-    <p className={HINT}>창고에 출고 중단을 요청하고 받은 답을 그대로 적습니다. 회신을 받기 전에는 기록하지 않습니다. 같은 배송 건에 회신이 여러 개면 가장 늦게 받은 회신을 따릅니다. 출고지시를 다시 보내면 예전 회신은 취소 근거로 쓸 수 없어 회신을 새로 받아야 합니다.</p>
     {error ? <p className="text-destructive" role="alert">{error}</p> : null}
-    <Button className="w-fit" disabled={pending} type="submit">{pending ? '기록 중…' : '회신 기록'}</Button>
+    <div className="flex flex-wrap items-center gap-3">
+      <Button aria-describedby={missing ? `${id}-missing` : undefined} className="w-fit" disabled={pending || Boolean(missing)} type="submit">{pending ? '기록 중…' : '회신 기록'}</Button>
+      {missing ? <span className={HINT} data-warehouse-stop-missing="" id={`${id}-missing`}>{missing}</span> : null}
+    </div>
   </form>;
 }
 
@@ -146,15 +160,13 @@ function DispatchResolveForm({ orderId, dispatch, onResolved }: { orderId: strin
   const [error, setError] = useState<string | null>(null);
   const operationId = useRef<string | null>(null);
   useClaimPreviewBusy(pending);
+  const missing = canceledDispatchResolveMissing({ outcome, note });
   async function submit() {
     setError(null);
-    if (!outcome || [...note.trim()].length < CANCELED_DISPATCH_NOTE_MIN) { setError(`처리 결과를 고르고 근거 메모를 ${CANCELED_DISPATCH_NOTE_MIN}자 이상 적어주세요.`); return; }
+    if (missing || !outcome) { setError(missing ?? '처리 결과를 골라주세요.'); return; }
     const confirmed = await adminConfirm({
-      title: '취소 뒤 출고 처리',
-      message: outcome === 'returned'
-        ? `회수한 상품이 창고에 입고된 것을 확인했나요? 발견 때 뺀 재고 ${dispatch.withdrawnQty}개를 되돌립니다. 되돌릴 수 없습니다.`
-        : '회수할 수 없어 손실로 처리할까요? 재고는 발견 때 뺀 그대로 둡니다. 되돌릴 수 없습니다.',
-      confirmLabel: outcome === 'returned' ? '회수 입고 처리' : '손실 처리',
+      ...canceledDispatchResolveConfirm({ target: shipmentLabel(dispatch), outcome, withdrawnQty: dispatch.withdrawnQty }),
+      cancelLabel: '돌아가기',
       destructive: true,
     });
     if (!confirmed) return;
@@ -164,7 +176,7 @@ function DispatchResolveForm({ orderId, dispatch, onResolved }: { orderId: strin
       const result = await resolveCanceledShipmentDispatchAction({ orderId, dispatchId: dispatch.id, outcome, note, operationId: operationId.current });
       if (result.ok) { operationId.current = null; onResolved(result.value.message); } else setError(result.error);
     } catch {
-      setError('처리 결과를 확인하지 못했습니다. 새로고침해 처리 결과가 남았는지 확인하고, 아직 처리 대기면 다시 처리해주세요.');
+      setError('처리됐는지 확인하지 못했습니다. 새로고침해 처리 결과가 남았는지 보고, 아직 처리 대기면 다시 처리해주세요.');
     } finally { setPending(false); }
   }
   return <form className="flex min-w-0 flex-col gap-2 border-t pt-2" aria-label="취소 뒤 출고 처리" noValidate onSubmit={event => { event.preventDefault(); void submit(); }}>
@@ -175,12 +187,16 @@ function DispatchResolveForm({ orderId, dispatch, onResolved }: { orderId: strin
       <label className="flex items-start gap-2"><input checked={outcome === 'lost'} name={`${id}-resolve`} onChange={() => { operationId.current = null; setOutcome('lost'); }} type="radio" value="lost" />
         <span>회수 불가·손실 처리 — 돌려받지 못했습니다(재고는 그대로)</span></label>
     </fieldset>
-    <label className={FIELD}><span className="text-sm font-medium">근거 메모 ({CANCELED_DISPATCH_NOTE_MIN}자 이상)</span>
+    <label className={FIELD}><span className="text-sm font-medium">근거 (필수)</span>
       <Textarea disabled={pending} maxLength={WAREHOUSE_STOP_NOTE_LIMIT} onChange={event => { operationId.current = null; setNote(event.target.value); }}
         placeholder="예: 11/20 고객 반송 상자 서원 입고 확인(반송 운송장 …)" rows={2} value={note} />
+      <small className={HINT}>{CANCELED_DISPATCH_NOTE_MIN}자 이상 적습니다. 처리 결과 줄에 그대로 남습니다.</small>
     </label>
     {error ? <p className="text-destructive" role="alert">{error}</p> : null}
-    <Button className="w-fit" disabled={pending} type="submit" variant="outline">{pending ? '처리 중…' : '처리 기록'}</Button>
+    <div className="flex flex-wrap items-center gap-3">
+      <Button aria-describedby={missing ? `${id}-missing` : undefined} className="w-fit" disabled={pending || Boolean(missing)} type="submit" variant="outline">{pending ? '처리 중…' : '처리 기록'}</Button>
+      {missing ? <span className={HINT} data-canceled-dispatch-missing="" id={`${id}-missing`}>{missing}</span> : null}
+    </div>
   </form>;
 }
 
@@ -191,7 +207,7 @@ function DispatchEntry({ orderId, dispatch, canResolve, onChanged }: { orderId: 
       <strong className="font-medium wrap-anywhere">{shipmentLabel(dispatch)}</strong>
     </span>
     <span>{SOURCE_LABELS[dispatch.source]} · 발견 {formatOrderDateTime(dispatch.discoveredAt)}{dispatch.discoveredByName ? ` · ${dispatch.discoveredByName}` : ''}</span>
-    <span className="tabular-nums">운송장 · {dispatch.trackingNumber ? `${dispatch.carrier ?? ''} ${dispatch.trackingNumber}`.trim() : '아직 없음(창고 운송장 회신을 올리면 붙습니다)'}</span>
+    <span className="tabular-nums">운송장 · {dispatch.trackingNumber ? `${dispatch.carrierLabel ?? dispatch.carrier ?? ''} ${dispatch.trackingNumber}`.trim() : '아직 없음(창고 운송장 회신을 올리면 붙습니다)'}</span>
     <span className="tabular-nums">재고 · 취소 때 되돌린 {dispatch.restoredQty}개 중 발견 때 다시 뺀 {dispatch.withdrawnQty}개
       {dispatch.shortfallQty ? ` · 그사이 다시 팔려 빼지 못한 ${dispatch.shortfallQty}개(초과 판매 확인 필요)` : ''}</span>
     {dispatch.lines.length ? <ul className={`${HINT} flex flex-col gap-0.5`}>{dispatch.lines.map(line => <li className="wrap-anywhere" key={line.orderItemId}>
@@ -214,7 +230,7 @@ export function OrderWarehouseStopPanelView({ context, onReload }: { context: Or
       <h3 className="flex flex-wrap items-center gap-2 text-base leading-snug font-medium">창고 회신·취소 뒤 출고
         {open.length ? <AdminStatusBadge data-canceled-dispatch-badge="" tone={statusTone('canceledDispatch', 'open')}>취소 뒤 출고 발견 {open.length}건</AdminStatusBadge> : null}
       </h3>
-      <p className="text-muted-foreground">출고지시 파일이 나간 배송 건은 취소 전에 창고에 출고 중단을 요청하고 그 회신을 여기에 기록합니다. 운영자 전액·부분 취소는 이 회신 기록이 있어야 실행됩니다.</p>
+      <p className="text-muted-foreground">출고지시가 나간 배송 건은 창고에 출고 중단을 요청하고, 받은 회신을 여기에 기록해야 운영자 전액·부분 취소를 실행할 수 있습니다.</p>
     </div>
     {open.length ? <AdminNotice role="status" tone="danger" title={`취소한 주문의 상품이 출고됐습니다 · ${open.length}건`}>
       환불이 끝난 주문입니다. 고객에게 연락해 반송을 요청하고, 회수 입고를 확인하면 아래에서 처리합니다. 회수할 수 없으면 손실로 처리합니다. 고객 반품 접수는 열리지 않습니다.
@@ -268,7 +284,16 @@ export function OrderWarehouseStopPanel({ orderId }: { orderId: string }) {
  * 운영자 전액·부분 취소 양식 안의 창고 회신 상태 한 줄. 확인란 대신 이 줄이 근거를 보인다 — 회신이 없으면 주문 상세의
  * 창고 회신 기록으로 잇는다. 판정의 진실원은 DB다(양식을 연 뒤 회신이 바뀌면 실행 때 DB가 다시 거절한다).
  */
-export function WarehouseStopRequirementNote({ orderId, shipmentIds, detailHref }: { orderId: string; shipmentIds?: readonly string[]; detailHref: string }) {
+export type WarehouseStopRequirementState = 'loading' | 'unknown' | ReturnType<typeof warehouseStopRequirement>['state'];
+
+export function WarehouseStopRequirementNote({ orderId, shipmentIds, detailHref, onState }: {
+  orderId: string; shipmentIds?: readonly string[]; detailHref: string;
+  /**
+   * 이 줄이 지금 보이는 판정을 양식에 알린다(읽는 중 loading · 읽지 못함 unknown · 그 밖은 판정). 양식은 회신이 필요한 동안 실행 버튼을
+   * 미리 잠근다 — 누른 뒤에 DB가 거절하게 두지 않는다. 판정의 진실원은 여전히 DB다.
+   */
+  onState?: (state: WarehouseStopRequirementState) => void;
+}) {
   const [context, setContext] = useState<OrderWarehouseStopContext | null>(null);
   const [failed, setFailed] = useState(false);
   const key = shipmentIds?.join(',') ?? '';
@@ -280,10 +305,12 @@ export function WarehouseStopRequirementNote({ orderId, shipmentIds, detailHref 
     }, () => { if (active) setFailed(true); });
     return () => { active = false; };
   }, [orderId, key]);
+  const state: WarehouseStopRequirementState = context ? warehouseStopRequirement(context, shipmentIds).state : failed ? 'unknown' : 'loading';
+  useEffect(() => { onState?.(state); }, [onState, state]);
   const href = `${detailHref}#${WAREHOUSE_STOP_ANCHOR}`;
   if (!context) {
     return <p className="text-sm" data-warehouse-stop-requirement={failed ? 'unknown' : 'loading'}>
-      출고지시 파일이 나간 배송 건이 있습니다. 창고의 출고 중단 회신 기록이 있어야 취소됩니다.{' '}
+      출고지시가 나간 배송 건이 있습니다. 창고의 출고 중단 회신 기록이 있어야 취소됩니다.{' '}
       <a className="underline underline-offset-4" href={href}>주문 상세에서 창고 회신 확인·기록</a>
     </p>;
   }

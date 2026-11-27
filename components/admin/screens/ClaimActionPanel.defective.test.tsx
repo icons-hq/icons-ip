@@ -10,7 +10,7 @@ vi.mock('@/app/admin/claim-actions', () => ({
   recordOrderClaimCollectionAction: vi.fn(),
   recordOrderClaimOriginCollectionAction: vi.fn(),
   recordOrderClaimRefundAction: vi.fn(),
-  recordOrderClaimReshipmentAction: vi.fn(),
+  readOrderClaimApprovalAmountAction: vi.fn(),
   planClaimDefectiveStockAction: vi.fn(),
   planExchangeDefectiveStockAction: vi.fn(),
   retryClaimDefectiveStockAction: vi.fn(),
@@ -31,7 +31,7 @@ const ITEM_B = 'bbbb0002-bbbb-4bbb-8bbb-bbbbbbbbbbbb';
 
 function props(overrides: Partial<ClaimActionPanelProps> = {}): ClaimActionPanelProps {
   return {
-    cancellationForm: null, carriers: [], claimId: CLAIM_ID, claimType: 'return', collectionComplete: true, collectionPolicy: 'legacy',
+    cancellationForm: null, claimId: CLAIM_ID, claimType: 'return', collectionComplete: true, collectionPolicy: 'legacy',
     collectedAt: '2026-11-12T00:00:00.000Z', collections: [], heldFrom: null, orderId: ORDER_ID, paymentProvider: 'toss',
     recordedRefundMethod: null, refundCompleted: false, refundFiled: true, refundLedgerOpen: true, stage: 'processing', refundAmount: 30000,
     ...overrides,
@@ -103,7 +103,7 @@ describe('ClaimActionPanel — 품목별 재고 처리', () => {
     /* 기록이 끝났으면 상태 칸은 지금 문구 그대로다. */
     const clean = render({ stage: 'completed', refundCompleted: true, defectiveStock: stock({ pending: 0, frozen: true }) });
     expect(clean).not.toContain('data-claim-workspace-attention');
-    expect(clean).toContain('반품과 환불 완료 기록을 확인했습니다.');
+    expect(clean).toContain('반품과 환불이 모두 끝났습니다.');
   });
 
   it('재고가 정해진 뒤(주문 canceled·무통장 취소 확정)에는 선택 칸·저장 양식을 그리지 않는다', () => {
@@ -183,6 +183,17 @@ describe('일괄 환불 확인창 — 품목별 재고 처리', () => {
     expect(html.match(/data-claim-bulk-stock/g)).toHaveLength(1);
     const withoutHandler = renderToStaticMarkup(<RefundStep onRun={() => undefined} preview={preview} progress={0} running={false} />);
     expect(withoutHandler).not.toContain('data-claim-bulk-stock');
+  });
+
+  /* R-N4: 부분 반품 행은 돌려받는 수량을 이 창이 읽지 않으므로 주문 수량(틀린 값)을 적지 않는다. */
+  it('부분 반품 행은 품목 이름만 보이고 주문 수량을 적지 않는다 — 선택 칸은 그대로다', () => {
+    const partial = [{ ...rows[0], partialReturn: true as const }];
+    const html = renderToStaticMarkup(<RefundStep defective={{}} onDefective={() => undefined} onRun={() => undefined}
+      preview={{ step: 'refund', rows: partial, totals: adminClaimBulkRefundTotals(partial) }} progress={0} running={false} />);
+    expect(html).toContain('아크릴 키링 · 파랑</label>');
+    expect(html).not.toContain('아크릴 키링 · 파랑 · 2개');
+    expect(html).toContain(`id="bulk-stock-${ITEM_A}"`);
+    expect(html).toContain('엽서</label>');
   });
 
   it('저장된 불량 선택은 화면에 보이는 값 그대로 실행 입력이 된다(표시값=전송값)', () => {

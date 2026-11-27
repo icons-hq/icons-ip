@@ -24,12 +24,12 @@ export async function POST(request: Request) {
     if (!rows || !isUuid(data?.receiptId) || typeof data.fingerprint !== 'string' || !/^[0-9a-f]{64}$/.test(data.fingerprint)
       || data.total !== rows.length || typeof data.asOf !== 'string' || !Number.isFinite(Date.parse(data.asOf))) throw new Error('gift_export_unavailable');
     const generatedAt = new Date(data.asOf), stamp = kstFileStamp(generatedAt);
-    const plain = await buildAdminListExportWorkbook({ screenLabel: '선물 수락 대기', title: '선물 수락 목록', recordCount: rows.length, rows: giftExportRows(rows),
-      columns: ['선물번호', '상태', '보낸 사람', '받는 사람', '상품·옵션', '총 수량', '선물 생성일', '수락·주문 기한', '수락일', '연결 주문번호'].map((header, i) => ({ header,
+    const plain = await buildAdminListExportWorkbook({ screenLabel: '선물 내역', title: '선물 내역', recordCount: rows.length, rows: giftExportRows(rows),
+      columns: ['선물 내부 번호', '상태', '보낸 사람', '받는 사람', '상품·옵션', '총 수량', '선물 생성일', '수락·주문 기한', '수락일', '연결 주문 내부 번호'].map((header, i) => ({ header,
         kind: i === 5 ? 'count' as const : 'text' as const, width: [0, 9].includes(i) ? 40 : i === 4 ? 50 : 22 })),
       conditions: [['상태', filters.state ? ADMIN_GIFT_STATE_LABELS[filters.state] : '전체'], ['검색어', filters.query || '전체']],
       notes: ['선물 한 건이 한 행입니다. 수락 전에는 주문·결제가 생성되지 않습니다. 수락 후에도 실제 결제완료를 확인해야 합니다.',
-        '배송지·연락처·선물 메시지·직접입력 옵션 내용은 포함하지 않습니다. 날짜는 한국 시간(KST)입니다.'],
+        '배송지·연락처·선물 메시지·직접입력 옵션 내용은 담지 않습니다. 날짜는 KST입니다. 연결 주문 내부 번호는 고객에게 보이는 주문번호가 아닙니다.'],
       filters: { state: filters.state, query: filters.query } }, generatedAt);
     let encrypted; try { encrypted = encryptAdminWorkbook(plain, password); } finally { plain.fill(0); }
     const service = createServiceClient(), audit = await service.rpc('service_record_gift_export', { p_actor_id: auth.user.id,
@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     await recordPiiAccess({ actorId: auth.user.id, action: 'export', surface: 'export.gifts', path: '/api/admin/gifts/export',
       subjectKind: 'gift', subjectIds: rows.map(row => row.id), subjectCount: rows.length, detail: { auditId: audit.data } });
     return new Response(new Uint8Array(encrypted.bytes), { headers: { ...HEADERS, 'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'Content-Disposition': adminListExportContentDisposition(`xsquare-선물수락대기-${stamp}.xlsx`, `xsquare-gifts-${stamp}.xlsx`), 'X-ICONS-Export-Audit': audit.data,
+      'Content-Disposition': adminListExportContentDisposition(`xsquare-선물내역-${stamp}.xlsx`, `xsquare-gifts-${stamp}.xlsx`), 'X-ICONS-Export-Audit': audit.data,
       'X-ICONS-Export-Rows': String(rows.length), 'X-ICONS-Export-Records': String(rows.length), 'X-ICONS-Export-Encryption': 'ECMA-376-Agile' } });
   } catch (error) {
     unstable_rethrow(error); return Response.json({ error: error instanceof ExportRequestError ? error.message : '목록 또는 감사 기록을 확인하지 못해 파일을 만들지 않았습니다. 다시 시도해주세요.' },

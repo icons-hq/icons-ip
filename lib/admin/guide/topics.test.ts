@@ -272,22 +272,32 @@ describe('어드민 가이드 인용·수치 정합', () => {
     /* 자동 발주확인 기본 시각 — orders-shipping·dev-requests·bank-transfer의 "기본 16:30"(ADR-0025). */
     expect(repoFile('lib/admin/auto-order-confirmation.ts')).toContain("AUTO_ORDER_CONFIRMATION_DEFAULT_TIME = '16:30'");
     expect(repoFile('supabase/migrations/20261027130000_auto_order_confirmation.sql')).toContain("values(true,true,'16:30',clock_timestamp())");
-    /* 자동 구매확정 소급 — orders-shipping의 "이미 배송완료된 주문도"(D11). */
-    expect(repoFile('components/admin/PurchaseConfirmationPolicyForm.tsx')).toContain('켜면 이미 배송완료된 주문도 배송완료일 기준으로 확정됩니다');
-    /* 자동 확정은 운영자가 기간을 설정해 활성화한 뒤 적용한다. */
-    expect(repoFile('components/admin/screens/SettledScreen.tsx')).toContain('자동 확정은 기본 꺼짐');
+    /* 자동 거래확정 소급 — orders-shipping의 "이미 배송완료된 주문도"(D11). 켜는 확인창이 그 기준(배송완료 뒤 N일이 지난 주문)과 기존 기한을 말한다. */
+    const preview = repoFile('lib/admin/purchase-confirmation-preview.ts');
+    expect(preview).toContain('대상은 ${target}입니다.');
+    expect(preview).toContain('전에 자동 확정 기한을 받은 주문은 그 기한을 따릅니다.');
+    /* 자동 거래확정이 켜졌는지는 안내 문장이 아니라 거래확정 화면의 상태 버튼이 말한다(문장 '기본 꺼짐'은 없앴다). */
+    expect(repoFile('components/admin/screens/SettledScreen.tsx')).toContain('data-settled-auto={state}');
+    expect(plainText(ADMIN_GUIDE_TOPICS['orders-shipping'])).toContain('[자동 거래확정 꺼짐·켜짐] 버튼');
     /* 추가 이미지 상한 — goods-sales·주간 변경의 "추가 이미지 최대 9장"·"갤러리 1~9". */
     expect(repoFile('lib/admin/catalog.ts')).toContain('GOODS_GALLERY_MAX = 9');
     expect(repoFile('lib/admin/goods-workbook.ts')).toContain("galleryUrl8: '갤러리 9 URL'");
-    /* 무통장 기한 연장 폭 — bank-transfer의 "24시간 연장". */
-    expect(repoFile('app/admin/unpaid-actions.ts')).toContain('입금 기한을 24시간 연장했습니다.');
+    /* 무통장 기한 연장 — bank-transfer의 "[기한을 지금부터 24시간 뒤로]"·"누른 시각부터 24시간 뒤". 버튼 이름·결과 문구는 lib/admin/unpaid-copy 한 곳에서 나오고
+       가이드도 그 상수를 쓴다. DB는 기한을 now() + 24시간으로 놓으므로 '24시간 연장'이라 부르지 않는다. */
+    expect(repoFile('lib/admin/unpaid-copy.ts')).toContain('UNPAID_EXTENSION_HOURS = 24');
+    expect(repoFile('app/admin/unpaid-actions.ts')).toContain('return { message: UNPAID_EXTENDED_MESSAGE };');
+    expect(plainText(ADMIN_GUIDE_TOPICS['bank-transfer'])).toContain('[기한을 지금부터 24시간 뒤로]를 누릅니다. 새 기한은 누른 시각부터 24시간 뒤입니다');
+    expect(plainText(ADMIN_GUIDE_TOPICS['bank-transfer'])).not.toContain('24시간 연장');
   });
 
   /* 출고지시 양식 기본값(10/14 회의 A2·T4) — 화면은 양식을 고르지 않으면 출고지 기본 양식을 쓰고 버튼마다 실제 양식을 적는다.
      안내가 "기본은 엑스스퀘어 표준 양식"으로 되돌아가면 남양주 담당자가 그 양식을 받는다고 오해한다. */
   it('출고지시 기본 양식과 입금 확인 뒤 발주확인 안내가 화면 계약과 같다', () => {
     const grid = repoFile('components/admin/screens/ShipmentConsoleGrid.tsx');
-    expect(grid).toContain('출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 엑스스퀘어 표준 양식)');
+    /* 화면은 양식 드롭다운의 '출고지 기본 양식' 옆에 지금 받을 양식('→ 서원 송장양식')을 결과로 보인다(설명 문장 대신). */
+    expect(grid).toContain('<option value="auto">출고지 기본 양식</option>');
+    expect(grid).toContain('data-export-layout-result=""');
+    expect(grid).toContain("layout==='smartstore'?'엑스스퀘어 표준 양식':seowonOnly?'서원 송장양식':'기존 창고 양식'");
     expect(grid).toContain('CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받습니다.');
     for (const slug of ['orders-shipping', 'store-settings'] as const) {
       const text = plainText(ADMIN_GUIDE_TOPICS[slug]);

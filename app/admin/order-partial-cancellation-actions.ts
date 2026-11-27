@@ -3,6 +3,7 @@
 import { isUuid } from '@/lib/uuid';
 import { revalidatePath } from 'next/cache';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { ADMIN_ORDER_READ_ACCESS_DENIED, ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 import {
   orderPartialCancellationErrorMessage,
   orderPartialCancellationReconcileMessage,
@@ -49,7 +50,7 @@ function refresh(orderId: string) {
  * 주문 조회 권한(sales.read)이면 기록을 읽는다 — 처리 권한(sales.manage)은 DB가 canManage로 알려준다.
  */
 export async function loadOrderPartialCancellationAction(orderId: unknown): Promise<PartialCancellationActionResult<OrderPartialCancellationContext>> {
-  if (!await staff('sales.read')) return { ok: false, error: '관리자 권한이 필요합니다.' };
+  if (!await staff('sales.read')) return { ok: false, error: ADMIN_ORDER_READ_ACCESS_DENIED };
   const id = uuid(orderId);
   if (!id) return { ok: false, error: '주문 정보를 확인하지 못했습니다. 주문 화면을 새로고침해주세요.' };
   const { data, error } = await (await createClient()).rpc('admin_order_partial_cancellation_context', { p_order_id: id });
@@ -63,7 +64,7 @@ export async function loadOrderPartialCancellationAction(orderId: unknown): Prom
 
 /** 확인창 미리보기 — DB가 시작과 같은 계산으로 환불액·닫히는 배송 건·창고 확인 필요 여부를 돌려준다. */
 export async function previewOrderPartialCancellationAction(input: { orderId: unknown; items: unknown }): Promise<PartialCancellationActionResult<OrderPartialCancellationPlan>> {
-  if (!await staff()) return { ok: false, error: '관리자 권한이 필요합니다.' };
+  if (!await staff()) return { ok: false, error: ADMIN_SALES_ACCESS_DENIED };
   const id = uuid(input.orderId);
   const items = normalizeOrderPartialCancellationSelection(input.items);
   if (!id || !items) return { ok: false, error: '취소할 상품을 고르고 수량을 남은 수량 안에서 입력해주세요.' };
@@ -106,7 +107,7 @@ function refundAccount(value: unknown) {
  */
 export async function startOrderPartialCancellationAction(input: StartOrderPartialCancellationInput): Promise<PartialCancellationActionResult<StartOrderPartialCancellationResult>> {
   const auth = await staff();
-  if (!auth?.user) return { ok: false, error: '관리자 권한이 필요합니다.' };
+  if (!auth?.user) return { ok: false, error: ADMIN_SALES_ACCESS_DENIED };
   const orderId = uuid(input.orderId);
   const operationId = uuid(input.operationId);
   const items = normalizeOrderPartialCancellationSelection(input.items);
@@ -114,7 +115,7 @@ export async function startOrderPartialCancellationAction(input: StartOrderParti
   if (!orderId || !operationId || !items || account === undefined
     || typeof input.customerDecision !== 'string' || (input.note !== null && input.note !== undefined && typeof input.note !== 'string')
     || typeof input.expectedRefundAmount !== 'number' || !Number.isSafeInteger(input.expectedRefundAmount) || input.expectedRefundAmount < 0) {
-    return { ok: false, error: '취소할 상품·수량과 고객 결정 기록을 확인하고, 무통장 주문이면 환불받을 계좌까지 입력한 뒤 다시 확정해주세요.' };
+    return { ok: false, error: '취소할 상품·수량과 고객이 정한 내용을 확인하고, 무통장 주문이면 환불받을 계좌까지 입력한 뒤 다시 확정해주세요.' };
   }
   const { data, error } = await (await createClient()).rpc('admin_start_order_partial_cancellation', {
     p_order_id: orderId,
@@ -168,7 +169,7 @@ async function reconcile(orderId: string, partialCancellationId: string, actorId
 /** 결제확인필요·처리 중인 부분 취소를 같은 경로로 다시 확인한다(이미 반영된 결제사 취소는 다시 취소하지 않는다). */
 export async function retryOrderPartialCancellationAction(input: { orderId: unknown; partialCancellationId: unknown }): Promise<PartialCancellationActionResult<StartOrderPartialCancellationResult>> {
   const auth = await staff();
-  if (!auth?.user) return { ok: false, error: '관리자 권한이 필요합니다.' };
+  if (!auth?.user) return { ok: false, error: ADMIN_SALES_ACCESS_DENIED };
   const orderId = uuid(input.orderId);
   const id = uuid(input.partialCancellationId);
   if (!orderId || !id) return { ok: false, error: '부분 취소 기록을 찾지 못했습니다. 주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
@@ -181,7 +182,7 @@ export async function retryOrderPartialCancellationAction(input: { orderId: unkn
  */
 export async function resolveOrderPartialCancellationAction(input: { orderId: unknown; partialCancellationId: unknown; reason: unknown }): Promise<PartialCancellationActionResult<string>> {
   const auth = await staff();
-  if (!auth?.user) return { ok: false, error: '관리자 권한이 필요합니다.' };
+  if (!auth?.user) return { ok: false, error: ADMIN_SALES_ACCESS_DENIED };
   const orderId = uuid(input.orderId);
   const id = uuid(input.partialCancellationId);
   const reason = typeof input.reason === 'string' ? input.reason.trim() : '';
@@ -219,7 +220,7 @@ export async function resolveOrderPartialCancellationAction(input: { orderId: un
 
 /** 무통장 부분 취소의 송금 완료(불변 송금 증빙). */
 export async function recordOrderPartialCancellationTransferAction(input: { orderId: unknown; partialCancellationId: unknown; evidence: unknown; note: unknown; operationId: unknown }): Promise<PartialCancellationActionResult<string>> {
-  if (!await staff()) return { ok: false, error: '관리자 권한이 필요합니다.' };
+  if (!await staff()) return { ok: false, error: ADMIN_SALES_ACCESS_DENIED };
   const orderId = uuid(input.orderId);
   const id = uuid(input.partialCancellationId);
   const operationId = uuid(input.operationId);
@@ -231,12 +232,12 @@ export async function recordOrderPartialCancellationTransferAction(input: { orde
   });
   refresh(orderId);
   if (error) return { ok: false, error: orderPartialCancellationErrorMessage(error.message) };
-  return { ok: true, value: '송금 완료를 기록했습니다. 구매자에게 알렸고 계좌 원문은 30일 뒤 지웁니다.' };
+  return { ok: true, value: '송금 완료를 기록했습니다. 구매자에게 알렸고 저장된 계좌번호는 30일 뒤 지웁니다.' };
 }
 
 /** 송금할 계좌 원문(감사 기록). */
 export async function viewOrderPartialCancellationRefundAccountAction(partialCancellationId: unknown): Promise<PartialCancellationActionResult<{ bankName: string; accountNumber: string; accountHolder: string; amount: number }>> {
-  if (!await staff()) return { ok: false, error: '관리자 권한이 필요합니다.' };
+  if (!await staff()) return { ok: false, error: ADMIN_SALES_ACCESS_DENIED };
   const id = uuid(partialCancellationId);
   if (!id) return { ok: false, error: '부분 취소 기록을 찾지 못했습니다. 주문 화면을 새로고침한 뒤 다시 시도해주세요.' };
   const { data, error } = await (await createClient()).rpc('admin_view_order_partial_cancellation_refund_account', { p_id: id });
@@ -244,7 +245,7 @@ export async function viewOrderPartialCancellationRefundAccountAction(partialCan
   const row = data as Record<string, unknown> | null;
   if (!row || typeof row.bankName !== 'string' || typeof row.accountNumber !== 'string' || typeof row.accountHolder !== 'string'
     || typeof row.amount !== 'number') {
-    return { ok: false, error: '계좌 원문을 읽지 못했습니다.' };
+    return { ok: false, error: '계좌번호를 읽지 못했습니다. 잠시 뒤 다시 눌러주세요.' };
   }
   return { ok: true, value: { bankName: row.bankName, accountNumber: row.accountNumber, accountHolder: row.accountHolder, amount: row.amount } };
 }

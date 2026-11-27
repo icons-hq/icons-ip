@@ -1,8 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { ClaimActionPanel, type ClaimActionPanelProps } from './ClaimActionPanel';
-vi.mock('@/app/admin/claim-actions', () => ({ decideOrderClaimAction: vi.fn(), recordOrderClaimCollectionAction: vi.fn(), recordOrderClaimOriginCollectionAction: vi.fn(), recordOrderClaimRefundAction: vi.fn(), recordOrderClaimReshipmentAction: vi.fn(), planClaimDefectiveStockAction: vi.fn(), planExchangeDefectiveStockAction: vi.fn(), retryClaimDefectiveStockAction: vi.fn() }));
-const base: ClaimActionPanelProps = { claimId: '10000000-0000-4000-8000-000000000001', claimType: 'cancel', orderId: '10000000-0000-4000-8000-000000000002', stage: 'requested', paymentProvider: null, recordedRefundMethod: null, carriers: [], heldFrom: null, cancellationForm: null, refundLedgerOpen: false, refundFiled: false, refundCompleted: false, collectionPolicy: 'origin', collectionComplete: true, collections: [] };
+vi.mock('@/app/admin/claim-actions', () => ({ decideOrderClaimAction: vi.fn(), recordOrderClaimCollectionAction: vi.fn(), recordOrderClaimOriginCollectionAction: vi.fn(), recordOrderClaimRefundAction: vi.fn(), readOrderClaimApprovalAmountAction: vi.fn(), planClaimDefectiveStockAction: vi.fn(), planExchangeDefectiveStockAction: vi.fn(), retryClaimDefectiveStockAction: vi.fn() }));
+const base: ClaimActionPanelProps = { claimId: '10000000-0000-4000-8000-000000000001', claimType: 'cancel', orderId: '10000000-0000-4000-8000-000000000002', stage: 'requested', paymentProvider: null, recordedRefundMethod: null, heldFrom: null, cancellationForm: null, refundLedgerOpen: false, refundFiled: false, refundCompleted: false, collectionPolicy: 'origin', collectionComplete: true, collections: [] };
 describe('claim collection guidance', () => {
   it('철회 이후에는 수거 재개 안내와 처리 폼을 보여주지 않는다', () => {
     const html = renderToStaticMarkup(<ClaimActionPanel {...base} claimType="return" stage="withdrawn" />);
@@ -37,7 +37,8 @@ describe('claim collection guidance', () => {
     expect(html).toContain('상품 회수가 필요하지 않은 취소');
     expect(html).not.toContain('출고지별 회수 확인');
     expect(html).not.toContain('모든 출고지의 회수를 확인했습니다');
-    expect(html).toContain('승인하고 환불 처리 시작');
+    /* 결제 전 주문은 환불할 돈이 없다 — 승인하면 주문만 취소한다고 버튼이 말한다. */
+    expect(html).toContain('승인하고 주문 취소');
   });
   it('keeps historical cancellation collection gates visible when recovery remains incomplete', () => {
     const html = renderToStaticMarkup(<ClaimActionPanel {...base} stage="processing" collectionComplete={false} />);
@@ -57,7 +58,7 @@ describe('claim collection guidance', () => {
     expect(open).toContain('TEST 남양주 늦은 입고 확인');
     expect(open).toContain('회수 생략으로 결정한 출고지입니다.');
     expect(open).not.toContain('TEST 김포 회수 확인</button>');
-    expect(open).toContain('실제 입고일 <span class="tabular-nums">2026-11-11</span>');
+    expect(open).toContain('실제 입고일 <span class="tabular-nums">2026. 11. 11.</span>');
     const closed = renderToStaticMarkup(<ClaimActionPanel {...base} claimType="exchange" stage="completed" collectionComplete collections={collections} />);
     expect(closed).not.toContain('늦은 입고 확인');
   });

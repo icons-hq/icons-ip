@@ -97,7 +97,7 @@ export const MEMBER_WITHDRAWAL_RETAINED: readonly string[] = [
 export const MEMBER_WITHDRAWAL_BLOCKER_LABELS: Record<AccountDeletionBlockerCode, string> = {
   active_order: '진행 중인 주문(결제 대기·결제완료·발주확인·배송중·교환 재출고)',
   active_received_gift: '받은 선물의 배송·취소 처리',
-  active_shipping_collect: '착불 수납·환급 확인',
+  active_shipping_collect: '착불 수납·환불 확인',
   active_claim_fee: '반품·교환 배송비 청구·반환',
   subscription_active: '정기구매 해지',
   subscription_payment_pending: '정기구매 결제 확인',
@@ -108,10 +108,10 @@ export const MEMBER_WITHDRAWAL_BLOCKER_LABELS: Record<AccountDeletionBlockerCode
   active_ticket_payment: '결과가 확정되지 않은 티켓 결제(결제 중·결제사 확인 필요)',
   active_payment_attempt: '결과가 확정되지 않은 기타 결제(결제 중·결제사 확인 필요)',
   active_order_refund: '주문 환불·송금 대기',
-  active_ticket_refund: '티켓 환급 처리',
+  active_ticket_refund: '티켓 환불 처리',
   active_refund: '환불·송금 확인',
   active_ticket: '이용 전 티켓·결제 대기 예매',
-  active_ticket_cancellation: '티켓 취소·환급 처리',
+  active_ticket_cancellation: '티켓 취소·환불 처리',
   staff_handover: '운영 권한(관리자·매니저) — 권한 회수 뒤 처리',
   not_available: '처리할 수 있는지 확인하지 못함(잠시 뒤 다시 시도)',
 };

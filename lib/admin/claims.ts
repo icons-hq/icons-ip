@@ -20,6 +20,7 @@ import {
 import {
   ORDER_WITHDRAWAL_REASON_LABELS,
   ORDER_WITHDRAWAL_REASON_TYPES,
+  formatOrderDate,
   type OrderWithdrawalReasonType,
 } from '@/lib/orders';
 
@@ -71,15 +72,20 @@ export const ADMIN_CLAIM_STAGE_OPTIONS: { value: AdminClaimStageFilter; label: s
   })),
 ];
 
-/** Keep the provider-review stage distinct from an operator hold and buyer withdrawal. */
+/**
+ * 어드민 화면의 단계 이름 — 취소·반품·교환 목록·상세·주문 화면이 모두 이 함수 하나를 쓴다.
+ * 세 유형이 같은 틀(`○○요청`·`○○검토중`·`○○완료`…)이고, 창고에 돌아온 단계는 고객 화면·엑셀과 같은 '입고완료'다.
+ * 고객 화면의 이름(`ORDER_CLAIM_STAGE_LABELS`)은 따로 두고 여기서만 어드민 이름을 정한다.
+ * 결제 확인이 필요한 단계는 운영 보류·고객 철회와 섞이지 않게 따로 부른다.
+ */
 export function adminClaimStageLabel(type: OrderClaimType, stage: OrderClaimStage) {
   const typeLabel = type === 'cancel' ? '취소' : type === 'return' ? '반품' : '교환';
   if (stage === 'requested') return `${typeLabel}요청`;
-  if (stage === 'in_review') return `${typeLabel} 검토중`;
+  if (stage === 'in_review') return `${typeLabel}검토중`;
   if (stage === 'collecting') return '수거중';
-  if (stage === 'collected') return '수거완료';
+  if (stage === 'collected') return '입고완료';
   if (stage === 'on_hold') return `${typeLabel}보류`;
-  if (stage === 'completed') return type === 'exchange' ? '재배송 처리완료' : `${typeLabel}완료`;
+  if (stage === 'completed') return `${typeLabel}완료`;
   if (stage === 'rejected') return `${typeLabel}거부`;
   if (stage === 'withdrawn') return `${typeLabel}철회`;
   return ORDER_CLAIM_STAGE_LABELS[stage];
@@ -137,6 +143,10 @@ export function adminClaimRejectionPresets(claimType: OrderClaimType): readonly 
   return REJECTION_PRESETS_BY_TYPE[claimType];
 }
 
+/**
+ * 검색 항목. 상품 URL(고객 화면 주소 끝의 영문 값)은 운영자가 고를 일이 없어 항목에서 뺐다 — '전체' 검색이 그 값도 함께 찾는다
+ * (DB admin_sales_claim_matches가 field=all일 때 상품 값도 본다). 옛 주소의 field=product는 '전체'로 읽힌다.
+ */
 export const ADMIN_CLAIM_SEARCH_FIELDS = [
   { value: 'all', label: '전체' },
   { value: 'order', label: '주문·요청번호' },
@@ -144,13 +154,35 @@ export const ADMIN_CLAIM_SEARCH_FIELDS = [
   { value: 'email', label: '구매자 이메일' },
   { value: 'recipient', label: '수령인명' },
   { value: 'item', label: '상품주문번호' },
-  { value: 'product', label: '상품 URL' },
 ] as const;
 export type AdminClaimSearchField = (typeof ADMIN_CLAIM_SEARCH_FIELDS)[number]['value'];
+/**
+ * 검색어가 화면에 보이는 요청번호('C00021')이면 DB가 받는 값('21')으로 바꾼다. 요청번호를 보여 주는 표시 형식(orderClaimReferenceLabel: 'C' + 5자리 0 채움)의 역이다.
+ * DB는 요청번호를 숫자 글자(reference::text)로 비교해서 'C00021'을 그대로 보내면 0건이고 '21'만 찾아진다(F-10).
+ * 요청번호는 '전체'와 '주문·요청번호' 검색에서만 찾으므로 그 둘에서만 바꾸고, 구매자·이메일·수령인·상품주문번호 검색어는 건드리지 않는다.
+ * 'C' 다음이 숫자뿐이고 0이 아닌 수일 때만 요청번호 모양으로 본다 — 앞의 0은 몇 개든 뗀다. 목록·URL·검색칸에는 운영자가 적은 그대로 남고, DB에 보내는 값만 바뀐다.
+ * DB는 같은 숫자를 부분 일치로 찾으므로 주문번호에 그 숫자가 든 다른 건이 함께 나올 수 있다(DB 검색 함수는 이번에 고치지 않는다).
+ */
+export function adminClaimSearchQuery(query: string, field?: AdminClaimFilters['field']): string {
+  const text = query.trim();
+  if (field !== undefined && field !== 'order') return text;
+  const reference = /^[Cc]0*([1-9][0-9]*)$/.exec(text);
+  return reference ? reference[1] : text;
+}
+
+/**
+ * 실제 입고일(YYYY-MM-DD)을 목록·상세가 날짜를 보이는 형식("2026. 11. 26.")으로 바꿔 글에 쓴다. 날짜 칸의 값은 그대로 두고
+ * 확인창·결과 글·요약에만 쓴다. 날짜로 읽을 수 없으면 받은 글을 그대로 돌려준다.
+ */
+export function adminClaimReceivedOnLabel(receivedOn: string): string {
+  return formatOrderDate(receivedOn) || receivedOn;
+}
+
+/** 기간 기준. 이름은 표의 열 이름과 같다 — 접수일(표 '접수일')·입고완료일(단계 '입고완료')·처리완료일(단계 '○○완료'). */
 export const ADMIN_CLAIM_DATE_FIELDS = [
-  { value: 'requested', label: '요청일' },
+  { value: 'requested', label: '접수일' },
   { value: 'paid', label: '결제일' },
-  { value: 'collected', label: '수거완료일' },
+  { value: 'collected', label: '입고완료일' },
   { value: 'completed', label: '처리완료일' },
 ] as const;
 
@@ -359,7 +391,6 @@ export function adminClaimOpenCount(counts: Record<OrderClaimStage, number>) {
  * 폼 정규화 — 콘솔 액션이 DB에 닿기 전에 입력을 좁힌다
  * ------------------------------------------------------------------------- */
 
-const TRACKING_NUMBER_PATTERN = /^[A-Z0-9]{8,30}$/;
 export const ADMIN_CLAIM_OPERATIONAL_FEE_KINDS = ['return_shipping', 'exchange_shipping', 'other'] as const;
 export type AdminClaimOperationalFeeKind = (typeof ADMIN_CLAIM_OPERATIONAL_FEE_KINDS)[number];
 
@@ -442,7 +473,7 @@ export function normalizeAdminClaimRefundForm(
     return { ok: false, error: '처리할 수 없는 환불 단계입니다. 화면을 새로고침한 뒤 다시 눌러주세요.' };
   }
   if (note.length > 300) {
-    return { ok: false, error: '상계·정산 메모는 300자 이내로 입력해주세요.' };
+    return { ok: false, error: '환불 메모는 300자 이내로 입력해주세요.' };
   }
 
   return {
@@ -454,33 +485,6 @@ export function normalizeAdminClaimRefundForm(
       note: note.length > 0 ? note : null,
     },
   };
-}
-
-export function normalizeAdminClaimReshipmentForm(
-  formData: FormData,
-): AdminClaimFormResult<{ claimId: string; carrier: string; trackingNumber: string; items: { orderItemId: string; variantId: string }[] }> {
-  const claimId = readString(formData, 'claimId').toLowerCase();
-  const carrier = readString(formData, 'carrier');
-  const trackingNumber = readString(formData, 'trackingNumber').toUpperCase();
-
-  if (!isUuid(claimId)) return { ok: false, error: '클레임을 찾을 수 없습니다.' };
-  if (!carrier) return { ok: false, error: '택배사를 선택해주세요.' };
-  if (!TRACKING_NUMBER_PATTERN.test(trackingNumber)) {
-    return { ok: false, error: '운송장번호를 영문 대문자와 숫자 8~30자로 입력해주세요.' };
-  }
-
-  const items: { orderItemId: string; variantId: string }[] = [];
-  const seen = new Set<string>();
-  for (const [key, value] of formData.entries()) {
-    if (!key.startsWith('variant:')) continue;
-    const orderItemId = key.slice(8).toLowerCase();
-    const variantId = typeof value === 'string' ? value.toLowerCase() : '';
-    if (!isUuid(orderItemId) || !isUuid(variantId) || seen.has(orderItemId)) {
-      return { ok: false, error: '재출고할 품목과 옵션을 확인해주세요.' };
-    }
-    seen.add(orderItemId); items.push({ orderItemId, variantId });
-  }
-  return { ok: true, value: { claimId, carrier, trackingNumber, items } };
 }
 
 /*
@@ -582,7 +586,7 @@ export function normalizeAdminClaimOperationalFeeForm(
   const amount = Number(amountText);
   if (!Number.isSafeInteger(amount) || amount < 0 || amount > 1000000) return { ok: false, error: '운영 확인액은 0~1,000,000원 사이로, 소수점 없이 입력해주세요.' };
   if (!note || note.length > 500) return { ok: false, error: '비용 메모는 1~500자로 입력해주세요.' };
-  if (!evidence || evidence.length > 1000) return { ok: false, error: '운영 확인 근거는 1~1,000자로 입력해주세요.' };
+  if (!evidence || evidence.length > 1000) return { ok: false, error: '확인 근거는 1~1,000자로 입력해주세요.' };
   if ([note, evidence].some((value) => Array.from(value).some((character) => {
     const code = character.charCodeAt(0);
     return (code < 32 && ![9, 10, 13].includes(code)) || code === 127;

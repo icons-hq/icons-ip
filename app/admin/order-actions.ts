@@ -43,17 +43,30 @@ import { carrierTrackingNumberIssue, trackingFormatRulesNote, type ShippingCarri
 import { createClient } from '@/lib/supabase/server';
 import { FULFILLMENT_HOLD_BLOCKED_MESSAGE, isFulfillmentHoldError } from '@/lib/admin/fulfillment-holds';
 import { STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE } from '@/lib/admin/order-partial-cancellation';
+import { adminPaymentCancelFailureMessage, splitAdminSupportCode, withAdminSupportCode } from '@/lib/admin/payment-cancel-error';
+import { ADMIN_DISPATCH_ACCESS_DENIED, ADMIN_SALES_ACCESS_DENIED } from '@/lib/admin/vocabulary';
 
 export interface AdminOrderActionState {
   errors?: AdminOrderFieldErrors & { form?: string };
   message?: string;
   confirmedOrderIds?: string[];
+  /**
+   * 운송장 수정이 '다른 주문이 쓰는 번호'로 거절됐을 때 그 택배사·번호(서버가 판정한 값). 화면이 그 자리에서 여는
+   * [중복 확인 후 운송장 등록]에 그대로 넘긴다 — 운영자가 같은 번호를 다시 적지 않게 한다.
+   */
+  trackingInUse?: { carrier: string; trackingNumber: string };
 }
+
+/* 권한이 없을 때의 문구는 판매·출고 화면이 함께 쓴다(lib/admin/vocabulary). */
+const STAFF_ACCESS_DENIED = ADMIN_SALES_ACCESS_DENIED;
+const DISPATCH_ACCESS_DENIED = ADMIN_DISPATCH_ACCESS_DENIED;
+/** 처리하지 못했을 때 붙이는 뒷말: 다른 사람이 먼저 처리했을 수 있으니 새로고침해서 본 뒤 다시 한다. */
+const STALE_STATE_HINT = '다른 사람이 먼저 처리했을 수 있습니다. 새로고침해 상태를 확인한 뒤 다시 눌러주세요.';
 
 async function requireStaffAction() {
   const auth = await requireAdminActionAccess('/admin/sales/orders', { capability: 'sales.manage' });
   if (!auth) {
-    return { auth: null, error: { errors: { form: '관리자 권한이 필요합니다.' } } as AdminOrderActionState };
+    return { auth: null, error: { errors: { form: STAFF_ACCESS_DENIED } } as AdminOrderActionState };
   }
   return { auth, error: null };
 }
@@ -62,7 +75,7 @@ async function requireStaffAction() {
 async function requireDispatchAction() {
   const auth = await requireAdminActionAccess('/admin/sales/dispatch', { capability: 'sales.dispatch' });
   if (!auth) {
-    return { auth: null, error: { errors: { form: '관리자 권한이 필요합니다.' } } as AdminOrderActionState };
+    return { auth: null, error: { errors: { form: DISPATCH_ACCESS_DENIED } } as AdminOrderActionState };
   }
   return { auth, error: null };
 }
@@ -89,12 +102,17 @@ async function reconcileApprovedRequest(requestId: string, actorId: string) {
 /**
  * 결제 취소를 확정하지 못한 결과(2026-10-12 브라우저 QA QA-10).
  *
- * 원인 코드를 그대로 싣는다. 런북·가이드의 조치는 코드별이라, 코드 없이 "다시 확인"만
- * 말하면 운영자는 같은 버튼을 반복해 누른다. 같은 코드는 주문 패널의 취소 요청 영역과
- * 취소 관리 요청 상세의 정합화 오류에도 남는다.
+ * 환불이 됐는지 모르는 상태라, 무엇이 문제이고 지금 무엇을 할지를 코드별로 말한다(`adminPaymentCancelFailureMessage` — 취소·반품·교환 관리와
+ * 같은 문구). 코드는 끝에 문의용으로만 한 번 남고, 주문 패널이 문장에서 떼어 작은 글로 보인다 — 같은 코드가 취소 요청 영역과
+ * 취소 관리 요청 상세에도 보인다(QA-10). 그 안내가 가리키는 [환불 완료 확정]은 요청 상세의 버튼이라, 이 주문 패널에서 같은 일을 하는
+ * 버튼의 이름을 함께 말한다.
  */
 function reviewRequiredMessage(code: string) {
-  return `결제 취소 상태를 확정하지 못했습니다(${code}). 주문과 재고는 그대로 유지됩니다. 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다. 원인을 확인한 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}]으로 다시 시도해주세요.`;
+  const { text } = splitAdminSupportCode(adminPaymentCancelFailureMessage(code));
+  const here = text.includes('[환불 완료 확정]')
+    ? ` 이 주문 패널에서는 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}](처리중이면 [${ADMIN_CANCELLATION_RECHECK_LABELS.processing}])이 같은 일을 합니다.`
+    : '';
+  return withAdminSupportCode(`${text}${here}`, code);
 }
 const PAYMENT_RECONCILIATION_IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 결제 담당자에게 결제사 거래 내역 확인을 요청해주세요.';
 
@@ -141,7 +159,7 @@ export async function updateAdminOrderStatusAction(
     if (isFulfillmentHoldError(error.message)) return { errors: { form: FULFILLMENT_HOLD_BLOCKED_MESSAGE } };
     const tracking = await trackingRegistrationError(error.message);
     if (tracking) return { errors: { form: tracking } };
-    return { errors: { form: '주문 상태를 변경하지 못했습니다. 최신 상태를 확인해주세요.' } };
+    return { errors: { form: '주문 상태를 바꾸지 못했습니다. 다른 사람이 먼저 처리했을 수 있습니다. 새로고침해 주문상태를 확인한 뒤 다시 눌러주세요.' } };
   }
 
   // 배송 시작 메일(#180). 방금 등록한 운송장을 그대로 실어 보낸다 — 값을 넘기지 않으면
@@ -275,7 +293,11 @@ export async function updateAdminOrderTrackingAction(
   });
   if (error) {
     const tracking = await trackingRegistrationError(error.message);
-    return { errors: { form: tracking ?? '운송장 정보를 저장하지 못했습니다. 최신 상태를 확인해주세요.' } };
+    const { carrier, trackingNumber } = normalized.value;
+    return {
+      errors: { form: tracking ?? `운송장을 저장하지 못했습니다. ${STALE_STATE_HINT}` },
+      ...(error.message === 'tracking_number_in_use' ? { trackingInUse: { carrier, trackingNumber } } : {}),
+    };
   }
 
   revalidateOrderSurfaces(normalized.value.orderId);
@@ -326,7 +348,7 @@ export async function approveAdminOrderCancellationAction(
   formData: FormData,
 ): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
-  if (access.error || !access.auth?.user) return access.error ?? { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (access.error || !access.auth?.user) return access.error ?? { errors: { form: STAFF_ACCESS_DENIED } };
 
   const normalized = normalizeAdminCancellationDecisionForm(formData, 'approve');
   if (!normalized.ok) return { errors: normalized.errors };
@@ -338,14 +360,14 @@ export async function approveAdminOrderCancellationAction(
     p_request_id: normalized.value.requestId,
   });
   if (error) {
-    return { errors: { form: '청약철회 요청을 승인하지 못했습니다. 최신 상태를 확인해주세요.' } };
+    return { errors: { form: `취소 요청을 승인하지 못했습니다. ${STALE_STATE_HINT}` } };
   }
 
   const result = await reconcileApprovedRequest(normalized.value.requestId, access.auth.user.id);
   revalidateOrderSurfaces();
   if (!result.ok) return { errors: { form: reviewRequiredMessage(result.code) } };
   if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
-  return { message: '청약철회를 완료했습니다.' };
+  return { message: '취소 요청을 승인하고 결제 취소를 마쳤습니다.' };
 }
 
 export async function rejectAdminOrderCancellationAction(
@@ -365,11 +387,11 @@ export async function rejectAdminOrderCancellationAction(
     p_request_id: normalized.value.requestId,
   });
   if (error) {
-    return { errors: { form: '청약철회 요청을 거절하지 못했습니다. 최신 상태를 확인해주세요.' } };
+    return { errors: { form: `취소 요청을 거부하지 못했습니다. ${STALE_STATE_HINT}` } };
   }
 
   revalidateOrderSurfaces();
-  return { message: '청약철회 요청을 거절했습니다.' };
+  return { message: '취소 요청을 거부했습니다.' };
 }
 
 export async function reconcileAdminOrderCancellationAction(
@@ -377,7 +399,7 @@ export async function reconcileAdminOrderCancellationAction(
   formData: FormData,
 ): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
-  if (access.error || !access.auth?.user) return access.error ?? { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (access.error || !access.auth?.user) return access.error ?? { errors: { form: STAFF_ACCESS_DENIED } };
 
   const normalized = normalizeAdminCancellationDecisionForm(formData, 'approve');
   if (!normalized.ok) return { errors: normalized.errors };
@@ -387,7 +409,7 @@ export async function reconcileAdminOrderCancellationAction(
     p_request_id: normalized.value.requestId,
   });
   if (error) {
-    return { errors: { form: '청약철회 요청을 다시 확인하지 못했습니다. 최신 상태를 확인해주세요.' } };
+    return { errors: { form: `결제 취소 상태를 다시 확인하지 못했습니다. ${STALE_STATE_HINT}` } };
   }
 
   const result = await reconcileApprovedRequest(normalized.value.requestId, access.auth.user.id);
@@ -406,23 +428,23 @@ function staffCancellationError(message: string | null | undefined) {
   }
   /* 일부 발송 주문(원장 #15): 발송 전 몫은 재고 부족 부분 취소, 발송된 몫은 반품으로 안내한다. */
   if (value.includes('shipment_already_dispatched')) return STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE;
-  if (value.includes('order_not_staff_cancelable')) return '결제완료·발주확인 상태의 발송 전 주문만 전액 취소할 수 있습니다.';
+  if (value.includes('order_not_staff_cancelable')) return '신규주문·발주확인 상태의 발송 전 주문만 전액 취소할 수 있습니다.';
   if (value.includes('order_claim_in_progress')) {
     return '이미 진행 중인 취소·반품·교환 요청이 있습니다. 취소·반품·교환 관리에서 그 요청을 처리해주세요.';
   }
   /* 결제사 확인을 기다리는 재고 부족 부분 취소(ADR-0032). 클레임이 아니라 주문 상세의 부분 취소 칸에서 결제 확인을 마친다. */
   if (value.includes('partial_cancel_in_progress')) {
-    return '재고 부족 부분 취소의 결제 확인을 먼저 마쳐주세요. 이 주문 상세의 재고 부족 부분 취소 칸에서 결제사 확인(결제확인필요 해소)을 끝낸 뒤 전액 취소할 수 있습니다.';
+    return '재고 부족 부분 취소의 결제 확인을 먼저 마쳐주세요. 이 주문 상세의 재고 부족 부분 취소 칸에서 결제사 확인(결제사 확인이 계속 안 될 때)을 끝낸 뒤 전액 취소할 수 있습니다.';
   }
   if (value.includes('payment_reconciliation_required')) return '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.';
   if (value.includes('staff_cancellation_toss_only')) {
-    return '토스·나이스페이 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
+    return '토스·나이스페이 결제 주문만 이 화면에서 전액 취소할 수 있습니다. 코페이·무통장 주문은 기존 수동 절차를 따릅니다.';
   }
   if (value.includes('invalid_staff_cancellation_note')) return '기타 사유는 메모를 5자 이상 입력해주세요(최대 500자).';
   if (value.includes('invalid_staff_cancellation_reason')) return '취소 사유를 선택해주세요.';
-  if (value.includes('staff required')) return '관리자 권한이 필요합니다.';
+  if (value.includes('staff required')) return STAFF_ACCESS_DENIED;
   if (value.includes('order_not_found')) return '주문을 찾을 수 없습니다.';
-  return '전액 취소를 시작하지 못했습니다. 최신 상태를 확인해주세요.';
+  return `전액 취소를 시작하지 못했습니다. ${STALE_STATE_HINT}`;
 }
 
 /**
@@ -438,7 +460,7 @@ export async function startAdminOrderCancellationAction(
   formData: FormData,
 ): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
-  if (access.error || !access.auth?.user) return access.error ?? { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (access.error || !access.auth?.user) return access.error ?? { errors: { form: STAFF_ACCESS_DENIED } };
 
   const normalized = normalizeAdminStaffCancellationForm(formData);
   if (!normalized.ok) return { errors: normalized.errors };
@@ -448,19 +470,20 @@ export async function startAdminOrderCancellationAction(
     p_note: normalized.value.note,
     p_order_id: normalized.value.orderId,
     p_reason_code: normalized.value.reasonCode,
-    p_warehouse_stop_confirmed: normalized.value.warehouseStopConfirmed,
+    /* 시그니처 호환용이다. DB는 이 값을 근거로 보지 않고 출고지시가 나간 배송 건마다 창고 회신 기록으로 판정한다(ADR-0046).
+       화면에 확인란이 없으니 브라우저가 보낸 값도 받지 않는다. */
+    p_warehouse_stop_confirmed: false,
   });
   if (error) {
     /* 양식을 연 뒤 출고지시·발주확인·다른 요청으로 주문이 바뀌어 DB가 거절했다. 주문 패널을
-       최신 상태로 다시 그려야 거절 문구가 가리키는 확인란·버튼이 화면에 있다 — 열 때의
-       패널에는 창고 출고 중단 확인란이 없었다(2026-10-12 브라우저 QA R2-2). */
+       최신 상태로 다시 그려야 거절 문구가 가리키는 버튼·기록 칸이 화면에 있다(2026-10-12 브라우저 QA R2-2). */
     revalidateOrderSurfaces(normalized.value.orderId);
     revalidatePath('/admin/sales/orders');
     return { errors: { form: staffCancellationError(error.message) } };
   }
   if (typeof data !== 'string' || !isUuid(data)) {
     revalidateOrderSurfaces(normalized.value.orderId);
-    return { errors: { form: '전액 취소 요청을 확인하지 못했습니다. 취소 관리에서 최신 상태를 확인해주세요.' } };
+    return { errors: { form: '전액 취소 요청이 만들어졌는지 확인하지 못했습니다. 취소·반품·교환 관리에서 이 주문의 요청이 있는지 확인해주세요.' } };
   }
 
   const result = await reconcileApprovedRequest(data, access.auth.user.id);
@@ -469,7 +492,7 @@ export async function startAdminOrderCancellationAction(
   if (!result.ok) {
     return {
       errors: {
-        form: `전액 취소를 시작했지만 결제 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 원인을 확인한 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}](처리중이면 [${ADMIN_CANCELLATION_RECHECK_LABELS.processing}]) 또는 취소 관리 요청 상세의 [환불 완료 확정]으로 다시 시도해주세요.`,
+        form: `전액 취소를 시작했지만 ${reviewRequiredMessage(result.code)}`,
       },
     };
   }
@@ -479,7 +502,7 @@ export async function startAdminOrderCancellationAction(
       message: `전액 취소를 시작했지만 결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 잠시 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.processing}](결제확인필요면 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}])으로 결과를 확인해주세요.`,
     };
   }
-  return { message: '토스 전액 취소를 확인하고 주문 취소를 마쳤습니다. 재고·쿠폰·적립금 복원이 함께 확정됐고 구매자에게 알렸습니다.' };
+  return { message: '결제 전액 취소를 확인하고 주문 취소를 마쳤습니다. 재고·쿠폰·적립금 복원이 함께 확정됐고 구매자에게 알렸습니다.' };
 }
 
 export async function recoverAdminGoodsPaymentAction(
@@ -488,10 +511,10 @@ export async function recoverAdminGoodsPaymentAction(
 ): Promise<AdminOrderActionState> {
   const access = await requireStaffAction();
   if (access.error || !access.auth?.user) {
-    return access.error ?? { errors: { form: '관리자 권한이 필요합니다.' } };
+    return access.error ?? { errors: { form: STAFF_ACCESS_DENIED } };
   }
   if (!canAccessAdminScreen(access.auth, null, { capability: 'sales.manage', adminOnly: true })) {
-    return { errors: { form: 'Korpay 수동 복구는 관리자 계정만 수행할 수 있습니다.' } };
+    return { errors: { form: '코페이 수동 복구는 관리자 계정만 할 수 있습니다.' } };
   }
 
   const normalized = normalizeAdminGoodsManualRecoveryForm(formData);
@@ -506,9 +529,9 @@ export async function recoverAdminGoodsPaymentAction(
     if (result.outcome === 'in_progress') {
       return { errors: { form: '다른 운영 확인이 진행 중입니다. 잠시 뒤 최신 상태를 확인해주세요.' } };
     }
-    return { message: 'Korpay 전액 취소 확인을 주문에 반영했습니다.' };
+    return { message: '코페이 전액 취소 확인을 주문에 반영했습니다.' };
   } catch {
-    return { errors: { form: 'Korpay 수동 취소 상태를 반영하지 못했습니다. 최신 상태를 확인해주세요.' } };
+    return { errors: { form: `코페이 전액 취소를 주문에 반영하지 못했습니다. ${STALE_STATE_HINT}` } };
   }
 }
 
@@ -649,7 +672,7 @@ const blankReplyLines = (parsed: TrackingWorkbookParseResult) => 'kind' in parse
  */
 export async function previewAdminOrderTrackingImportAction(formData: FormData): Promise<{ preview?: AdminTrackingImportPreview; error?: string }> {
   const access = await requireDispatchAction();
-  if (access.error) return { error: access.error.errors?.form ?? '관리자 권한이 필요합니다.' };
+  if (access.error) return { error: access.error.errors?.form ?? DISPATCH_ACCESS_DENIED };
   const read = await readTrackingImport(formData);
   if ('error' in read) return { error: read.error };
   const parsed = read.parsed;

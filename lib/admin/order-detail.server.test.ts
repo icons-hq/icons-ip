@@ -16,8 +16,8 @@ it('관리자 세션에서 해당 주문의 배송 메일 큐 상태만 읽는�
  const result=await getAdminOrderDetail('order');
  expect(mocks.from).toHaveBeenCalledWith('order_shipment_email_jobs');
  expect(mocks.eq).toHaveBeenCalledWith('order_id','order');
- expect(mocks.select).toHaveBeenCalledWith('shipment_id,status,attempts,last_error_code,updated_at');
- expect(result?.emailJobs).toEqual([{shipmentId:'shipment',status:'review',attempts:2,lastErrorCode:'provider_network_error',updatedAt:'2026-09-08'}]);
+ expect(mocks.select).toHaveBeenCalledWith('shipment_id,status,attempts,last_error_code,updated_at,lease_until');
+ expect(result?.emailJobs).toEqual([{shipmentId:'shipment',status:'review',attempts:2,lastErrorCode:'provider_network_error',updatedAt:'2026-09-08',leaseUntil:null}]);
 });
 it('출고 보류를 주문 상세에 싣고, 없으면 빈 배열이다',async()=>{
  expect((await getAdminOrderDetail('order'))?.fulfillmentHolds).toEqual([]);

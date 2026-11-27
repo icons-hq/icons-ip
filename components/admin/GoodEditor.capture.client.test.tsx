@@ -44,6 +44,7 @@ import { GoodCategoryField } from './GoodCategoryFields';
 import { GoodDraftSwitch } from './GoodPublishControls';
 import { GoodsAttributeEditor } from './GoodsAttributeEditor';
 import { GoodsImageGrid } from './GoodsImageGrid';
+import { GoodsShippingNoticeField } from './GoodsShippingNoticeField';
 import { GoodWorkspaceErrors } from './GoodWorkspace';
 import { createGoodEditorDraft } from '@/lib/admin/good-editor';
 import { GoodsPriceFields } from './GoodsPriceFields';
@@ -96,6 +97,32 @@ it('속성 초기화가 외부 저장 잠금과 겹쳐도 요약과 pristine 상
   expect(summary(tree, 'good-section-basic')).toBe(good.name); expect(mocks.reported).toHaveBeenLastCalledWith({ goodId: good.id, dirty: false, busy: false });
   h.entries.set('name', '실제 변경한 상품명'); h.capture(); tree = h.render();
   expect(summary(tree, 'good-section-basic')).toBe('실제 변경한 상품명'); expect(mocks.reported).toHaveBeenLastCalledWith({ goodId: good.id, dirty: true, busy: false });
+});
+
+/*
+ * 배송 안내 템플릿 선택창은 열 때마다 목록을 다시 읽는다. 다른 탭에서 방금 만든 템플릿을 골랐을 때 접힌 줄 요약과 미리보기가
+ * 화면을 열 때 받은 옛 목록에서 찾으면 저장 전까지 '지금 적용 중인 안내'라고 틀리게 말한다 — 편집기가 다시 읽은 목록을 받아 쓴다.
+ */
+it('배송 안내 템플릿 선택창이 다시 읽은 목록을 접힌 줄 요약·미리보기·선택 칸이 함께 쓴다', () => {
+  const h = setup(); h.initialize();
+  const created = { id: '11111111-1111-4111-8111-111111111120', code: 'n-new', version: 1, name: '방금 만든 템플릿', shippingNotice: '방금 만든 배송 안내',
+    returnExchangeNotice: '교환·반품 안내', csName: 'TEST 담당', csPhone: '02-0000-0000', csEmail: 'cs@example.test' };
+  h.entries.set('shippingNoticeTemplate', 'n-new@1'); h.capture();
+  let tree = h.render();
+  expect(summary(tree, 'good-section-shipping')).toContain('지금 적용 중인 안내');
+  const field = () => tree.find(node => node.type === GoodsShippingNoticeField)!;
+  expect(field().props.options).toEqual([]);
+  (field().props.onOptionsChange as (options: unknown[]) => void)([created]);
+  preview.spy!.mockClear();
+  tree = h.render();
+  expect(summary(tree, 'good-section-shipping')).toContain('방금 만든 템플릿');
+  expect(field().props.options).toEqual([created]);
+  expect(preview.spy).toHaveBeenLastCalledWith(expect.objectContaining({ shippingNoticeOptions: [created] }));
+  /* 저장 뒤 서버가 새 목록을 주면 그쪽이 더 새것이다. */
+  const fromServer = [{ ...created, name: '서버가 준 이름' }];
+  tree = h.render({ shippingNoticeOptions: fromServer });
+  expect(field().props.options).toBe(fromServer);
+  expect(summary(tree, 'good-section-shipping')).toContain('서버가 준 이름');
 });
 
 /*

@@ -64,7 +64,7 @@ const ICONS_STANDARD_COLUMNS: readonly (ListExportColumn & { only?: 'instruction
   { header: '상품별 할인액', kind: 'amount', width: 14 },
   { header: '품목 실결제액(배송비 제외)', kind: 'amount', width: 24 },
   { header: '결제일', kind: 'date', width: 17 },
-  { header: '결제수단', kind: 'text', width: 12 },
+  { header: '결제수단', kind: 'text', width: 30 },
   { header: '주문일시', kind: 'date', width: 17 },
   { header: '발주확인일', kind: 'date', width: 17 },
   { header: '발송 예정일', kind: 'date', width: 12 },

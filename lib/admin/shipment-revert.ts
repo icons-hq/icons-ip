@@ -18,7 +18,7 @@ const DAY_MS = 86_400_000;
 
 export type ShipmentRevertKind = 'delivery' | 'dispatch';
 
-/** 택배 배송 건의 상태로 정할 수 있는 되돌리기. 배송완료면 배송 중으로, 배송 중이면 발송 대기로 한 단계만 되돌린다. */
+/** 택배 배송 건의 상태로 정할 수 있는 되돌리기. 배송완료면 배송중으로, 배송중이면 발송 대기로 한 단계만 되돌린다. */
 export function shipmentRevertKind(status: string, parcel: boolean): ShipmentRevertKind | null {
   if (!parcel) return null;
   return status === 'delivered' ? 'delivery' : status === 'shipping' ? 'dispatch' : null;
@@ -29,18 +29,26 @@ export const SHIPMENT_REVERT_LABELS: Record<ShipmentRevertKind, string> = { deli
 /** 되돌리기 확인창 문구. 이미 나간 알림·메일은 회수할 수 없어 고객 연락을 함께 적는다. */
 export function shipmentRevertPrompt(kind: ShipmentRevertKind, { reference, packCount, trackingLabel }: { reference: string; packCount?: number | null; trackingLabel?: string | null }) {
   const pack = packCount && packCount > 1 ? ` 합포장 묶음 ${packCount}건이 함께 되돌아갑니다.` : ' 합포장 묶음이면 묶인 배송 건이 함께 되돌아갑니다.';
+  /* 확인창은 줄바꿈을 그대로 보인다 — 한 줄에 한 가지씩 적는다(무엇이 되돌아가는지 → 지워지는 것 → 예외 → 고객 안내 → 되돌릴 수 없는 주문). */
   if (kind === 'delivery') return {
     title: SHIPMENT_REVERT_LABELS.delivery,
-    message: `배송 건 ${reference}${objectParticle(reference)} 배송 중으로 되돌립니다.${pack} 배송완료 일시와 구매확정 기한이 지워지고, 청약철회 기간은 다시 배송완료할 때 넣는 택배사 배송완료 일시부터 셉니다. `
-      + '운송장 없이 강제 배송완료한 배송 건은 발송된 적이 없어 발송 대기로(주문은 발주확인으로) 되돌아갑니다. '
-      + '고객 앱의 "배송이 완료됐어요"·구매확정 요청 알림은 받은편지함에서 지우지만 이미 본 알림은 회수할 수 없으니 필요하면 고객에게 연락해주세요. '
-      + '구매확정·리뷰·취소·반품·교환 요청이 있는 주문은 되돌리지 않고, 구매확정 보류 중이면 보류를 먼저 해제한 뒤 되돌리고 다시 배송완료한 뒤 다시 보류해주세요.',
-    confirmLabel: '배송 중으로 되돌리기',
+    message: [
+      `배송 건 ${reference}${objectParticle(reference)} 배송중으로 되돌립니다.${pack}`,
+      '배송완료 일시와 거래확정 기한이 지워지고, 청약철회 기간은 다시 배송완료할 때 넣는 택배사 배송완료 일시부터 셉니다.',
+      '운송장 없이 강제 배송완료한 배송 건은 발송된 적이 없어 발송 대기로(주문은 발주확인으로) 되돌아갑니다.',
+      '고객 앱의 "배송이 완료됐어요"·거래확정 요청 알림은 받은편지함에서 지우지만 이미 본 알림은 회수할 수 없으니 필요하면 고객에게 연락해주세요.',
+      '거래확정·리뷰·취소·반품·교환 요청이 있는 주문은 되돌리지 않고, 거래확정 보류 중이면 보류를 먼저 해제한 뒤 되돌리고 다시 배송완료한 뒤 다시 보류해주세요.',
+    ].join('\n'),
+    confirmLabel: '배송중으로 되돌리기',
   };
   return {
     title: SHIPMENT_REVERT_LABELS.dispatch,
-    message: `배송 건 ${reference}${objectParticle(reference)} 발송 대기로 되돌립니다.${pack} 운송장${trackingLabel ? ` ${trackingLabel}` : ''}${conjunctionParticle(trackingLabel || '운송장')} 추가 운송장·발송 시각을 비워 그 번호를 올바른 배송 건에 다시 등록할 수 있습니다(이전 값은 감사 기록에 남습니다). `
-      + '출고지시 전달 표시는 그대로이니 올바른 운송장으로 다시 발송 처리해주세요. 고객에게 이미 나간 발송 안내 메일·알림은 회수할 수 없으니 고객에게 연락해주세요.',
+    message: [
+      `배송 건 ${reference}${objectParticle(reference)} 발송 대기로 되돌립니다.${pack}`,
+      `운송장${trackingLabel ? ` ${trackingLabel}` : ''}${conjunctionParticle(trackingLabel || '운송장')} 추가 운송장·발송 시각을 비워 그 번호를 올바른 배송 건에 다시 등록할 수 있습니다(이전 값은 감사 기록에 남습니다).`,
+      "'출고지시 보냄' 표시는 그대로이니 올바른 운송장으로 다시 발송처리해주세요.",
+      '이미 보낸 배송 안내 메일은 회수되지 않습니다. 이미 나간 앱 알림도 회수할 수 없으니 고객에게 연락해주세요.',
+    ].join('\n'),
     confirmLabel: '발송 대기로 되돌리기',
   };
 }
@@ -49,27 +57,47 @@ const ERRORS: Record<string, string> = {
   shipment_revert_reason_required: `되돌리는 사유를 ${SHIPMENT_REVERT_REASON_MIN}자 이상 ${SHIPMENT_REVERT_REASON_MAX}자 이내로 적어주세요.`,
   shipment_revert_changed: '그 사이 배송 건이 바뀌었습니다(다시 처리됐거나 운송장이 바뀌었습니다). 새로고침한 뒤 다시 확인해주세요.',
   shipment_revert_not_delivered: '배송완료 상태가 아닌 배송 건입니다. 새로고침해주세요.',
-  shipment_revert_not_shipping: '배송 중 상태가 아닌 배송 건입니다. 배송완료된 건은 먼저 배송완료를 되돌려주세요.',
+  shipment_revert_not_shipping: '배송중 상태가 아닌 배송 건입니다. 배송완료된 건은 먼저 배송완료를 되돌려주세요.',
   shipment_revert_pack_mixed: '합포장 묶음의 배송 건 상태가 서로 다릅니다. 주문 상세에서 묶음을 확인해주세요.',
   shipment_revert_parcel_only: '택배 배송 건만 되돌릴 수 있습니다. 퀵·직접배송·방문수령 같은 택배 외 배송의 인계·수령 기록 정정은 개발 담당에게 요청해주세요.',
-  shipment_revert_purchase_confirmed: '구매확정(거래확정)된 주문은 되돌릴 수 없습니다. 적립금·정산이 이미 반영됐습니다.',
-  shipment_revert_review_exists: '리뷰가 작성된 주문은 되돌릴 수 없습니다. 리뷰 작성이 구매확정입니다.',
+  shipment_revert_purchase_confirmed: '거래확정된 주문은 되돌릴 수 없습니다. 적립금·정산이 이미 반영됐습니다.',
+  shipment_revert_review_exists: '리뷰가 작성된 주문은 되돌릴 수 없습니다. 고객이 리뷰를 쓰면 거래확정이 됩니다.',
   shipment_revert_claim_exists: '취소·반품·교환 요청이 있는 주문은 되돌릴 수 없습니다. 요청 처리 화면에서 먼저 정리해주세요.',
   shipment_revert_partial_cancel_in_progress: '재고 부족 부분 취소가 처리 중인 주문입니다. 처리가 끝난 뒤 다시 시도해주세요.',
   shipment_revert_order_canceled: '취소된 주문은 되돌릴 수 없습니다.',
-  shipment_revert_confirmation_held: '구매확정 보류 중인 주문입니다. 보류를 먼저 해제한 뒤 되돌리고, 다시 배송완료한 뒤 다시 보류해주세요.',
+  shipment_revert_confirmation_held: '거래확정 보류 중인 주문입니다. 보류를 먼저 해제한 뒤 되돌리고, 다시 배송완료한 뒤 다시 보류해주세요.',
   shipment_revert_order_state: '주문 상태가 바뀌어 되돌릴 수 없습니다. 새로고침해주세요.',
-  shipment_revert_email_sending: '발송 안내 메일을 보내는 중입니다. 몇 분 뒤 다시 시도해주세요.',
+  shipment_revert_email_sending: '배송 안내 메일을 보내는 중입니다. 몇 분 뒤 다시 시도해주세요.',
   invalid_shipment_revert: '되돌릴 배송 건을 다시 선택해주세요.',
   shipment_not_found: '배송 건을 찾을 수 없습니다. 새로고침해주세요.',
-  operation_conflict: '같은 요청 번호가 다른 내용으로 처리되었습니다. 새로고침한 뒤 다시 시도해주세요.',
+  operation_conflict: '같은 처리에 다른 내용이 이미 저장돼 있습니다. 새로고침한 뒤 다시 해주세요.',
   operator_capability_required: '판매 관리 권한이 있는 운영자만 배송 상태를 되돌릴 수 있습니다.',
   delivered_at_before_shipped: '택배사 배송완료 일시가 발송 등록 시각보다 이릅니다. 발송 등록 시각 이후로 넣어주세요.',
   delivered_at_in_future: '택배사 배송완료 일시는 지금보다 뒤일 수 없습니다.',
   delivered_at_late_reason_required: `${SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 배송완료 일시는 늦게 처리한 사유가 필요합니다. 사유는 감사 기록에 남습니다.`,
-  delivered_at_late_requires_manager: `${SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 배송완료 일시는 고객의 철회 기간을 소급해 지우므로 판매 관리 권한이 있는 운영자만 사유와 함께 넣을 수 있습니다. 일시를 처음 값(처리 시각)으로 두고 처리하거나 판매 관리 담당에게 요청해주세요.`,
+  delivered_at_late_requires_manager: `${SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 배송완료 일시는 고객의 철회 기간을 소급해 지우므로 판매 관리 권한이 있는 운영자만 사유와 함께 넣을 수 있습니다. [지금 도착으로 기록]을 골라 처리하거나 판매 관리 담당에게 요청해주세요.`,
   delivered_at_reason_invalid: `사유는 ${SHIPMENT_REVERT_REASON_MIN}자 이상 ${SHIPMENT_REVERT_REASON_MAX}자 이내로 적어주세요.`,
 };
+
+/** 배송 안내 메일을 보내는 중이라 발송을 되돌릴 수 없을 때의 문장. DB 거절 문구이자, 화면이 버튼을 미리 잠근 이유다. */
+export const SHIPMENT_REVERT_EMAIL_SENDING = ERRORS.shipment_revert_email_sending;
+
+/** 배송 안내 메일 작업을 한 번 잡고 있는 시간(분). DB의 작업 임대 시간과 같다 — 이보다 오래된 '처리 중'은 멈춘 작업이라 DB가 되돌리기를 받는다. */
+const SHIPMENT_EMAIL_LEASE_MINUTES = 15;
+
+/**
+ * 주문 상세가 누르기 전에 아는 '지금은 발송을 되돌릴 수 없는 이유'. 그 배송 건의 배송 안내 메일을 방금 보내기 시작했을 때만 말한다
+ * (DB의 shipment_revert_email_sending과 같은 문장). 화면이 모르는 나머지 조건과 최종 판정은 DB가 한다.
+ */
+export function shipmentDispatchRevertBlock(job: { status: string; updatedAt: string; leaseUntil?: string | null } | null | undefined, now: Date): string | null {
+  if (job?.status !== 'processing') return null;
+  /* DB는 메일 작업을 잡고 있는 시각(lease_until)이 지금보다 뒤일 때 되돌리기를 받지 않는다. 그 값을 읽었으면 같은 조건으로 본다. */
+  if (job.leaseUntil !== undefined) {
+    return job.leaseUntil && Date.parse(job.leaseUntil) > now.getTime() ? SHIPMENT_REVERT_EMAIL_SENDING : null;
+  }
+  const startedAt = Date.parse(job.updatedAt);
+  return !Number.isNaN(startedAt) && now.getTime() - startedAt < SHIPMENT_EMAIL_LEASE_MINUTES * 60_000 ? SHIPMENT_REVERT_EMAIL_SENDING : null;
+}
 
 /** 되돌리기·도착 일시 DB 거절 코드를 운영 문구로. 모르는 코드는 일반 문구다. */
 export function shipmentRevertError(code?: string | null): string {

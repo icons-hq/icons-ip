@@ -3,7 +3,7 @@ import { goodsCustomInputSummary, type GoodsCustomInputSelection } from '@/lib/g
 import { DELIVERY_METHOD_LABELS } from '@/lib/shipment-delivery';
 import { ADMIN_ORDER_STATUS_LABELS, type AdminOrderStatus } from './orders';
 import type { AdminListExportSheet, ListExportCellValue } from './list-export';
-import { listExportPaymentMethodLabel, type ListExportContact } from './list-export-sheets';
+import { externalFormatPaymentMethodLabel, type ListExportContact } from './list-export-sheets';
 import type { ShipmentConsoleRow } from './shipment-dispatch';
 import { ICONS_DELAY_COLUMNS, ICONS_DELIVERY_LIST_COLUMNS, iconsStandardBuyerName, iconsStandardDateText, shippingChargeLabel } from './smartstore-shipment-workbook';
 
@@ -55,7 +55,7 @@ export function smartStoreDeliveryListSheet(
       출고지: shipment.originName, '배송 방식': DELIVERY_METHOD_LABELS[line.deliveryMethod] ?? null, 택배사: line.carrier, 운송장번호: line.trackingNumber,
       상품번호: line.goodId, 상품코드: line.goodCode, 상품명: line.goodName, 옵션: options || null, 수량: line.qty,
       '상품별 할인액': line.itemDiscount, '품목 실결제액(배송비 제외)': line.itemTotal,
-      결제일: iconsStandardDateText(line.paidAt), 결제수단: listExportPaymentMethodLabel(shipment.paymentMethod) || null,
+      결제일: iconsStandardDateText(line.paidAt), 결제수단: externalFormatPaymentMethodLabel(shipment.paymentMethod) || null,
       주문일시: iconsStandardDateText(shipment.createdAt), 발주확인일: iconsStandardDateText(shipment.confirmedAt), '발송 예정일': iconsStandardDateText(shipment.expectedShipDate),
       발송처리일: iconsStandardDateText(line.shippedAt), 배송완료일: iconsStandardDateText(line.deliveredAt),
       '주문 상태': ADMIN_ORDER_STATUS_LABELS[line.status],

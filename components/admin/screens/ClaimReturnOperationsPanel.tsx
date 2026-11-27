@@ -24,15 +24,15 @@ import { formatOrderDateTime } from '@/lib/orders';
 import { orderClaimReferenceLabel } from '@/lib/orders/claims';
 import { AdminCountCard } from '@/components/admin/console/AdminCountCard';
 import { AdminNotice } from '@/components/admin/console/AdminKit';
-import {
-  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
-} from '@/components/admin/kit/ui/alert-dialog';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
+import { adminConfirm, type AdminConfirmRequest } from '@/lib/admin/confirm';
 
 const NOTE = 'text-muted-foreground';
+/* 이름표에 없는 처리 값은 영문 코드를 그대로 보이지 않고 이렇게 부른다. */
+const UNKNOWN_VALUE = '확인 필요';
 const SECTION = 'flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground';
 
 /*
@@ -75,6 +75,25 @@ function PickupFailures({ pickup }: { pickup: Extract<ClaimReturnOperations['pic
   </section>;
 }
 
+/**
+ * [입고 확정]을 누르면 뜨는 확인창. 몇 건을 어느 입고일로 확정하는지 말하고, 환불 기한이 그 날부터 센다는 것과 되돌릴 수 없다는 것을 알린다.
+ * 입고일은 파일의 값이라 건마다 다를 수 있어 가장 이른 날과 가장 늦은 날로 범위를 적는다.
+ */
+export function returnIntakeConfirmation(rows: readonly { receivedOn?: string }[]): AdminConfirmRequest {
+  const dates = rows.flatMap((row) => (row.receivedOn ? [row.receivedOn] : [])).sort();
+  const range = dates.length === 0 ? '' : dates[0] === dates[dates.length - 1] ? ` 입고일은 ${dates[0]}입니다.` : ` 입고일은 ${dates[0]}부터 ${dates[dates.length - 1]}까지입니다.`;
+  return {
+    title: `${rows.length.toLocaleString('ko-KR')}건을 입고완료로 확정할까요?`,
+    message: [
+      `회수 묶음마다 회수 확인으로 기록합니다.${range}`,
+      '반품의 환불 기한은 건마다 그 입고일부터 셉니다.',
+      '확정한 입고는 되돌릴 수 없고, 처리 이력의 근거에 파일과 줄 번호가 남습니다.',
+    ].join('\n'),
+    confirmLabel: '입고 확정',
+    cancelLabel: '돌아가기',
+  };
+}
+
 function ReturnIntakeUpload({ columns }: { columns: ReturnIntakeColumns }) {
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
@@ -84,7 +103,6 @@ function ReturnIntakeUpload({ columns }: { columns: ReturnIntakeColumns }) {
   const [operationId, setOperationId] = useState('');
   const [error, setError] = useState('');
   const [result, setResult] = useState<ReturnIntakeConfirmResult | null>(null);
-  const [confirmOpen, setConfirmOpen] = useState(false);
   const [checking, startCheck] = useTransition();
   const [confirming, startConfirm] = useTransition();
   const busy = checking || confirming;
@@ -110,13 +128,13 @@ function ReturnIntakeUpload({ columns }: { columns: ReturnIntakeColumns }) {
       }
     });
   }
-  function confirm() {
+  async function confirm() {
     if (!preview || !matched.length || busy) return;
+    if (!await adminConfirm(returnIntakeConfirmation(matched))) return;
     const data = formData();
     data.set('sha256', preview.sha256);
     data.set('operationId', operationId);
     data.set('selection', JSON.stringify(matched.map(row => ({ rowNumber: row.rowNumber, bundleId: row.bundleId }))));
-    setConfirmOpen(false);
     startConfirm(async () => {
       try {
         const response = await confirmClaimReturnIntakeAction(data);
@@ -156,26 +174,12 @@ function ReturnIntakeUpload({ columns }: { columns: ReturnIntakeColumns }) {
         maxLength={255} onChange={reset} ref={passwordInput} spellCheck={false} type="password" />
       <div className="flex flex-wrap items-center gap-2">
         <Button disabled={busy || !file} onClick={check} variant="outline">{checking ? '확인 중' : '등록 전 확인'}</Button>
-        <Button disabled={busy || !matched.length} onClick={() => setConfirmOpen(true)}>{confirming ? '확정 중' : `입고 확정${matched.length ? ` ${matched.length.toLocaleString('ko-KR')}건` : ''}`}</Button>
+        <Button disabled={busy || !matched.length} onClick={() => { void confirm(); }}>{confirming ? '확정 중' : `입고 확정${matched.length ? ` ${matched.length.toLocaleString('ko-KR')}건` : ''}`}</Button>
       </div>
     </div>
     {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}
     {preview ? <IntakePreview preview={preview} /> : null}
     {result ? <IntakeResult result={result} /> : null}
-    <AlertDialog onOpenChange={setConfirmOpen} open={confirmOpen}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{matched.length.toLocaleString('ko-KR')}건을 입고완료로 확정할까요?</AlertDialogTitle>
-          <AlertDialogDescription>
-            회수 묶음마다 회수 확인으로 기록합니다. 실제 입고일은 파일의 입고일이고 환급 기한은 그 날부터 셉니다. 확정한 입고는 되돌릴 수 없고, 처리 이력의 근거에 파일과 줄 번호가 남습니다.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>취소</AlertDialogCancel>
-          <AlertDialogAction onClick={confirm}>입고 확정</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
   </section>;
 }
 
@@ -194,7 +198,7 @@ function IntakePreview({ preview }: { preview: ClaimReturnIntakePreview }) {
         </TableRow></TableHeader>
         <TableBody>{preview.rows.map(row => <TableRow data-return-intake-status={row.status} key={row.rowNumber}>
           <TableCell className="tabular-nums">{row.rowNumber}</TableCell>
-          <TableCell className="whitespace-normal">{RETURN_INTAKE_STATUS_LABELS[row.status] ?? row.status}</TableCell>
+          <TableCell className="whitespace-normal">{RETURN_INTAKE_STATUS_LABELS[row.status] ?? UNKNOWN_VALUE}</TableCell>
           <TableCell className="tabular-nums">{row.claimReference !== undefined && row.claimId && row.claimType
             ? <Link className="text-primary underline-offset-4 hover:underline" href={adminClaimPreviewHref(row.claimType, row.claimId)}>{orderClaimReferenceLabel(row.claimReference)}</Link> : '-'}</TableCell>
           <TableCell className="whitespace-normal">{row.returnLabel ?? '-'}</TableCell>
@@ -219,8 +223,8 @@ function IntakeResult({ result }: { result: ReturnIntakeConfirmResult }) {
       {result.failed ? ` ${result.failed}건은 기록하지 못했습니다.` : ''}{result.replayed ? ' 이미 처리한 확정이라 그때의 결과를 보여 줍니다.' : ''}
     </AdminNotice>
     {notRecorded.length ? <ul className="flex list-disc flex-col gap-1 pl-5 text-destructive">
-      {notRecorded.map(row => <li key={row.rowNumber}><span className="tabular-nums">{row.rowNumber}줄</span>: {RETURN_INTAKE_OUTCOME_LABELS[row.outcome] ?? row.outcome}
-        {row.outcome === 'failed' ? ` — ${returnIntakeErrorText(row.errorCode)}` : row.status && row.status !== 'matched' ? ` — ${RETURN_INTAKE_STATUS_LABELS[row.status] ?? row.status}` : ''}</li>)}
+      {notRecorded.map(row => <li key={row.rowNumber}><span className="tabular-nums">{row.rowNumber}줄</span>: {RETURN_INTAKE_OUTCOME_LABELS[row.outcome] ?? UNKNOWN_VALUE}
+        {row.outcome === 'failed' ? ` — ${returnIntakeErrorText(row.errorCode)}` : row.status && row.status !== 'matched' ? ` — ${RETURN_INTAKE_STATUS_LABELS[row.status] ?? UNKNOWN_VALUE}` : ''}</li>)}
     </ul> : null}
   </div>;
 }

@@ -129,6 +129,45 @@ describe('읽기/봉인과 명시 오류',()=>{
   const f=chargeAdminFixtures();mocks.rpc.mockResolvedValue({data:null,error:{code:'23514',message:'shipping_charge_group_has_assignments PRIVATE'}});
   const result=await saveShippingChargeGroupAction(f.save);expect(result).toMatchObject({uncertain:false});expect(JSON.stringify(result)).not.toContain('PRIVATE');
  });
+ /* 왼쪽은 DB 함수가 실제로 내는 오류 이름이다(private·public shipping_charge_group 함수의 raise … using message). */
+ it.each([
+  ['PT409','shipping_charge_group_changed','다른 사람이 먼저 바꿨습니다. 지금 저장된 묶음그룹을 확인한 뒤 다시 해 주세요.',true],
+  ['PT409','shipping_charge_group_default_changed','다른 사람이 먼저 바꿨습니다. 이 출고지의 추천 묶음그룹이 바뀌었습니다. 지금 저장된 내용을 확인한 뒤 다시 저장해 주세요.',true],
+  ['PT409','shipping_charge_group_origin_changed','다른 사람이 먼저 바꿨습니다. 출고지 설정이 바뀌었습니다. 지금 저장된 내용을 확인한 뒤 다시 해 주세요.',true],
+  ['PT409','shipping_charge_group_goods_changed','그사이 상품이나 상품의 배송 설정이 바뀌었습니다. 상품을 다시 고르거나 미리보기를 다시 만들어 주세요.',true],
+  ['PT409','shipping_charge_group_assignment_changed','그사이 상품의 묶음그룹이 바뀌었습니다. 상품을 다시 고르거나 미리보기를 다시 만들어 주세요.',true],
+  ['PT409','shipping_charge_group_retry','다른 저장이 진행 중이라 저장하지 않았습니다. 잠시 뒤 다시 눌러 주세요.',false],
+  ['23514','shipping_charge_group_has_assignments',"상품이 들어 있는 묶음그룹은 '사용 안 함'으로 바꾸거나 보관할 수 없습니다. 목록의 상품 수를 눌러 상품을 먼저 빼거나 다른 묶음그룹으로 옮겨 주세요.",false],
+  ['23514','shipping_charge_group_region_unavailable',"지역표의 택배사가 출고지의 기본 택배사와 다르거나 '사용 안 함'입니다. 지역표의 택배사를 출고지의 기본 택배사로 맞춘 뒤 다시 저장해 주세요.",false],
+  ['23514','shipping_charge_group_region_confirmation_required','지역별 추가배송비가 바뀌는 저장인데 확인을 거치지 않았습니다. 화면을 새로고침해 묶음그룹을 다시 연 뒤 저장해 주세요.',false],
+  ['23514','shipping_region_policy_incomplete',"지역표나 적용 기간에 빠진 것이 있습니다. 적용 시작·종료, '표에 없는 지역', 지역표를 확인한 뒤 다시 저장해 주세요.",false],
+  ['23514','shipping_charge_group_unavailable',"묶음그룹이 '사용 안 함'이거나 보관돼 있습니다. 묶음그룹을 '사용'으로 바꾼 뒤 다시 해 주세요.",false],
+  ['23514','goods_aggregation_policy_owned_by_source','원상품에서 나눈 상품이라 원상품에서 바꿔야 합니다. 그 상품을 빼고 다시 해 주세요.',false],
+  ['23514','collect_contract_not_ready',"착불을 쓰는 상품인데 이 출고지에 '사용'으로 저장한 착불 조건이 없습니다. 배송정보 관리에서 출고지의 착불 조건을 먼저 '사용'으로 저장한 뒤 다시 해 주세요.",false],
+  ['23514','checkout_contract_upgrade_required',"지금 쇼핑몰 설정에서는 묶음그룹을 '사용'으로 저장하거나 상품을 넣고 뺄 수 없습니다. 써야 하면 개발 담당자에게 요청해 주세요.",false],
+  ['22023','invalid_shipping_charge_group_values','저장하지 못했습니다. 화면을 새로고침해 지금 저장된 내용을 확인한 뒤 다시 해 주세요.',false],
+ ] as const)('DB 거절 %s %s는 고칠 방법까지 말하고, 다른 사람이 먼저 바꾼 경우만 changed로 알린다',async(code,message,error,changed)=>{
+  const f=chargeAdminFixtures();mocks.rpc.mockResolvedValue({data:null,error:{code,message}});
+  expect(await saveShippingChargeGroupAction(f.save)).toEqual({error,uncertain:false,conflict:code==='PT409',changed});
+  expect(error).not.toMatch(/요청번호|기준 버전|운영 설정을 확인|거래 경로|합산군|[a-z_]{8,}/);
+ });
+ /* 상품을 넣는 함수는 막힌 이유의 이름을 그대로 오류로 던진다. 착불·구매자 선택 상품인데 그 출고지에 '사용'인 착불 조건이 없을 때의 이름이 collect_contract_not_ready다. */
+ it('상품을 넣다가 착불 조건이 없어 거절되면 일반 문구가 아니라 그 까닭과 고칠 곳을 말한다',async()=>{
+  const f=chargeAdminFixtures();mocks.rpc.mockResolvedValue({data:null,error:{code:'23514',message:'collect_contract_not_ready'}});
+  const result=await assignShippingChargeGroupAction(f.assign);
+  expect(result).toEqual({error:"착불을 쓰는 상품인데 이 출고지에 '사용'으로 저장한 착불 조건이 없습니다. 배송정보 관리에서 출고지의 착불 조건을 먼저 '사용'으로 저장한 뒤 다시 해 주세요.",uncertain:false,conflict:false,changed:false});
+  expect(JSON.stringify(result)).not.toContain('저장하지 못했습니다');
+ });
+ it('결과를 모를 때와 권한·형식 오류의 말',async()=>{
+  const f=chargeAdminFixtures();mocks.rpc.mockResolvedValueOnce({data:null,error:{code:'XX000',message:'PRIVATE'}});
+  expect(await saveShippingChargeGroupAction(f.save)).toEqual({error:'저장됐는지 확인하지 못했습니다. [저장됐는지 확인]을 누르면 같은 내용이 두 번 저장되지 않습니다.',uncertain:true});
+  mocks.rpc.mockResolvedValueOnce({data:null,error:{code:'42501',message:'operator_capability_required'}});
+  expect(await saveShippingChargeGroupAction(f.save)).toEqual({error:'로그인이 끊겼거나 이 일을 할 권한이 없습니다. 지금 로그인한 계정으로 화면을 새로고침한 뒤 다시 해 주세요.',authChanged:true});
+  expect(await saveShippingChargeGroupAction({...f.save,ignored:true} as typeof f.save)).toEqual({error:'보낸 값의 형식이 맞지 않아 저장하지 않았습니다. 화면을 새로고침한 뒤 다시 해 주세요.'});
+  expect(await listShippingChargeGroupsAction({originId:null,query:'',status:'all',page:0},chargeIdentity)).toEqual({error:'조회 조건의 형식이 맞지 않아 불러오지 못했습니다. 화면을 새로고침한 뒤 다시 해 주세요.'});
+  mocks.rpc.mockResolvedValueOnce({data:null,error:{code:'22023',message:'invalid_shipping_charge_group_search'}});
+  expect(await findShippingChargeGroupGoodsAction({originId:null,groupId:null,query:'',page:1},chargeIdentity)).toMatchObject({error:'배송비 묶음그룹을 불러오지 못했습니다. 잠시 뒤 다시 해 주세요.'});
+ });
  it('list/get/getgood/search/preview의 read 응답과 identity를 검증한다',async()=>{
   const f=chargeAdminFixtures(),common={actorId:chargeIds.actor,sessionId:chargeIds.session,runtimeEnabled:true,canManageRegional:false};
   const list={...common,page:1,pageSize:20,total:1,groups:[f.group],origins:[f.origin]};

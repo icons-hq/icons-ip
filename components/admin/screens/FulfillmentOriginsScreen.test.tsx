@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { FulfillmentOriginsScreen, selectedFulfillmentOriginTab } from './FulfillmentOriginsScreen';
+import { FulfillmentOriginsScreen, GoodsOriginSummaryScreen, selectedFulfillmentOriginTab } from './FulfillmentOriginsScreen';
 import { GoodsFulfillmentFields } from '../GoodsFulfillmentFields';
 import type { FulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 vi.mock('@/app/admin/fulfillment-actions', () => ({ saveFulfillmentOriginAction: vi.fn() }));
@@ -15,12 +15,11 @@ describe('origin settings workspace', () => {
     expect(html).toContain('<fieldset disabled=""');
     expect(html).not.toContain('출고지 저장');
     expect(html).not.toContain('출고지 추가');
-    expect(html).toContain('배송·직접전달 운영 조건');
+    expect(html).toContain('택배 외 수령 방식');
   });
-  it('allows admins to create and edit origins, with inactive-order impact explained', () => {
+  it('allows admins to create and edit origins', () => {
     const html = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin]} carriers={carriers} history={[]} canEdit />);
     expect(html).toContain('출고지 추가');
-    expect(html).toContain('기존 주문의 배송비는 바뀌지 않습니다');
     expect(html).toContain('readOnly=""');
     /* kit 버튼의 기본 type은 button이다 — 출고지 저장은 제출 버튼이어야 한다. */
     expect(html).toMatch(/<button[^>]*type="submit"[^>]*>(?:(?!<\/button>)[\s\S])*출고지 저장<\/button>/);
@@ -54,9 +53,62 @@ describe('origin settings workspace', () => {
     expect(selectedFulfillmentOriginTab([], undefined, true)).toBe('_new');
     expect(selectedFulfillmentOriginTab([], undefined, false)).toBeNull();
   });
+  it('화면 머리는 한 문장이고, 사용 여부는 사용 / 사용 안 함이다 (O-4·O-10)', () => {
+    const inactive: FulfillmentOrigin = { ...origin, id: '00000000-0000-4000-8000-000000042202', code: 'namyangju', name: '남양주', active: false };
+    const html = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin, inactive]} carriers={carriers} history={[]} canEdit selected="gimpo" />);
+    expect(html).toContain('출고지마다 기본 배송비와 택배사를 정합니다.');
+    expect(html).not.toContain('주문서에서 함께 확인합니다');
+    expect(html).toMatch(/남양주 · 사용 안 함<\/a>/);
+    expect(html).toMatch(/data-tone="[a-z]+"[^>]*>사용<\/span>/);
+    const other = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin, inactive]} carriers={carriers} history={[]} canEdit selected="namyangju" />);
+    expect(other).toMatch(/data-tone="[a-z]+"[^>]*>사용 안 함<\/span>/);
+    expect(html + other).not.toMatch(/비활성|사용 중</);
+    /* 관련 화면 이름은 메뉴 이름(지역별 추가배송비 관리)에서 '관리'만 뺀 같은 말이다. */
+    expect(html).toContain('지역별 추가배송비');
+    expect(html).not.toContain('지역 추가 배송비');
+  });
+  it('저장 전에 알릴 영향은 편집 권한이 있을 때만 폼에 넘긴다', () => {
+    const impact = { goods: { publicGoods: 12, policyFeeGoods: 7 }, regionalFee: { managed: true, inEffectCarrierCodes: ['hanjin'], scheduledCarrierCodes: [] } };
+    const inactive: FulfillmentOrigin = { ...origin, active: false };
+    /* 사용 안 함인 출고지에 영향 안내가 새지 않는 것은 폼 시험이 본다. 여기서는 화면이 영향을 받아도 그리는 데 문제가 없는지만 본다. */
+    expect(renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin]} carriers={carriers} history={[]} canEdit impact={impact} />)).toContain('출고지 저장');
+    expect(renderToStaticMarkup(<FulfillmentOriginsScreen origins={[inactive]} carriers={carriers} history={[]} canEdit={false} impact={impact} />)).not.toContain('출고지 저장');
+  });
+  it('지역별 추가배송비 때문에 새 주문이 막힌 출고지는 탭과 카드에서 까닭과 고치러 가는 링크로 알린다 (S5-1)', () => {
+    const namyangju: FulfillmentOrigin = { ...origin, id: '00000000-0000-4000-8000-000000042202', code: 'namyangju', name: '남양주' };
+    const regionBlocks = [{ originId: origin.id, originName: '김포', reason: 'ended' as const }];
+    const gimpo = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin, namyangju]} carriers={carriers} history={[]} canEdit selected="gimpo" regionBlocks={regionBlocks} />);
+    expect(gimpo).toMatch(/김포 · 새 주문 막힘<\/a>/);
+    expect(gimpo).toMatch(/>남양주<\/a>/);
+    expect(gimpo).toContain('지역별 추가배송비 설정이 끝나 새 주문이 막혀 있습니다.');
+    expect(gimpo).toMatch(/<a [^>]*href="\/admin\/settings\/shipping-regions"[^>]*>지역별 추가배송비 관리<\/a>에서 확인해 주세요/);
+    /* 막히지 않은 출고지 카드에는 안내가 없다. */
+    const other = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin, namyangju]} carriers={carriers} history={[]} canEdit selected="namyangju" regionBlocks={regionBlocks} />);
+    expect(other).toMatch(/김포 · 새 주문 막힘<\/a>/);
+    expect(other).not.toContain('새 주문이 막혀 있습니다');
+    /* 읽지 못했거나 막힌 곳이 없으면 아무 표시도 없다. */
+    for (const blocks of [undefined, []]) {
+      const none = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin]} carriers={carriers} history={[]} canEdit regionBlocks={blocks} />);
+      expect(none).not.toContain('새 주문 막힘');
+      expect(none).not.toContain('새 주문이 막혀 있습니다');
+    }
+    /* 직원용 요약 화면의 카드도 같은 안내를 보인다. */
+    const summary = renderToStaticMarkup(<GoodsOriginSummaryScreen origins={[{ id: origin.id, name: '김포', defaultCarrier: 'hanjin', baseFee: 4700, freeThreshold: null, returnAddress: '주소', active: true }]} regionBlocks={[{ originId: origin.id, originName: '김포', reason: 'carrier_off' }]} />);
+    expect(summary).toContain('기본 택배사가 없거나 ‘사용 안 함’이라');
+    expect(summary).toContain('href="/admin/settings/shipping-regions"');
+  });
+  it('변경 이력은 폼의 칸 이름으로 보이고 빈 값은 없음이다 (O-16)', () => {
+    const history = [{ id: 'h1', createdAt: '2026-10-01T00:00:00Z', actorName: '운영자', action: 'admin.fulfillment_origin.saved', target: 'fulfillment_origins:42201',
+      diff: { before: { code: 'gimpo', is_active: true, return_address: '', free_threshold: null }, after: { code: 'gimpo', is_active: false, return_address: '새 주소', free_threshold: 50000 } } }];
+    const html = renderToStaticMarkup(<FulfillmentOriginsScreen origins={[origin]} carriers={carriers} history={history} canEdit />);
+    expect(html).toMatch(/<th[^>]*>사용 여부<\/th><td[^>]*>사용<\/td><td[^>]*>사용 안 함<\/td>/);
+    expect(html).toMatch(/<th[^>]*>반품 주소<\/th><td[^>]*>없음<\/td><td[^>]*>새 주소<\/td>/);
+    expect(html).toMatch(/<th[^>]*>무료 배송 기준<\/th><td[^>]*>없음<\/td><td[^>]*>50000<\/td>/);
+    expect(html).not.toMatch(/빈 값|새 발송 사용/);
+  });
   it('preserves an explicitly empty draft origin and offers all three fee modes', () => {
     const html = renderToStaticMarkup(<GoodsFulfillmentFields origins={[origin]} value={{originId:null,shippingFeeType:'individual',individualFee:3700}} />);
-    expect(html).toContain('<option value="" selected="">설정 전');
+    expect(html).toContain('<option value="" selected="">고르지 않음');
     expect(html).toContain('value="3700"');
     expect(html).toContain('value="policy"');
     expect(html).toContain('value="free"');

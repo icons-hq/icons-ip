@@ -13,8 +13,13 @@ import {shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/s
 import {EXPORT_PASSWORD_HINT,EXPORT_PASSWORD_MAX_LENGTH,EXPORT_PASSWORD_MIN_LENGTH,exportPasswordError} from '@/lib/admin/export-password';
 import {ShipmentPackPanel} from './ShipmentPackPanel';
 import {OrderDelayNoticePanel} from './OrderDelayNoticePanel';
+import {DispatchDelayBulkNote,type DispatchDelayBulkTarget} from './DispatchDelayBulkNote';
 import {CustomerServiceDialog} from './CustomerServiceDialog';
+import {closeAdminDialog} from '@/lib/admin/dialog-close';
 import {commerceReferenceLabel} from '@/lib/commerce-number';
+import {orderReferenceLabel} from '@/lib/orders';
+import {ADMIN_VOCABULARY} from '@/lib/admin/vocabulary';
+import {GoodChoiceCard,GoodChoiceCards} from '@/components/admin/GoodEditorParts';
 import {AdminNotice} from '@/components/admin/console/AdminKit';
 import {Button} from '@/components/admin/kit/ui/button';
 import {Input} from '@/components/admin/kit/ui/input';
@@ -22,19 +27,24 @@ import {Label} from '@/components/admin/kit/ui/label';
 import {directionParticle} from '@/lib/korean-particle';
 import {NativeSelect} from '@/components/admin/kit/ui/native-select';
 import { adminConfirm } from '@/lib/admin/confirm';
+import {ADMIN_CONFIRM_BACK,adminBulkOrderConfirmRequest} from '@/lib/admin/order-confirmations';
 import {Textarea} from '@/components/admin/kit/ui/textarea';
 import {kstDateTimeLocalToIso,kstDateTimeLocalValue} from '@/lib/admin/stock-reconcile';
-import {SHIPMENT_ARRIVAL_LATE_DAYS,SHIPMENT_REVERT_REASON_MAX,shipmentArrivalError,shipmentArrivalNeedsReason} from '@/lib/admin/shipment-revert';
-/* 배송 건 처리 막대·출고지시 팝업(템플릿 룩, ADR-0028). 처리 순서·확인·양식 선택 계약은 그대로다. */
+import {SHIPMENT_ARRIVAL_LATE_DAYS,SHIPMENT_REVERT_LABELS,SHIPMENT_REVERT_REASON_MAX,shipmentArrivalError,shipmentArrivalNeedsReason} from '@/lib/admin/shipment-revert';
+/* 배송 건 처리 막대·출고지시 팝업(템플릿 룩, ADR-0028). 처리 순서·양식 선택 계약은 그대로다.
+   이름은 둘만 쓴다: 파일을 받는 일은 '출고지시 내려받기', 창고에 보냈는지는 '출고지시 보냄 / 보내기 전'(화면 규칙 4). */
 const WORKBAR='flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden';
 const CONTROL='flex min-w-0 max-w-full items-center gap-1.5';
 const WARNING='text-warning';
 const FIELD='flex min-w-0 flex-col gap-1.5 [&>span]:font-medium';
 const SELECT_FIRST='왼쪽 체크칸에서 배송 건을 고르면 누를 수 있습니다.';
+const NOTE='text-xs text-muted-foreground';
+/** [택배 외 발송처리]·[합포장 관리]가 한 번에 받는 배송 건 수. */
+const PACK_TARGET_LIMIT=100;
 type ExportRequest={format:'xlsx'|'csv';layout:ShipmentExportLayout}&({kind:'selection';ids:string[]}|{kind:'origin';origin:ShipmentConsoleOrigin});
 /** 출고지시 내려받기 확인 단계에서 다시 알릴 재고 부족(1007-011, QA 라운드 1 m9). 페이지 위 재고 경고와 같은 자료다. */
 export interface ShipmentExportStockShortage {count:number;names:string[]}
-/* ICONS 표준 XLSX는 비밀번호를 받는 확인 단계를 거친다. 재고 부족 경고가 있으면 다른 양식도 같은 확인 단계를 거쳐 경고를 다시 보인다. */
+/* 엑스스퀘어 표준 XLSX는 비밀번호를 받는 확인 단계를 거친다. 재고 부족 경고가 있으면 다른 양식도 같은 확인 단계를 거쳐 경고를 다시 보인다. */
 const needsExportPassword=(request:ExportRequest)=>request.layout==='smartstore'&&request.format==='xlsx';
 function download(file:{base64:string;mime:string;name:string}){
  const bytes=Uint8Array.from(atob(file.base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:file.mime}));
@@ -73,8 +83,11 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const [partial,setPartial]=useState(false);
  const [packSelection,setPackSelection]=useState<string[]|null>(null);
  const [noticeSelection,setNoticeSelection]=useState<string[]|null>(null);
- /* 선택 배송완료 확인(ADR-0045): 택배사 조회의 배송완료 일시(KST, 처음 값은 연 시각)와 7일보다 이른 일시의 늦은 처리 사유. 처음 값 그대로면 처리 시각으로 기록한다. */
- const [completion,setCompletion]=useState<{ids:string[];total:number;acknowledged:boolean;arrival:string;initialArrival:string;reason:string}|null>(null);
+ /* 선택 배송완료(ADR-0045): 언제 도착한 것으로 기록할지 둘 중 하나를 고른다. 'now'는 처리하는 지금(서버에 null), 'carrier'는 택배사 조회의 도착 일시(KST)다.
+    7일보다 이른 일시에는 늦게 처리한 사유를 받는다. "확인했습니다" 체크는 서버로 가지 않던 화면 전용 브레이크라 두지 않는다 — 건수는 버튼이 말한다. */
+ const [completion,setCompletion]=useState<{ids:string[];total:number;mode:'now'|'carrier';arrival:string;reason:string}|null>(null);
+ /* 발송 지연 탭: 고른 주문에 같은 지연 메모를 한 번에 넣는 창의 대상(S-12). */
+ const [delayNoteTargets,setDelayNoteTargets]=useState<DispatchDelayBulkTarget[]|null>(null);
  const [exportRequest,setExportRequest]=useState<ExportRequest|null>(null);
  const [downloadedIds,setDownloadedIds]=useState<Set<string>>(()=>new Set());
  // 이 화면의 처리(발주확인·내보내기·배송완료)가 끝날 때마다 오른다. 성공·실패와 관계없이 바코드 경고를 지금 값으로 다시 센다(리뷰 M27-SHIP-1).
@@ -129,22 +142,36 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  },[originBarcodeKey,dataRound]);
  const selectionBarcodeGap=barcodeKey&&barcodeGaps?.key===`${barcodeKey}#${dataRound}`?barcodeGaps.missing:0;
  const originBarcodeGap=(id:string)=>originBarcodeKey&&originBarcodeGaps?.key===`${originBarcodeKey}#${dataRound}`?originBarcodeGaps.counts[id]??0:0;
- const completionArrivalIso=completion?completion.arrival===completion.initialArrival?null:kstDateTimeLocalToIso(completion.arrival):null;
- const completionArrivalInvalid=Boolean(completion&&completion.arrival!==completion.initialArrival&&!completionArrivalIso);
+ const completionArrivalIso=completion?.mode==='carrier'?kstDateTimeLocalToIso(completion.arrival):null;
+ /* 도착 일시를 넣기로 했는데 아직 비었거나 읽을 수 없다. 빈 칸은 오류로 꾸짖지 않고 버튼 옆에서 무엇을 넣어야 하는지 말한다. */
+ const completionArrivalMissing=completion?.mode==='carrier'&&!completion.arrival;
+ const completionArrivalInvalid=Boolean(completion?.mode==='carrier'&&completion.arrival&&!completionArrivalIso);
  const completionNeedsReason=shipmentArrivalNeedsReason(completionArrivalIso);
  // 7일보다 이른 일시는 판매 관리 권한만 넣는다(물류 계정은 7일 이내, ADR-0045). 권한이 없으면 사유 칸 대신 이유를 보인다.
- const completionError=completion?completionArrivalInvalid?'택배사 배송완료 일시를 확인해주세요.':shipmentArrivalError(completionArrivalIso,completion.reason,new Date(),canManageSales):null;
+ // 물류 계정에게는 지금 화면의 선택지 이름으로 다음 행동을 말한다(공용 문구는 예전 화면의 '처음 값'을 가리킨다).
+ const completionError=completion?completionArrivalInvalid?'택배사 배송완료 일시를 확인해주세요.':completionArrivalMissing?null
+  :completionNeedsReason&&!canManageSales?`${SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 배송완료 일시는 판매 관리 권한이 있는 운영자만 사유와 함께 넣을 수 있습니다. '지금 도착으로 기록'을 고르거나 판매 관리 담당에게 요청해주세요.`
+  :shipmentArrivalError(completionArrivalIso,completion.mode==='carrier'?completion.reason:'',new Date(),canManageSales):null;
  function select(next:string[]){setConfirmedSelection(null);setSelected(next.filter(id=>selectableIds.has(id)));}
  function reviewCompletion(){
   if(!ids.length||pending)return;
   const expanded=new Set(rows.filter(row=>ids.includes(row.id)).flatMap(row=>row.pack?.shipmentIds??[row.id]));
-  const opened=kstDateTimeLocalValue(new Date());
-  setCompletion({ids:[...ids],total:expanded.size,acknowledged:false,arrival:opened,initialArrival:opened,reason:''});
+  setCompletion({ids:[...ids],total:expanded.size,mode:'now',arrival:'',reason:''});
+ }
+ /* S-01: 일괄 발주확인은 주문통합검색과 같은 확인창(lib/admin/order-confirmations — 건수와 '발주확인 뒤에는 고객이 직접 취소할 수 없다')을 한 번 거친다. 확인한 묶음(이 렌더의 선택)만 처리한다. */
+ async function confirmOrders(){
+  if(pending||!ids.length)return;
+  if(!await adminConfirm(adminBulkOrderConfirmRequest(orderIds.length)))return;
+  run('confirm');
+ }
+ function openDelayNotes(){
+  const targets=new Map(rows.filter(row=>ids.includes(row.id)).map(row=>[row.orderId,{orderId:row.orderId,reference:orderReferenceLabel(row.orderId,row.orderNumber)}]));
+  if(targets.size)setDelayNoteTargets([...targets.values()]);
  }
  async function requestExport(){
   if(pending||!exportEligible)return;
   const resent=ids.filter(id=>rows.some(row=>row.id===id&&row.exportedAt)||downloadedIds.has(id)).length;
-  if(resent&&!await adminConfirm(`이미 출고지시를 전달한 배송 건 ${resent}건이 포함돼 있습니다. 창고는 같은 건을 두 번 받으면 걸러내지 못해 중복 출고될 수 있습니다. 그래도 다시 내려받을까요?`))return;
+  if(resent&&!await adminConfirm({title:`출고지시를 이미 보낸 배송 건 ${resent.toLocaleString('ko-KR')}건을 다시 내려받을까요?`,message:'창고는 같은 건을 두 번 받으면 걸러내지 못해 두 번 출고할 수 있습니다.',confirmLabel:'다시 내려받기',cancelLabel:ADMIN_CONFIRM_BACK}))return;
   const request:ExportRequest={kind:'selection',ids:[...ids],format,layout};
   if(needsExportPassword(request)||stockShortage){setError('');setExportRequest(request);}
   else run('export',undefined,request);
@@ -160,8 +187,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
   const exportBatch=kind==='export'?(requestedExport??exportRequest):null;
   const targetIds=kind==='complete'?completion?.ids:exportBatch?.kind==='selection'?exportBatch.ids:ids;
   if(pending||(kind==='export'?!exportBatch:!targetIds?.length))return;
-  if(kind==='complete'&&(!completion?.acknowledged||completionError))return;
-  const arrival=kind==='complete'&&completion?{deliveredAt:completion.arrival===completion.initialArrival?null:kstDateTimeLocalToIso(completion.arrival),reason:completion.reason.trim()}:null;
+  if(kind==='complete'&&(!completion||completionArrivalMissing||completionError))return;
+  const arrival=kind==='complete'&&completion?{deliveredAt:completion.mode==='carrier'?kstDateTimeLocalToIso(completion.arrival):null,reason:completion.mode==='carrier'?completion.reason.trim():''}:null;
   setMessage('');setError('');setFailures([]);setPartial(false);
   startTransition(async()=>{
    try{
@@ -196,6 +223,12 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    finally{setDataRound(round=>round+1);}
   });
  }
+ /* 누를 수 없는 버튼의 이유(화면 규칙 5). 발송 지연 탭은 고객 안내 때문에 출고할 수 없는 건도 고를 수 있어, 그런 건이 섞이면 출고지시를 받을 수 없다. */
+ const exportLock=exportTab&&!nonParcelBatch&&ids.length>0&&!exportEligible?'고른 배송 건 가운데 출고지시를 내려받을 수 없는 건이 있습니다. 예약 입고 확인 전·제작 완료 전·부분 취소 중·출고 보류·택배 외 배송 건을 빼면 [출고지시 내려받기]를 누를 수 있습니다.':null;
+ const limitedButtons=[dispatchActions?'[택배 외 발송처리]':'',actorId&&canManageSales&&!nonParcelBatch?'[합포장 관리]':''].filter(Boolean);
+ const overLimit=exportTab&&ids.length>PACK_TARGET_LIMIT&&limitedButtons.length?`${limitedButtons.join('·')}는 한 번에 ${PACK_TARGET_LIMIT}건까지 고를 수 있습니다.`:null;
+ /* 줄에 택배사·운송장 칸([발송처리])이 그려지는 목록인가. 화면(ShipmentConsoleScreen)이 칸을 두는 조건과 같다. */
+ const rowDispatch=dispatchActions&&exportTab&&rows.some(row=>isParcelShipment(row)&&row.status==='ready'&&shipmentConsoleSelectable(row,'ready'));
  /* 처리 결과는 표 위에 둔다(QA 라운드 1 M1-b). 처리한 행은 목록에서 빠지고 표가 100행까지 길어지므로, 결과 상자는 머리 막대 아래에 붙어
     표를 내려 보는 동안에도 보이고 [닫기]로 거둔다. 실패한 배송 건 목록은 상자 안에서만 스크롤한다. */
  const notices=message||(error&&!exportRequest)||failures.length?<div className="sticky top-14 z-20 flex flex-col gap-2 print:static" data-shipment-console-notice="">
@@ -208,6 +241,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    <Button type="button" size="xs" variant="ghost" onClick={()=>setFailures([])}>닫기</Button></span></AdminNotice>:null}
  </div>:null;
  const exportNeedsPassword=exportRequest?needsExportPassword(exportRequest):false;
+ /* 배송완료 창에 적은 '늦게 처리한 사유'가 있으면 닫기 전에 묻는다(화면 규칙 7). 처리 중에는 닫지 못한다. */
+ const closeCompletion=()=>{if(!pending)closeAdminDialog(Boolean(completion?.mode==='carrier'&&completion.reason.trim()),()=>setCompletion(null),()=>document.querySelector('[data-completion-dialog]'));};
  return <ShipmentConsoleActionsContext.Provider value={consoleActions}><ShipmentConsoleNoticeContext.Provider value={report}><div className="flex min-w-0 flex-col gap-3" data-shipment-console-grid="">
   {notices}
   <ConsoleGrid caption="출고지별 배송 건 목록" preferencesKey={`sales-${tab==='transit'||tab==='delivered'?'shipping':'dispatch'}`} columns={columns} rows={gridRows} emptyLabel="조건에 맞는 배송 건이 없습니다."
@@ -215,52 +250,61 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    {tab!=='delivered'&&hasBatchActions?<div className={WORKBAR} data-sales-workbar="">
     <span className="text-muted-foreground tabular-nums">{ids.length}개 배송 건 선택</span>
     {retainedOffPage>0?<span className="flex flex-wrap items-center gap-1.5">방금 발주확인한 다른 페이지의 {retainedOffPage}건 포함 <Button type="button" size="xs" variant="outline" onClick={()=>select([])}>선택 해제</Button></span>:null}
-    {tab==='new'?<Button type="button" size="sm" disabled={pending||!ids.length} title={ids.length?undefined:SELECT_FIRST} onClick={()=>run('confirm')}>선택 주문 {orderIds.length}건 발주확인</Button>:tab==='transit'?
+    {tab==='new'?<Button type="button" size="sm" disabled={pending||!ids.length} title={ids.length?undefined:SELECT_FIRST} onClick={confirmOrders}>선택 주문 {orderIds.length}건 발주확인</Button>:tab==='transit'?
      <Button type="button" size="sm" disabled={pending||!ids.length} title={ids.length?undefined:SELECT_FIRST} onClick={reviewCompletion}>선택 배송완료</Button>:
-     <>{nonParcelBatch?null:<><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 엑스스퀘어 표준 양식)</option><option value="smartstore">엑스스퀘어 표준 양식</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
+     <>{nonParcelBatch?null:<><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식</option><option value="smartstore">엑스스퀘어 표준 양식</option><option value="warehouse">기존 창고 양식</option></NativeSelect>
+      {/* 고른 양식이 실제로 무엇이 되는지는 설명 대신 결과로 보인다 — 드롭다운 바로 옆에 둔다(S-06). */}
+      {ids.length?<span className="whitespace-nowrap text-muted-foreground" data-export-layout-result="">→ {layoutLabel(layout,selectedOrigins.length>0&&selectedOrigins.every(id=>originTemplate(id)==='seowon_xlsx'))}</span>:null}</span>
      <span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-format">파일 형식</Label><NativeSelect id="shipment-export-format" size="sm" value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></NativeSelect></span>
      {seowonCsvNote}
-     {ids.length?<span className="text-muted-foreground">선택한 배송 건 내려받기 양식: {layoutLabel(layout,selectedOrigins.length>0&&selectedOrigins.every(id=>originTemplate(id)==='seowon_xlsx'))}</span>:null}
      {selectionBarcodeGap>0?<span className={WARNING} role="status">{shipmentBarcodeGapWarning(selectionBarcodeGap)}</span>:null}
-     <Button type="button" size="sm" disabled={pending||!exportEligible} onClick={requestExport}>출고지시 내보내기</Button></>}
-     {/* S36-X04: 고른 배송 건에 택배 외 방법을 한 번에 적용하고 실제 인계(발송)까지 기록한다. 택배 일괄 처리(출고지시·운송장)는 그대로다. */}
-     {dispatchActions?<Button type="button" size="sm" variant={nonParcelBatch?'default':'outline'} disabled={pending||!ids.length||ids.length>DISPATCH_TARGET_LIMIT} title={ids.length?undefined:SELECT_FIRST} onClick={()=>setDeliveryDialog({ids:[...ids],mode:'dispatch'})}>택배 외 발송처리</Button>:null}</>}
-    {actorId&&canManageSales&&(tab==='ready'||tab==='delayed')&&!nonParcelBatch?<Button type="button" size="sm" variant="outline" disabled={pending||ids.length<1||ids.length>100} onClick={()=>setPackSelection([...ids])}>합포장 관리</Button>:null}
-    {tab==='delayed'&&canManageSales?<Button type="button" size="sm" variant="outline" disabled={pending||!ids.length} onClick={()=>setNoticeSelection([...ids])}>선택 주문 {orderIds.length}건 고객 지연 안내</Button>:null}
-    {/* 비활성 버튼이 고장처럼 보이지 않게 언제 눌리는지 말한다. */}
-    {!ids.length&&!pending&&(tab==='new'||tab==='transit')?<span className="text-xs text-muted-foreground">{SELECT_FIRST}</span>:null}
+     <Button type="button" size="sm" disabled={pending||!exportEligible} title={exportLock??undefined} onClick={requestExport}>출고지시 내려받기</Button></>}
+     {/* S36-X04: 고른 배송 건에 택배 외 방식을 한 번에 적용하고 실제 인계(발송)까지 기록한다. 택배 일괄 처리(출고지시·운송장)는 그대로다. */}
+     {dispatchActions?<Button type="button" size="sm" variant={nonParcelBatch?'default':'outline'} disabled={pending||!ids.length||ids.length>DISPATCH_TARGET_LIMIT} title={ids.length?overLimit??undefined:SELECT_FIRST} onClick={()=>setDeliveryDialog({ids:[...ids],mode:'dispatch'})}>택배 외 발송처리</Button>:null}</>}
+    {actorId&&canManageSales&&(tab==='ready'||tab==='delayed')&&!nonParcelBatch?<Button type="button" size="sm" variant="outline" disabled={pending||ids.length<1||ids.length>PACK_TARGET_LIMIT} title={ids.length?overLimit??undefined:SELECT_FIRST} onClick={()=>setPackSelection([...ids])}>합포장 관리</Button>:null}
+    {tab==='delayed'&&canManageSales?<Button type="button" size="sm" variant="outline" disabled={pending||!ids.length} title={ids.length?undefined:SELECT_FIRST} onClick={()=>setNoticeSelection([...ids])}>선택 주문 {orderIds.length}건 고객 지연 안내</Button>:null}
+    {tab==='delayed'&&canManageSales?<Button type="button" size="sm" variant="outline" disabled={pending||!ids.length} title={ids.length?undefined:SELECT_FIRST} onClick={openDelayNotes}>선택 주문 {orderIds.length}건 지연 메모</Button>:null}
+    {/* 누를 수 없는 버튼이 고장처럼 보이지 않게 왜 잠겼는지 말한다(화면 규칙 5). */}
+    {pending?null:!ids.length?<span className={NOTE}>{SELECT_FIRST}</span>:exportLock||overLimit?<span className={NOTE} data-workbar-lock="">{[exportLock,overLimit].filter(Boolean).join(' ')}</span>:null}
     {pending?<span className="text-muted-foreground" role="status">처리 중…</span>:null}
+    {/* S-02: 줄의 [발송처리]는 확인창 없이 바로 실행된다. 화면에 보이지 않는 결과(고객 메일)와 되돌릴 수 없는 것을 한 줄로 둔다. */}
+    {rowDispatch?<span className={`${NOTE} basis-full`} data-row-dispatch-note="">줄의 [발송처리]를 누르면 바로 배송중으로 바뀌고 고객에게 배송 안내 메일이 갑니다. 잘못 처리했으면 {canManageSales?`${ADMIN_VOCABULARY.shipping}의 [${SHIPMENT_REVERT_LABELS.dispatch}]로 되돌립니다.`:`계정 주매니저에게 ${ADMIN_VOCABULARY.shipping}의 [${SHIPMENT_REVERT_LABELS.dispatch}]를 요청해주세요.`} 보낸 메일은 회수되지 않습니다.</span>:null}
     {workbarNote}
    </div>:workbarNote?<div className={WORKBAR} data-sales-workbar="">{workbarNote}</div>:null}
-   {exportOrigins.length?<div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2" role="group" aria-label="출고지별 새 출고지시 내려받기">
-    {!hasBatchActions||nonParcelBatch?<><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 엑스스퀘어 표준 양식)</option><option value="smartstore">엑스스퀘어 표준 양식</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
+   {exportOrigins.length?<div className="flex flex-wrap items-center gap-2 rounded-lg border px-3 py-2" role="group" aria-label="출고지별 출고지시 내려받기">
+    {!hasBatchActions||nonParcelBatch?<><span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-layout">엑셀 양식</Label><NativeSelect className="max-w-full" id="shipment-export-layout" size="sm" value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식</option><option value="smartstore">엑스스퀘어 표준 양식</option><option value="warehouse">기존 창고 양식</option></NativeSelect></span>
      <span className={CONTROL}><Label className="shrink-0 whitespace-nowrap" htmlFor="shipment-export-format">파일 형식</Label><NativeSelect id="shipment-export-format" size="sm" value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></NativeSelect></span>{seowonCsvNote}</>:null}
-    <span className="basis-full text-muted-foreground">선택 없이 출고지별 미전달 발송 대기 건을 버튼에 적힌 양식으로 받습니다(품목 1,000줄까지, 남으면 다시 눌러 이어 받기).</span>
-    {exportOrigins.map(origin=><Button key={origin.id} type="button" size="sm" variant="outline" className="h-auto min-h-7 whitespace-normal text-left" disabled={pending} onClick={()=>exportOrigin(origin)}>{origin.name} 새 출고지시 전체 내려받기 ({layoutLabel(layoutChoice??defaultExportLayout(origins,[origin.id]),origin.template==='seowon_xlsx')})</Button>)}
-    {exportOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} className={WARNING} role="status">{`${origin.name} 미전달 발송 대기 건: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
+    <span className="basis-full text-muted-foreground">고르지 않아도 출고지별로 출고지시 보내기 전인 발송 대기 건을 모두 받습니다(품목 1,000줄까지, 남으면 다시 눌러 이어 받기).</span>
+    {exportOrigins.map(origin=><Button key={origin.id} type="button" size="sm" variant="outline" className="h-auto min-h-7 whitespace-normal text-left" disabled={pending} onClick={()=>exportOrigin(origin)}>{origin.name} 출고지시 내려받기 ({layoutLabel(layoutChoice??defaultExportLayout(origins,[origin.id]),origin.template==='seowon_xlsx')})</Button>)}
+    {exportOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} className={WARNING} role="status">{`${origin.name} 출고지시 보내기 전 건: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
    </div>:null}
   </ConsoleGrid>
   {tab==='delayed'&&canManageSales?<Button className="self-start" variant="outline" type="button" onClick={()=>setNoticeSelection([])}>고객 지연 안내 이력·결과</Button>:null}
   {actorId&&packSelection!==null?<ShipmentPackPanel key={packSelection.join(',')} actorId={actorId} ids={packSelection} onClose={()=>setPackSelection(null)}/>:null}
   {noticeSelection!==null?<OrderDelayNoticePanel key={noticeSelection.join(',')} shipmentIds={noticeSelection} onClose={()=>setNoticeSelection(null)}/>:null}
-  {completion?<CustomerServiceDialog title="배송완료 확인" busy={pending} onClose={()=>setCompletion(null)}>
-   <div className="flex flex-col gap-3 text-sm leading-relaxed">
-    <p>선택한 {completion.ids.length}건{completion.total>completion.ids.length?`과 같은 합포장에 포함된 배송 건을 합쳐 총 ${completion.total}건`:''}을 배송완료로 처리합니다.</p>
-    <p className="text-muted-foreground">합포장에 포함된 모든 상품의 실제 도착을 택배사 조회로 확인해주세요.</p>
-    <label className={FIELD}><span>택배사 배송완료 일시 (KST)</span><Input type="datetime-local" name="deliveredAt" value={completion.arrival} max={kstDateTimeLocalValue(new Date())} disabled={pending} required
-     onChange={event=>setCompletion({...completion,arrival:event.target.value})}/></label>
-    <p className="text-muted-foreground" data-arrival-hint="">택배사 조회의 배송완료 일시를 넣으세요. 청약철회 기간과 구매확정 기한은 처리한 시각이 아니라 이 일시부터 셉니다. 처리가 늦어져도 고객의 철회 기간이 뒤로 밀리지 않게 실제 도착 일시를 기준으로 합니다. 처음 채워진 값(이 창을 연 시각)을 그대로 두면 처리한 시각으로 기록합니다. 발송 등록 시각보다 이른 일시를 넣으면 그 배송 건만 처리하지 않고 나머지는 처리합니다.</p>
-    {completionNeedsReason&&canManageSales?<label className={FIELD}><span>늦게 처리한 사유 ({SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 일시 · 감사 기록에 남습니다)</span><Textarea name="arrivalReason" rows={2} maxLength={SHIPMENT_REVERT_REASON_MAX} value={completion.reason} disabled={pending}
-     placeholder="예: 택배사 조회로 확인했으나 배송완료 처리를 놓침" onChange={event=>setCompletion({...completion,reason:event.target.value})}/></label>:null}
+  {delayNoteTargets?<DispatchDelayBulkNote key={delayNoteTargets.map(target=>target.orderId).join(',')} targets={delayNoteTargets} onClose={()=>setDelayNoteTargets(null)} onDone={report}/>:null}
+  {completion?<CustomerServiceDialog title="배송완료 처리" busy={pending} onClose={closeCompletion}>
+   <div className="flex flex-col gap-3 text-sm leading-relaxed" data-completion-dialog="">
+    <p>선택한 {completion.ids.length}건{completion.total>completion.ids.length?`과 같은 합포장에 묶인 배송 건을 합쳐 총 ${completion.total}건`:''}을 배송완료로 바꿉니다.</p>
+    {/* H-01: 일시 칸의 '처음 값을 그대로 두면 처리 시각'이라는 규칙을 설명하지 않고, 둘 중 하나를 고르게 한다. 고르면 필요한 칸만 열린다. */}
+    <GoodChoiceCards legend="도착 일시">
+     <GoodChoiceCard name="arrivalMode" value="now" checked={completion.mode==='now'} disabled={pending} onChange={()=>setCompletion({...completion,mode:'now'})} title="지금 도착으로 기록" description="처리하는 지금 시각이 배송완료 일시가 됩니다."/>
+     <GoodChoiceCard name="arrivalMode" value="carrier" checked={completion.mode==='carrier'} disabled={pending} onChange={()=>setCompletion({...completion,mode:'carrier'})} title="택배사 조회의 도착 일시 넣기" description="실제로는 더 일찍 도착했을 때 그 일시로 기록합니다."/>
+    </GoodChoiceCards>
+    {completion.mode==='carrier'?<label className={FIELD}><span>택배사 배송완료 일시 (KST)</span><Input className="w-auto self-start" type="datetime-local" name="deliveredAt" value={completion.arrival} max={kstDateTimeLocalValue(new Date())} disabled={pending} required
+     onChange={event=>setCompletion({...completion,arrival:event.target.value})}/></label>:null}
+    <p className="text-muted-foreground" data-arrival-hint="">청약철회·거래확정 기한을 이 일시부터 세고, 주문이 배송완료가 되면 고객에게 앱 알림이 갑니다.</p>
+    {completion.mode==='carrier'&&completionNeedsReason&&canManageSales?<label className={FIELD}><span>늦게 처리한 사유 (필수 · {SHIPMENT_ARRIVAL_LATE_DAYS}일보다 이른 일시)</span><Textarea name="arrivalReason" rows={2} maxLength={SHIPMENT_REVERT_REASON_MAX} value={completion.reason} disabled={pending}
+     placeholder="예: 택배사 조회로 확인했으나 배송완료 처리를 놓침" onChange={event=>setCompletion({...completion,reason:event.target.value})}/><span className={NOTE}>감사 기록에 남습니다.</span></label>:null}
     {completionError?<p role="alert" className="text-destructive">{completionError}</p>:null}
-    <label className="flex items-start gap-2"><input className="mt-1" type="checkbox" checked={completion.acknowledged} disabled={pending} onChange={event=>setCompletion({...completion,acknowledged:event.target.checked})}/><span>모든 상품이 실제 도착한 것을 확인했습니다.</span></label>
-    <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
-     <Button type="button" variant="outline" disabled={pending} onClick={()=>setCompletion(null)}>취소</Button>
-     <Button type="button" disabled={pending||!completion.acknowledged||Boolean(completionError)} onClick={()=>run('complete')}>{pending?'처리 중…':`${completion.total}건 배송완료 처리`}</Button>
+    <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-3">
+     {completionArrivalMissing?<span className={`${NOTE} mr-auto`}>도착 일시를 넣으면 누를 수 있습니다.</span>:null}
+     <Button type="button" variant="outline" disabled={pending} onClick={closeCompletion}>돌아가기</Button>
+     <Button type="button" disabled={pending||completionArrivalMissing||Boolean(completionError)} onClick={()=>run('complete')}>{pending?'처리 중…':`${completion.total}건 배송완료 처리`}</Button>
     </div>
    </div>
   </CustomerServiceDialog>:null}
-  {exportRequest?<CustomerServiceDialog title={exportNeedsPassword?'엑셀 비밀번호 설정':'출고지시 내려받기 확인'} busy={pending} onClose={()=>{setExportRequest(null);setError('');}}>
+  {exportRequest?<CustomerServiceDialog title={exportNeedsPassword?'엑셀 비밀번호 설정':'출고지시 내려받기'} busy={pending} onClose={()=>{setExportRequest(null);setError('');}}>
    <form autoComplete="off" className="flex flex-col gap-3 text-sm leading-relaxed" data-encrypted-export={exportNeedsPassword?'':undefined} data-export-confirm="" onSubmit={event=>{
     event.preventDefault();
     if(!exportNeedsPassword){run('export');return;}
@@ -271,8 +315,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     if(invalid||typeof password!=='string'||typeof passwordConfirmation!=='string'){setError(invalid??EXPORT_PASSWORD_HINT);return;}
     run('export',{password,passwordConfirmation});
    }}>
-    <p>{exportRequest.kind==='selection'?`선택한 ${exportRequest.ids.length}개 배송 건`:`${exportRequest.origin.name}의 아직 전달하지 않은 발송 대기 건`}을 {(()=>{const label=exportNeedsPassword?'엑스스퀘어 표준 양식':layoutLabel(exportRequest.layout,exportRequest.kind==='origin'?exportRequest.origin.template==='seowon_xlsx':exportRequest.ids.every(id=>originTemplate(rows.find(row=>row.id===id)?.originId??'')==='seowon_xlsx'));return exportRequest.format==='csv'?`${label} CSV로`:`${label}${directionParticle(label)}`;})()} 내려받습니다.</p>
-    {/* 1007-011·QA 라운드 1 m9: 페이지 맨 위 재고 경고는 행으로 내려가면 보이지 않는다. 파일을 받기 직전에 다시 알리고, 받을지는 운영자가 정한다. */}
+    <p>{exportRequest.kind==='selection'?`선택한 ${exportRequest.ids.length}개 배송 건`:`${exportRequest.origin.name}의 출고지시 보내기 전인 발송 대기 건`}을 {(()=>{const label=exportNeedsPassword?'엑스스퀘어 표준 양식':layoutLabel(exportRequest.layout,exportRequest.kind==='origin'?exportRequest.origin.template==='seowon_xlsx':exportRequest.ids.every(id=>originTemplate(rows.find(row=>row.id===id)?.originId??'')==='seowon_xlsx'));return exportRequest.format==='csv'?`${label} CSV로`:`${label}${directionParticle(label)}`;})()} 내려받습니다.</p>
+    {/* 1007-011·QA 라운드 1 m9: 페이지 맨 위 재고 경고는 줄로 내려가면 보이지 않는다. 파일을 받기 직전에 다시 알리고, 받을지는 운영자가 정한다. */}
     {stockShortage?<AdminNotice role="alert" tone="danger" title={`창고 재고보다 출고할 주문이 많은 옵션 ${stockShortage.count.toLocaleString('ko-KR')}개`}>
      <p>{stockShortage.names.join(', ')}{stockShortage.count>stockShortage.names.length?` 외 ${(stockShortage.count-stockShortage.names.length).toLocaleString('ko-KR')}개`:''}</p>
      <p className="text-muted-foreground">출고 대기 주문 전체 기준입니다. 고른 배송 건에 이 옵션이 있으면 창고 실재고를 확인한 뒤 내려받아 주세요. 내려받기를 막지는 않습니다.</p>
@@ -281,12 +325,12 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      <p className="text-muted-foreground">{EXPORT_PASSWORD_HINT}</p>
      <label className={FIELD}><span>비밀번호</span><Input name="password" type="password" autoComplete="new-password" autoFocus data-dialog-autofocus="" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
      <label className={FIELD}><span>비밀번호 확인</span><Input name="passwordConfirmation" type="password" autoComplete="new-password" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
-     <p className="text-muted-foreground">비밀번호는 저장하지 않습니다. 운송장 회신 파일을 올릴 때 같은 비밀번호를 입력합니다.</p>
+     <p className="text-muted-foreground">비밀번호는 저장하지 않습니다. 운송장 회신 파일을 올릴 때 같은 비밀번호를 넣습니다.</p>
     </>:null}
     {error?<p role="alert" className="text-destructive">{error}</p>:null}
     <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
-     <Button type="button" variant="outline" disabled={pending} onClick={()=>{setExportRequest(null);setError('');}}>취소</Button>
-     <Button type="submit" disabled={pending}>{pending?'파일 만드는 중…':exportNeedsPassword?'암호화 엑셀 다운로드':'출고지시 내려받기'}</Button>
+     <Button type="button" variant="outline" disabled={pending} onClick={()=>{setExportRequest(null);setError('');}}>돌아가기</Button>
+     <Button type="submit" disabled={pending}>{pending?'파일 만드는 중…':'출고지시 내려받기'}</Button>
     </div>
    </form>
   </CustomerServiceDialog>:null}

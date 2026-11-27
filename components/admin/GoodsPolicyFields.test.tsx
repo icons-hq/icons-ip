@@ -29,9 +29,9 @@ const renderProduction = (draft: ProductionDraft) => renderToStaticMarkup(<Goods
 const renderSubscription = (value: GoodsSubscriptionDraft) => renderToStaticMarkup(<GoodsSubscriptionPolicyFields value={value} onChange={() => {}} />);
 
 describe('수령 방식 입력', () => {
-  it('"제공 구분" 대신 상품 제공 방식을 선택 카드로 고르고, 고르면 그에 필요한 입력만 연다', () => {
+  it('"제공 구분" 대신 수령 방식을 선택 카드로 고르고, 고르면 그에 필요한 입력만 연다', () => {
     const shipping = renderFulfillment(fulfillment());
-    expect(shipping).toContain('상품 제공 방식');
+    expect(shipping).toContain('수령 방식');
     expect(shipping).not.toContain('제공 구분');
     expect(shipping.match(/data-good-choice-card=""/g)).toHaveLength(3);
     expect(shipping).toMatch(/<input type="radio" name="f1-mode" checked="" value="shipping"\/>배송 또는 방문수령/);
@@ -63,15 +63,15 @@ describe('수령 방식 입력', () => {
   it('고객 안내가 어디에 보이는지 말하고, 설정 근거 칸과 확인 체크는 없다', () => {
     for (const html of [renderFulfillment(fulfillment()), renderFulfillment(fulfillment({ mode: 'no_delivery' })), renderFulfillment(fulfillment({ mode: 'digital' }))]) {
       expect(html).toContain('고객 안내 (선택)');
-      expect(html).toContain('상품 상세의 제공 방식과 주문서의 받을 방식 아래에 보입니다.');
+      expect(html).toContain('상품 상세의 ‘제공 방식’과 주문서의 ‘받을 방식’ 아래에 보입니다.');
       expect(html).not.toMatch(/근거 \(관리자만 봄\)|-evidence|확인했습니다/);
-      /* 남은 체크박스는 받을 방식을 켜고 끄는 것뿐이고, 꼭 체크해야 하는 것은 없다. */
+      /* 남은 체크박스는 수령 방식을 켜고 끄는 것뿐이고, 꼭 체크해야 하는 것은 없다. */
       expect(html).not.toMatch(/<input type="checkbox"[^>]*required=""/);
     }
     expect(renderFulfillment(fulfillment()).match(/<input type="checkbox"/g)).toHaveLength(5);
   });
 
-  it('고른 받을 방식과 금액을 한 줄로 되읽고, 택배만 고른 기본 모양·배송없음·디지털에는 덧붙이지 않는다', () => {
+  it('고른 수령 방식과 금액을 한 줄로 되읽고, 택배만 고른 기본 모양·배송없음·디지털에는 덧붙이지 않는다', () => {
     const method = (name: typeof METHODS[number], patch: Partial<FulfillmentDraft['methods'][number]> = {}) => ({ method: name, enabled: true, amount: '0', basis: 'per_order' as const, installation: '0', ...patch });
     const readback = (draft: FulfillmentDraft) => renderFulfillment(draft).match(/data-good-readback=""[^>]*>([^<]*)</)?.[1] ?? null;
     expect(readback(fulfillment())).toBeNull();
@@ -80,8 +80,8 @@ describe('수령 방식 입력', () => {
     expect(readback(fulfillment({ methods: [method('parcel'), method('quick', { amount: '3000' }), method('pickup')] })))
       .toBe('고객은 주문서에서 택배, 퀵(배송비 3,000원), 방문수령 중 하나를 고릅니다.');
     expect(readback(fulfillment({ methods: [method('freight', { amount: '20000', basis: 'per_item', installation: '5000' })] })))
-      .toBe('받을 방식은 화물배송(배송비 수량 1개마다 20,000원 · 설치비 개당 5,000원) 하나입니다.');
-    expect(readback(fulfillment({ methods: [method('parcel', { installation: '2000' })] }))).toBe('받을 방식은 택배(설치비 개당 2,000원) 하나입니다.');
+      .toBe('수령 방식은 화물배송(배송비 수량 1개마다 20,000원 · 설치비 개당 5,000원) 하나입니다.');
+    expect(readback(fulfillment({ methods: [method('parcel', { installation: '2000' })] }))).toBe('수령 방식은 택배(설치비 개당 2,000원) 하나입니다.');
     /* 고르지 않은 방식에 적어 둔 금액은 읽지 않고, 금액이 숫자가 아니면 틀린 문장을 말하지 않는다. */
     expect(readback(fulfillment({ methods: [method('parcel'), method('quick', { enabled: false, amount: '3000' }), method('direct')] })))
       .toBe('고객은 주문서에서 택배, 직접배송 중 하나를 고릅니다.');
@@ -199,5 +199,15 @@ describe('주문 후 제작 칸을 끌 때', () => {
     expect(changes.map((draft) => [draft.enabled, draft.leadDays])).toEqual([[false, '5'], [false, ''], [false, ''], [false, '']]);
     (checkbox(production({ leadDays: '0' })).props!.onChange as (event: { target: { checked: boolean } }) => void)({ target: { checked: true } });
     expect(changes.at(-1)).toMatchObject({ enabled: true, leadDays: '0' });
+  });
+});
+
+/* W-1: 택배의 배송비 안내가 배송 설정 화면과 같은 낱말(지역별 추가배송비)을 쓴다. */
+describe('수령 방식 입력의 낱말', () => {
+  it('택배 배송비 안내는 지역별 추가배송비, 칸 이름은 수령 방식이다(상품 제공 방식·배송·제공 설정이 아니다)', () => {
+    const html = renderFulfillment(fulfillment());
+    expect(html).toContain('배송비는 상품의 기존 배송비 규칙(기본료·무료 기준·수량별·지역별 추가배송비·착불)을 따릅니다.');
+    expect(html).toMatch(/<legend[^>]*>수령 방식<\/legend>/);
+    expect(html).not.toMatch(/지역 추가료|추가료|상품 제공 방식|배송·제공 설정/);
   });
 });

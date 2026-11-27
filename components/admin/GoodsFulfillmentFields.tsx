@@ -20,7 +20,7 @@ export function goodShippingFeeReadback({ feeType, origin, individualFee }: { fe
   if (feeType === 'free') return '배송비 무료';
   if (feeType === 'individual') return `배송비 ${won(individualFee)}`;
   if (!origin) return '출고지를 고르면 배송비가 정해집니다';
-  return `배송비 ${won(origin.baseFee)} · ${origin.freeThreshold === null ? '무료 기준 없음' : `${won(origin.freeThreshold)} 이상 무료`}${origin.active ? '' : ' · 사용 중지된 출고지 (확인 필요)'}`;
+  return `배송비 ${won(origin.baseFee)} · ${origin.freeThreshold === null ? '무료 기준 없음' : `${won(origin.freeThreshold)} 이상 무료`}${origin.active ? '' : ' · 사용 안 함인 출고지 (확인 필요)'}`;
 }
 
 export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSummaries = [] }: { origins: GoodsFulfillmentOrigin[]; regionSummaries?: GoodShippingRegionSummary[]; value?: GoodsFulfillmentValue | null; errors?: Record<string, string | undefined> }) {
@@ -39,8 +39,8 @@ export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSumm
     <AdminFormGrid>
       <AdminField inputId="good-origin" label="출고지 (필수)" error={errors.originId}>
         <NativeSelect className="w-full" id="good-origin" name="originId" value={originId} onChange={(event) => setOriginId(event.target.value)} aria-invalid={Boolean(errors.originId)} aria-describedby={errors.originId ? "good-origin-error" : undefined}>
-          <option value="">설정 전</option>
-          {origins.map((origin) => <option key={origin.id} value={origin.id} disabled={!origin.active && origin.id !== originId}>{origin.name}{origin.active ? '' : ' · 사용 중지'}</option>)}
+          <option value="">고르지 않음</option>
+          {origins.map((origin) => <option key={origin.id} value={origin.id} disabled={!origin.active && origin.id !== originId}>{origin.name}{origin.active ? '' : ' · 사용 안 함'}</option>)}
         </NativeSelect>
       </AdminField>
     </AdminFormGrid>
@@ -59,12 +59,12 @@ export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSumm
         </AdminField>
       </AdminFormGrid>
     </div>
-    {/* 지금 고른 값으로 계산되는 배송비. 지역 추가료는 출고지 설정이라 이 상품의 선택과 따로 보인다. */}
+    {/* 지금 고른 값으로 계산되는 배송비. 지역별 추가배송비는 출고지 설정이라 이 상품의 선택과 따로 보인다. */}
     <div className={`${GOOD_NOTE_CLASS} flex min-w-0 flex-col gap-1.5`} aria-live="polite" data-good-shipping-policy="">
       <strong className="font-medium">{goodShippingFeeReadback({ feeType, origin, individualFee: Number(fee) || 0 })}</strong>
       {feeType === 'individual' ? <p className="text-muted-foreground">수량·옵션이 여러 개여도 한 번만 받습니다.</p> : null}
-      {feeType === 'policy' ? <a className="w-fit underline underline-offset-4" href="/admin/settings/origins" target="_blank" rel="noreferrer">출고지 정책 확인 (새 탭)</a> : null}
-      <p className="text-muted-foreground wrap-anywhere">{region?.label ?? '지역 추가료 확인 필요'} · {region?.detail ?? '지역 배송 정책에서 적용 상태를 확인해주세요.'} <a className="text-foreground underline underline-offset-4" href="/admin/settings/shipping-regions" target="_blank" rel="noreferrer">지역 배송 정책 (새 탭)</a></p>
+      {feeType === 'policy' ? <a className="w-fit underline underline-offset-4" href="/admin/settings/origins" target="_blank" rel="noreferrer">출고지 설정 확인 (새 탭)</a> : null}
+      <p className="text-muted-foreground wrap-anywhere">{region?.label ?? '지역별 추가배송비 확인 필요'} · {region?.detail ?? '지역별 추가배송비 화면에서 적용 중인지 확인해주세요.'} <a className="text-foreground underline underline-offset-4" href="/admin/settings/shipping-regions" target="_blank" rel="noreferrer">지역별 추가배송비 (새 탭)</a></p>
       <p className="text-muted-foreground">이미 받은 주문의 배송비와 반품 주소는 바뀌지 않습니다.</p>
     </div>
   </div>;

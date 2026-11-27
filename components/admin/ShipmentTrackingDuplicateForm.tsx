@@ -10,6 +10,8 @@ import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { adminConfirm } from '@/lib/admin/confirm';
+import { adminTrackingDuplicateRequest } from '@/lib/admin/order-confirmations';
+import { topicParticle } from '@/lib/korean-particle';
 import { SHIPMENT_EXTRA_TRACKING_REASON_LIMIT } from '@/lib/admin/shipment-tracking';
 import { isTrackingNumber, normalizeTrackingNumber } from '@/lib/orders/shipment';
 
@@ -46,11 +48,7 @@ export function ShipmentTrackingDuplicateForm({ shipmentId, reference, carriers,
     if (!isTrackingNumber(trackingNumber)) { setError('운송장번호는 하이픈을 뺀 8~30자리 영숫자입니다.'); return; }
     if (!reason.trim()) { setError('같은 상자로 확인한 사유를 입력해주세요.'); return; }
     setError('');
-    const confirmed = await adminConfirm({
-      title: '다른 주문과 같은 운송장으로 등록할까요?',
-      message: `배송 건 ${reference}에 ${label} ${trackingNumber}을(를) 등록합니다. 이 번호는 다른 주문의 배송 건에 이미 등록돼 있어 두 주문의 고객이 같은 배송조회를 보게 되고, 택배 추적의 배송완료도 함께 따라갑니다. 창고에 같은 상자로 확인한 경우에만 진행하세요. 사유가 감사 기록에 남습니다.`,
-      confirmLabel: '중복 확인 후 등록',
-    });
+    const confirmed = await adminConfirm(adminTrackingDuplicateRequest({ reference, carrierLabel: label, trackingNumber }));
     if (!confirmed) return;
     const form = new FormData();
     for (const [key, value] of Object.entries({ shipmentId, carrier: chosenCarrier, trackingNumber, reason: reason.trim() })) form.set(key, value);
@@ -66,7 +64,7 @@ export function ShipmentTrackingDuplicateForm({ shipmentId, reference, carriers,
   }
   return <form className={`flex w-full min-w-0 flex-col ${compact ? 'gap-1.5 text-xs' : 'gap-2.5 text-sm'}`} onSubmit={submit} aria-label={`배송 건 ${reference} 중복 확인 후 운송장 등록`} data-shipment-tracking-duplicate="">
     <p className="text-xs text-muted-foreground">{fixed
-      ? `${label} ${fixed.trackingNumber}은(는) 다른 주문이 쓰는 번호입니다. 창고에 같은 상자로 확인했으면 사유를 적고 등록합니다.`
+      ? `${label} ${fixed.trackingNumber}${topicParticle(fixed.trackingNumber)} 다른 주문이 쓰는 번호입니다. 창고에 같은 상자로 확인했으면 사유를 적고 등록합니다.`
       : '다른 주문이 쓰는 번호라 등록이 거절됐지만 창고에 같은 상자로 확인한 경우에만 씁니다. 택배사 형식은 그대로 확인합니다.'}</p>
     {notice ? <AdminNotice role="status" tone="success">{notice}</AdminNotice> : null}
     {fixed ? null : <div className="grid w-full min-w-0 gap-2 sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">
@@ -77,7 +75,7 @@ export function ShipmentTrackingDuplicateForm({ shipmentId, reference, carriers,
       <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-tracking`}>운송장번호</Label>
         <Input id={`${fieldId}-tracking`} value={tracking} autoComplete="off" maxLength={40} disabled={pending} placeholder="다른 주문과 같은 상자의 운송장번호" onChange={event => setTracking(event.target.value)} /></div>
     </div>}
-    <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-reason`}>같은 상자로 확인한 사유</Label>
+    <div className={FIELD_CLASS}><Label htmlFor={`${fieldId}-reason`}>같은 상자로 확인한 사유 (필수 · 감사 기록에 남습니다)</Label>
       <Textarea id={`${fieldId}-reason`} rows={2} value={reason} maxLength={SHIPMENT_EXTRA_TRACKING_REASON_LIMIT} disabled={pending}
         placeholder="예: 김포 확인 — 주문 2026111810000001과 한 상자로 합배송" onChange={event => setReason(event.target.value)} /></div>
     {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}

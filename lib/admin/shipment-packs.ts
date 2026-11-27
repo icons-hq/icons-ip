@@ -1,6 +1,8 @@
 import { isUuid } from '@/lib/uuid';
 import { isCommerceNumber } from '@/lib/commerce-number';
 import { transactionExactKeys, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
+import { SAVE_UNKNOWN_MESSAGE } from './goods-template-save';
+import { ADMIN_SALES_ACCESS_DENIED } from './vocabulary';
 /** collectFee는 묶음 착불 배송비다. 출고 전용 운영자에게도 보인다(2026-11-12 "착불 금액은 보이게"). 비운 응답(null)도 받아 '-'로 그린다. */
 export interface ShipmentPackSummary { id: string; revision: number; count: number; shipmentIds: string[]; collectFee: number | null; canRelease: boolean }
 export interface ShipmentPackRow { orderNumber?: string; shipmentNumber?: string; id: string; orderId: string; originName: string; buyerName: string; recipientName: string | null; status: string; exportedAt: string | null; updatedAt: string; shippingFee: number; collectFee: number; ready: boolean; pack: ShipmentPackSummary | null }
@@ -30,12 +32,12 @@ export function parseShipmentPackDocument(value: unknown): ShipmentPackDocument 
 export function shipmentPackError(message?: string, code?: string) {
  const errors: Record<string, string> = {
   shipment_pack_changed: '고른 뒤 배송 정보나 합포장이 바뀌었습니다. 목록을 새로고침해 다시 확인해주세요.',
-  shipment_pack_conflict: '같은 요청 번호로 다른 내용이 이미 처리됐습니다. 목록을 새로고침해 합포장 상태를 확인해주세요.',
+  shipment_pack_conflict: '같은 처리에 다른 내용이 이미 저장돼 있습니다. 목록을 새로고침해 합포장 상태를 확인해주세요.',
   shipment_pack_ineligible: '구매자·수령인·주소·출고지가 모두 같은 발송 대기 건만 합포장할 수 있습니다. 취소 요청이 열려 있거나, 결제가 끝나지 않았거나, 예약 입고 확인 전인 건은 묶을 수 없습니다.',
-  shipment_pack_release_blocked: '출고지시를 전달하거나 발송한 합포장은 해제할 수 없습니다.',
-  shipment_pack_address_changed: '합포장 이후 수취 정보가 바뀌었습니다. 출고 전 합포장을 해제하고 다시 구성해주세요.',
+  shipment_pack_release_blocked: '출고지시를 보냈거나 발송한 합포장은 해제할 수 없습니다.',
+  shipment_pack_address_changed: '합포장한 뒤 수령인이나 주소가 바뀌었습니다. 출고 전에 합포장을 해제하고 다시 묶어주세요.',
   shipment_pack_selection_required: '같은 합포장의 모든 배송 건을 선택해주세요.',
-  shipment_pack_tracking_conflict: '같은 합포장에 서로 다른 운송장이 있습니다. 해당 파일을 수정한 뒤 다시 등록해주세요.',
+  shipment_pack_tracking_conflict: '같은 합포장에 서로 다른 운송장이 있습니다. 올린 파일을 고친 뒤 다시 올려주세요.',
  };
- return errors[message ?? ''] ?? (code === '42501' ? '계정 또는 직원 권한이 바뀌었습니다. 다시 로그인해주세요.' : code === '22023' ? '배송 건을 다시 고르고 처리 사유를 2자 이상 적어주세요.' : '합포장 처리 결과를 확인하지 못했습니다. 같은 요청으로 결과를 확인해주세요.');
+ return errors[message ?? ''] ?? (code === '42501' ? ADMIN_SALES_ACCESS_DENIED : code === '22023' ? '배송 건을 다시 고르고 이유를 2자 이상 적어주세요.' : SAVE_UNKNOWN_MESSAGE);
 }

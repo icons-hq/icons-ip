@@ -8,11 +8,22 @@ const contacts: OperationsContact[] = [
   { scope: 'origin', originId: '00000000-0000-4000-8000-000000499002', originName: '연습 창고', originActive: false, ownerName: '창고 담당', contact: 'warehouse@example.test', sourceReference: '<script>alert(1)</script>', handoffReference: '', updatedAt: '2026-09-11T03:00:00Z', updatedByName: '관리자' },
 ];
 const history: OperationsContactHistory[] = [{ id: 'history', actorName: '관리자', scope: 'origin', originName: '연습 창고', changedFields: ['contact'], createdAt: '2026-09-11T03:00:00Z' }];
-it('운영 준비에서 지역 정책 만료 경고를 확인한다', () => {
+it('운영 준비에서 지역별 추가배송비가 곧 끝난다는 경고를 확인한다', () => {
   const html = renderToStaticMarkup(<OperationsSettingsScreen contacts={[]} history={[]} canEdit={false}
-    shippingRegionExpiry={{ warnings: [{ originName: "김포", carrierLabel: "한진택배", id: 'policy', name: '실제 지역 정책', version: 1, endsAt: '2026-10-01T00:00:00Z', status: 'expiring' }] }} />);
-  expect(html).toContain('7일 이내 만료');
+    shippingRegionExpiry={{ warnings: [{ originName: "김포", carrierLabel: "한진택배", originId: 'origin-1', id: 'policy', name: '실제 지역 정책', version: 1, endsAt: '2026-10-01T00:00:00Z', status: 'expiring' }] }} />);
+  expect(html).toContain('7일 안에 끝남');
   expect(html).toContain('실제 지역 정책');
+});
+it('운영 준비 카드는 지역별 추가배송비가 막혔는지 말하고, 막힌 출고지는 까닭과 고치러 가는 링크로 알린다 (S5-1)', () => {
+  const html = renderToStaticMarkup(<OperationsSettingsScreen contacts={[]} history={[]} canEdit
+    readiness={{ regions: { done: false, detail: '새 주문이 막힌 출고지 1곳' } }}
+    shippingRegionExpiry={{ warnings: [], blocked: [{ originId: 'origin-1', originName: '김포', reason: 'ended' }] }} />);
+  expect(html).toContain('새 주문이 막힌 출고지 1곳');
+  expect(html).toContain('새 주문 막힘');
+  expect(html).toContain('김포 · 지역별 추가배송비 설정이 끝나 새 주문이 막혀 있습니다.');
+  expect(html).toContain('href="/admin/settings/shipping-regions"');
+  /* '정책'이라는 옛 낱말이 카드에도 알림에도 남지 않는다. */
+  expect(html).not.toMatch(/사용 중인 정책|정책 없음/);
 });
 it('직원은 담당자 기록과 이력을 읽고 관리 전용 링크와 저장 버튼은 보지 않는다', () => {
   const html = renderToStaticMarkup(<OperationsSettingsScreen contacts={contacts} history={history} canEdit={false}/>);

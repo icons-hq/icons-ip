@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  defectiveStockWithRequestedQty,
   parseClaimDefectiveStock,
   parseDefectiveQtyByVariant,
   parseDefectiveStockList,
@@ -56,5 +57,30 @@ describe('반품 불량 재고 읽기·양식 계약', () => {
     expect(list?.entries[1]).toMatchObject({ claimId: 'cx', claimType: 'exchange' });
     expect(list?.pending).toEqual([{ claimId: 'c2', claimReference: 8, qty: 2, items: 1 }]);
     expect(parseDefectiveQtyByVariant([{ variantId: 'v', qty: 2 }, { variantId: 'w', qty: 0 }, { qty: 1 }])).toEqual({ v: 2 });
+  });
+});
+
+/* R-N4: 부분 반품의 품목별 재고 처리 칸은 주문 수량이 아니라 반품을 요청한 수량을 보인다(표시용 — 선택·저장 상태는 그대로). */
+describe('부분 반품의 품목별 재고 처리 수량', () => {
+  const stock = { claimId: 'c1', frozen: false, pending: 1, items: [
+    { orderItemId: ITEM_A, name: 'A', variantName: null, qty: 2, defective: true, state: 'planned' as const },
+    { orderItemId: ITEM_B, name: 'B', variantName: '파랑', qty: 3, defective: false, state: null },
+  ] };
+
+  it('요청에 담긴 품목만 요청한 수량으로 바꾼다 — 요청에 없는 품목과 그 밖의 값은 그대로다', () => {
+    const shown = defectiveStockWithRequestedQty(stock, [{ orderItemId: ITEM_A.toUpperCase(), qty: 1 }])!;
+    expect(shown.items.map((item) => item.qty)).toEqual([1, 3]);
+    expect(shown.items[0]).toMatchObject({ orderItemId: ITEM_A, name: 'A', defective: true, state: 'planned' });
+    expect(shown.items[1]).toBe(stock.items[1]);
+    expect(shown).toMatchObject({ claimId: 'c1', frozen: false, pending: 1 });
+    expect(stock.items[0].qty).toBe(2);
+  });
+
+  it('부분 반품이 아니거나 요청 품목을 모르면 받은 그대로 돌려준다', () => {
+    expect(defectiveStockWithRequestedQty(stock, null)).toBe(stock);
+    expect(defectiveStockWithRequestedQty(stock, undefined)).toBe(stock);
+    expect(defectiveStockWithRequestedQty(stock, [])).toBe(stock);
+    expect(defectiveStockWithRequestedQty(null, [{ orderItemId: ITEM_A, qty: 1 }])).toBeNull();
+    expect(defectiveStockWithRequestedQty(undefined, [{ orderItemId: ITEM_A, qty: 1 }])).toBeUndefined();
   });
 });

@@ -619,16 +619,26 @@ describe('가상계좌 입금 정보(처리 패널 주문)', () => {
     expect(result.items.find(item => item.id === OTHER_ORDER_ID)).not.toHaveProperty('virtualAccount');
   });
 
-  it('지정한 주문이 없으면 패널이 여는 첫 주문을 읽고, 가상계좌가 아니면 null이다', async () => {
+  it('고른 주문이 가상계좌가 아니면 null이다', async () => {
     const rpc = vi.fn();
     mocks.client = createClient({ records: [], rpc, rpcRowsByName: { admin_search_orders_console: [row(OTHER_ORDER_ID), row(ORDER_ID)] },
       rows: { order_items: [] } });
     /* 가상계좌가 아닌 주문은 RPC가 null을 돌려준다(이 시험 클라이언트의 이름별 응답은 null을 담지 못해 따로 둔다). */
     const base = rpc.getMockImplementation()!;
     rpc.mockImplementation(async (name: string, args: unknown) => name === 'admin_order_virtual_account' ? { data: null, error: null } : base(name, args));
-    const result = await getAdminOrderRecords({ ...filters, orderId: null });
+    const result = await getAdminOrderRecords({ ...filters, orderId: OTHER_ORDER_ID });
     expect(rpc).toHaveBeenCalledWith('admin_order_virtual_account', { p_order_id: OTHER_ORDER_ID });
     expect(result.items[0].virtualAccount).toBeNull();
+  });
+
+  /* 처리 패널은 목록에서 주문을 골랐을 때만 그린다 — 고르지 않았거나 이 쪽에 없는 주문이면 맨 위 주문의 가상계좌를 읽지 않는다. */
+  it.each([null, '55555555-5555-4555-8555-555555555555'])('고른 주문이 목록에 없으면(%s) 가상계좌를 읽지 않는다', async (orderId) => {
+    const rpc = vi.fn();
+    mocks.client = createClient({ records: [], rpc, rpcRowsByName: { admin_search_orders_console: [row(OTHER_ORDER_ID), row(ORDER_ID)],
+      admin_order_virtual_account: account as never }, rows: { order_items: [] } });
+    const result = await getAdminOrderRecords({ ...filters, orderId });
+    expect(rpc.mock.calls.filter(([name]) => name === 'admin_order_virtual_account')).toEqual([]);
+    for (const item of result.items) { expect(item).not.toHaveProperty('virtualAccount'); expect(item).not.toHaveProperty('virtualAccountUnavailable'); }
   });
 
   it('읽지 못하면 가상계좌가 아니라고 하지 않고 불러오지 못했다고 표시한다', async () => {

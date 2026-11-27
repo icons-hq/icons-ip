@@ -5,7 +5,7 @@ import { ChevronDown, Plus } from 'lucide-react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { StoreSettingsForm,ShippingCarrierForm,ShippingCarrierFormatForm,InquiryAutoRepliesForm } from './StoreSettingsForm';
-import { CARRIER_SETTINGS_PATH,STORE_SETTINGS_PATH,storeSettingsHistoryRows,type EditableCarrier,type StoreSettingsAudit,type StoreSettingsSection,type StoreSettingsSnapshot } from '@/lib/admin/store-settings';
+import { CARRIER_SETTINGS_PATH,STORE_SETTINGS_PATH,storeSettingsHistoryRows,type CarrierUsesByCode,type EditableCarrier,type StoreSettingsAudit,type StoreSettingsSection,type StoreSettingsSnapshot } from '@/lib/admin/store-settings';
 import { formatOrderDateTime } from '@/lib/orders';
 import { StoreBrandingForm } from './StoreBrandingForm';
 import { StoreNavigationForm } from './StoreNavigationForm';
@@ -17,7 +17,7 @@ const SETTINGS_TABS = 'inline-flex w-fit max-w-full flex-wrap items-center round
 
 /** 택배사 카드 머리의 사용 상태. */
 function carrierStatus(active: boolean) {
-  return <AdminStatusBadge tone={statusTone('setting', active ? 'active' : 'inactive')}>{active ? '사용 중' : '사용 안 함'}</AdminStatusBadge>;
+  return <AdminStatusBadge tone={statusTone('setting', active ? 'active' : 'inactive')}>{active ? '사용' : '사용 안 함'}</AdminStatusBadge>;
 }
 
 /* 택배사 목록의 칸 나누기. 머리 줄과 각 줄이 같은 틀을 쓴다. */
@@ -25,12 +25,14 @@ const CARRIER_ROW = 'grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3
 
 /**
  * 택배사를 표처럼 한 줄씩 본다. 줄을 펼치면 그 택배사의 입력 폼이 열린다 — 같은 입력 카드가 세로로 반복되지 않고,
- * 코드·조회 주소 같은 값을 건드리려면 일부러 펼쳐야 한다.
+ * 코드·조회 주소 같은 값을 건드리려면 일부러 펼쳐야 한다. `uses`는 택배사 코드마다 그 택배사를 기본으로 쓰는 출고지다
+ * (저장할 수 있는 사람에게만 읽어 넘긴다. 안 주면 안 읽은 것, null이면 읽지 못한 것이다).
  */
-function CarrierList({carriers,canEdit}:{carriers:EditableCarrier[];canEdit:boolean}) {
+function CarrierList({carriers,canEdit,uses}:{carriers:EditableCarrier[];canEdit:boolean;uses?:CarrierUsesByCode}) {
+  const usesOf=(code:string)=>uses===undefined?undefined:uses===null?null:uses[code]??[];
   return <AdminSectionCard title="택배사 목록" requirement={`${carriers.length}곳`}>
     <div className="min-w-0 overflow-hidden rounded-lg border" data-carrier-list="">
-      <div aria-hidden="true" className={`${CARRIER_ROW} h-9 border-b bg-muted text-xs font-semibold text-secondary-foreground`}><span>택배사</span><span>사용 여부</span><span className="hidden md:block">코드</span><span className="hidden md:block">배송조회 URL</span><span className="text-right">관리</span></div>
+      <div aria-hidden="true" className={`${CARRIER_ROW} h-9 border-b bg-muted text-xs font-semibold text-secondary-foreground`}><span>택배사</span><span>사용 여부</span><span className="hidden md:block">코드</span><span className="hidden md:block">배송조회 주소</span><span className="text-right">관리</span></div>
       {carriers.map(carrier=><details className="group border-b last:border-b-0" key={carrier.code}>
         <summary className={`${CARRIER_ROW} min-h-11 cursor-pointer list-none py-2 hover:bg-primary-soft/40 [&::-webkit-details-marker]:hidden`}>
           <strong className="min-w-0 font-semibold break-words">{carrier.label}</strong>
@@ -40,7 +42,7 @@ function CarrierList({carriers,canEdit}:{carriers:EditableCarrier[];canEdit:bool
           {/* 줄 전체가 펼치는 자리다(버튼을 겹치지 않는다) — 다른 목록의 수정 버튼과 같은 모양만 입힌다. */}
           <span className={`${buttonVariants({size:'xs',variant:'outline'})} justify-self-end`} data-slot="button">{canEdit?'수정':'보기'}<ChevronDown aria-hidden="true" className="transition-transform group-open:rotate-180"/></span>
         </summary>
-        <div className="flex flex-col gap-4 border-t bg-muted/30 p-4"><ShippingCarrierForm carrier={carrier} canEdit={canEdit}/><ShippingCarrierFormatForm carrier={carrier} canEdit={canEdit}/></div>
+        <div className="flex flex-col gap-4 border-t bg-muted/30 p-4"><ShippingCarrierForm carrier={carrier} canEdit={canEdit} uses={usesOf(carrier.code)}/><ShippingCarrierFormatForm carrier={carrier} canEdit={canEdit}/></div>
       </details>)}
     </div>
     {canEdit?<details className="group rounded-lg border">
@@ -87,13 +89,13 @@ export function StoreSettingsScreen({settings,carriers,history,canEdit,section,c
 }
 
 /** Carrier management does not need business, bank or storefront settings. */
-export function ShippingCarriersScreen({ carriers, history, canEdit }: { carriers: EditableCarrier[]; history: StoreSettingsAudit[]; canEdit: boolean }) {
+export function ShippingCarriersScreen({ carriers, history, canEdit, uses }: { carriers: EditableCarrier[]; history: StoreSettingsAudit[]; canEdit: boolean; uses?: CarrierUsesByCode }) {
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="shipping-carriers">
-    <AdminPageHeader title="택배사 관리" description="상품과 배송조회에 사용할 택배사를 확인합니다." />
-    <CarrierList carriers={carriers} canEdit={canEdit} />
+    <AdminPageHeader title="택배사 관리" description="운송장을 등록할 때 고를 택배사를 정합니다." />
+    <CarrierList carriers={carriers} canEdit={canEdit} uses={uses} />
     {history.length ? <AdminSectionCard title="최근 변경 이력"><ol className="flex flex-col divide-y" data-settings-history="">{history.map(entry => <li className="flex flex-col gap-1.5 py-3 first:pt-0 last:pb-0" key={entry.id}>
       <p><time className="tabular-nums" dateTime={entry.createdAt}>{formatOrderDateTime(entry.createdAt)}</time> · {entry.actorName}</p>
-      <ul className="flex list-disc flex-col gap-1 pl-5 text-muted-foreground [overflow-wrap:anywhere]">{storeSettingsHistoryRows(entry).map(row => <li key={row.key}>{row.label}: {row.before || '빈 값'} → {row.after || '빈 값'}</li>)}</ul>
+      <ul className="flex list-disc flex-col gap-1 pl-5 text-muted-foreground [overflow-wrap:anywhere]">{storeSettingsHistoryRows(entry).map(row => <li key={row.key}>{row.label}: {row.before || '없음'} → {row.after || '없음'}</li>)}</ul>
     </li>)}</ol></AdminSectionCard> : null}
   </div>;
 }

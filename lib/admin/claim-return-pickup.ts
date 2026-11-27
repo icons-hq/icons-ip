@@ -30,7 +30,8 @@ const ERROR_LABELS: Record<string, string> = {
 };
 export function returnPickupErrorLabel(code: string | null | undefined): string | null {
   if (!code) return null;
-  return ERROR_LABELS[code] ?? `택배사 응답 ${code}`;
+  /* 이름표에 없는 코드는 문장으로 풀지 못한다 — 무슨 일인지 먼저 말하고, 코드는 문의할 때 전할 값으로만 붙인다. */
+  return ERROR_LABELS[code] ?? `택배사가 받지 않았습니다 · 문의할 때 알려 줄 코드 ${code}`;
 }
 
 export const RETURN_PICKUP_CANCEL_REASON_LABELS: Record<string, string> = {

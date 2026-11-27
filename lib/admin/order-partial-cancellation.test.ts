@@ -4,11 +4,13 @@ import {
   STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE,
   orderHasUnsentShipmentAfterDispatch,
   orderPartialCancellationBlockerMessage,
+  orderPartialCancellationConfirmCopy,
   orderPartialCancellationErrorMessage,
   orderPartialCancellationItemBlockerLabel,
   orderPartialCancellationPanelVisible,
   orderPartialCancellationReconcileMessage,
   orderPartialCancellationResolutionMessage,
+  orderPartialCancellationTransferConfirm,
   orderPartialCancellationV1AllocationIssueMessage,
 } from './order-partial-cancellation';
 import { ORDER_PARTIAL_CANCELLATION_STATES } from '@/lib/orders/partial-cancellation';
@@ -31,6 +33,34 @@ describe('부분 취소 패널 노출', () => {
 });
 
 describe('부분 취소 운영 문구', () => {
+  it('주문 상태 이름은 어드민 말(신규주문·거래확정)로 말한다 — 결제완료·구매확정이 아니다', () => {
+    const message = orderPartialCancellationBlockerMessage('order_not_partial_cancelable');
+    expect(message).toContain('신규주문·발주확인·배송중(일부 발송)');
+    expect(message).toContain('배송완료·거래확정 주문은 반품으로');
+    expect(message).not.toMatch(/결제완료|구매확정/);
+  });
+
+  it('고를 수 없는 이유는 운영자 말이고 내부 말(금액 배분·품목)을 쓰지 않는다', () => {
+    expect(orderPartialCancellationItemBlockerLabel('allocation_missing')).toBe('주문 당시 금액 기록 없음');
+    expect(orderPartialCancellationItemBlockerLabel('order_item_not_found')).toBe('이 주문의 상품이 아님');
+    expect(orderPartialCancellationBlockerMessage('legacy_order')).not.toMatch(/배분|품목/);
+    expect(orderPartialCancellationBlockerMessage('partial_cancel_v1_allocation_mismatch')).not.toContain('대조');
+  });
+
+  it('고객이 정한 내용·권한·합포장 거절은 화면에 적힌 이름으로 다음 할 일을 말한다', () => {
+    expect(orderPartialCancellationErrorMessage('partial_cancel_customer_decision_required')).toContain('고객이 정한 내용');
+    expect(orderPartialCancellationErrorMessage('partial_cancel_shipment_packed')).toContain('[합포장 관리]');
+    expect(orderPartialCancellationErrorMessage('operator_capability_required')).toBe('판매 관리 권한이 없거나 로그인이 끝났습니다. 로그인한 계정을 확인하고, 권한이 없으면 계정 주매니저에게 요청해주세요.');
+    expect(orderPartialCancellationErrorMessage('partial_cancel_operation_conflict')).not.toContain('요청 번호');
+    expect(orderPartialCancellationErrorMessage('unknown_internal_code')).toContain('새로고침');
+    expect(orderPartialCancellationBlockerMessage('partial_cancel_disabled')).toContain('운영 스위치');
+  });
+
+  it('송금 담당 권한 거절 문구는 그대로다(서버 액션 시험이 같은 글을 본다)', () => {
+    expect(orderPartialCancellationErrorMessage('bank_refund_permission_required'))
+      .toBe('송금 담당 권한이 필요합니다. 송금 권한이 있는 관리자 계정으로 로그인했는지 확인해주세요.');
+  });
+
   it('모든 상태에 라벨이 있다', () => {
     expect(Object.keys(ORDER_PARTIAL_CANCELLATION_STATE_LABELS).sort()).toEqual([...ORDER_PARTIAL_CANCELLATION_STATES].sort());
   });
@@ -71,10 +101,46 @@ describe('부분 취소 운영 문구', () => {
     expect(orderPartialCancellationReconcileMessage('provider_identity_mismatch')).toContain('provider_identity_mismatch');
   });
 
+  it('모르는 결제사 확인 코드는 다음 할 일을 먼저 말하고 코드는 결제 담당자에게 알려 줄 값으로만 넣는다', () => {
+    const message = orderPartialCancellationReconcileMessage('provider_identity_mismatch');
+    expect(message.indexOf('[결제사 확인 다시 하기]')).toBeLessThan(message.indexOf('provider_identity_mismatch'));
+    expect(message).toContain('결제 담당자에게 코드(provider_identity_mismatch)를 알려 주세요');
+  });
+
   it('결제확인필요 해소를 하지 않은 이유는 아무것도 바꾸지 않았다고 말한다', () => {
     expect(orderPartialCancellationResolutionMessage('balance_unexplained')).toContain('해소하지 않았습니다');
     expect(orderPartialCancellationResolutionMessage('provider_unavailable')).toContain('조회하지 못했습니다');
     expect(orderPartialCancellationResolutionMessage('anything_else')).not.toContain('anything_else');
+  });
+});
+
+/* 확인창은 되돌릴 수 없는 처리 앞이다. 제목은 환불액을 말하고, 결제 방식마다 확정하면 무엇이 일어나는지를 말한다. */
+describe('부분 취소 확인창 문구', () => {
+  it('토스 결제: 이 금액만 결제사에서 부분 취소하고, 결제사가 받지 않으면 아무것도 바꾸지 않으며, 구매자에게 알림이 간다', () => {
+    const copy = orderPartialCancellationConfirmCopy({ provider: 'toss', refundAmount: 9_500 });
+    expect(copy.title).toBe('이 상품만 취소하고 9,500원을 환불할까요?');
+    expect(copy.description).toContain('되돌릴 수 없습니다.');
+    expect(copy.description).toContain('결제사(토스)에서 이 금액만 부분 취소하고, 결제사 확인 뒤 재고를 되돌리고 배송 건에서 뺍니다.');
+    expect(copy.description).toContain('결제사가 부분 취소를 받지 않는 결제면 아무것도 바꾸지 않습니다.');
+    expect(copy.description).toContain('구매자에게 알림이 갑니다.');
+    expect(copy.confirmLabel).toBe('부분 취소 확정');
+  });
+
+  it('무통장 결제: 바로 재고를 되돌리고 환불은 송금 대기로 남는다', () => {
+    const copy = orderPartialCancellationConfirmCopy({ provider: 'bank_transfer', refundAmount: 12_500 });
+    expect(copy.title).toContain('12,500원을 환불할까요?');
+    expect(copy.description).toContain('환불은 송금 대기로 남습니다.');
+    expect(copy.description).not.toContain('결제사(토스)');
+    expect(copy.confirmLabel).toBe('부분 취소 확정 (송금 대기)');
+  });
+
+  it('환불 0원(전액 할인 상품): 결제사를 부르지 않고 바로 적용하며 제목에도 0원을 적는다', () => {
+    for (const provider of ['toss', 'bank_transfer'] as const) {
+      const copy = orderPartialCancellationConfirmCopy({ provider, refundAmount: 0 });
+      expect(copy.title).toBe('이 상품만 취소할까요? (환불 0원)');
+      expect(copy.description).toContain('결제사에 취소를 요청하지 않고, 바로 재고를 되돌리고 배송 건에서 뺍니다.');
+      expect(copy.confirmLabel).toBe('부분 취소 확정 (환불 0원)');
+    }
   });
 });
 
@@ -93,5 +159,37 @@ describe('일부 발송 주문', () => {
     expect(orderHasUnsentShipmentAfterDispatch({ status: 'shipping', shipments: [shipped, { status: 'canceled', orderItemIds: [] }] })).toBe(false);
     expect(orderHasUnsentShipmentAfterDispatch({ status: 'confirmed', shipments: [ready] })).toBe(false);
     expect(STAFF_CANCELLATION_PARTIALLY_DISPATCHED_GUIDE).toContain('재고 부족 부분 취소(설정이 켜져 있을 때)');
+  });
+});
+
+/* 무통장 부분 취소의 [송금 완료 기록]은 되돌릴 수 없는 돈 기록이다(QA-C F-07). 금액·받는 계좌를 되읽고, 무통장 환불 칸의 같은 버튼과 같은 말을 쓴다. */
+describe('부분 취소 송금 완료 기록 확인창', () => {
+  const account = { maskedAccount: '합성은행 ****1234', maskedHolder: '홍*동' };
+
+  it('주문번호·보낸 금액·가린 받는 계좌를 되읽고, 기록만 남긴다는 것과 되돌릴 수 없음을 말한다', () => {
+    const request = orderPartialCancellationTransferConfirm({ orderNumber: '2026112610000013', refundAmount: 28_000, refundAccount: account });
+    expect(request).toMatchObject({ title: '송금을 마쳤다고 기록할까요?', confirmLabel: '송금 완료 기록', cancelLabel: '돌아가기', destructive: true });
+    expect(request.message.split('\n')).toEqual([
+      '주문 2026112610000013',
+      '보낸 금액: 28,000원',
+      '받는 계좌: 합성은행 ****1234 (예금주 홍*동)',
+      '',
+      '은행에서 송금을 마친 뒤에만 누릅니다. 이 버튼은 돈을 보내지 않고 기록만 남깁니다.',
+      "기록하면 이 부분 취소 환불이 끝나고 고객에게 '부분 취소 환불을 송금했어요' 알림이 갑니다. 되돌릴 수 없습니다.",
+    ]);
+  });
+
+  it('부분 반품 환불 줄은 반품 이름과 그 알림 제목으로 말한다', () => {
+    const message = orderPartialCancellationTransferConfirm({ orderNumber: '2026112610000013', refundAmount: 9_500, refundAccount: account, partialReturn: true }).message;
+    expect(message).toContain("기록하면 이 부분 반품 환불이 끝나고 고객에게 '반품 환불을 송금했어요' 알림이 갑니다. 되돌릴 수 없습니다.");
+    expect(message).not.toContain('부분 취소 환불');
+  });
+
+  it('주문번호나 계좌를 받지 못하면 그 줄만 빠진다(내부 번호나 빈 괄호로 대신하지 않는다)', () => {
+    const message = orderPartialCancellationTransferConfirm({ orderNumber: null, refundAmount: 28_000, refundAccount: null }).message;
+    expect(message.split('\n')[0]).toBe('보낸 금액: 28,000원');
+    expect(message).not.toContain('받는 계좌');
+    expect(orderPartialCancellationTransferConfirm({ refundAmount: 1_000, refundAccount: { maskedAccount: '합성은행 ****1234', maskedHolder: '' } }).message)
+      .toContain('받는 계좌: 합성은행 ****1234\n');
   });
 });

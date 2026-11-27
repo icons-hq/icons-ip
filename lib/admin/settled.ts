@@ -4,7 +4,7 @@ import {
 } from '@/lib/orders/withdrawal';
 import { appendSalesListOptions, normalizeSalesListOptions, salesDateField, salesPage, salesParam, SALES_ORDER_SEARCH_FIELDS, type SalesDateField, type SalesListOptions, type SalesOrderSearchField } from './sales-list';
 
-/** 구매확정 이력과 배송일 기준의 별도 반품·교환 자격을 조회한다. */
+/** 거래확정 내역과, 배송완료일 기준으로 따로 남는 하자 반품·교환 기한을 조회한다. */
 
 export interface AdminSettledFilters extends SalesListOptions {
   from: string | null;
@@ -69,11 +69,17 @@ export function adminDefectClaimWindow(
   };
 }
 
-/** 그리드 셀 문구. 기산점이 없으면 남은 기간을 지어내지 않는다. */
+/** '하자 반품·교환 기한' 칸 문구. 배송완료일이 없으면 남은 기간을 지어내지 않는다. */
 export function adminDefectClaimLabel(window: AdminDefectClaimWindow) {
-  if (window.daysRemaining === null) return '공급일 기록 없음 · 주문 기록 확인 필요';
-  return window.open ? `가능 · ${window.daysRemaining}일 남음` : '기한 종료';
+  if (window.daysRemaining === null) return '배송완료일 없음';
+  return window.open ? `${window.daysRemaining}일 남음` : '끝남';
 }
+
+/**
+ * 거래확정 내역 머리에 보이는 자동 거래확정 상태. 정책 화면(`/admin/sales/settled/policy`)으로 가는 버튼이 함께 쓴다.
+ * `null`은 정책을 읽지 못한 경우다.
+ */
+export type AdminSettledAutoConfirmation = { enabled: boolean; afterDays: number | null } | null;
 
 type SearchParamValue = string | string[] | undefined;
 type AdminSettledSearchParams = Record<string, SearchParamValue>;

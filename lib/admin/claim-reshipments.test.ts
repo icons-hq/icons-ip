@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { AdminClaimDetail, AdminClaimReshipItem, AdminClaimReshipment, AdminClaimReshipmentTarget, AdminClaimStockDecision } from './claims.server';
-import { adminClaimExchangeStockTargets, adminClaimPendingReshipments, adminClaimRemainingReshipments, adminClaimReshipmentProgress, adminClaimShipmentPartiallyReceived, adminClaimStockDecisionPending, adminClaimWaiverDecisions } from './claim-reshipments';
+import { adminClaimExchangeStockTargets, adminClaimPendingReshipments, adminClaimRemainingReshipments, adminClaimReshipSelectableOptions, adminClaimReshipmentProgress, adminClaimShipmentPartiallyReceived, adminClaimStockDecisionPending, adminClaimWaiverDecisions } from './claim-reshipments';
 
 const target = (n: number, overrides: Partial<AdminClaimReshipmentTarget> = {}): AdminClaimReshipmentTarget => ({
   shipmentId: `00000000-0000-4000-8000-00000000000${n}`, originName: n === 1 ? '김포' : '남양주', collectionTracked: true,
@@ -140,5 +140,17 @@ describe('교환 재출고 진행(출고지별, TKT-166)', () => {
       expect(adminClaimExchangeStockTargets(claim({ ...open, reshipmentTargets: [{ ...open.reshipmentTargets![0], reshipped: true }] }), [item(1)])).toEqual([]);
       expect(adminClaimExchangeStockTargets(claim({ ...open, claimType: 'return' }), [item(1)])).toEqual([]);
     });
+  });
+});
+
+describe('재출고 상품으로 고를 수 있는 옵션(화면 규칙 2)', () => {
+  const option = (n: number, stockQty: number) => ({ id: `00000000-0000-4000-8000-0000000000a${n}`, name: `옵션 ${n}`, code: `OPT${n}`, stockQty });
+  const item = (options: ReturnType<typeof option>[]): AdminClaimReshipItem => ({ id: '00000000-0000-4000-8000-000000000011', goodId: 'good', name: '교환 상품', qty: 2, unitPrice: 1000,
+    variantId: option(1, 0).id, variantName: '옵션 1', currentVariantId: option(1, 0).id, options });
+  it('재고가 없는 다른 옵션은 빼고, 지금 옵션은 재고가 0이어도 남긴다', () => {
+    expect(adminClaimReshipSelectableOptions(item([option(1, 0), option(2, 0), option(3, 5)])).map(row => row.code)).toEqual(['OPT1', 'OPT3']);
+  });
+  it('재고가 있는 옵션은 받은 순서 그대로 둔다', () => {
+    expect(adminClaimReshipSelectableOptions(item([option(1, 4), option(2, 1), option(3, 5)])).map(row => row.code)).toEqual(['OPT1', 'OPT2', 'OPT3']);
   });
 });
