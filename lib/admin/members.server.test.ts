@@ -77,6 +77,7 @@ describe('admin member loaders', () => {
     }]);
     expect(mocks.rpc).toHaveBeenCalledWith('admin_search_members', { target_query: 'fan' });
     expect(result[0]).not.toHaveProperty('suspensionReason');
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
   });
 
   it('명시적으로 연 상세에만 전체 이메일·현재 동의·내부 사유·집계를 반환한다', async () => {
@@ -96,7 +97,7 @@ describe('admin member loaders', () => {
         received_report_count: '5',
       }],
       error: null,
-    });
+    }).mockResolvedValueOnce({ data: null, error: { message: 'unavailable' } });
 
     await expect(getAdminMemberDetail(profileId)).resolves.toMatchObject({
       id: profileId,
@@ -108,9 +109,11 @@ describe('admin member loaders', () => {
       submittedReportCount: 4,
       receivedReportCount: 5,
       loyaltyGrade: 'silver',
+      verificationLimits: null,
       moderation: { managerRole: null, canModerate: true, loyaltyGrade: 'silver' },
     });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_get_member_detail', { target_profile_id: profileId });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_member_verification_limits', { p_user_id: profileId });
     expect(mocks.moderation).toHaveBeenCalledWith(profileId);
   });
 

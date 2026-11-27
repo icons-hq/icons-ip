@@ -11,6 +11,7 @@ import { isLoyaltyGrade, loyaltyGradeLabel } from '@/lib/loyalty';
 import { CustomerIdCopy, CustomerLoyaltyControl, CustomerSuspensionControl } from './CustomerAccountControls';
 import { CustomerNoteForm } from './CustomerNoteForm';
 import { CustomerWithdrawalControl } from './CustomerWithdrawalControl';
+import { MemberVerificationLimitsPanel } from './MemberVerificationLimitsPanel';
 import { CustomerRecordList, customerDateTime } from './CustomerRecordList';
 
 const FACT_ROW_CLASS = 'grid grid-cols-[5rem_minmax(0,1fr)] gap-3 sm:grid-cols-[6.25rem_minmax(0,1fr)]';
@@ -56,6 +57,7 @@ export function CustomerDetailScreen({ detail, actor, noteOperationId, canManage
         <AdminCountCard count={counts.claims} href={customerDetailHref(customer.id, 'claims')} icon={RotateCcw} label="취소·반품·교환" />
         <AdminCountCard count={counts.coupons} href={customerDetailHref(customer.id, 'coupons')} icon={TicketPercent} label={CUSTOMER_TAB_LABELS.coupons} />
       </div>
+      <MemberVerificationLimitsPanel key={customer.id} profileId={customer.id} nickname={customer.nickname} initial={customer.verificationLimits} />
       <div className="grid items-start gap-6 max-sm:gap-4 lg:grid-cols-2">
         <AdminSectionCard title="고객 개요"><dl className="grid gap-4">
           <div className={FACT_ROW_CLASS}><dt className="text-sm text-muted-foreground">현재 동의</dt><dd className="flex flex-col gap-1.5 text-sm wrap-anywhere"><ConsentRow agreed={customer.consents.terms} label="이용약관" required /><ConsentRow agreed={customer.consents.privacy} label="개인정보" required /><ConsentRow agreed={customer.consents.marketing} label="마케팅" /></dd></div>

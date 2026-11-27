@@ -131,6 +131,7 @@ const STATUS_TONES = {
   reviewEvent: { scheduled: 'info', active: 'success', closed: 'warning', ready: 'warning', announced: 'neutral', archived: 'neutral' },
   /** 회원 계정 */
   member: { active: 'success', suspended: 'danger' },
+  memberVerificationLimit: { available: 'neutral', limited: 'warning' },
   /** 카카오 연결 해제 탈퇴 검토 대기의 처리 방법 — lib/admin/kakao-unlink-withdrawal. 카카오계정 탈퇴는 알림으로 우리가 처리할 일,
    *  연결만 끊은 회원은 회원의 1:1 문의를 기다리는 일이다 */
   kakaoUnlinkWithdrawal: { account_closed: 'warning', member_request: 'neutral' },
