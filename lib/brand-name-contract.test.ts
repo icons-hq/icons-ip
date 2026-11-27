@@ -12,6 +12,7 @@ const EXCEPTIONS = [
     .map(file => ({ file, text: 'ICONS 상품 일괄 등록', reason: '상품 일괄 등록 엑셀의 버전 표시다. 올린 파일의 양식을 이 값으로 알아보므로 바꾸면 전에 내려받은 파일을 올릴 수 없다.' })),
   { file: 'lib/admin/warehouse-templates.server.ts', text: '/ICONS/', reason: '김포 창고 WMS 양식의 받는 쇼핑몰 표기다. 창고 시스템이 이 값으로 주문 출처를 가르므로 창고와 합의 없이 바꾸지 않는다.' },
   { file: 'lib/payments/toss-config.mjs', text: 'ICONS', reason: '토스 결제 어드민에 만든 결제 UI(variant) 키다. 결제 어드민의 등록값과 같아야 위젯이 그려지고 결제가 ICONS 전용 MID로 잡힌다.' },
+  { file: 'lib/sms/naver-sens.server.ts', text: '[ICONS] verification:', reason: 'SENS 중국 본토 OTP 전용 템플릿의 아이콘스 영문 법인명이다. 헤이그랩잇과 같은 법인 발신번호로 이 회사명을 사용한다.' },
   { file: 'components/shell/StoreBranding.tsx', text: 'ICONS', reason: '통일 전 기본 스토어 이름이 남은 저장값을 기본 로고로 보이게 하는 비교값이다. 화면에 글자로 나오지 않는다.' },
   { file: 'lib/admin/guide/changes.ts', text: 'ICONS', reason: '운영자에게 서비스 이름이 ICONS에서 엑스스퀘어로 바뀌었다고 알리는 변경 기록 문장이라 옛 이름을 그대로 인용한다.' },
   { file: 'lib/data.ts', text: 'ICONS', reason: '로컬 mock 카탈로그다. seed.sql·초기 migration과 같은 시연 값을 쓰며 운영 DB와 화면(Supabase 모드)에는 나오지 않는다.' },
