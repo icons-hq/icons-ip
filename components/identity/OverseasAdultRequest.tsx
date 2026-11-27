@@ -4,14 +4,13 @@ import { Check, ChevronDown, CircleCheck, Clock3, CalendarDays, CircleAlert, Fil
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useId, useState, useTransition } from 'react';
-import { cancelOverseasRequest } from '@/app/my/adult-verification/overseas/actions';
-import type { OverseasIntakeStatus, OverseasRequest } from '@/lib/identity/overseas-adult';
+import { cancelOverseasRequest, readOwnOverseasRequest } from '@/app/my/adult-verification/overseas/actions';
+import type { OverseasRequestStatus } from '@/lib/identity/overseas-adult';
 import { documentCopy, type DocumentLanguage } from './overseas-document-copy';
 import { OverseasPhotoForm } from './OverseasPhotoForm';
 
-export function OverseasAdultRequest({ intakeStatus, request, initialLanguage, next }: {
-  intakeStatus: OverseasIntakeStatus | 'domestic' | 'error';
-  request: OverseasRequest | null;
+export function OverseasAdultRequest({ initialStatus, initialLanguage, next }: {
+  initialStatus: OverseasRequestStatus | null;
   initialLanguage: DocumentLanguage;
   next: string;
 }) {
@@ -21,19 +20,61 @@ export function OverseasAdultRequest({ intakeStatus, request, initialLanguage, n
   const guideId = useId();
   const [failed, setFailed] = useState(false);
   const [pending, start] = useTransition();
+  const [checking, startCheck] = useTransition();
+  const [lastCheck, setLastCheck] = useState<OverseasRequestStatus | null>(null);
+  const [checkFailed, setCheckFailed] = useState(false);
   const t = documentCopy[lang];
-  const active = request && request.state !== 'closed' && request.state !== 'draft';
+  const status = lastCheck && (!initialStatus || lastCheck.checkedAt >= initialStatus.checkedAt) ? lastCheck : initialStatus;
+  const request = status?.request;
+  const intakeStatus = status?.intakeStatus ?? 'error';
+  const stages = {
+    uploading: { title: t.uploading, detail: t.processing },
+    pending: { title: t.waiting, detail: t.pending },
+    reviewing: { title: t.reviewing, detail: t.awaitingResult },
+    purging: { title: t.purging, detail: t.processing },
+  };
+  const stage = request && request.state !== 'closed' && request.state !== 'draft' ? stages[request.state] : null;
   const approved = Boolean(request?.validUntil);
-  const canApply = intakeStatus === 'open' && !active && !approved;
+  const canApply = intakeStatus === 'open' && !stage && !approved;
   const previous = request?.state === 'closed' && !approved && request.outcome
     ? t[request.outcome === 'approved' ? 'ended' : request.outcome] : null;
   const closedText = { policy_pending: t.policyPending, store_closed: t.storeClosed, review_paused: t.paused, error: t.readError, domestic: t.domestic, open: '' }[intakeStatus];
+  const refresh = () => {
+    setLastCheck(null);
+    setCheckFailed(false);
+    start(() => router.refresh());
+  };
   const cancel = () => start(async () => {
     if (!request) return;
+    setCheckFailed(false);
+    setLastCheck(null);
     try { setFailed(!(await cancelOverseasRequest(request.id))); } catch { setFailed(true); }
     router.refresh();
   });
-  const refresh = () => start(() => router.refresh());
+  const checkStatus = () => {
+    setCheckFailed(false);
+    startCheck(async () => {
+      const latest = await readOwnOverseasRequest().catch(() => null);
+      if (!latest) { setCheckFailed(true); return; }
+      setLastCheck(latest);
+      setFailed(false);
+    });
+  };
+  const statusButton = (
+    <button className="wc-btn" type="button" disabled={checking || pending} aria-busy={checking} onClick={checkStatus}>
+      {checking ? t.checking : t.reload}
+    </button>
+  );
+  const feedback = (
+    <p className="wc-overseas__feedback" role="status" aria-atomic="true" data-error={checkFailed}>
+      {!checking && (checkFailed ? t.checkFailed : lastCheck && <>
+        {!request && intakeStatus === 'open' && <>{t.noRequest} </>}
+        {t.checked} · <time dateTime={lastCheck.checkedAt}>{new Intl.DateTimeFormat(lang === 'ko' ? 'ko-KR' : 'en-GB', {
+          month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23', timeZone: 'Asia/Seoul',
+        }).format(new Date(lastCheck.checkedAt))}</time> ({t.kst})
+      </>)}
+    </p>
+  );
   return (
     <section className="wc-overseas" lang={lang}>
       <header className="wc-overseas__heading">
@@ -65,20 +106,21 @@ export function OverseasAdultRequest({ intakeStatus, request, initialLanguage, n
               </dl>
             </div>
           </aside>
-          <OverseasPhotoForm copy={t} onRefresh={refresh} />
+          <OverseasPhotoForm copy={t} onRefresh={refresh} statusButton={statusButton} feedback={feedback} checking={checking} />
         </div>
       </> : (
-        <div className="wc-overseas__status" role={intakeStatus === 'error' ? 'alert' : 'status'}>
+        <div className="wc-overseas__status">
           {approved || intakeStatus === 'domestic' ? <CircleCheck aria-hidden="true" /> : <Clock3 aria-hidden="true" />}
-          {active && request && <p className="wc-overseas__reference">{t.number} {request.number}</p>}
-          <h2>{approved ? t.approved : active ? request.state === 'purging' ? t.purging : request.state === 'uploading' ? t.uploading : t.received : closedText}</h2>
+          {stage && request && <p className="wc-overseas__reference">{t.number} {request.number}</p>}
+          <h2 aria-live="polite">{approved ? t.approved : stage?.title ?? closedText}</h2>
+          {previous && <p>{previous}</p>}
           {approved && request?.validUntil && <p>{new Intl.DateTimeFormat(lang === 'ko' ? 'ko-KR' : 'en-US', { dateStyle: 'long', timeZone: 'Asia/Seoul' }).format(new Date(request.validUntil))}{t.valid}</p>}
-          {active && <p>{request.state === 'pending' || request.state === 'reviewing' ? t.pending : t.processing}</p>}
+          {stage && <p>{stage.detail}</p>}
           <div className="wc-overseas__actions">
-            {approved || intakeStatus === 'domestic' ? <Link className="wc-btn primary" href={next}><Check size={16} aria-hidden="true" />{t.continue}</Link> :
-              <button className="wc-btn" type="button" disabled={pending} onClick={refresh}>{t.reload}</button>}
-            {active && request.state !== 'purging' && <button className="wc-overseas__text-button" type="button" disabled={pending} onClick={cancel}>{t.cancel}</button>}
+            {approved || intakeStatus === 'domestic' ? <Link className="wc-btn primary" href={next}><Check size={16} aria-hidden="true" />{t.continue}</Link> : statusButton}
+            {stage && request?.state !== 'purging' && <button className="wc-overseas__text-button" type="button" disabled={pending || checking} onClick={cancel}>{t.cancel}</button>}
           </div>
+          {feedback}
           {failed && <p role="alert">{t.cancelFailed}</p>}
         </div>
       )}
