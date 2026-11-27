@@ -211,14 +211,14 @@ describe('verified phone state', () => {
   it('builds the screen view without secrets', () => {
     const view = phoneVerificationView(configWith(sender().sender), { verified: true, maskedPhone: '010-****-5678', reverificationRequired: false });
     expect(view).toEqual({
-      countries: [{ iso: 'KR', label: '대한민국 (+82)' }, { iso: 'JP', label: '일본 (+81)' }],
+      countries: [{ iso: 'KR', label: '대한민국', dial: '82' }, { iso: 'JP', label: '일본', dial: '81' }],
       defaultCountry: 'KR',
       verified: { maskedPhone: '010-****-5678' },
       reverificationRequired: false,
     });
     expect(JSON.stringify(view)).not.toContain(SECRET);
     expect(phoneVerificationView(configWith(sender().sender, parsePhoneAllowlist('*')), null).countries.at(-1))
-      .toEqual({ iso: 'INTL', label: '다른 나라 (+국가번호로 입력)' });
+      .toEqual({ iso: 'INTL', label: '국제번호 직접 입력' });
     expect(phoneVerificationView(configWith(sender().sender), { verified: false, maskedPhone: null, reverificationRequired: true }).reverificationRequired).toBe(true);
   });
 });

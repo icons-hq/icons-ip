@@ -1,17 +1,20 @@
 'use client';
 
-import { startTransition, useActionState, type FormEvent } from 'react';
+import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import { completeOnboardingAction, finishOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
+import { CountryPicker } from '@/components/account/CountryPicker';
 import { EmailChangePanel, type EmailChangePanelView } from '@/components/screens/EmailChangePanel';
 import { OnboardingConsents } from '@/components/screens/OnboardingConsents';
 import { PhoneVerificationPanel, type PhoneVerificationPanelView } from '@/components/screens/OnboardingPhoneVerification';
 import { WcButton } from '@/components/wc/WcButton';
-import { DEMOGRAPHIC_GENDERS, DEMOGRAPHIC_GENDER_LABELS } from '@/lib/customer-demographics';
+import { RESIDENCE_COUNTRIES } from '@/lib/country-names';
+import { DEMOGRAPHIC_GENDER_LABELS } from '@/lib/customer-demographics';
 import { DEMOGRAPHIC_PRIVACY_ANCHOR, legalDocumentHref } from '@/lib/legal/links';
 import { MARKETING_CHANNELS, type MarketingChannel, type MarketingChannelChoices } from '@/lib/marketing-consent';
 
 interface OnboardingProps {
   birthDate: string;
+  residenceCountry?: string;
   email: string;
   /**
    * 로그인 이메일이 쓸 수 없는 주소(Apple 이메일 가리기 릴레이·빈 값)일 때만 있다 — 다른 이메일로 바꾸는 조각을 그린다
@@ -53,6 +56,7 @@ function ErrorText({ children, id }: { children?: string; id: string }) {
 function onboardingFieldErrors(errors: Partial<Record<string, string>> | undefined): { anchor: string; label: string; message: string }[] {
   const fields = [
     { key: 'birthDate', anchor: 'birth-date-error', label: '생년월일' },
+    { key: 'residenceCountry', anchor: 'residence-country-error', label: '거주 국가·지역' },
     { key: 'gender', anchor: 'gender-error', label: '성별' },
     { key: 'terms', anchor: 'terms-error', label: '이용약관 동의' },
     { key: 'privacy', anchor: 'privacy-error', label: '개인정보 처리방침 동의' },
@@ -74,10 +78,14 @@ export function Onboarding({
   next,
   phoneStep = false,
   phoneVerification,
+  residenceCountry = '',
 }: OnboardingProps) {
   const [state, action, pending] = useActionState(completeOnboardingAction, emptyState);
   const [finishState, finishAction, finishPending] = useActionState(finishOnboardingAction, emptyState);
   const [birthYear = '', birthMonth = '', birthDay = ''] = birthDate.split('-');
+  const [country, setCountry] = useState(residenceCountry);
+  const countryError = country ? undefined : state.errors?.residenceCountry;
+  const fieldErrors = onboardingFieldErrors({ ...state.errors, residenceCountry: countryError });
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -110,7 +118,7 @@ export function Onboarding({
               ? '다른 계정에서 같은 휴대폰 번호를 인증해 이 계정의 휴대폰 인증이 해제됐어요. 다시 인증하면 이어서 이용할 수 있어요.'
               : '마지막으로 휴대폰 번호를 인증해주세요. 인증을 마치면 엑스스퀘어를 시작할 수 있어요.'}
           </p>
-          <PhoneVerificationPanel context="onboarding" isConfigured={isConfigured} view={phoneVerification} />
+          <PhoneVerificationPanel context="onboarding" isConfigured={isConfigured} preferredCountry={country} view={phoneVerification} />
           <form action={finishAction} className="wc-auth__form" data-onboarding-finish onSubmit={handleFinish}>
             <input type="hidden" name="next" value={next} />
             {carriedGender && <input type="hidden" name="consentedGender" value={carriedGender} />}
@@ -132,13 +140,10 @@ export function Onboarding({
     <main className="wc-root wc-auth">
       <div className="wc-auth__panel">
         <h1 className="wc-auth__title">프로필을 완성해요</h1>
-        {/* 가입 간소화(10/14 회의 1014-004) — 필수 입력은 생년월일과 약관 동의뿐이다. 닉네임은 서버가 자동으로
-            만들고(나중에 설정에서 변경), 성별·마케팅 수신은 선택이다. 관심 IP는 묻지 않는다(2026-11-17 사용자 결정 —
-            팔로우는 IP 페이지에서 한다). 휴대폰 번호 인증 스위치가 켜지면 이 1단계를 저장한 뒤 인증 단계로 간다. */}
         <p className="wc-auth__lede">
-          {phoneVerification
-            ? '생년월일과 약관 동의를 저장한 뒤 휴대폰 번호를 인증하면 바로 시작할 수 있어요. 닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요.'
-            : '생년월일과 약관 동의만 확인하면 바로 시작할 수 있어요. 닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요.'}
+          생년월일과 거주 국가를 입력하고 약관에 동의해주세요.
+          {phoneVerification && ' 다음 단계에서 휴대폰 번호를 인증해요.'}
+          {' 닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요.'}
         </p>
 
         {emailChange ? <EmailChangePanel context="onboarding" isConfigured={isConfigured} view={emailChange} /> : null}
@@ -203,10 +208,37 @@ export function Onboarding({
             <ErrorText id="birth-date-error">{state.errors?.birthDate}</ErrorText>
           </fieldset>
 
+          <div className="wc-auth__field">
+            <label className="wc-auth__label" htmlFor="residence-country">거주 국가·지역 <em className="wc-auth__req">필수</em></label>
+            <CountryPicker
+              errorId={countryError ? 'residence-country-error' : undefined}
+              id="residence-country"
+              name="residenceCountry"
+              onChange={setCountry}
+              options={RESIDENCE_COUNTRIES}
+              value={country}
+            />
+            <ErrorText id="residence-country-error">{countryError}</ErrorText>
+          </div>
+
           {genderEligible && (
-            <div className="wc-auth__field onboarding-gender-fieldset">
-              <div className="wc-auth__field-heading">
-                <label className="wc-auth__label" htmlFor="consented-gender">성별 <em className="wc-auth__opt">선택</em></label>
+            <fieldset
+              aria-describedby={state.errors?.gender ? 'gender-hint gender-error' : 'gender-hint'}
+              className="wc-auth__field onboarding-gender"
+            >
+              <legend className="wc-auth__label">
+                성별 <em className="wc-auth__opt">선택</em>
+              </legend>
+              <div className="onboarding-gender__choices">
+                {(['male', 'female', 'other', ''] as const).map(gender => (
+                  <label key={gender}>
+                    <input className="wc-sr-only" defaultChecked={gender === ''} name="consentedGender" type="radio" value={gender} />
+                    <span>{gender ? DEMOGRAPHIC_GENDER_LABELS[gender] : '선택 안 함'}</span>
+                  </label>
+                ))}
+              </div>
+              <p className="onboarding-birth-hint" id="gender-hint">
+                성별을 고르면 성별 정보 수집·이용에 동의하게 돼요.{' '}
                 <a
                   aria-label="성별 수집·이용에 관한 처리방침 보기"
                   className="wc-auth__policy-link"
@@ -216,24 +248,9 @@ export function Onboarding({
                 >
                   처리방침 보기
                 </a>
-              </div>
-              <select
-                aria-describedby={state.errors?.gender ? 'gender-error' : undefined}
-                aria-invalid={state.errors?.gender ? true : undefined}
-                autoComplete="off"
-                defaultValue=""
-                id="consented-gender"
-                name="consentedGender"
-              >
-                <option value="">제공하지 않음</option>
-                <optgroup label="성별 제공에 동의">
-                  {DEMOGRAPHIC_GENDERS.map((gender) => (
-                    <option key={gender} value={gender}>{DEMOGRAPHIC_GENDER_LABELS[gender]}</option>
-                  ))}
-                </optgroup>
-              </select>
+              </p>
               <ErrorText id="gender-error">{state.errors?.gender}</ErrorText>
-            </div>
+            </fieldset>
           )}
 
           <OnboardingConsents
@@ -249,9 +266,9 @@ export function Onboarding({
           )}
           {/* 칸 오류는 그 칸에 붙고, 모바일에서는 화면 위쪽이라 버튼 근처에서 보이지 않았다(QA1 S-T02-02) — 버튼 위에 무엇을 고칠지
               모아 보이고 그 칸으로 잇는다. */}
-          {!state.errors?.form && onboardingFieldErrors(state.errors).length > 0 && (
+          {!state.errors?.form && fieldErrors.length > 0 && (
             <div className="wc-auth__alert" data-onboarding-error-summary role="alert">
-              {onboardingFieldErrors(state.errors).map((error) => (
+              {fieldErrors.map((error) => (
                 <p className="wc-auth__alert-line" key={error.anchor}>
                   <a href={`#${error.anchor}`}>{error.label}</a>: {error.message}
                 </p>

@@ -59,4 +59,29 @@ select 1/case when (select onboarded_at is not null from public.profiles where i
  and (select onboarded_at is null from public.profiles where id=pg_temp.uid(4))
  and (select p.onboarded_at = f.onboarded_at from public.profiles p, first_at f where p.id=pg_temp.uid(2)) then 1 else 0 end as assert_server_completion_results;
 
+-- 새 회원은 국가를 고른 뒤에만 마칠 수 있고, 기존 완료·재인증 회원은 소급해 요구하지 않는다.
+set local role service_role;
+select pg_temp.expect_error(format('select public.service_complete_member_onboarding_v2(%L, false)', pg_temp.uid(1)), 'onboarding_residence_country_required');
+select public.service_complete_member_onboarding_v2(pg_temp.uid(2), true);
+reset role;
+
+set local role authenticated;
+select pg_temp.expect_error(format('select public.service_complete_member_onboarding_v2(%L, false)', pg_temp.uid(1)), 'permission denied');
+select pg_temp.expect_error(format('update public.profiles set residence_country_code = %L where id = %L', 'ZZ', pg_temp.uid(1)), 'profiles_residence_country_code_valid');
+update public.profiles set residence_country_code = 'CA' where id = pg_temp.uid(1);
+select 1/case when (select residence_country_code = 'CA' from public.profiles where id = pg_temp.uid(1))
+  and not exists(select residence_country_code from public.profiles where id = pg_temp.uid(2)) then 1 else 0 end as assert_only_own_country;
+reset role;
+
+set local role service_role;
+select pg_temp.expect_error(format('select public.service_complete_member_onboarding_v2(%L, true)', pg_temp.uid(1)), 'onboarding_phone_required');
+select public.service_complete_member_onboarding_v2(pg_temp.uid(1), false);
+reset role;
+select private.erase_withdrawn_member_profile(pg_temp.uid(1));
+select 1/case when (select residence_country_code is null from public.profiles where id = pg_temp.uid(1))
+  then 1 else 0 end as assert_country_erased;
+select set_config('request.jwt.claim.sub', '', true), set_config('request.jwt.claims', '{}', true);
+set local role anon;
+select 1/case when not exists (select residence_country_code from public.profiles) then 1 else 0 end as assert_anonymous_read_is_empty;
+reset role;
 rollback;

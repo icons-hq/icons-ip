@@ -190,6 +190,7 @@ const terms: LegalDocument = {
       heading: '제6조 (회원가입)',
       paragraphs: [
         `이용자는 회사가 정한 가입 양식에 정보를 기입하고 이 약관과 개인정보 수집·이용에 동의함으로써 회원가입을 신청합니다. 회사는 이메일 계정 외에 ${socialLoginWords()} 계정 연동을 통한 가입을 제공합니다.`,
+        '신규 회원은 가입 프로필에 생년월일과 거주 국가·지역을 입력합니다. 성별 제공은 선택 사항입니다.',
         '회사는 다음 각 호에 해당하지 않는 한 회원가입 신청을 승낙합니다.',
       ],
       list: [
@@ -861,6 +862,12 @@ export function getLegalDocument(slug: string, businessInfo?: BusinessInfo, now 
   if (today < CHINA_SMS_PRIVACY_EFFECTIVE_DATE) return previous;
 
   const articles = previous.articles.map(article => {
+    if (article.heading.startsWith('제1조 ') && article.table) {
+      const rows = article.table.rows.map(row => row[0] === '온보딩'
+        ? [row[0], `${row[1]}, 거주 국가·지역`, '가입 프로필 저장 시'] : row);
+      return { ...article, table: { ...article.table, rows }, closing: [...(article.closing ?? []),
+        '신규 회원은 가입할 때 거주 국가·지역을 선택합니다. 회사는 선택한 국가·지역을 회원 프로필에 저장하고, 휴대폰 인증을 지원하는 경우 해당 국가번호를 기본으로 표시합니다. 거주 국가·지역은 회원 탈퇴 처리 시 파기합니다.'] };
+    }
     if (article.heading.startsWith('제5조 ') && article.table) {
       const rows = [...article.table.rows, ['네이버클라우드 주식회사', '중국 본토 번호(+86) 휴대폰 인증문자 발송', '위탁계약 종료 시까지']];
       return { ...article, table: { ...article.table, rows }, closing: [...(article.closing ?? []), chinaSmsPrivacyChanges[0]] };

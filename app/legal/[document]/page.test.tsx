@@ -35,7 +35,7 @@ describe('/legal/[document] 라우트', () => {
   });
 
   it.each(['terms', 'privacy', 'shipping'] as const)('%s 문서를 로그인 없이 본문까지 렌더한다', async (slug) => {
-    const document = LEGAL_DOCUMENTS[slug];
+    const document = getLegalDocument(slug)!;
     const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
 
     expect(html).toContain(document.title);

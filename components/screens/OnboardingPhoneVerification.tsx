@@ -6,7 +6,9 @@ import {
   verifyPhoneCodeAction,
   type PhoneVerificationActionState,
 } from '@/app/onboarding/phone-actions';
+import { CountryPicker } from '@/components/account/CountryPicker';
 import { WcButton } from '@/components/wc/WcButton';
+import type { PhoneVerificationView } from '@/lib/sms/phone-verification.server';
 
 /*
  * 휴대폰 번호 인증(10/14 회의 1014-005·006) 화면 조각. 스위치(ICONS_PHONE_VERIFICATION_ENABLED)가 켜졌을 때만
@@ -15,23 +17,19 @@ import { WcButton } from '@/components/wc/WcButton';
  * 번호 입력 → 인증번호 문자 → 6자리 확인. 확인이 끝난 번호만 회원 정보로 남는다(서버·DB가 판정).
  */
 
-export interface PhoneVerificationPanelView {
-  countries: { iso: string; label: string }[];
-  defaultCountry: string;
-  verified: { maskedPhone: string } | null;
-  /** 다른 계정이 같은 번호를 인증해 이 계정의 인증이 해제됐다 — 다시 인증해야 한다(사용자 결정 '옮기고 재인증 요구'). */
-  reverificationRequired?: boolean;
-}
+export type PhoneVerificationPanelView = PhoneVerificationView;
 
 const emptyState: PhoneVerificationActionState = {};
 
 export function PhoneVerificationPanel({
   context,
   isConfigured,
+  preferredCountry,
   view,
 }: {
   context: 'onboarding' | 'settings';
   isConfigured: boolean;
+  preferredCountry?: string;
   view: PhoneVerificationPanelView;
 }) {
   const [requestState, requestAction, requestPending] = useActionState(requestPhoneCodeAction, emptyState);
@@ -39,6 +37,10 @@ export function PhoneVerificationPanel({
   /* [번호 다시 입력]은 지금 받은 인증 요청 하나만 접는다. 다음 요청 결과는 다시 확인 단계를 연다. */
   const [dismissedRequest, setDismissedRequest] = useState<PhoneVerificationActionState | null>(null);
   const [changing, setChanging] = useState(false);
+  const [country, setCountry] = useState(() =>
+    view.countries.find(option => option.iso === preferredCountry)?.iso ?? view.defaultCountry);
+  const [phone, setPhone] = useState('');
+  const selectedCountry = view.countries.find(option => option.iso === country);
 
   const activeChallenge = requestState.stage === 'code_sent' && requestState !== dismissedRequest ? requestState.challengeId : undefined;
   const verifyResult = activeChallenge && verifyState.challengeId === activeChallenge ? verifyState : null;
@@ -58,7 +60,7 @@ export function PhoneVerificationPanel({
   return (
     <section
       aria-labelledby={`${context}-phone-verification-title`}
-      className={context === 'onboarding' ? 'onboarding-birth-fieldset onboarding-gender-fieldset' : 'wc-mypage__form'}
+      className={context === 'onboarding' ? 'onboarding-birth-fieldset' : 'wc-mypage__form'}
       data-phone-verification={showVerified ? 'verified' : codeStage ? 'code' : 'phone'}
     >
       {context === 'onboarding' ? (
@@ -125,26 +127,22 @@ export function PhoneVerificationPanel({
         </form>
       ) : (
         <form action={requestAction} className={formClass}>
-          {view.countries.length > 1 ? (
-            <select aria-label="휴대폰 번호의 나라" defaultValue={view.defaultCountry} name="phoneCountry">
-              {view.countries.map((country) => (
-                <option key={country.iso} value={country.iso}>{country.label}</option>
-              ))}
-            </select>
-          ) : (
-            <input name="phoneCountry" type="hidden" value={view.countries[0]?.iso ?? view.defaultCountry} />
-          )}
-          <input
-            aria-describedby={phoneError ? `${context}-phone-error` : undefined}
-            aria-invalid={Boolean(phoneError)}
-            aria-label="휴대폰 번호"
-            autoComplete="tel-national"
-            inputMode="tel"
-            maxLength={40}
-            name="phone"
-            placeholder="휴대폰 번호 (예: 010-1234-5678)"
-            type="tel"
-          />
+          <div className="wc-phone-entry">
+            <CountryPicker id={`${context}-phone-country`} name="phoneCountry" onChange={setCountry} options={view.countries} value={country} />
+            <input
+              aria-describedby={phoneError ? `${context}-phone-error` : undefined}
+              aria-invalid={Boolean(phoneError)}
+              aria-label="휴대폰 번호"
+              autoComplete={selectedCountry?.dial ? 'tel-national' : 'tel'}
+              inputMode="tel"
+              maxLength={40}
+              name="phone"
+              onChange={event => setPhone(event.target.value)}
+              placeholder={country === 'KR' ? '010-1234-5678' : selectedCountry?.dial ? '휴대폰 번호' : '+국가번호와 휴대폰 번호'}
+              type="tel"
+              value={phone}
+            />
+          </div>
           {phoneError ? <span className="wc-auth__error" id={`${context}-phone-error`}>{phoneError}</span> : null}
           {formError ? <div className="wc-auth__alert" role="alert">{formError}</div> : null}
           <WcButton disabled={!isConfigured || requestPending} type="submit">

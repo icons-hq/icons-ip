@@ -10,6 +10,7 @@ export interface ProfileForOnboarding {
   email?: string | null;
   nickname?: string | null;
   birth_date?: string | null;
+  residence_country_code?: string | null;
   avatar_path?: string | null;
   consents?: OnboardingConsents | null;
   onboarded_at?: string | null;

@@ -484,20 +484,127 @@
   color: var(--wc-ink-tertiary);
 }
 
-/* 성별 선택과 휴대폰 인증의 국가번호 선택은 같은 입력 규격을 쓴다. */
-.wc-auth .onboarding-gender-fieldset select {
-  width: 100%;
-  min-height: 0;
-  height: 40px;
-  padding: 0 14px;
-  font-family: inherit;
-  font-size: 15px;
-  letter-spacing: -0.2px;
+.wc-country__trigger,
+.wc-country__fixed {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 0 12px;
   border: 1px solid var(--wc-line-control);
-  border-radius: 2px;
-  box-shadow: none;
+  border-radius: var(--wc-radius-form);
   background: var(--wc-surface);
   color: var(--wc-ink);
+  font: inherit;
+  text-align: left;
+}
+
+.wc-country__trigger { cursor: pointer; }
+.wc-country__trigger > svg:last-child { margin-inline-start: auto; color: var(--wc-ink-tertiary); }
+.wc-country__trigger[aria-invalid="true"] { border-color: var(--wc-danger); }
+.wc-country__trigger:hover,
+.wc-country__trigger[aria-expanded="true"] { border-color: var(--wc-ink); }
+.wc-country__flag { flex: none; width: 24px; height: 16px; object-fit: contain; }
+
+.wc-phone-entry {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: stretch;
+}
+
+.wc-phone-entry :is(.wc-country__trigger, .wc-country__fixed) {
+  min-width: 96px;
+  border-radius: var(--wc-radius-form) 0 0 var(--wc-radius-form);
+  background: var(--wc-surface-grey);
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-country__positioner { z-index: 100; }
+.wc-country__popup {
+  display: flex;
+  flex-direction: column;
+  width: min(max(var(--anchor-width), 300px), var(--available-width), calc(100vw - 24px));
+  max-height: min(340px, var(--available-height), 60dvh);
+  overflow: hidden;
+  border: 1px solid var(--wc-ink);
+  border-radius: var(--wc-radius-sheet);
+  background: var(--wc-surface);
+  box-shadow: var(--wc-shadow-popup);
+}
+
+.wc-country__search {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--wc-hairline);
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-country__search .wc-country__input {
+  flex: 1;
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  font: inherit;
+  font-size: 16px;
+  box-shadow: none;
+}
+.wc-country__search:focus-within { border-bottom-color: var(--wc-focus); }
+.wc-country__search .wc-country__input:focus-visible { outline-offset: -2px; }
+
+.wc-country__list {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-padding: 4px;
+  padding: 4px;
+}
+.wc-country__list:empty { padding: 0; }
+.wc-country__option {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  padding: 6px 10px;
+  border-radius: var(--wc-radius-form);
+  cursor: pointer;
+}
+.wc-country__option[data-highlighted] { background: var(--wc-surface-grey); outline: 1px solid var(--wc-line-control); }
+.wc-country__option[data-selected] { font-weight: 700; }
+.wc-country__name { flex: 1; }
+.wc-country__dial { color: var(--wc-ink-tertiary); font-variant-numeric: tabular-nums; }
+.wc-country__empty:not(:empty) { padding: 16px; color: var(--wc-ink-tertiary); }
+
+.wc-auth .onboarding-gender { min-inline-size: 0; padding: 0; margin: 0; border: 0; }
+.onboarding-gender legend { padding: 0; margin-bottom: 6px; }
+.onboarding-gender__choices { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+.onboarding-gender__choices label { position: relative; cursor: pointer; }
+.onboarding-gender__choices label > span {
+  display: grid;
+  place-items: center;
+  min-height: 44px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  color: var(--wc-ink-sub);
+  font-size: 14px;
+  white-space: nowrap;
+}
+.onboarding-gender__choices input:checked + span {
+  border-color: var(--wc-ink);
+  background: var(--wc-accent-tint);
+  color: var(--wc-ink);
+  font-weight: 700;
+}
+.onboarding-gender__choices input:focus-visible + span { outline: 2px solid var(--wc-focus); outline-offset: 2px; }
+@media (max-width: 359px) {
+  .onboarding-gender__choices { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 .wc-auth__consent-details {
@@ -1444,6 +1551,15 @@
   background: var(--wc-surface);
   color: var(--wc-ink);
   caret-color: var(--wc-accent);
+}
+
+:is(.wc-auth, .wc-mypage) [data-phone-verification] form .wc-phone-entry input[type="tel"][name="phone"] {
+  width: 100%;
+  min-width: 0;
+  height: 44px;
+  font-size: 16px;
+  border-inline-start: 0;
+  border-radius: 0 var(--wc-radius-form) var(--wc-radius-form) 0;
 }
 
 .wc-mypage select {

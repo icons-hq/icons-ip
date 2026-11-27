@@ -32,6 +32,9 @@ describe('normalizePhoneNumber (1014-005·006)', () => {
     expect(normalizePhoneNumber('JP', '090-1234-5678', ALL)).toEqual({ ok: true, e164: '+819012345678' });
     expect(normalizePhoneNumber('US', '(415) 555-0123', ALL)).toEqual({ ok: true, e164: '+14155550123' });
     expect(normalizePhoneNumber('TW', '0912 345 678', ALL)).toEqual({ ok: true, e164: '+886912345678' });
+    expect(normalizePhoneNumber('CA', '416 555 0123', ALL)).toEqual({ ok: true, e164: '+14165550123' });
+    expect(normalizePhoneNumber('PT', '912 345 678', ALL)).toEqual({ ok: true, e164: '+351912345678' });
+    expect(normalizePhoneNumber('IT', '02 1234 5678', ALL)).toEqual({ ok: true, e164: '+390212345678' });
   });
 
   /* 목록에 없는 나라도 '+국가번호' 국제 형식이면 받는다(국가 번호를 고정 목록으로 좁히지 않는다). */
@@ -73,7 +76,9 @@ describe('parsePhoneAllowlist', () => {
   it('lists only open countries and offers international entry for open codes outside the list', () => {
     expect(allowedPhoneCountries(parsePhoneAllowlist('KR,JP')).map((country) => country.iso)).toEqual(['KR', 'JP']);
     expect(allowsInternationalEntry(parsePhoneAllowlist('KR,JP'))).toBe(false);
-    expect(allowsInternationalEntry(parsePhoneAllowlist('KR,+351'))).toBe(true);
+    expect(allowsInternationalEntry(parsePhoneAllowlist('KR,+351'))).toBe(false);
+    expect(allowsInternationalEntry(parsePhoneAllowlist('KR,+800'))).toBe(true);
+    expect(allowedPhoneCountries(parsePhoneAllowlist('+1')).map(country => country.iso)).toEqual(expect.arrayContaining(['US', 'CA', 'GU']));
     expect(allowsInternationalEntry(ALL)).toBe(true);
     expect(allowedPhoneCountries(ALL)).toHaveLength(PHONE_COUNTRIES.length);
   });
@@ -91,7 +96,8 @@ describe('maskPhoneNumber', () => {
     expect(maskPhoneNumber('+819012345678')).toBe('+81 ****5678');
     expect(maskPhoneNumber('+886912345678')).toBe('+886 ****5678');
     expect(maskPhoneNumber('+14155550123')).toBe('+1 ****0123');
-    expect(maskPhoneNumber('+351912345678')).toBe('+ ****5678');
+    expect(maskPhoneNumber('+351912345678')).toBe('+351 ****5678');
+    expect(maskPhoneNumber('+999912345678')).toBe('+ ****5678');
     expect(maskPhoneNumber('not-a-number')).toBe('');
   });
 });

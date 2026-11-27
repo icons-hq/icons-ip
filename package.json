@@ -26,7 +26,7 @@
     "test:goods-payment-local-integration": "bash supabase/tests/goods_payment_route_integration.sh",
     "hong-sil:download": "node scripts/hong-sil-downloader.mjs",
     "hyosan:assets:g2": "node scripts/asset-pipeline/index.mjs",
-    "postinstall": "mkdir -p public/box2d && cp node_modules/box2d-wasm/dist/es/Box2D.wasm node_modules/box2d-wasm/dist/es/Box2D.simd.wasm public/box2d/"
+    "postinstall": "mkdir -p public/box2d public/country-flags && cp node_modules/box2d-wasm/dist/es/Box2D.wasm node_modules/box2d-wasm/dist/es/Box2D.simd.wasm public/box2d/ && cp node_modules/country-flag-icons/3x2/*.svg node_modules/country-flag-icons/LICENSE public/country-flags/"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -41,10 +41,12 @@
     "class-variance-authority": "^0.7.1",
     "cmdk": "^1.1.1",
     "cn": "^0.5.2",
+    "country-flag-icons": "1.6.20",
     "date-fns": "^4.4.0",
     "exceljs": "^4.4.0",
     "ipaddr.js": "^2.2.0",
     "jszip": "^3.10.1",
+    "libphonenumber-js": "1.13.17",
     "lucide-react": "^1.69.0",
     "mp4box": "2.4.1",
     "next": "16.3.0",
