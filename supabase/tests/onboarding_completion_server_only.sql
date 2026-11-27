@@ -51,13 +51,25 @@ select pg_temp.expect_error(format('select public.service_complete_member_onboar
 select public.service_complete_member_onboarding(pg_temp.uid(2), false);
 select public.service_complete_member_onboarding(pg_temp.uid(3), true);
 -- 이미 마친 계정은 시각이 바뀌지 않는다(번호 없이 true로 불러도 그대로).
+reset role;
 create temp table first_at on commit drop as select onboarded_at from public.profiles where id=pg_temp.uid(2);
+set local role service_role;
 select public.service_complete_member_onboarding(pg_temp.uid(2), true);
 reset role;
 select 1/case when (select onboarded_at is not null from public.profiles where id=pg_temp.uid(3))
  and (select onboarded_at is not null from public.profiles where id=pg_temp.uid(2))
  and (select onboarded_at is null from public.profiles where id=pg_temp.uid(4))
  and (select p.onboarded_at = f.onboarded_at from public.profiles p, first_at f where p.id=pg_temp.uid(2)) then 1 else 0 end as assert_server_completion_results;
+
+-- 격리 Preview처럼 service_role에 profiles 직접 접근이 없는 환경에서도 두 RPC가 작동한다.
+revoke select, update on table public.profiles from service_role;
+select 1/case when not has_column_privilege('service_role', 'public.profiles', 'residence_country_code', 'SELECT')
+  and not has_function_privilege('anon', 'private.complete_member_onboarding(uuid,boolean,boolean)', 'EXECUTE')
+  and not has_function_privilege('authenticated', 'private.complete_member_onboarding(uuid,boolean,boolean)', 'EXECUTE')
+  then 1 else 0 end as assert_writer_is_scoped;
+set local role service_role;
+select public.service_complete_member_onboarding(pg_temp.uid(2), true);
+reset role;
 
 -- 새 회원은 국가를 고른 뒤에만 마칠 수 있고, 기존 완료·재인증 회원은 소급해 요구하지 않는다.
 set local role service_role;
@@ -82,6 +94,10 @@ select 1/case when (select residence_country_code is null from public.profiles w
   then 1 else 0 end as assert_country_erased;
 select set_config('request.jwt.claim.sub', '', true), set_config('request.jwt.claims', '{}', true);
 set local role anon;
-select 1/case when not exists (select residence_country_code from public.profiles) then 1 else 0 end as assert_anonymous_read_is_empty;
+do $$ begin
+  if has_column_privilege('anon', 'public.profiles', 'residence_country_code', 'select') then
+    if exists (select residence_country_code from public.profiles) then raise exception 'anonymous profile read'; end if;
+  end if;
+end $$;
 reset role;
 rollback;

@@ -112,7 +112,7 @@ Preview·스테이징 Auth도 같은 템플릿을 받으므로(기본 메일 발
 한도를 판정하고 요청을 기록 → 발송 seam으로 문자 → 화면에서 6자리 입력 → `service_verify_member_phone_verification`이
 만 14세·필수 동의를 다시 확인하고 HMAC 비교 → 번호를 회원에게 기록 → [엑스스퀘어 시작하기]로 온보딩 완료.
 
-- **온보딩 완료는 서버만 기록한다(2026-11-18).** 앱 서버가 service_role 전용 RPC `service_complete_member_onboarding_v2`로 신규 회원의 거주 국가를 확인한 뒤 같은 트랜잭션에서 기존 완료 함수를 호출한다. 스위치 ON이면 RPC가 같은 트랜잭션에서 인증된 번호와 1단계(동의·만 14세)를 다시 확인한다. authenticated의 `onboarded_at` update 권한은 `20261118157000` migration으로 회수돼(서버 경로 앱이 배포된 뒤 적용), Data API로 직접 써서 인증을 건너뛰는 길이 없다. 운영 DB 직접 수정이나 시드·QA 픽스처는 postgres·service_role로 쓴다.
+- **온보딩 완료는 서버만 기록한다(2026-11-18).** 앱 서버가 service_role 전용 RPC `service_complete_member_onboarding_v2`로 요청하면 기존 RPC와 공유하는 비공개 함수가 프로필을 잠그고 거주 국가와 완료 조건을 확인한 뒤 완료 시각을 기록한다. 스위치 ON이면 RPC가 같은 트랜잭션에서 인증된 번호와 1단계(동의·만 14세)를 다시 확인한다. authenticated의 `onboarded_at` update 권한은 `20261118157000` migration으로 회수돼(서버 경로 앱이 배포된 뒤 적용), Data API로 직접 써서 인증을 건너뛰는 길이 없다. 운영 DB 직접 수정이나 시드·QA 픽스처는 postgres·service_role로 쓴다.
 
 - **동의·만 14세 확인 전에는 번호를 받지 않는다(리뷰 F2).** 생년월일·이용약관·개인정보 동의를 저장하지 않았거나 만 14세
   미만이면 요청 단계에서 `onboarding_required`로 거절해 번호를 남기지 않는다. 요청 뒤 조건이 바뀌어도 확인 단계가 다시
