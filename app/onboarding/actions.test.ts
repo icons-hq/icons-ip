@@ -1,7 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { readOnboardingGenderDraft, rememberOnboardingGender } from '@/lib/auth/onboarding-gender.server';
 import { completeOnboardingAction, finishOnboardingAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
+  genderCookies: new Map<string, string>(),
   authGetUser: vi.fn(),
   createClient: vi.fn(),
   from: vi.fn(),
@@ -27,6 +29,13 @@ vi.mock('@/lib/supabase/service', () => ({
   createServiceClient: () => ({ rpc: mocks.serviceRpc }),
   getServiceRoleConfig: () => ({ isConfigured: mocks.serviceConfigured }),
 }));
+vi.mock('next/headers', () => ({
+  cookies: async () => ({
+    has: (name: string) => mocks.genderCookies.has(name),
+    get: (name: string) => ({ value: mocks.genderCookies.get(name) }),
+    set: (name: string, value: string) => value ? mocks.genderCookies.set(name, value) : mocks.genderCookies.delete(name),
+  }),
+}));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/server', () => ({ after: mocks.after }));
 vi.mock('@/lib/kakao/channel-reward.server', () => ({ syncKakaoChannelFriendReward: mocks.syncKakao }));
@@ -45,6 +54,7 @@ const familyEmoji = '👨‍👩‍👧‍👦';
 function onboardingForm() {
   const formData = new FormData();
   formData.set('birthDate', '2000-01-01');
+  formData.set('residenceCountry', 'CA');
   formData.set('terms', 'on');
   formData.set('privacy', 'on');
   formData.set('marketingEmail', 'on');
@@ -82,6 +92,7 @@ function profileQuery() {
 }
 
 beforeEach(() => {
+  mocks.genderCookies.clear();
   mocks.authGetUser.mockReset();
   mocks.createClient.mockReset();
   mocks.from.mockReset();
@@ -114,6 +125,22 @@ beforeEach(() => {
     from: mocks.from,
     rpc: mocks.rpc,
   });
+});
+
+afterEach(() => vi.unstubAllEnvs());
+
+it.each(['ZZ', '캐나다', '+1', ''])('선택 목록 밖의 거주 국가 %s는 저장하지 않는다', async value => {
+  const form = onboardingForm();
+  form.set('residenceCountry', value);
+  await expect(completeOnboardingAction({}, form)).resolves.toEqual({ errors: { residenceCountry: '목록에서 거주 국가·지역을 선택해주세요.' } });
+  expect(mocks.createClient).not.toHaveBeenCalled();
+});
+
+it('운영 가입에서도 공지일 설정 없이 거주 국가를 즉시 저장한다', async () => {
+  vi.stubEnv('VERCEL_ENV', 'production');
+  await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT');
+  expect(mocks.profilePayloads[0]).toHaveProperty('residence_country_code', 'CA');
+  expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding_v2', expect.any(Object));
 });
 
 describe('completeOnboardingAction profile identity', () => {
@@ -234,10 +261,11 @@ describe('completeOnboardingAction profile identity', () => {
     expect(mocks.profilePayloads).toEqual([
       {
         birth_date: '2000-01-01',
+        residence_country_code: 'CA',
         consents: { terms: true, privacy: true },
       },
     ]);
-    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding', { p_user_id: USER_ID, p_require_phone: false });
+    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding_v2', { p_user_id: USER_ID, p_require_phone: false });
     expect(JSON.stringify(mocks.profilePayloads)).not.toContain('nickname');
   });
 
@@ -251,7 +279,7 @@ describe('completeOnboardingAction profile identity', () => {
     );
 
     expect(mocks.identity).not.toHaveBeenCalled();
-    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding', { p_user_id: USER_ID, p_require_phone: false });
+    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding_v2', { p_user_id: USER_ID, p_require_phone: false });
   });
 
   it('retries a colliding automatic nickname with a new value', async () => {
@@ -310,7 +338,7 @@ describe('completeOnboardingAction profile identity', () => {
     expect(mocks.rpc.mock.calls).toEqual([
       ['set_my_marketing_consents', { p_email: true, p_sms: false, p_notice_version: 'marketing-channels-v1', p_source: 'onboarding' }],
     ]);
-    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding', { p_user_id: USER_ID, p_require_phone: false });
+    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding_v2', { p_user_id: USER_ID, p_require_phone: false });
     expect(mocks.revalidatePath.mock.calls.map(([path]) => path)).toEqual(['/', '/ip']);
   });
 });
@@ -464,8 +492,8 @@ describe('completeOnboardingAction phone verification switch', () => {
     formData.set('consentedGender', 'female');
 
     await expect(completeOnboardingAction({}, formData)).resolves.toEqual({ phoneStep: true, carriedGender: 'female' });
-    expect(mocks.profilePayloads).toEqual([{ birth_date: '2000-01-01', consents: { terms: true, privacy: true } }]);
-    expect(order.indexOf('birth_date,consents')).toBeLessThan(order.indexOf('my_member_phone_verification'));
+    expect(mocks.profilePayloads).toEqual([{ birth_date: '2000-01-01', residence_country_code: 'CA', consents: { terms: true, privacy: true } }]);
+    expect(order.indexOf('birth_date,residence_country_code,consents')).toBeLessThan(order.indexOf('my_member_phone_verification'));
     expect(order).not.toContain('onboarded_at');
     expect(order).not.toContain('customer_demographic_state');
   });
@@ -477,7 +505,7 @@ describe('completeOnboardingAction phone verification switch', () => {
       : { data: null, error: null });
 
     await expect(completeOnboardingAction({}, onboardingForm())).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
-    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding', { p_user_id: USER_ID, p_require_phone: true });
+    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding_v2', { p_user_id: USER_ID, p_require_phone: true });
   });
 
   it('goes back to the phone step when the server write refuses an unverified phone', async () => {
@@ -548,6 +576,33 @@ describe('finishOnboardingAction', () => {
     }
   });
 
+  it('휴대폰 단계 새로고침 뒤 같은 계정의 선택 성별만 저장하고 임시 쿠키를 정리한다', async () => {
+    phoneState(false);
+    const form = onboardingForm();
+    form.set('consentedGender', 'other');
+    await expect(completeOnboardingAction({}, form)).resolves.toMatchObject({ phoneStep: true });
+    expect(mocks.genderCookies.size).toBe(1);
+    phoneState(true);
+    await expect(finishOnboardingAction({}, finishForm())).rejects.toThrow('NEXT_REDIRECT');
+    expect(mocks.rpc).toHaveBeenCalledWith('set_customer_demographic_consent', expect.objectContaining({ p_gender: 'other' }));
+    expect(mocks.genderCookies.size).toBe(0);
+  });
+
+  it('다른 계정과 만료된 선택은 복원하지 않고 제공하지 않음으로 바꾸면 지운다', async () => {
+    const secret = PHONE_ENV.ICONS_PHONE_VERIFICATION_SECRET;
+    await rememberOnboardingGender(USER_ID, 'female', secret);
+    expect(await readOnboardingGenderDraft(IP_TWO, secret)).toBeNull();
+    expect(await readOnboardingGenderDraft(USER_ID, secret)).toBe('female');
+    const future = vi.spyOn(Date, 'now').mockReturnValue(Date.now() + 3_600_001);
+    try {
+      expect(await readOnboardingGenderDraft(USER_ID, secret)).toBeNull();
+    } finally {
+      future.mockRestore();
+    }
+    await rememberOnboardingGender(USER_ID, null, secret);
+    expect(mocks.genderCookies.size).toBe(0);
+  });
+
   it('refuses to finish before birth date and both consents are saved', async () => {
     phoneState(true);
     mocks.finishProfile = { birth_date: null, consents: { terms: true, privacy: true }, onboarded_at: null };
@@ -587,7 +642,7 @@ describe('finishOnboardingAction', () => {
       'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
     );
     expect(mocks.profilePayloads).toEqual([]);
-    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding', { p_user_id: USER_ID, p_require_phone: true });
+    expect(mocks.serviceRpc).toHaveBeenCalledWith('service_complete_member_onboarding_v2', { p_user_id: USER_ID, p_require_phone: true });
     expect(mocks.rpc).toHaveBeenCalledWith('set_customer_demographic_consent', expect.objectContaining({ p_choice: 'accepted', p_gender: 'female' }));
   });
 

@@ -1,4 +1,5 @@
 import 'server-only';
+import type { CountryOption } from '@/lib/country-names';
 
 import { createHmac, randomInt, randomUUID } from 'node:crypto';
 import { contactChannelsLegalGateOpen, envSwitchOn } from '@/lib/auth/contact-channels';
@@ -49,7 +50,7 @@ export function phoneVerificationConfig(env: RuntimeEnvironment = process.env, n
 
 /** 화면에 넘기는 설정(비밀값 없음). 스위치가 꺼져 있으면 null — 화면은 아무것도 그리지 않는다. */
 export interface PhoneVerificationView {
-  countries: { iso: string; label: string }[];
+  countries: CountryOption[];
   defaultCountry: string;
   verified: { maskedPhone: string } | null;
   /** 다른 계정이 같은 번호를 인증해 이 계정의 인증이 해제됐다 — 다시 인증해야 보호 액션을 쓸 수 있다. */
@@ -57,17 +58,10 @@ export interface PhoneVerificationView {
 }
 
 export function phoneVerificationCountries(config: PhoneVerificationConfig): PhoneVerificationView['countries'] {
-  const countries = allowedPhoneCountries(config.allowlist).map((country) => ({ iso: country.iso, label: country.label }));
+  const countries = allowedPhoneCountries(config.allowlist);
   return allowsInternationalEntry(config.allowlist)
-    ? [...countries, { iso: INTERNATIONAL_PHONE_OPTION, label: '다른 나라 (+국가번호로 입력)' }]
+    ? [...countries, { iso: INTERNATIONAL_PHONE_OPTION, label: '국제번호 직접 입력' }]
     : countries;
-}
-
-export function defaultPhoneCountry(config: PhoneVerificationConfig): string {
-  const countries = phoneVerificationCountries(config);
-  return countries.some((country) => country.iso === DEFAULT_PHONE_COUNTRY_ISO)
-    ? DEFAULT_PHONE_COUNTRY_ISO
-    : countries[0]?.iso ?? INTERNATIONAL_PHONE_OPTION;
 }
 
 function digest(secret: string, kind: 'phone' | 'ip' | 'code', value: string) {
@@ -275,9 +269,10 @@ export async function readMyVerifiedPhone(client: UserClient): Promise<MyVerifie
 }
 
 export function phoneVerificationView(config: PhoneVerificationConfig, verified: MyVerifiedPhone | null): PhoneVerificationView {
+  const countries = phoneVerificationCountries(config);
   return {
-    countries: phoneVerificationCountries(config),
-    defaultCountry: defaultPhoneCountry(config),
+    countries,
+    defaultCountry: countries.find(country => country.iso === DEFAULT_PHONE_COUNTRY_ISO)?.iso ?? countries[0]?.iso ?? INTERNATIONAL_PHONE_OPTION,
     verified: verified?.verified && verified.maskedPhone ? { maskedPhone: verified.maskedPhone } : null,
     reverificationRequired: verified?.reverificationRequired === true,
   };

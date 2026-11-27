@@ -68,7 +68,7 @@ describe('getCurrentAuthState', () => {
     const state = await getCurrentAuthState();
 
     expect(mocks.select).toHaveBeenCalledWith(
-      'email,nickname,birth_date,avatar_path,consents,onboarded_at,role,suspended_at',
+      'email,nickname,birth_date,residence_country_code,avatar_path,consents,onboarded_at,role,suspended_at',
     );
     expect(state.profile?.suspended_at).toBe('2026-07-17T00:00:00.000Z');
     expect(state.isStaff).toBe(false);

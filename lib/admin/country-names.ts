@@ -1,22 +1,12 @@
-import data from './country-names-data.json';
-
-export type CountryName = {
-  code: string; alpha3: string; numeric: string; name: string; english: string; aliases: string[];
-};
+import { COUNTRY_NAMES, normalizeCountrySearch as searchable, type CountryName } from '../country-names';
+export { COUNTRY_NAMES, findCountryName, type CountryName } from '../country-names';
 export const COUNTRY_NAME_SOURCE = {
   version: '48.2.0',
   url: 'https://github.com/unicode-org/cldr-json/tree/48.2.0',
   licenseUrl: '/licenses/unicode-cldr-48.2.0.txt',
 } as const;
 
-/** Codes only identify/search the dictionary. Product and workbook values remain Korean text. */
-export const COUNTRY_NAMES: readonly CountryName[] = [...data].sort((a, b) => a.name.localeCompare(b.name, 'ko') || a.code.localeCompare(b.code));
-const searchable = (value: string) => value.normalize('NFKC').trim().toLocaleLowerCase('ko').replace(/\s+/g, '');
 const searchRows = COUNTRY_NAMES.map(row => ({ row, text: [row.name, row.english, ...row.aliases].map(searchable) }));
-
-export function findCountryName(code: string): CountryName | undefined {
-  return COUNTRY_NAMES.find(row => row.code === code);
-}
 
 /**
  * 국가·지역을 찾는다(가나다순). 빈 검색어는 전체다.

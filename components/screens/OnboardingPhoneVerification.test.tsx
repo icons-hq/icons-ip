@@ -29,9 +29,10 @@ vi.mock('react', async () => {
 
 const CHALLENGE_ID = '33333333-3333-4333-8333-333333333333';
 const VIEW: PhoneVerificationPanelView = {
-  countries: [{ iso: 'KR', label: '대한민국 (+82)' }, { iso: 'JP', label: '일본 (+81)' }],
+  countries: [{ iso: 'KR', label: '대한민국', dial: '82' }, { iso: 'JP', label: '일본', dial: '81' }],
   defaultCountry: 'KR',
   verified: null,
+  reverificationRequired: false,
 };
 
 function render(view: PhoneVerificationPanelView = VIEW, context: 'onboarding' | 'settings' = 'onboarding') {
@@ -50,8 +51,9 @@ describe('PhoneVerificationPanel (1014-005·006, 스위치 ON)', () => {
     expect(html).toContain('data-phone-verification="phone"');
     expect(html).toContain('휴대폰 번호 인증 <em class="wc-auth__req">필수</em>');
     expect(html).toContain('해외 번호도 인증할 수 있어요');
-    expect(html).toMatch(/<select[^>]*name="phoneCountry"/);
-    expect(html).toContain('<option value="JP">일본 (+81)</option>');
+    expect(html).toContain('aria-label="전화 국가번호 대한민국 +82"');
+    expect(html).toContain('src="/country-flags/KR.svg"');
+    expect(html).toContain('name="phoneCountry"');
     const phoneInput = html.match(/<input[^>]*name="phone"[^>]*>/)?.[0] ?? '';
     expect(phoneInput).toContain('autoComplete="tel-national"');
     expect(phoneInput).toContain('type="tel"');
@@ -60,8 +62,8 @@ describe('PhoneVerificationPanel (1014-005·006, 스위치 ON)', () => {
   });
 
   it('hides the country picker when only one country is open', () => {
-    const html = render({ ...VIEW, countries: [{ iso: 'KR', label: '대한민국 (+82)' }] });
-    expect(html).not.toContain('<select');
+    const html = render({ ...VIEW, countries: [{ iso: 'KR', label: '대한민국', dial: '82' }] });
+    expect(html).not.toContain('class="wc-country__trigger"');
     expect(html).toContain('<input type="hidden" name="phoneCountry" value="KR"/>');
   });
 
@@ -136,7 +138,7 @@ describe('PhoneVerificationPanel (1014-005·006, 스위치 ON)', () => {
 
     expect(html).not.toContain('data-phone-verification');
     expect(html).toContain('data-onboarding-form');
-    expect(html).toContain('생년월일과 약관 동의를 저장한 뒤 휴대폰 번호를 인증하면 바로 시작할 수 있어요.');
+    expect(html).toContain('다음 단계에서 휴대폰 번호를 인증해요.');
     expect(html).toContain('다음: 휴대폰 번호 인증');
   });
 

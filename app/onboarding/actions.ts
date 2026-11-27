@@ -7,6 +7,8 @@ import { meetsMinimumSignupAge } from '@/lib/age/minimum-age';
 import { addressBookOnboardingPath } from '@/lib/address-book';
 import { AUTO_NICKNAME_MAX_ATTEMPTS, generateAutoNickname } from '@/lib/auth/nickname';
 import { safeNextPath } from '@/lib/auth/onboarding';
+import { readOnboardingGenderDraft, rememberOnboardingGender } from '@/lib/auth/onboarding-gender.server';
+import { findCountryName } from '@/lib/country-names';
 import { isDemographicGender, type DemographicGender } from '@/lib/customer-demographics';
 import { customerDemographicState, updateCustomerDemographicChoice } from '@/lib/customer-demographics.server';
 import { kakaoChannelConfig } from '@/lib/kakao/channel-config.server';
@@ -24,6 +26,7 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 export interface OnboardingActionState {
   errors?: {
     birthDate?: string;
+    residenceCountry?: string;
     terms?: string;
     privacy?: string;
     gender?: string;
@@ -163,6 +166,7 @@ export async function completeOnboardingAction(
 ): Promise<OnboardingActionState> {
   const birthDateResult = readBirthDate(formData);
   const birthDate = birthDateResult.value;
+  const residenceCountry = findCountryName(readString(formData, 'residenceCountry'));
   const next = safeNextPath(formData.get('next'));
   const terms = formData.get('terms') === 'on';
   const privacy = formData.get('privacy') === 'on';
@@ -171,11 +175,12 @@ export async function completeOnboardingAction(
   const errors: NonNullable<OnboardingActionState['errors']> = {};
 
   if (birthDateResult.error) errors.birthDate = birthDateResult.error;
+  if (!residenceCountry) errors.residenceCountry = '목록에서 거주 국가·지역을 선택해주세요.';
   if (!terms) errors.terms = '필수 약관에 동의해주세요.';
   if (!privacy) errors.privacy = '개인정보 처리방침에 동의해주세요.';
   if (genderResult.error) errors.gender = genderResult.error;
 
-  if (Object.keys(errors).length) return { errors };
+  if (!residenceCountry || Object.keys(errors).length) return { errors };
 
   const { isConfigured } = getSupabaseConfig();
   if (!isConfigured) return { errors: { form: 'Supabase 환경변수를 설정한 뒤 온보딩을 완료할 수 있습니다.' } };
@@ -196,6 +201,7 @@ export async function completeOnboardingAction(
     .from('profiles')
     .update({
       birth_date: birthDate,
+      residence_country_code: residenceCountry.code,
       /* consents.marketing은 채널별 수신 동의 원장의 파생값이라 여기서 쓰지 않는다 — 아래 RPC가
          원장과 함께 바꾸고, 키가 빠진 이 덮어쓰기에는 DB 트리거가 이전 값을 그대로 둔다(S4). */
       consents: { terms, privacy },
@@ -221,9 +227,11 @@ export async function completeOnboardingAction(
   /* 휴대폰 번호 인증(1014-005·006)은 스위치가 켜졌을 때만 온보딩 2단계다. 생년월일·약관 동의를 먼저 저장한 뒤
      (위) 인증 단계로 보낸다 — 동의·만 14세 확인 전에는 번호를 받지 않는다. 이미 인증한 계정은 바로 마친다.
      스위치가 꺼져 있으면 읽지도 않는다. */
-  if (phoneVerificationConfig()) {
+  const phoneConfig = phoneVerificationConfig();
+  if (phoneConfig) {
     const verifiedPhone = await readMyVerifiedPhone(supabase);
     if (!verifiedPhone?.verified) {
+      await rememberOnboardingGender(user.id, genderResult.gender, phoneConfig.secret);
       revalidatePath('/onboarding');
       return { phoneStep: true, ...(genderResult.gender ? { carriedGender: genderResult.gender } : {}) };
     }
@@ -241,18 +249,24 @@ async function completeOnboarding(
   userId: string,
   options: { alreadyOnboarded: boolean; gender: DemographicGender | null; next: string },
 ): Promise<OnboardingActionState> {
+  const phoneConfig = phoneVerificationConfig();
   if (!options.alreadyOnboarded) {
     /* 완료 기록은 서버만 쓴다 — authenticated의 profiles.onboarded_at update 권한은 2단계 migration
        (20261118157000)으로 회수됐다. 휴대폰 인증 스위치가 켜져 있으면 RPC가 같은 트랜잭션에서 인증된 번호를 다시
        확인한다(액션의 앞선 판정을 신뢰하지 않는다). */
     if (!getServiceRoleConfig().isConfigured) return { errors: { form: '온보딩 완료 상태를 저장하지 못했습니다. 다시 시도해주세요.' } };
-    const { error: completeError } = await createServiceClient().rpc('service_complete_member_onboarding', {
+    const { error: completeError } = await createServiceClient().rpc('service_complete_member_onboarding_v2', {
       p_user_id: userId,
-      p_require_phone: Boolean(phoneVerificationConfig()),
+      p_require_phone: Boolean(phoneConfig),
     });
 
     if (completeError) {
+      if (completeError.message?.includes('onboarding_residence_country_required')) {
+        revalidatePath('/onboarding');
+        return { errors: { form: '거주 국가·지역을 먼저 선택해주세요. 가입 화면을 새로고침하면 입력할 수 있어요.' } };
+      }
       if (completeError.message?.includes('onboarding_phone_required')) {
+        if (phoneConfig) await rememberOnboardingGender(userId, options.gender, phoneConfig.secret);
         revalidatePath('/onboarding');
         return { phoneStep: true, ...(options.gender ? { carriedGender: options.gender } : {}), errors: { form: '휴대폰 번호 인증을 먼저 마쳐주세요.' } };
       }
@@ -260,6 +274,7 @@ async function completeOnboarding(
     }
   }
   if (options.gender) await saveOnboardingGender(options.gender);
+  if (phoneConfig) await rememberOnboardingGender(userId, null, phoneConfig.secret);
   /* 카카오톡 채널 친구 추가 쿠폰(1014-014, 스위치 OFF 기본)은 온보딩을 마친 회원만 받는다. 카카오 로그인 동의 화면에서
      채널을 추가하고 막 가입한 회원은 여기서 처음 대상이 된다. 응답 뒤에 확인하고, 실패해도 온보딩은 끝난다. */
   if (kakaoChannelConfig()) {
@@ -286,7 +301,7 @@ export async function finishOnboardingAction(
 ): Promise<OnboardingActionState> {
   const next = safeNextPath(formData.get('next'));
   const carried = readOnboardingGender(formData);
-  const carriedGender = carried.error ? null : carried.gender;
+  let carriedGender = carried.error ? null : carried.gender;
 
   const { isConfigured } = getSupabaseConfig();
   if (!isConfigured) return { errors: { form: 'Supabase 환경변수를 설정한 뒤 온보딩을 완료할 수 있습니다.' } };
@@ -308,7 +323,11 @@ export async function finishOnboardingAction(
     return { errors: { form: '생년월일과 약관 동의를 먼저 저장해주세요. 화면을 새로고침한 뒤 다시 시도해주세요.' } };
   }
 
-  if (phoneVerificationConfig()) {
+  const phoneConfig = phoneVerificationConfig();
+  if (phoneConfig) {
+    if (!profile.onboarded_at && !formData.has('consentedGender') && !formData.has('gender')) {
+      carriedGender = await readOnboardingGenderDraft(user.id, phoneConfig.secret);
+    }
     const verifiedPhone = await readMyVerifiedPhone(supabase);
     if (!verifiedPhone?.verified) {
       return {

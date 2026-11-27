@@ -27,13 +27,17 @@ type Transport = (url: string, init: RequestInit) => Promise<Response>;
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('중국 본토 인증문자', () => {
-  it('routes an international-entry +86 request to SENS once with the same DB challenge code', async () => {
+  it.each([
+    ['CN', '138 0013 8000'],
+    ['INTL', phone],
+    ['HK', '00 86 138 0013 8000'],
+  ])('%s 선택에서 입력한 %s를 +86으로 저장하고 같은 인증번호를 SENS에 한 번만 전송한다', async (countryIso, input) => {
     const send = vi.fn<Transport>().mockResolvedValue(
       Response.json({ statusCode: '202', statusName: 'success', requestId: 'test-request-id' }, { status: 202 }));
     vi.stubGlobal('fetch', send);
     const rpc = vi.fn(async () => ({ data: { ok: true }, error: null }));
     const config = phoneVerificationConfig(env)!;
-    const result = await requestPhoneVerificationCode({ userId, countryIso: 'INTL', phone, ip: null },
+    const result = await requestPhoneVerificationCode({ userId, countryIso, phone: input, ip: null },
       { config, service: { rpc } as never, newChallengeId: () => challengeId, newCode: () => '012345' });
     expect(result).toMatchObject({ ok: true, challengeId });
     await config.sender.confirmVerification?.(phone);
@@ -55,14 +59,25 @@ describe('중국 본토 인증문자', () => {
       expect.objectContaining({ p_phone_e164: phone, p_code_digest: phoneCodeDigest(config.secret, challengeId, message.code) }));
   });
 
-  it.each(['+821012345678', '+85251234567', '+85366123456', '+886912345678'])('keeps Twilio send and approval for %s', async to => {
+  it.each([
+    ['KR', '01012345678', '+821012345678'],
+    ['HK', '51234567', '+85251234567'],
+    ['MO', '66123456', '+85366123456'],
+    ['TW', '0912345678', '+886912345678'],
+    ['CN', '+852 5123 4567', '+85251234567'],
+  ])('%s 선택에서 %s를 입력하면 %s로 Twilio에서 발송·승인한다', async (countryIso, input, to) => {
     const send = vi.fn<Transport>().mockImplementation(async () => Response.json({ sid: 'test-twilio' }));
     vi.stubGlobal('fetch', send);
-    const { sender } = phoneVerificationConfig(env)!;
-    expect((await sender.send({ ...message, to })).ok).toBe(true);
-    expect(await sender.confirmVerification?.(to)).toBe(true);
+    const config = phoneVerificationConfig(env)!;
+    const rpc = vi.fn(async () => ({ data: { ok: true }, error: null }));
+    const result = await requestPhoneVerificationCode({ userId, countryIso, phone: input, ip: null },
+      { config, service: { rpc } as never, newChallengeId: () => challengeId, newCode: () => '012345' });
+    expect(result).toMatchObject({ ok: true, challengeId });
+    expect(rpc).toHaveBeenCalledWith('service_issue_member_phone_verification', expect.objectContaining({ p_phone_e164: to }));
+    expect(await config.sender.confirmVerification?.(to)).toBe(true);
     expect(send.mock.calls).toHaveLength(3);
     expect(send.mock.calls.every(([url]) => new URL(url).host === 'verify.twilio.com')).toBe(true);
+    expect(new URLSearchParams(String(send.mock.calls[1][1].body)).get('To')).toBe(to);
   });
 
   it('isolates invalid SENS settings to China and refuses non-OTP text or invalid mobile numbers', async () => {

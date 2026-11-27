@@ -36,14 +36,14 @@ function source() {
 }
 
 describe('Onboarding form contracts', () => {
-  /* 1014-004 — 필수 입력은 생년월일과 약관뿐이다. 닉네임은 묻지 않고 자동으로 만든다는 사실만 알린다. */
+  /* 1014-004 — 닉네임은 서버가 자동으로 만든다. 닉네임은 묻지 않고 자동으로 만든다는 사실만 알린다. */
   it('does not ask for a nickname and tells that one is created automatically and can be changed later', () => {
     const html = render();
 
     expect(html).not.toContain('name="nickname"');
     expect(html).not.toContain('닉네임 (1–30자)');
     expect(html).toContain('닉네임은 자동으로 만들어 두니 설정에서 언제든 바꿀 수 있어요');
-    expect(html.match(/<em class="wc-auth__req">필수<\/em>/g)).toHaveLength(2);
+    expect(html.match(/<em class="wc-auth__req">필수<\/em>/g)).toHaveLength(3);
   });
 
   it('submits through a prevented client event so validation errors cannot reset entered values', () => {
@@ -152,7 +152,7 @@ describe('Onboarding optional consents', () => {
     expect(html).toContain('이메일·SMS 마케팅 수신(선택)을 포함해요.');
     expect(html).toContain('필수 항목만 동의해도 가입할 수 있어요.');
     expect(html).toMatch(/<input aria-checked="false"[^>]+type="checkbox"/);
-    expect(html).not.toContain('checked=""');
+    expect(html).not.toMatch(/<input(?=[^>]*type="checkbox")[^>]*checked=""/);
   });
 
   it('asks email and SMS marketing consent separately as optional rows', () => {
@@ -173,9 +173,12 @@ describe('Onboarding optional consents', () => {
     const profileFields = html.slice(html.indexOf('name="birthDay"'), html.indexOf('<ul class="wc-auth__agree">'));
 
     expect(profileFields).not.toContain('<details');
-    expect(profileFields).toContain('for="consented-gender">성별 <em class="wc-auth__opt">선택</em>');
-    expect(profileFields).toMatch(/<select[^>]*name="consentedGender"[^>]*><option value="" selected="">제공하지 않음<\/option>/);
-    expect(profileFields).toContain('<optgroup label="성별 제공에 동의"><option value="female">여성</option>');
+    expect(profileFields).toContain('거주 국가·지역');
+    expect(profileFields).toContain('name="residenceCountry"');
+    expect(profileFields.match(/name="consentedGender"/g)).toHaveLength(4);
+    expect(profileFields).toMatch(/<input(?=[^>]*type="radio")(?=[^>]*checked="")(?=[^>]*value="")[^>]*>/);
+    expect(profileFields).toContain('선택 안 함');
+    expect(profileFields).toContain('성별을 고르면 성별 정보 수집·이용에 동의하게 돼요.');
     expect(profileFields).toContain('href="/legal/privacy#optional-gender"');
     expect(html).not.toContain('수집 항목·보관·철회 안내');
     expect(html).not.toContain('동의 철회 또는 탈퇴 신청까지');

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { COUNTRY_NAMES, findCountryName, searchCountryNames } from './country-names';
+import { RESIDENCE_COUNTRIES, matchesCountry } from '../country-names';
 
 const raw = (path: string) => readFileSync(new URL(path, import.meta.url));
 describe('고정 CLDR 국가·지역명 사전', () => {
@@ -41,4 +42,13 @@ describe('고정 CLDR 국가·지역명 사전', () => {
     expect(searchCountryNames('ukr').map(row => row.code)).toEqual(['UA']);
     expect(searchCountryNames('ukra').map(row => row.code)).toEqual(['UA']);
   });
+});
+
+it('가입 검색은 국가 코드·별칭·영문명과 같은 국가번호를 쓰는 지역을 찾는다', () => {
+  for (const term of ['한국', 'south korea', ' ＫＲ ', 'kor']) {
+    expect(RESIDENCE_COUNTRIES.filter(option => matchesCountry(option, term)).map(v => v.iso)).toEqual(['KR']);
+  }
+  const options = [{ iso: 'US', label: '미국', dial: '1' }, { iso: 'CA', label: '캐나다', dial: '1' }, { iso: 'KR', label: '대한민국', dial: '82' }];
+  expect(options.filter(option => matchesCountry(option, '+1'))).toEqual(options.slice(0, 2));
+  expect(options.filter(option => matchesCountry(option, '82'))).toEqual([options[2]]);
 });

@@ -642,3 +642,14 @@ it('중국 발송 경로의 시행일부터 수탁자와 현지 전달을 밝히
   expect(current.previousVersion?.articles).toEqual(before.articles);
   expect(current.olderVersions?.[0].articles).toEqual(LEGAL_DOCUMENTS.privacy.articles);
 });
+
+it('현행 방침에 가입 국가 수집과 중국 문자 발송을 함께 고지하며 이전 판은 보존한다', () => {
+  const current = getLegalDocument('privacy', undefined, new Date('2026-11-27T01:00:00Z'))!;
+  const collection = article(current, '제1조 ');
+  expect(collection.table!.rows.find(row => row[0] === '온보딩')).toEqual(
+    expect.arrayContaining([expect.stringContaining('거주 국가·지역'), '가입 프로필 저장 시']));
+  expect(collection.closing!.join(' ')).toContain('회원 탈퇴 처리 시 파기');
+  expect(article(current, '제5조 ').table!.rows.flat()).toContain('네이버클라우드 주식회사');
+  expect(current.pendingRevision).toBeUndefined();
+  expect(current.olderVersions?.[0].articles).toEqual(LEGAL_DOCUMENTS.privacy.articles);
+});
