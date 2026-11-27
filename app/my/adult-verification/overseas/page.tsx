@@ -8,8 +8,8 @@ import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { adultVerificationReturnPath } from '@/lib/identity/adult-verification.server';
 import { ADULT_VERIFICATION_PATH } from '@/lib/identity/adult-verification-routes';
-import { OVERSEAS_REVIEW_PATH, type OverseasRequest } from '@/lib/identity/overseas-adult';
-import { createClient } from '@/lib/supabase/server';
+import { OVERSEAS_REVIEW_PATH } from '@/lib/identity/overseas-adult';
+import { readOwnOverseasRequest } from './actions';
 
 export const metadata: Metadata = {
   title: '해외 신분증 성인 인증 | Overseas ID verification',
@@ -25,16 +25,13 @@ export default async function Page({ searchParams }: { searchParams: Promise<{ n
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect('/login?next=' + encodeURIComponent(href));
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(href));
-  const [result, requestHeaders] = await Promise.all([
-    (await createClient()).rpc('my_overseas_adult_request'), headers(),
-  ]);
-  const request = (result.data?.request ?? null) as OverseasRequest | null;
+  const [status, requestHeaders] = await Promise.all([readOwnOverseasRequest(), headers()]);
   const language = requestHeaders.get('accept-language')?.split(',')[0]?.toLowerCase();
   return (
     <MypageShell active={ADULT_VERIFICATION_PATH}>
       <OverseasAdultRequest
-        intakeStatus={result.error ? 'error' : result.data?.domesticVerified ? 'domestic' : result.data?.intakeStatus ?? 'review_paused'}
-        request={request}
+        key={auth.user.id}
+        initialStatus={status}
         initialLanguage={language && !language.startsWith('ko') ? 'en' : 'ko'}
         next={next}
       />

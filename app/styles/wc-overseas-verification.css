@@ -72,6 +72,9 @@
 .wc-overseas__actions { flex-wrap: wrap; margin-top: 18px; }
 .wc-overseas__actions .wc-btn { width: auto; min-width: 100px; min-height: 44px; padding-inline: 16px; gap: 8px; }
 .wc-overseas__actions .wc-overseas__text-button { min-height: 44px; padding-inline: 10px; }
+.wc-overseas .wc-overseas__feedback { margin: 12px 0 0; font-size: 13px; color: var(--wc-ink-sub); font-variant-numeric: tabular-nums; }
+.wc-overseas .wc-overseas__feedback:empty { position: absolute; margin: 0; }
+.wc-overseas .wc-overseas__feedback[data-error='true'] { color: var(--wc-danger); }
 .wc-overseas__error { color: var(--wc-danger); font-size: 14px; }
 @media (max-width: 900px) {
   .wc-overseas__layout { display: flex; flex-direction: column; gap: 22px; }

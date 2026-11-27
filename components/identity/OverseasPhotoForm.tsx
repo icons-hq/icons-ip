@@ -2,7 +2,7 @@
 
 import { FileImage, FileUp, LockKeyhole, X } from 'lucide-react';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { OVERSEAS_METHOD, OVERSEAS_UPLOAD_LIMIT } from '@/lib/identity/overseas-adult';
 import type { DocumentCopy } from './overseas-document-copy';
 
@@ -10,7 +10,13 @@ const supported = ['image/jpeg', 'image/png', 'image/webp'];
 type Issue = 'missingFile' | 'invalidFile' | 'numberNeeded' | 'tooLarge' | 'invalidForm' | 'limit' | 'failed';
 type SelectedPhoto = { blob: Blob; filename: string; preview: string };
 
-export function OverseasPhotoForm({ copy: t, onRefresh }: { copy: DocumentCopy; onRefresh: () => void }) {
+export function OverseasPhotoForm({ copy: t, onRefresh, statusButton, feedback, checking }: {
+  copy: DocumentCopy;
+  onRefresh: () => void;
+  statusButton: ReactNode;
+  feedback: ReactNode;
+  checking: boolean;
+}) {
   const input = useRef<HTMLInputElement>(null);
   const consentBox = useRef<HTMLInputElement>(null);
   const generation = useRef(0);
@@ -74,7 +80,7 @@ export function OverseasPhotoForm({ copy: t, onRefresh }: { copy: DocumentCopy; 
   }
 
   async function send(numbers: boolean) {
-    if (sending.current || loading) return;
+    if (sending.current || loading || checking) return;
     if (!photo) { setIssue('missingFile'); input.current?.focus(); return; }
     if (numbers && !numberConsent) { setIssue('numberNeeded'); consentBox.current?.focus(); return; }
     sending.current = true;
@@ -101,9 +107,10 @@ export function OverseasPhotoForm({ copy: t, onRefresh }: { copy: DocumentCopy; 
     finally { if (!accepted) { sending.current = false; setBusy(false); } }
   }
   if (sent) return (
-    <div className="wc-overseas__status" role="status">
-      <h2>{t.received}</h2><p>{t.pending}</p>
-      <button className="wc-btn" type="button" onClick={onRefresh}>{t.reload}</button>
+    <div className="wc-overseas__status">
+      <h2 role="status">{t.received}</h2><p>{t.awaitingResult}</p>
+      {statusButton}
+      {feedback}
     </div>
   );
   return (
@@ -137,11 +144,13 @@ export function OverseasPhotoForm({ copy: t, onRefresh }: { copy: DocumentCopy; 
         <details>
           <summary>{t.details}</summary>
           <p>{t.retention} <Link href="/legal/privacy" target="_blank" rel="noopener noreferrer">{t.privacy}</Link></p>
-          <button type="button" className="wc-overseas__text-button" onClick={() => void send(false)} disabled={busy || loading}>{t.numberless}</button>
+          <button type="button" className="wc-overseas__text-button" onClick={() => void send(false)} disabled={busy || loading || checking}>{t.numberless}</button>
         </details>
       </div>
-      {issue && <p className="wc-overseas__error" role="alert">{t[issue]} {issue === 'failed' && <button type="button" onClick={onRefresh}>{t.reload}</button>}</p>}
-      <button className="wc-btn primary wc-overseas__submit" type="submit" value="photo" disabled={busy || loading}>
+      {issue && <p className="wc-overseas__error" role="alert">{t[issue]}</p>}
+      {issue === 'failed' && statusButton}
+      {feedback}
+      <button className="wc-btn primary wc-overseas__submit" type="submit" value="photo" disabled={busy || loading || checking}>
         <LockKeyhole size={16} aria-hidden="true" />{busy ? t.sending : t.submit}
       </button>
     </form>
