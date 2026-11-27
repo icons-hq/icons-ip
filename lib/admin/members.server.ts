@@ -11,6 +11,7 @@ import {
 } from '@/lib/admin/members';
 import { createClient } from '@/lib/supabase/server';
 import { getMemberModerationContext } from './member-moderation.server';
+import { getMemberVerificationLimits } from './member-verification-limits.server';
 
 async function requireStaffMemberAccess() {
   const auth = await getCurrentAdminAuthState();
@@ -44,12 +45,15 @@ export async function getAdminMemberDetail(profileId: string): Promise<AdminMemb
   const record = parseAdminMemberDetail(data[0]);
   if (!record) throw new Error('Failed to load admin member detail');
 
-  const moderation = await getMemberModerationContext(profileId);
+  const [moderation, verificationLimits] = await Promise.all([
+    getMemberModerationContext(profileId), getMemberVerificationLimits(profileId),
+  ]);
   if (!moderation.loyaltyGrade) return null;
 
   return {
     ...record,
     moderation,
+    verificationLimits,
     loyaltyGrade: moderation.loyaltyGrade,
   };
 }

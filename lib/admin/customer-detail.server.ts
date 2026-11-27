@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import type { AdminCustomerDetail, CustomerDetailFilters } from './customer-detail';
 import { getMemberModerationContext } from './member-moderation.server';
 import { getMemberWithdrawalStatus } from './member-withdrawal.server';
+import { getMemberVerificationLimits } from './member-verification-limits.server';
 
 export async function getAdminCustomerDetail(userId: string, filters: CustomerDetailFilters): Promise<AdminCustomerDetail | null> {
   const supabase = await createClient();
@@ -12,8 +13,11 @@ export async function getAdminCustomerDetail(userId: string, filters: CustomerDe
   if (error) throw new Error('고객 상세를 불러오지 못했습니다.');
   if (!data) return null;
   const detail = data as AdminCustomerDetail;
-  const [moderation, withdrawal] = await Promise.all([getMemberModerationContext(userId), getMemberWithdrawalStatus(userId)]);
-  return { ...detail, customer: { ...detail.customer, moderation, withdrawal } };
+  const [moderation, withdrawal, verificationLimits] = await Promise.all([
+    getMemberModerationContext(userId), getMemberWithdrawalStatus(userId),
+    filters.tab === 'overview' ? getMemberVerificationLimits(userId) : null,
+  ]);
+  return { ...detail, customer: { ...detail.customer, moderation, withdrawal, verificationLimits } };
 }
 
 /** Only the permitted order or claim history; never load the global customer dossier. */

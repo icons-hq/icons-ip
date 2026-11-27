@@ -2,6 +2,7 @@ import { isLoyaltyGrade } from '@/lib/loyalty';
 import { isUuid } from '@/lib/uuid';
 import type { ManagerRole } from './access';
 import type { MemberWithdrawalStatus } from './member-withdrawal';
+import type { MemberVerificationLimits } from './member-verification-limits';
 export type AdminMemberRole = 'user' | 'staff' | 'admin';
 
 export interface AdminMemberSummary {
@@ -36,6 +37,7 @@ export interface AdminMemberDetail {
   moderation?: { managerRole: ManagerRole | null; canModerate: boolean };
   /** 문의로 받은 탈퇴의 처리 상태(고객 상세가 병합). null은 읽지 못함 — 처리 동작을 그리지 않는다. */
   withdrawal?: MemberWithdrawalStatus | null;
+  verificationLimits?: MemberVerificationLimits | null;
 }
 
 export type AdminMemberFormResult<T> =

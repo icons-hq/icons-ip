@@ -284,6 +284,7 @@ const storefront = [
   sql('member_withdrawal_processing'),
   // 2026-11-17: 로그인 이메일이 쓸 수 없는 주소(Apple 릴레이·빈 값)인 회원의 이메일 변경 코드·프로필 이메일 동기화.
   sql('member_email_change'),
+  sql('member_verification_limits'),
   sql('customer_marketing_consent_kakao'),
   sql('kakao_channel_friend_coupon'),
   // 카카오 알림톡 주문 안내: 인증 번호 받는 사람 판정과 한 번만 보내기 클레임.

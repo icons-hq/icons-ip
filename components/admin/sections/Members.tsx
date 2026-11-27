@@ -2,6 +2,7 @@
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
+import { MemberVerificationLimitsPanel } from '@/components/admin/screens/MemberVerificationLimitsPanel';
 import { Fragment, useActionState, useState, type FormEvent } from 'react';
 import {
   adjustMemberLoyaltyAction,
@@ -255,6 +256,7 @@ function MemberDetail({
         </div>
       </section>
 
+      <MemberVerificationLimitsPanel key={member.id} profileId={member.id} nickname={member.nickname} initial={member.verificationLimits} />
       <MemberLoyaltyPanel key={`loyalty-${member.id}:${member.loyaltyGrade}`} member={member} />
 
       <MemberSuspensionControl
