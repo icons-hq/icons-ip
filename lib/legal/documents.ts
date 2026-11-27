@@ -1,4 +1,5 @@
 import { kstDay } from '../admin/kst';
+import { CHINA_SMS_PRIVACY_EFFECTIVE_DATE } from '../auth/contact-channels';
 import { OVERSEAS_PRIVACY_EFFECTIVE_DATE } from '../identity/overseas-adult';
 import { BUSINESS_INFO, businessContactWords, type BusinessInfo } from './business-info';
 import {
@@ -91,7 +92,8 @@ export interface LegalDocument {
   /** 공지 기간이 겹친 뒤 예약 개정의 사전 공지. 앞선 공지(pendingRevision)를 가리지 않고 그 뒤에 함께 보인다. */
   additionalPendingRevisions?: LegalRevisionNotice[];
   revisionChanges?: string[];
-  previousVersion?: { effectiveDate: string; articles: LegalArticle[] };
+  previousVersion?: Pick<LegalDocument, 'effectiveDate' | 'articles'>;
+  olderVersions?: Pick<LegalDocument, 'effectiveDate' | 'articles'>[];
   articles: LegalArticle[];
 }
 
@@ -832,10 +834,7 @@ const overseasPrivacyChanges = [
   '승인 증거는 결정일부터 1년, 그 밖의 결과는 파기 확인 후 30일 이내에 삭제합니다. 기록은 계정과 신청 식별자, 심사자·방식·정책·동의 판과 문서번호 처리 동의 여부, 접수·열람·결정·파기 시각과 결과입니다. 탈퇴 시 계정과의 연결을 해제합니다.',
 ];
 
-export function getLegalDocument(slug: string, businessInfo?: BusinessInfo, now = new Date()): LegalDocument | null {
-  if (!(LEGAL_DOCUMENT_SLUGS as string[]).includes(slug)) return null;
-  const base = (businessInfo ? createLegalDocuments(businessInfo) : LEGAL_DOCUMENTS)[slug as LegalDocumentSlug];
-  if (slug !== 'privacy' || kstDay(now) < OVERSEAS_PRIVACY_EFFECTIVE_DATE) return base;
+function overseasPrivacyRevision(base: LegalDocument): LegalDocument {
   const articles = base.articles.map(article => {
     if (article.heading.startsWith('제1조 ')) return { ...article, closing: [...(article.closing ?? []), ...overseasPrivacyChanges] };
     if (article.heading.startsWith('제5조 ') || article.heading.startsWith('제6조 ')) {
@@ -846,4 +845,32 @@ export function getLegalDocument(slug: string, businessInfo?: BusinessInfo, now 
   });
   return { ...base, effectiveDate: OVERSEAS_PRIVACY_EFFECTIVE_DATE, articles, revisionChanges: overseasPrivacyChanges,
     previousVersion: { effectiveDate: base.effectiveDate, articles: base.articles } };
+}
+
+const chinaSmsPrivacyChanges = [
+  '중국 본토 번호(+86)로 인증문자를 요청하면 엑스스퀘어는 국내 수탁자인 네이버클라우드 주식회사(SENS)에 수신번호와 일회용 인증번호가 담긴 문자를 전송합니다. 그 밖의 국가번호에는 Twilio Inc.를 통해 인증문자를 발송합니다.',
+  '네이버클라우드는 국제 문자 중계사를 거쳐 중국 현지 이동통신사에 수신번호와 문자를 전달합니다. SENS에서는 최근 90일간의 발송 이력을 조회할 수 있습니다.',
+];
+
+export function getLegalDocument(slug: string, businessInfo?: BusinessInfo, now = new Date()): LegalDocument | null {
+  if (!(LEGAL_DOCUMENT_SLUGS as string[]).includes(slug)) return null;
+  const base = (businessInfo ? createLegalDocuments(businessInfo) : LEGAL_DOCUMENTS)[slug as LegalDocumentSlug];
+  const today = kstDay(now);
+  if (slug !== 'privacy' || today < OVERSEAS_PRIVACY_EFFECTIVE_DATE) return base;
+  const previous = overseasPrivacyRevision(base);
+  if (today < CHINA_SMS_PRIVACY_EFFECTIVE_DATE) return previous;
+
+  const articles = previous.articles.map(article => {
+    if (article.heading.startsWith('제5조 ') && article.table) {
+      const rows = [...article.table.rows, ['네이버클라우드 주식회사', '중국 본토 번호(+86) 휴대폰 인증문자 발송', '위탁계약 종료 시까지']];
+      return { ...article, table: { ...article.table, rows }, closing: [...(article.closing ?? []), chinaSmsPrivacyChanges[0]] };
+    }
+    if (article.heading.startsWith('제6조 ')) {
+      return { ...article, closing: [...(article.closing ?? []), chinaSmsPrivacyChanges[1]] };
+    }
+    return article;
+  });
+  return { ...previous, effectiveDate: CHINA_SMS_PRIVACY_EFFECTIVE_DATE, articles, revisionChanges: chinaSmsPrivacyChanges,
+    previousVersion: { effectiveDate: previous.effectiveDate, articles: previous.articles },
+    olderVersions: [{ effectiveDate: base.effectiveDate, articles: base.articles }] };
 }

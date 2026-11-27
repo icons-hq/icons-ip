@@ -12,7 +12,7 @@ import {
   type LegalDocument,
 } from './documents';
 import { PRIVACY_ADDRESS_BOOK_REVISION, kstToday, koreanLegalDate } from './privacy-address-book-revision';
-import { CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE, KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE } from '../auth/contact-channels';
+import { CHINA_SMS_PRIVACY_EFFECTIVE_DATE, CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE, KAKAO_ALIMTALK_PRIVACY_EFFECTIVE_DATE } from '../auth/contact-channels';
 import { SOCIAL_LOGIN_LABELS } from './social-login';
 
 /* 연락처가 빈 사업자 정보로 만든 문서 셋 — 문의처 문장이 갈리는 두 갈래를 모두 검사한다. */
@@ -629,4 +629,16 @@ it('한국 시간 11월 26일부터 모든 19금 상품에 적용되는 해외 �
   expect(JSON.stringify(after.articles)).toContain('신분증 사진 한 장');
   expect(JSON.stringify(after.articles)).toContain('번호의 임시 처리에 별도로 동의');
   expect(after.pendingRevision).toBeUndefined();
+});
+
+it('중국 발송 경로의 시행일부터 수탁자와 현지 전달을 밝히고 앞선 두 판을 보존한다', () => {
+  const effective = new Date(CHINA_SMS_PRIVACY_EFFECTIVE_DATE + 'T00:00:00+09:00');
+  const before = getLegalDocument('privacy', undefined, new Date(effective.getTime() - 1))!;
+  const current = getLegalDocument('privacy', undefined, effective)!;
+  expect(plainText(before)).not.toContain('네이버클라우드 주식회사');
+  expect(current.effectiveDate).toBe(CHINA_SMS_PRIVACY_EFFECTIVE_DATE);
+  expect(article(current, '제5조 ').table!.rows).toContainEqual(['네이버클라우드 주식회사', '중국 본토 번호(+86) 휴대폰 인증문자 발송', '위탁계약 종료 시까지']);
+  expect(article(current, '제6조 ').closing!.join(' ')).toContain('중국 현지 이동통신사');
+  expect(current.previousVersion?.articles).toEqual(before.articles);
+  expect(current.olderVersions?.[0].articles).toEqual(LEGAL_DOCUMENTS.privacy.articles);
 });

@@ -1,11 +1,13 @@
 import 'server-only';
 
+import { CHINA_SMS_PRIVACY_EFFECTIVE_DATE, contactChannelsLegalGateOpen } from '@/lib/auth/contact-channels';
+import { chinaSensSenderFromEnvironment } from './naver-sens.server';
 import { createTwilioVerifySender, twilioVerifyConfigFromEnvironment } from './twilio-verify.server';
 
 /*
  * SMS 발송 seam(1014-005·006 인증번호, 1014-010 SMS 알림).
  *
- * 앱은 이 인터페이스에만 기대고, 발송사 구현은 `smsSenderFromEnvironment`의 ICONS_SMS_PROVIDER 값 하나에 연결한다.
+ * ICONS_SMS_PROVIDER가 기본 발송사를 정하고 ICONS_SMS_CN_PROVIDER로 중국 본토의 인증문자만 SENS에 연결할 수 있다.
  *   · 없음(null) — 기본. 발송을 시도하지 않고 기능을 닫는다(fail closed).
  *   · console — 로컬 개발·시험 전용. 문자 대신 서버 로그에 남긴다. Vercel(Preview·운영)에서는 만들지 않는다.
  *   · twilio_verify — Twilio Verify(2026-11-17). 인증번호 문자 전용이다 — 거래 안내·광고 문자는 보내지 않고 닫힌다
@@ -26,7 +28,7 @@ export interface SmsMessage {
 
 export type SmsSendResult =
   | { ok: true; providerMessageId: string | null }
-  | { ok: false; reason: 'rejected' | 'unavailable' };
+  | { ok: false; reason: 'rejected' | 'unavailable' | 'unknown' };
 
 export interface SmsSender {
   readonly provider: string;
@@ -56,13 +58,28 @@ export function createConsoleSmsSender(write: (line: string) => void = console.i
  * ICONS_SMS_PROVIDER로 발송 구현을 고른다. 값이 없거나 모르는 값이면 null(발송 없음)이다.
  * console은 Vercel 밖(로컬)에서만 만든다 — Preview·운영 로그에 인증번호가 남지 않게 한다.
  */
-export function smsSenderFromEnvironment(env: RuntimeEnvironment = process.env): SmsSender | null {
+export function smsSenderFromEnvironment(env: RuntimeEnvironment = process.env, now: Date = new Date()): SmsSender | null {
   const provider = env.ICONS_SMS_PROVIDER?.trim();
   if (!provider) return null;
   if (provider === 'console') return env.VERCEL || env.VERCEL_ENV ? null : createConsoleSmsSender();
   if (provider === 'twilio_verify') {
     const config = twilioVerifyConfigFromEnvironment(env);
-    return config ? createTwilioVerifySender(config) : null;
+    if (!config) return null;
+    const twilio = createTwilioVerifySender(config);
+    const chinaProvider = env.ICONS_SMS_CN_PROVIDER?.trim();
+    if (!chinaProvider || chinaProvider === 'twilio' || !contactChannelsLegalGateOpen(env, now, CHINA_SMS_PRIVACY_EFFECTIVE_DATE)) return twilio;
+    const sens = chinaProvider === 'sens' ? chinaSensSenderFromEnvironment(env) : null;
+    return {
+      provider: 'twilio_verify',
+      async send(message) {
+        if (!message.to.startsWith('+86')) return twilio.send(message);
+        return sens ? sens.send(message) : { ok: false, reason: 'unavailable' };
+      },
+      async confirmVerification(to) {
+        if (to.startsWith('+86')) return false;
+        return twilio.confirmVerification?.(to) ?? false;
+      },
+    };
   }
   return null;
 }

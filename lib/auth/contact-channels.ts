@@ -16,6 +16,9 @@ import { kstDay } from '@/lib/admin/kst';
  */
 export const CONTACT_CHANNELS_PRIVACY_EFFECTIVE_DATE: string | null = '2026-11-25';
 
+/** 중국 본토 인증문자에 네이버클라우드 SENS를 쓰는 방침의 시행일(KST). */
+export const CHINA_SMS_PRIVACY_EFFECTIVE_DATE = '2026-11-27';
+
 /**
  * SMS 알림(1014-010)·카카오톡 채널(1014-014)의 방침 시행일. 위 개정은 휴대폰 번호 인증(Twilio)과 이메일 변경만 고지한다 —
  * 080 수신거부·광고 문자 발송사와 카카오 채널 관계 정보는 아직 방침에 없으므로 운영에서는 닫혀 있다. 그 고지를 담는 개정의
