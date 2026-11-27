@@ -20,6 +20,12 @@ export interface OverseasQueueItem {
 }
 export type OverseasIntakeStatus = 'open' | 'policy_pending' | 'store_closed' | 'review_paused';
 
+export interface OverseasRequestStatus {
+  intakeStatus: OverseasIntakeStatus | 'domestic';
+  request: OverseasRequest | null;
+  checkedAt: string;
+}
+
 export type DocumentGender = 'M' | 'F' | 'X';
 export type DocumentIdentity = { name: string; gender: DocumentGender };
 
